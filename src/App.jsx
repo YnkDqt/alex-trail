@@ -588,7 +588,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
-function ProfilView({ race, setRace, segments, setSegments, settings, onExportPNG }) {
+function ProfilView({ race, setRace, segments, setSegments, settings }) {
   const [gpxError, setGpxError]       = useState(null);
   const [dragging, setDragging]       = useState(false);
   const [hoveredSeg, setHoveredSeg]   = useState(null);
@@ -605,6 +605,12 @@ function ProfilView({ race, setRace, segments, setSegments, settings, onExportPN
 
   const profile = useMemo(() => race.gpxPoints?.length ? buildElevationProfile(race.gpxPoints, 300) : [], [race.gpxPoints]);
   const totalTime = segments.reduce((s, seg) => s + ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600, 0);
+  const totalRavitoSec = (race.ravitos?.length || 0) * (settings.ravitoTimeMin || 3) * 60;
+  const nutriTotals = useMemo(() => segments.reduce((acc, seg) => {
+    const n = calcNutrition(seg, settings);
+    const durationH = (seg.endKm - seg.startKm) / seg.speedKmh;
+    return { kcal: acc.kcal + n.kcal, eau: acc.eau + Math.round(n.eauH * durationH), glucides: acc.glucides + Math.round(n.glucidesH * durationH), sel: acc.sel + Math.round(n.selH * durationH) };
+  }, { kcal: 0, eau: 0, glucides: 0, sel: 0 }), [segments, settings]);
 
   const highlightData = useMemo(() => {
     if (!profile.length) return profile;
@@ -682,9 +688,6 @@ function ProfilView({ race, setRace, segments, setSegments, settings, onExportPN
         <PageTitle sub={race.gpxPoints?.length ? `${race.totalDistance?.toFixed(1)} km chargés` : "Importe ton tracé GPX pour commencer"}>
           {race.name || "Profil de course"}
         </PageTitle>
-        {race.gpxPoints?.length > 0 && segments.length > 0 && (
-          <Btn variant="soft" size="sm" onClick={onExportPNG} style={{ marginTop: 4, flexShrink: 0 }}>Export PNG</Btn>
-        )}
       </div>
 
       {!race.gpxPoints?.length ? (
@@ -757,7 +760,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings, onExportPN
           {/* Infos course — bandeau discret */}
           <div style={{
             display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap",
-            padding: "9px 16px", marginBottom: 20,
+            padding: "9px 16px", marginBottom: segments.length ? 12 : 20,
             background: "var(--surface-2)", borderRadius: 10,
             border: "1px solid var(--border-c)", fontSize: 13, color: "var(--muted-c)",
           }}>
@@ -767,8 +770,27 @@ function ProfilView({ race, setRace, segments, setSegments, settings, onExportPN
             {settings.rain && <span>Pluie</span>}
             {settings.wind && <span>Vent</span>}
             {settings.heat && <span>Chaleur</span>}
-            <span style={{ marginLeft: "auto", fontSize: 12, color: C.primary }}>Modifier dans Paramètres →</span>
+            <span style={{ marginLeft: "auto", fontSize: 12, color: C.primary }}>Modifier dans Stratégie →</span>
           </div>
+
+          {/* Effort estimé — visible seulement si segments définis */}
+          {segments.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 20 }}>
+              {[
+                { label: "Temps course", value: fmtTime(totalTime), sub: "hors ravitos" },
+                { label: "Temps total", value: fmtTime(totalTime + totalRavitoSec), sub: `+${(race.ravitos?.length||0)} ravitos` },
+                { label: "Calories", value: `${nutriTotals.kcal} kcal`, sub: `${settings.kcalPerKm} kcal/km` },
+                { label: "Eau", value: `${(nutriTotals.eau/1000).toFixed(1)} L`, sub: "total estimé" },
+                { label: "Glucides", value: `${nutriTotals.glucides} g`, sub: "total estimé" },
+              ].map(item => (
+                <div key={item.label} style={{ background: "var(--surface-2)", borderRadius: 10, padding: "11px 14px", border: "1px solid var(--border-c)" }}>
+                  <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 3 }}>{item.label}</div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700 }}>{item.value}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>{item.sub}</div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Ravitos + Segments */}
           <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 20, marginBottom: 24, alignItems: "start" }}>
@@ -965,12 +987,6 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
   const totalRavitoSec = ravitoCount * (settings.ravitoTimeMin || 3) * 60;
   const totalWithRavitos = totalTime + totalRavitoSec;
 
-  const nutriTotals = segments.reduce((acc, seg) => {
-    const n = calcNutrition(seg, settings);
-    const durationH = (seg.endKm - seg.startKm) / seg.speedKmh;
-    return { kcal: acc.kcal + n.kcal, eau: acc.eau + Math.round(n.eauH * durationH), glucides: acc.glucides + Math.round(n.glucidesH * durationH), sel: acc.sel + Math.round(n.selH * durationH) };
-  }, { kcal: 0, eau: 0, glucides: 0, sel: 0 });
-
   const barData = segments.map((s, i) => ({ name: `S${i+1}`, vitesse: s.speedKmh, pente: s.slopePct }));
 
   const EFFORT_OPTIONS = [
@@ -1091,12 +1107,9 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
         <Empty icon="✂️" title="Aucun segment défini" sub="Génère les segments depuis ta stratégie, ou ajoute-en un manuellement." action={<Btn onClick={openNew}>+ Ajouter un segment</Btn>} />
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 20 }}>
-            <KPI label="Temps course" value={fmtTime(totalTime)} color={C.secondary} icon="⏱️" />
-            <KPI label="Temps total" value={fmtTime(totalWithRavitos)} icon="🏁" />
-            <KPI label="Calories" value={`${nutriTotals.kcal} kcal`} icon="🔥" />
-            <KPI label="Eau" value={`${(nutriTotals.eau/1000).toFixed(1)} L`} color={C.blue} icon="💧" />
-            <KPI label="Glucides" value={`${nutriTotals.glucides} g`} color={C.yellow} icon="🍌" />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 20 }}>
+            <KPI label="Temps course" value={fmtTime(totalTime)} color={C.secondary} icon="⏱️" sub="hors ravitos" />
+            <KPI label="Temps total" value={fmtTime(totalWithRavitos)} icon="🏁" sub={`+${ravitoCount} ravito${ravitoCount>1?"s":""}`} />
           </div>
 
           <Card noPad style={{ marginBottom: 20 }}>
@@ -1193,179 +1206,6 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
   );
 }
 
-// ─── EXPORT PNG (standalone) ─────────────────────────────────────────────────
-function doExportPNG(race, segments, settings) {
-  if (!segments.length) return;
-  const profile = race.gpxPoints?.length ? buildElevationProfile(race.gpxPoints, 80) : [];
-  const totalTime = segments.reduce((s, seg) => s + ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600, 0);
-  const nutriTotals = segments.reduce((acc, seg) => {
-    const n = calcNutrition(seg, settings);
-    const durationH = (seg.endKm - seg.startKm) / seg.speedKmh;
-    return { kcal: acc.kcal + n.kcal, eau: acc.eau + Math.round(n.eauH * durationH), glucides: acc.glucides + Math.round(n.glucidesH * durationH), sel: acc.sel + Math.round(n.selH * durationH) };
-  }, { kcal: 0, eau: 0, glucides: 0, sel: 0 });
-
-  const W = 1080, H = 1920;
-  const canvas = document.createElement("canvas");
-  canvas.width = W; canvas.height = H;
-  const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#14100C"; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = C.primaryLight; ctx.font = "bold 52px serif"; ctx.textAlign = "center";
-  ctx.fillText(settings.raceName || race.name || "Ma Course", W/2, 100);
-  ctx.fillStyle = "#9A8870"; ctx.font = "32px sans-serif";
-  ctx.fillText("Départ " + (settings.startTime || "07:00") + " — " + fmtTime(totalTime), W/2, 155);
-  if (profile.length) {
-    const minE = Math.min(...profile.map(p => p.ele));
-    const maxE = Math.max(...profile.map(p => p.ele));
-    const chartX = 60, chartY = 200, chartW = W - 120, chartH = 220;
-    ctx.strokeStyle = C.primary; ctx.lineWidth = 3; ctx.beginPath();
-    profile.forEach((pt, i) => {
-      const x = chartX + (pt.dist / profile[profile.length-1].dist) * chartW;
-      const y = chartY + chartH - ((pt.ele - minE) / (maxE - minE || 1)) * chartH;
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-    ctx.strokeStyle = "#30281A"; ctx.beginPath();
-    ctx.moveTo(chartX, chartY + chartH);
-    profile.forEach(pt => { const x = chartX + (pt.dist / profile[profile.length-1].dist) * chartW; ctx.lineTo(x, chartY + chartH); });
-    ctx.stroke();
-  }
-  ctx.fillStyle = "#F0EAE0"; ctx.font = "bold 28px sans-serif"; ctx.textAlign = "left";
-  ctx.fillText("SEG   DE        À    VITESSE   ALLURE", 60, 480);
-  ctx.fillStyle = "#9A8870"; ctx.font = "26px sans-serif";
-  segments.slice(0, 14).forEach((seg, i) => {
-    const y = 520 + i * 72;
-    ctx.fillStyle = i % 2 === 0 ? "#1E1810" : "transparent";
-    ctx.fillRect(50, y - 28, W - 100, 60);
-    ctx.fillStyle = "#F0EAE0";
-    ctx.fillText(String(i+1), 70, y+8);
-    ctx.fillText(seg.startKm + "km", 130, y+8);
-    ctx.fillText(seg.endKm + "km", 310, y+8);
-    ctx.fillStyle = seg.slopePct > 9 ? C.red : C.primaryLight;
-    ctx.fillText(seg.speedKmh + "km/h", 480, y+8);
-    ctx.fillStyle = "#F0EAE0";
-    ctx.fillText(fmtPace(seg.speedKmh) + "/km", 700, y+8);
-    ctx.fillStyle = seg.slopePct > 10 ? C.yellow : "#9A8870";
-    ctx.fillText(seg.slopePct > 10 ? "marche" : "course", 920, y+8);
-  });
-  const nutY = H - 280;
-  ctx.fillStyle = "#26201A"; ctx.fillRect(0, nutY - 30, W, 280);
-  ctx.fillStyle = C.primaryLight; ctx.font = "bold 32px serif"; ctx.textAlign = "center";
-  ctx.fillText("NUTRITION", W/2, nutY + 20);
-  ctx.fillStyle = "#F0EAE0"; ctx.font = "26px sans-serif";
-  ctx.fillText(nutriTotals.kcal + " kcal  " + (nutriTotals.eau/1000).toFixed(1) + "L  " + nutriTotals.glucides + "g  " + nutriTotals.sel + "mg sel", W/2, nutY + 72);
-  const wp = [settings.tempC + "C", settings.rain ? "Pluie" : "", settings.wind ? "Vent" : "", settings.heat ? "Chaleur" : ""].filter(Boolean).join(" | ");
-  ctx.fillStyle = "#9A8870"; ctx.font = "24px sans-serif";
-  ctx.fillText(wp, W/2, nutY + 120);
-  const link = document.createElement("a");
-  link.download = (settings.raceName || "course") + "-alex.png";
-  link.href = canvas.toDataURL("image/png");
-  link.click();
-}
-
-// ─── VUE ONE-PAGER ───────────────────────────────────────────────────────────
-function OnePagerView({ race, segments, settings }) {
-  const canvasRef = useRef();
-  const profile = useMemo(() => race.gpxPoints?.length ? buildElevationProfile(race.gpxPoints, 80) : [], [race.gpxPoints]);
-
-  const totalTime = segments.reduce((s, seg) => s + ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600, 0);
-  const nutriTotals = segments.reduce((acc, seg) => {
-    const n = calcNutrition(seg, settings);
-    const durationH = (seg.endKm - seg.startKm) / seg.speedKmh;
-    return { kcal: acc.kcal + n.kcal, eau: acc.eau + Math.round(n.eauH * durationH), glucides: acc.glucides + Math.round(n.glucidesH * durationH), sel: acc.sel + Math.round(n.selH * durationH) };
-  }, { kcal: 0, eau: 0, glucides: 0, sel: 0 });
-
-  const exportPNG = () => doExportPNG(race, segments, settings);
-
-  return (
-    <div className="anim">
-      <PageTitle sub="Aperçu du récapitulatif course — exportable en PNG fond d'écran">One-pager</PageTitle>
-
-      {!segments.length ? (
-        <Empty icon="📄" title="Aucun segment à afficher" sub="Définis d'abord ta stratégie dans l'onglet Préparation." />
-      ) : (
-        <>
-          <div style={{ display: "flex", gap: 10, marginBottom: 24 }}>
-            <Btn onClick={exportPNG}>📥 Export PNG (1080×1920)</Btn>
-          </div>
-
-          <div style={{
-            background: "#14100C", borderRadius: 20, padding: "28px 24px",
-            maxWidth: 420, margin: "0 auto", color: "#F0EAE0",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
-          }}>
-            <div style={{ textAlign: "center", borderBottom: "1px solid #302820", paddingBottom: 16, marginBottom: 16 }}>
-              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, color: C.primaryLight, fontWeight: 600 }}>
-                {settings.raceName || race.name || "Ma Course"}
-              </div>
-              <div style={{ color: "#9A8870", fontSize: 13, marginTop: 4 }}>
-                Départ {settings.startTime || "07:00"} — {fmtTime(totalTime)}
-              </div>
-            </div>
-
-            {profile.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <ResponsiveContainer width="100%" height={80}>
-                  <AreaChart data={profile} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                    <defs>
-                      <linearGradient id="darkGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={C.primary} stopOpacity={0.5} />
-                        <stop offset="95%" stopColor={C.primary} stopOpacity={0.05} />
-                      </linearGradient>
-                    </defs>
-                    <Area type="monotone" dataKey="ele" stroke={C.primaryLight} strokeWidth={1.5} fill="url(#darkGrad)" dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-
-            <table style={{ width: "100%", fontSize: 12, marginBottom: 16 }}>
-              <thead><tr>
-                {["#","Km","→","km/h","Allure","Pente"].map(h => (
-                  <th key={h} style={{ color: "#9A8870", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "left", padding: "4px 6px", background: "transparent", borderBottom: "1px solid #302820" }}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>{segments.map((seg, i) => (
-                <tr key={seg.id} style={{ borderBottom: "1px solid #26201A" }}>
-                  <td style={{ padding: "5px 6px", color: "#9A8870" }}>{i+1}</td>
-                  <td style={{ padding: "5px 6px" }}>{seg.startKm}</td>
-                  <td style={{ padding: "5px 6px" }}>{seg.endKm}</td>
-                  <td style={{ padding: "5px 6px", fontWeight: 600, color: seg.slopePct > 9 ? C.red : C.primaryLight }}>{seg.speedKmh}</td>
-                  <td style={{ padding: "5px 6px", fontFamily: "'Playfair Display', serif" }}>{fmtPace(seg.speedKmh)}</td>
-                  <td style={{ padding: "5px 6px" }}>
-                    <span style={{ color: seg.slopePct > 10 ? C.yellow : "#9A8870", fontSize: 11 }}>
-                      {seg.slopePct > 0 ? "+" : ""}{seg.slopePct}%{seg.slopePct > 10 ? " 🚶" : ""}
-                    </span>
-                  </td>
-                </tr>
-              ))}</tbody>
-            </table>
-
-            <div style={{ borderTop: "1px solid #302820", paddingTop: 12 }}>
-              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: C.primaryLight, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>Nutrition</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 12 }}>
-                {[
-                  { e: "🔥", l: "Calories", v: `${nutriTotals.kcal} kcal` },
-                  { e: "💧", l: "Eau", v: `${(nutriTotals.eau/1000).toFixed(1)} L` },
-                  { e: "🍌", l: "Glucides", v: `${nutriTotals.glucides} g` },
-                  { e: "🧂", l: "Sel", v: `${nutriTotals.sel} mg` },
-                ].map(item => (
-                  <div key={item.l} style={{ background: "#26201A", borderRadius: 8, padding: "8px 10px" }}>
-                    <div style={{ color: "#9A8870", fontSize: 10 }}>{item.e} {item.l}</div>
-                    <div style={{ fontWeight: 600, marginTop: 2 }}>{item.v}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ marginTop: 8, fontSize: 11, color: "#9A8870", textAlign: "center" }}>
-                {settings.tempC}°C {settings.rain ? "🌧️ " : ""}{settings.wind ? "💨 " : ""}{settings.heat ? "🌡️ chaleur" : ""}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 // ─── VUE PARAMÈTRES ──────────────────────────────────────────────────────────
 function ParamètresView({ settings, setSettings, race, setRace, segments }) {
   const garminRef = useRef();
@@ -1386,13 +1226,6 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
   const resetChecks = () => upd("equipment", equipment.map(i => ({ ...i, checked: false })));
 
   const checkedCount = equipment.filter(i => i.checked).length;
-
-  const totalTime = segments.reduce((s, seg) => s + ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600, 0);
-  const nutriTotals = segments.reduce((acc, seg) => {
-    const n = calcNutrition(seg, settings);
-    const durationH = (seg.endKm - seg.startKm) / seg.speedKmh;
-    return { kcal: acc.kcal + n.kcal, eau: acc.eau + Math.round(n.eauH * durationH), glucides: acc.glucides + Math.round(n.glucidesH * durationH) };
-  }, { kcal: 0, eau: 0, glucides: 0 });
 
   const handleGarmin = e => {
     const file = e.target.files[0];
@@ -1453,24 +1286,6 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
             </div>
           </Card>
 
-          {segments.length > 0 && (
-            <Card>
-              <div style={{ fontWeight: 600, marginBottom: 14 }}>Simulateur d'effort</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                {[
-                  { label: "Temps estimé", value: fmtTime(totalTime) },
-                  { label: "Calories", value: `${nutriTotals.kcal} kcal` },
-                  { label: "Eau", value: `${(nutriTotals.eau/1000).toFixed(1)} L` },
-                  { label: "Glucides", value: `${nutriTotals.glucides} g` },
-                ].map(item => (
-                  <div key={item.label} style={{ background: "var(--surface-2)", borderRadius: 10, padding: "10px 12px" }}>
-                    <div style={{ fontSize: 11, color: "var(--muted-c)" }}>{item.label}</div>
-                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 600, marginTop: 2 }}>{item.value}</div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
         </div>
 
         {/* Colonne droite : checklist équipement */}
@@ -1551,12 +1366,186 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
   );
 }
 
+
+// ─── VUE NUTRITION ───────────────────────────────────────────────────────────
+function NutritionView({ segments, settings, race }) {
+  const nutriTotals = segments.reduce((acc, seg) => {
+    const n = calcNutrition(seg, settings);
+    const durationH = (seg.endKm - seg.startKm) / seg.speedKmh;
+    return {
+      kcal: acc.kcal + n.kcal,
+      eau:  acc.eau  + Math.round(n.eauH  * durationH),
+      glucides: acc.glucides + Math.round(n.glucidesH * durationH),
+      sel:  acc.sel  + Math.round(n.selH  * durationH),
+    };
+  }, { kcal: 0, eau: 0, glucides: 0, sel: 0 });
+
+  const totalTime = segments.reduce((s, seg) => s + ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600, 0);
+  const totalDist = segments.length ? segments[segments.length - 1].endKm : 0;
+
+  // Nutrition par ravito (entre chaque ravitaillement)
+  const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km);
+  const zones = [];
+  const bornes = [0, ...ravitos.map(r => r.km), totalDist].filter((v, i, a) => v !== a[i-1]);
+  for (let i = 0; i < bornes.length - 1; i++) {
+    const from = bornes[i], to = bornes[i + 1];
+    const label = i === 0 ? "Départ" : (ravitos[i - 1]?.name || `Ravito ${i}`);
+    const toLbl = i === bornes.length - 2 ? "Arrivée" : (ravitos[i]?.name || `Ravito ${i + 1}`);
+    const segsInZone = segments.filter(s => s.startKm < to && s.endKm > from);
+    const zNutri = segsInZone.reduce((acc, seg) => {
+      const overlap = Math.min(seg.endKm, to) - Math.max(seg.startKm, from);
+      const ratio = overlap / (seg.endKm - seg.startKm || 1);
+      const n = calcNutrition(seg, settings);
+      const dH = (seg.endKm - seg.startKm) / seg.speedKmh * ratio;
+      return { kcal: acc.kcal + Math.round(n.kcalH * dH), eau: acc.eau + Math.round(n.eauH * dH), glucides: acc.glucides + Math.round(n.glucidesH * dH) };
+    }, { kcal: 0, eau: 0, glucides: 0 });
+    zones.push({ label, toLbl, from, to, ...zNutri });
+  }
+
+  // Données pour le graphique nutrition par segment
+  const barData = segments.map((s, i) => {
+    const n = calcNutrition(s, settings);
+    const dH = (s.endKm - s.startKm) / s.speedKmh;
+    return { name: `S${i+1}`, eau: Math.round(n.eauH * dH), glucides: Math.round(n.glucidesH * dH), kcal: Math.round(n.kcalH * dH) };
+  });
+
+  const isHot = settings.heat || settings.tempC > 25;
+  const waterPerHour = 500 + (settings.wind ? 100 : 0) + (isHot ? 150 : 0);
+
+  if (!segments.length) {
+    return (
+      <div className="anim">
+        <PageTitle sub="Besoins caloriques et hydriques estimés pour ta course">Nutrition</PageTitle>
+        <Empty icon="🍌" title="Aucun segment défini" sub="Définis des segments dans Stratégie de course pour calculer tes besoins nutritionnels." />
+      </div>
+    );
+  }
+
+  return (
+    <div className="anim">
+      <PageTitle sub="Besoins caloriques et hydriques estimés pour ta course">Nutrition</PageTitle>
+
+      {/* KPIs totaux */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 24 }}>
+        <KPI label="Calories totales" value={`${nutriTotals.kcal} kcal`} icon="🔥" color={C.red} sub={`${Math.round(nutriTotals.kcal / (totalDist || 1))} kcal/km`} />
+        <KPI label="Eau totale" value={`${(nutriTotals.eau / 1000).toFixed(1)} L`} icon="💧" color={C.blue} sub={`${waterPerHour} mL/h visé`} />
+        <KPI label="Glucides" value={`${nutriTotals.glucides} g`} icon="🍌" color={C.yellow} sub={`${Math.round(nutriTotals.glucides / (totalTime / 3600 || 1))} g/h`} />
+        <KPI label="Sel" value={`${nutriTotals.sel} mg`} icon="🧂" color={C.green} sub="sodium estimé" />
+      </div>
+
+      {/* Alerte chaleur */}
+      {isHot && (
+        <div style={{ background: C.yellowPale, border: `1px solid ${C.yellow}40`, borderRadius: 12, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: C.yellow }}>
+          Forte chaleur détectée — besoins en eau augmentés. Anticipe les ravitos et bois avant d'avoir soif.
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+
+        {/* Graphique eau + glucides par segment */}
+        <Card noPad>
+          <div style={{ padding: "16px 20px 0", fontWeight: 600 }}>Eau & glucides par segment</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={barData} margin={{ top: 10, right: 16, bottom: 4, left: 0 }}>
+              <XAxis dataKey="name" tick={{ fontSize: 11, fill: C.muted }} />
+              <YAxis tick={{ fontSize: 11, fill: C.muted }} />
+              <RTooltip content={<CustomTooltip />} />
+              <Bar dataKey="eau" name="Eau (mL)" fill={C.blue} radius={[3,3,0,0]} />
+              <Bar dataKey="glucides" name="Glucides (g)" fill={C.yellow} radius={[3,3,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+
+        {/* Recommandations pratiques */}
+        <Card>
+          <div style={{ fontWeight: 600, marginBottom: 14 }}>Recommandations</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {[
+              {
+                label: "Fréquence d'hydratation",
+                val: "Toutes les 15–20 min",
+                detail: `${Math.round(waterPerHour / 4)} mL par prise`,
+                color: C.blue,
+              },
+              {
+                label: "Apport glucidique",
+                val: `${Math.round(nutriTotals.glucides / (totalTime / 3600 || 1))} g/h`,
+                detail: totalTime / 3600 > 4 ? "Mix sucré + salé après 3h" : "Sucré seul suffisant",
+                color: C.yellow,
+              },
+              {
+                label: "Sel & électrolytes",
+                val: totalTime > 14400 ? "Indispensable" : "Recommandé",
+                detail: totalTime > 14400 ? "Pastilles ou boisson isotonique" : "Pâtes de fruits salées",
+                color: C.green,
+              },
+              {
+                label: "Caféine",
+                val: totalTime > 18000 ? "Envisager" : "Optionnel",
+                detail: totalTime > 18000 ? "Gel caféiné après km " + Math.round(totalDist * 0.6) : "Cola aux ravitos",
+                color: C.primary,
+              },
+            ].map(r => (
+              <div key={r.label} style={{ padding: "10px 12px", background: "var(--surface-2)", borderRadius: 10, borderLeft: `3px solid ${r.color}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                  <span style={{ fontSize: 12, color: "var(--muted-c)" }}>{r.label}</span>
+                  <span style={{ fontWeight: 600, fontSize: 13, color: r.color }}>{r.val}</span>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 2 }}>{r.detail}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      {/* Plan par zone / ravito */}
+      <Card noPad>
+        <div style={{ padding: "16px 20px 12px", fontWeight: 600 }}>
+          Plan par tronçon {ravitos.length > 0 ? `(${ravitos.length} ravito${ravitos.length > 1 ? "s" : ""})` : ""}
+        </div>
+        <div className="tbl-wrap">
+          <table>
+            <thead><tr>
+              <th>De</th><th>Vers</th><th>Distance</th><th>Eau</th><th>Glucides</th><th>Calories</th>
+            </tr></thead>
+            <tbody>
+              {zones.map((z, i) => (
+                <tr key={i}>
+                  <td style={{ fontWeight: 600 }}>{z.label}</td>
+                  <td style={{ color: "var(--muted-c)" }}>{z.toLbl}</td>
+                  <td>{(z.to - z.from).toFixed(1)} km</td>
+                  <td>
+                    <span style={{ fontWeight: 600, color: C.blue }}>
+                      {z.eau >= 1000 ? `${(z.eau/1000).toFixed(1)} L` : `${z.eau} mL`}
+                    </span>
+                  </td>
+                  <td>
+                    <span style={{ fontWeight: 600, color: C.yellow }}>{z.glucides} g</span>
+                  </td>
+                  <td style={{ color: "var(--muted-c)" }}>{z.kcal} kcal</td>
+                </tr>
+              ))}
+              <tr style={{ borderTop: `2px solid var(--border-c)`, fontWeight: 600 }}>
+                <td colSpan={3}>Total</td>
+                <td style={{ color: C.blue }}>{nutriTotals.eau >= 1000 ? `${(nutriTotals.eau/1000).toFixed(1)} L` : `${nutriTotals.eau} mL`}</td>
+                <td style={{ color: C.yellow }}>{nutriTotals.glucides} g</td>
+                <td style={{ color: "var(--muted-c)" }}>{nutriTotals.kcal} kcal</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+
 // ─── NAVIGATION ───────────────────────────────────────────────────────────────
 const NAVS = [
   { id: "profil",      label: "Profil de course",    icon: "🗺️" },
   { id: "preparation", label: "Stratégie de course",  icon: "🎯" },
-  { id: "onepager",   label: "One-pager",             icon: "📄" },
-  { id: "parametres", label: "Paramètres du coureur", icon: "⚙️" },
+  { id: "nutrition",   label: "Nutrition",            icon: "🍌" },
+  { id: "parametres",  label: "Paramètres du coureur", icon: "⚙️" },
 ];
 
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
@@ -1728,10 +1717,10 @@ export default function App() {
           flex: 1, overflowY: "auto",
           padding: isMobile ? "76px 16px 32px" : "44px 52px",
         }}>
-          {view === "profil" && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} onExportPNG={() => doExportPNG(race, segments, settings)} />}
+          {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} />}
           {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} />}
-          {view === "onepager" && <OnePagerView race={race} segments={segments} settings={settings} />}
-          {view === "parametres" && <ParamètresView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} />}
+          {view === "nutrition"   && <NutritionView segments={segments} settings={settings} race={race} />}
+          {view === "parametres"  && <ParamètresView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} />}
         </main>
       </div>
     </>
