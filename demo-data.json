@@ -1,0 +1,46 @@
+{
+  "race": {
+    "name": "Trail des Crêtes",
+    "totalDistance": 42.3,
+    "totalElevPos": 2450,
+    "totalElevNeg": 2390,
+    "gpxPoints": null,
+    "ravitos": [
+      { "id": 1, "km": 8.5, "name": "Ravito Col du Blé" },
+      { "id": 2, "km": 18.2, "name": "Ravito Chalet" },
+      { "id": 3, "km": 29.0, "name": "Ravito La Combe" },
+      { "id": 4, "km": 37.5, "name": "Ravito Final" }
+    ]
+  },
+  "segments": [
+    { "id": 1, "startKm": 0, "endKm": 4.5, "slopePct": 3, "speedKmh": 8.5, "notes": "Départ progressif, gérer l'enthousiasme" },
+    { "id": 2, "startKm": 4.5, "endKm": 8.5, "slopePct": 12, "speedKmh": 5.0, "notes": "Montée Col du Blé — marche imposée" },
+    { "id": 3, "startKm": 8.5, "endKm": 13.0, "slopePct": -7, "speedKmh": 10.5, "notes": "Belle descente technique — attention chevrilles" },
+    { "id": 4, "startKm": 13.0, "endKm": 18.2, "slopePct": 5, "speedKmh": 7.5, "notes": "Montée douce, garder le rythme" },
+    { "id": 5, "startKm": 18.2, "endKm": 22.0, "slopePct": -14, "speedKmh": 7.5, "notes": "Descente raide post chalet — ménage les cuisses" },
+    { "id": 6, "startKm": 22.0, "endKm": 26.5, "slopePct": 8, "speedKmh": 6.0, "notes": "Milieu de course, lucidité sur la nutrition" },
+    { "id": 7, "startKm": 26.5, "endKm": 29.0, "slopePct": 16, "speedKmh": 4.5, "notes": "Sommet — marche absolue, respirer" },
+    { "id": 8, "startKm": 29.0, "endKm": 34.0, "slopePct": -5, "speedKmh": 9.0, "notes": "Relancer progressivement" },
+    { "id": 9, "startKm": 34.0, "endKm": 37.5, "slopePct": 2, "speedKmh": 8.5, "notes": "Plat relatif — dernier ravito, accélérer" },
+    { "id": 10, "startKm": 37.5, "endKm": 42.3, "slopePct": -3, "speedKmh": 9.5, "notes": "Finish — tout donner" }
+  ],
+  "settings": {
+    "name": "Alex",
+    "weight": 72,
+    "kcalPerKm": 68,
+    "raceName": "Trail des Crêtes",
+    "startTime": "07:30",
+    "tempC": 18,
+    "rain": false,
+    "wind": true,
+    "heat": false,
+    "darkMode": false,
+    "garminCoeff": 0.97,
+    "garminStats": {
+      "count": 23,
+      "avgGapKmh": 9.2,
+      "coeff": 0.97,
+      "lastDate": "12/03/2026"
+    }
+  }
+}
