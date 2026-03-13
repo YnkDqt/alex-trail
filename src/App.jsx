@@ -123,7 +123,8 @@ function calcSlopeFromGPX(points, startKm, endKm) {
 function autoSegmentGPX(points, coeff = 1) {
   if (points.length < 10) return [];
   const total = points[points.length - 1].dist;
-  const WALK_UP_THRESHOLD = 9, WALK_DOWN_THRESHOLD = -12;
+
+  // Pente lissée sur une fenêtre centrée sur `dist`
   const slopeAt = (dist, window) => {
     const pts = points.filter(p => Math.abs(p.dist - dist) <= window / 2);
     if (pts.length < 2) return 0;
@@ -131,29 +132,42 @@ function autoSegmentGPX(points, coeff = 1) {
     const dDist = (pts[pts.length-1].dist - pts[0].dist) * 1000;
     return dDist > 0 ? (dEle / dDist) * 100 : 0;
   };
-  const maxUpSlope = (start, end) => {
-    let best = 0;
-    for (let d = start; d <= end - 0.15; d = +(d+0.1).toFixed(2))
-      best = Math.max(best, slopeAt(d+0.125, 0.25));
-    return best;
+
+  // Proportion de points >threshold dans une fenêtre de 400m autour de dist
+  const pctAbove = (dist, threshold, window = 0.4) => {
+    const step = 0.05;
+    let total = 0, above = 0;
+    for (let d = dist - window/2; d <= dist + window/2; d = +(d + step).toFixed(3)) {
+      const s = slopeAt(d, 0.15);
+      above += s > threshold ? 1 : 0;
+      total++;
+    }
+    return total > 0 ? above / total : 0;
   };
-  const maxDownSlope = (start, end) => {
-    let best = 0;
-    for (let d = start; d <= end - 0.15; d = +(d+0.1).toFixed(2))
-      best = Math.min(best, slopeAt(d+0.125, 0.25));
-    return best;
-  };
-  const classify = (sf, ss) => {
+
+  // Classification d'un point : walk_up si pente soutenue (lissée OU proportion)
+  // Seuil abaissé à 7% (vs 9% avant) — calibré sur les courses réelles
+  const WALK_UP_THRESHOLD   = 7;
+  const WALK_DOWN_THRESHOLD = -12;
+  const PCT_THRESHOLD       = 0.40; // 40% des points >7% dans la fenêtre → walk
+
+  const classify = (sf, ss, dist) => {
+    // Montée : pente lissée 200m > seuil OU pente lissée 500m > seuil OU proportion soutenue
     if (sf >= WALK_UP_THRESHOLD) return "walk_up";
     if (ss >= WALK_UP_THRESHOLD && sf > -3) return "walk_up";
+    if (sf >= 5 && pctAbove(dist, WALK_UP_THRESHOLD) >= PCT_THRESHOLD) return "walk_up";
+    // Descente raide
     if (sf <= WALK_DOWN_THRESHOLD) return "walk_down";
     return "run";
   };
+
+  // PASSE 1 — échantillonnage fin (pas 150m)
   const samples = [];
-  for (let d = 0; d <= total + 0.05; d = +(d+0.15).toFixed(2)) {
+  for (let d = 0; d <= total + 0.05; d = +(d + 0.15).toFixed(2)) {
     const dd = Math.min(+d.toFixed(2), +total.toFixed(2));
-    samples.push({ dist: dd, regime: classify(slopeAt(dd, 0.2), slopeAt(dd, 0.5)) });
+    samples.push({ dist: dd, regime: classify(slopeAt(dd, 0.2), slopeAt(dd, 0.5), dd) });
   }
+
   const groupSamples = (smps, minWalk, minRun) => {
     const raw = [];
     let cur = { start: smps[0].dist, regime: smps[0].regime };
@@ -169,6 +183,7 @@ function autoSegmentGPX(points, coeff = 1) {
     raw.push({ start: cur.start, end: +total.toFixed(1), regime: cur.regime });
     return raw;
   };
+
   const mergeMicro = (segs, minSize) => {
     const out = [];
     for (const seg of segs) {
@@ -180,7 +195,21 @@ function autoSegmentGPX(points, coeff = 1) {
     }
     return out;
   };
+
+  // Proportion de points >threshold sur un segment entier
+  const pctAboveSegment = (start, end, threshold) => {
+    const step = 0.1;
+    let total = 0, above = 0;
+    for (let d = start; d <= end; d = +(d + step).toFixed(2)) {
+      if (slopeAt(d, 0.15) > threshold) above++;
+      total++;
+    }
+    return total > 0 ? above / total : 0;
+  };
+
   let segs = groupSamples(samples, 0.3, 0.5);
+
+  // PASSE 2 — fusion walk + run_court + walk
   let changed = true;
   while (changed) {
     changed = false;
@@ -195,16 +224,33 @@ function autoSegmentGPX(points, coeff = 1) {
     }
     segs = out;
   }
+
   segs = mergeMicro(segs, 0.4);
+
+  // PASSE 3 — validation par proportion
+  // Un segment classé walk_up est reclassé run si moins de 25% de ses points
+  // dépassent le seuil (= pic isolé, pas une montée soutenue)
   const validated = [];
   for (const seg of segs) {
     let fs = seg;
-    if (seg.regime === "walk_up" && maxUpSlope(seg.start, seg.end) < 7) fs = { ...seg, regime: "run" };
-    else if (seg.regime === "walk_down" && maxDownSlope(seg.start, seg.end) > -7) fs = { ...seg, regime: "run" };
+    if (seg.regime === "walk_up") {
+      const pct = pctAboveSegment(seg.start, seg.end, WALK_UP_THRESHOLD);
+      if (pct < 0.25) fs = { ...seg, regime: "run" };
+    } else if (seg.regime === "walk_down") {
+      // Symétrique : vérifier proportion de points < seuil descente
+      const step = 0.1;
+      let tot = 0, below = 0;
+      for (let d = seg.start; d <= seg.end; d = +(d + step).toFixed(2)) {
+        if (slopeAt(d, 0.15) < WALK_DOWN_THRESHOLD) below++;
+        tot++;
+      }
+      if (tot > 0 && below / tot < 0.25) fs = { ...seg, regime: "run" };
+    }
     if (validated.length > 0 && validated[validated.length-1].regime === fs.regime)
       validated[validated.length-1].end = fs.end;
     else validated.push({ ...fs });
   }
+
   return validated.map((seg, i) => {
     const realSlope = calcSlopeFromGPX(points, seg.start, seg.end);
     return { id: Date.now()+i, startKm: +seg.start.toFixed(1), endKm: +seg.end.toFixed(1), slopePct: realSlope, speedKmh: suggestSpeed(realSlope, coeff), notes: "" };
