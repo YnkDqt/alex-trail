@@ -37,6 +37,9 @@ const EMPTY_SETTINGS = {
   tempC: 15, rain: false, wind: false, heat: false,
   darkMode: false,
   garminCoeff: 1, garminStats: null,
+  effortTarget: "normal",   // "comfort" | "normal" | "perf"
+  paceStrategy: 0,          // -2 (partir vite) → +2 (partir lentement / négatif)
+  ravitoTimeMin: 3,         // minutes passées à chaque ravito
 };
 
 // ─── ALGOS TRAIL ─────────────────────────────────────────────────────────────
@@ -120,7 +123,7 @@ function calcSlopeFromGPX(points, startKm, endKm) {
   const dDist = (endKm - startKm) * 1000;
   return dDist === 0 ? 0 : Math.round((dEle / dDist) * 100);
 }
-function autoSegmentGPX(points, coeff = 1) {
+function autoSegmentGPX(points, coeff = 1, settings = {}) {
   if (points.length < 10) return [];
   const total = points[points.length - 1].dist;
 
@@ -239,9 +242,18 @@ function autoSegmentGPX(points, coeff = 1) {
     else validated.push({ ...fs });
   }
 
+  const effortMult = settings.effortTarget === "perf" ? 1.08 : settings.effortTarget === "comfort" ? 0.88 : 1.0;
+  const totalSegs = validated.length || 1;
+
   return validated.map((seg, i) => {
     const realSlope = calcSlopeFromGPX(points, seg.start, seg.end);
-    return { id: Date.now()+i, startKm: +seg.start.toFixed(1), endKm: +seg.end.toFixed(1), slopePct: realSlope, speedKmh: suggestSpeed(realSlope, coeff), notes: "" };
+    // paceStrategy: -2=partir vite (accélérer en fin), +2=partir lentement (négatif split)
+    // progress 0→1 sur la course, coeff de départ/arrivée
+    const progress = i / (totalSegs - 1 || 1);
+    const paceStrat = settings.paceStrategy || 0;
+    const paceCoeff = 1 + (paceStrat / 2) * (progress - 0.5) * 0.3;
+    const finalSpeed = +(suggestSpeed(realSlope, coeff) * effortMult * paceCoeff).toFixed(1);
+    return { id: Date.now()+i, startKm: +seg.start.toFixed(1), endKm: +seg.end.toFixed(1), slopePct: realSlope, speedKmh: Math.max(2, finalSpeed), notes: "" };
   });
 }
 function parseGarminCSV(text) {
@@ -632,7 +644,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings, onExportPN
   const autoSegment = () => {
     if (!race.gpxPoints?.length) return;
     setComputing(true);
-    setTimeout(() => { setSegments(autoSegmentGPX(race.gpxPoints, settings.garminCoeff)); setComputing(false); }, 50);
+    setTimeout(() => { setSegments(autoSegmentGPX(race.gpxPoints, settings.garminCoeff, settings)); setComputing(false); }, 50);
   };
 
   const minEle = profile.length ? Math.min(...profile.map(p => p.ele)) - 20 : 0;
@@ -881,8 +893,8 @@ function ProfilView({ race, setRace, segments, setSegments, settings, onExportPN
   );
 }
 
-// ─── VUE PRÉPARATION ─────────────────────────────────────────────────────────
-function PreparationView({ race, segments, setSegments, settings }) {
+// ─── VUE STRATÉGIE DE COURSE ─────────────────────────────────────────────────
+function StrategieView({ race, segments, setSegments, settings, setSettings }) {
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
@@ -890,9 +902,10 @@ function PreparationView({ race, segments, setSegments, settings }) {
   const emptyForm = { startKm: "", endKm: "", slopePct: 0, speedKmh: 9.5, notes: "" };
   const [form, setForm] = useState(emptyForm);
 
-  const openNew = () => { setEditId(null); setForm(emptyForm); setModal(true); };
-  const openEdit = seg => { setEditId(seg.id); setForm(seg); setModal(true); };
-  const upd = (key, val) => {
+  const updS = (k, v) => setSettings(s => ({ ...s, [k]: v }));
+  const openNew  = ()  => { setEditId(null);   setForm(emptyForm); setModal(true); };
+  const openEdit = seg => { setEditId(seg.id); setForm(seg);       setModal(true); };
+  const updForm = (key, val) => {
     setForm(f => {
       const nf = { ...f, [key]: val };
       if (key === "startKm" || key === "endKm") {
@@ -900,7 +913,7 @@ function PreparationView({ race, segments, setSegments, settings }) {
         nf.slopePct = slope;
         nf.speedKmh = suggestSpeed(slope, settings.garminCoeff);
       }
-      if (key === "slopePct") { nf.speedKmh = suggestSpeed(val, settings.garminCoeff); }
+      if (key === "slopePct") nf.speedKmh = suggestSpeed(val, settings.garminCoeff);
       return nf;
     });
   };
@@ -908,69 +921,161 @@ function PreparationView({ race, segments, setSegments, settings }) {
     const seg = { ...form, startKm: parseFloat(form.startKm)||0, endKm: parseFloat(form.endKm)||0 };
     if (seg.endKm <= seg.startKm) return;
     if (editId) setSegments(s => s.map(x => x.id === editId ? { ...seg, id: editId } : x));
-    else setSegments(s => [...s, { ...seg, id: Date.now() }]);
+    else setSegments(s => [...s, { ...seg, id: Date.now() }].sort((a,b) => a.startKm - b.startKm));
     setModal(false);
   };
-
   const autoSegment = () => {
     if (!race.gpxPoints?.length) return;
     setComputing(true);
     setTimeout(() => {
-      const segs = autoSegmentGPX(race.gpxPoints, settings.garminCoeff);
-      setSegments(segs);
+      setSegments(autoSegmentGPX(race.gpxPoints, settings.garminCoeff, settings));
       setComputing(false);
     }, 50);
   };
 
   const totalTime = segments.reduce((s, seg) => s + ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600, 0);
+  const ravitoCount = race.ravitos?.length || 0;
+  const totalRavitoSec = ravitoCount * (settings.ravitoTimeMin || 3) * 60;
+  const totalWithRavitos = totalTime + totalRavitoSec;
+
   const nutriTotals = segments.reduce((acc, seg) => {
     const n = calcNutrition(seg, settings);
-    const dist = seg.endKm - seg.startKm;
-    const durationH = dist / seg.speedKmh;
-    return {
-      kcal: acc.kcal + n.kcal,
-      eau: acc.eau + Math.round(n.eauH * durationH),
-      glucides: acc.glucides + Math.round(n.glucidesH * durationH),
-      sel: acc.sel + Math.round(n.selH * durationH),
-    };
+    const durationH = (seg.endKm - seg.startKm) / seg.speedKmh;
+    return { kcal: acc.kcal + n.kcal, eau: acc.eau + Math.round(n.eauH * durationH), glucides: acc.glucides + Math.round(n.glucidesH * durationH), sel: acc.sel + Math.round(n.selH * durationH) };
   }, { kcal: 0, eau: 0, glucides: 0, sel: 0 });
 
   const barData = segments.map((s, i) => ({ name: `S${i+1}`, vitesse: s.speedKmh, pente: s.slopePct }));
 
+  const EFFORT_OPTIONS = [
+    { key: "comfort", label: "Finisher", desc: "Terminer sans se cramer — vitesses -12%", color: C.green },
+    { key: "normal",  label: "Course normale", desc: "Equilibre selon ton profil Garmin", color: C.primary },
+    { key: "perf",    label: "Chrono", desc: "Aller chercher le temps — vitesses +8%", color: C.red },
+  ];
+  const PACE_LABELS = ["Partir très vite", "Partir vite", "Régulier", "Partir lentement", "Très négatif"];
+
+  const paceIdx = (settings.paceStrategy || 0) + 2;
+
   return (
     <div className="anim">
-      <PageTitle sub={`${segments.length} segment${segments.length > 1 ? "s" : ""} — temps total estimé ${fmtTime(totalTime)}`}>Préparation</PageTitle>
+      <PageTitle sub={segments.length ? `${segments.length} segments — ${fmtTime(totalWithRavitos)} avec ravitos` : "Définis ta stratégie et génère tes segments"}>
+        Stratégie de course
+      </PageTitle>
 
       {!race.gpxPoints?.length && (
         <div style={{ background: C.yellowPale, border: `1px solid ${C.yellow}40`, borderRadius: 12, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: C.yellow }}>
-          ⚠️ Charge d'abord un fichier GPX dans l'onglet Profil pour utiliser le découpage automatique et le calcul de pente.
+          Charge d'abord un fichier GPX dans l'onglet Profil pour le découpage automatique.
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 10, marginBottom: 24, flexWrap: "wrap" }}>
-        <Btn onClick={openNew}>+ Ajouter un segment</Btn>
-        {race.gpxPoints?.length > 0 && (
-          <Btn variant="sage" onClick={autoSegment} disabled={computing}>
-            {computing ? "⏳ Calcul…" : "⚡ Découpage auto"}
-          </Btn>
-        )}
+      {/* ── BLOCS STRATÉGIE ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 28 }}>
+
+        {/* Course + Météo */}
+        <Card>
+          <div style={{ fontWeight: 600, marginBottom: 14 }}>Course</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Field label="Nom de la course">
+              <input value={settings.raceName || race.name || ""} onChange={e => updS("raceName", e.target.value)} placeholder="Ex : UTMB, TDS..." />
+            </Field>
+            <Field label="Heure de départ">
+              <input type="time" value={settings.startTime || "07:00"} onChange={e => updS("startTime", e.target.value)} />
+            </Field>
+            <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12, marginTop: 2 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Météo</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <SliderField label="Température" value={settings.tempC} min={-10} max={45} unit="°C" onChange={v => updS("tempC", v)} />
+                <Toggle label="Pluie" checked={settings.rain} onChange={v => updS("rain", v)} />
+                <Toggle label="Vent fort" checked={settings.wind} onChange={v => updS("wind", v)} />
+                <Toggle label="Forte chaleur (> 25°C)" checked={settings.heat} onChange={v => updS("heat", v)} />
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Objectif */}
+        <Card>
+          <div style={{ fontWeight: 600, marginBottom: 14 }}>Objectif</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {EFFORT_OPTIONS.map(opt => (
+              <div key={opt.key} onClick={() => updS("effortTarget", opt.key)} style={{
+                padding: "12px 14px", borderRadius: 12, cursor: "pointer",
+                border: `2px solid ${settings.effortTarget === opt.key ? opt.color : "var(--border-c)"}`,
+                background: settings.effortTarget === opt.key ? opt.color + "18" : "var(--surface-2)",
+                transition: "all 0.15s",
+              }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: settings.effortTarget === opt.key ? opt.color : "var(--text-c)" }}>
+                  {opt.label}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 3 }}>{opt.desc}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* Gestion effort */}
+        <Card>
+          <div style={{ fontWeight: 600, marginBottom: 14 }}>Gestion de l'effort</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Répartition du rythme</span>
+                <span style={{ fontSize: 12, color: C.primary, fontWeight: 600 }}>{PACE_LABELS[paceIdx]}</span>
+              </div>
+              <input type="range" min={-2} max={2} step={1} value={settings.paceStrategy || 0} onChange={e => updS("paceStrategy", Number(e.target.value))} style={{ width: "100%" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>
+                <span>Partir vite</span><span>Partir lentement</span>
+              </div>
+              <div style={{ marginTop: 8, padding: "8px 12px", background: "var(--surface-2)", borderRadius: 9, fontSize: 12, color: "var(--muted-c)", lineHeight: 1.5 }}>
+                {(settings.paceStrategy || 0) < 0 && "Vitesses plus élevées au départ, tu ralentis progressivement."}
+                {(settings.paceStrategy || 0) === 0 && "Allure régulière tout au long de la course."}
+                {(settings.paceStrategy || 0) > 0 && "Tu pars conservateur et tu accélères sur la fin — split négatif."}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Temps aux ravitos</span>
+                <span style={{ fontSize: 12, color: C.primary, fontWeight: 600 }}>{settings.ravitoTimeMin || 3} min</span>
+              </div>
+              <input type="range" min={1} max={20} step={1} value={settings.ravitoTimeMin || 3} onChange={e => updS("ravitoTimeMin", Number(e.target.value))} style={{ width: "100%" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>
+                <span>1 min</span><span>20 min</span>
+              </div>
+              {ravitoCount > 0 && (
+                <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-c)" }}>
+                  {ravitoCount} ravito{ravitoCount > 1 ? "s" : ""} × {settings.ravitoTimeMin || 3} min = <strong style={{ color: "var(--text-c)" }}>{fmtTime(totalRavitoSec)}</strong> ajoutées
+                </div>
+              )}
+            </div>
+
+            <Btn onClick={autoSegment} disabled={computing || !race.gpxPoints?.length} style={{ width: "100%", justifyContent: "center" }}>
+              {computing ? "Calcul en cours..." : "Générer les segments"}
+            </Btn>
+            <p style={{ fontSize: 11, color: "var(--muted-c)", marginTop: -8, textAlign: "center" }}>
+              Applique objectif + rythme + météo aux vitesses suggérées
+            </p>
+          </div>
+        </Card>
       </div>
 
+      {/* ── RÉSULTATS ── */}
       {!segments.length ? (
-        <Empty icon="✂️" title="Aucun segment défini" sub="Ajoute des segments manuellement ou utilise le découpage automatique depuis un GPX." action={<Btn onClick={openNew}>+ Ajouter un segment</Btn>} />
+        <Empty icon="✂️" title="Aucun segment défini" sub="Génère les segments depuis ta stratégie, ou ajoute-en un manuellement." action={<Btn onClick={openNew}>+ Ajouter un segment</Btn>} />
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 20 }}>
+            <KPI label="Temps course" value={fmtTime(totalTime)} color={C.secondary} icon="⏱️" />
+            <KPI label="Temps total" value={fmtTime(totalWithRavitos)} icon="🏁" />
             <KPI label="Calories" value={`${nutriTotals.kcal} kcal`} icon="🔥" />
-            <KPI label="Eau totale" value={`${(nutriTotals.eau/1000).toFixed(1)} L`} color={C.blue} icon="💧" />
+            <KPI label="Eau" value={`${(nutriTotals.eau/1000).toFixed(1)} L`} color={C.blue} icon="💧" />
             <KPI label="Glucides" value={`${nutriTotals.glucides} g`} color={C.yellow} icon="🍌" />
-            <KPI label="Sel" value={`${nutriTotals.sel} mg`} color={C.green} icon="🧂" />
           </div>
 
-          <Card noPad style={{ marginBottom: 24 }}>
-            <div style={{ padding: "18px 20px 0", fontWeight: 600 }}>Vitesses par segment</div>
-            <ResponsiveContainer width="100%" height={160}>
-              <BarChart data={barData} margin={{ top: 10, right: 20, bottom: 5, left: 10 }}>
+          <Card noPad style={{ marginBottom: 20 }}>
+            <div style={{ padding: "14px 20px 0", fontWeight: 600 }}>Vitesses par segment</div>
+            <ResponsiveContainer width="100%" height={140}>
+              <BarChart data={barData} margin={{ top: 8, right: 20, bottom: 4, left: 10 }}>
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: C.muted }} />
                 <YAxis tick={{ fontSize: 11, fill: C.muted }} />
                 <RTooltip content={<CustomTooltip />} />
@@ -983,9 +1088,10 @@ function PreparationView({ race, segments, setSegments, settings }) {
             </ResponsiveContainer>
           </Card>
 
-          <Card noPad style={{ marginBottom: 24 }}>
-            <div style={{ padding: "18px 20px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Card noPad>
+            <div style={{ padding: "14px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 600 }}>Segments</span>
+              <Btn size="sm" onClick={openNew}>+ Segment</Btn>
             </div>
             <div className="tbl-wrap">
               <table>
@@ -994,10 +1100,10 @@ function PreparationView({ race, segments, setSegments, settings }) {
                 </tr></thead>
                 <tbody>{segments.map((seg, i) => {
                   const dist = seg.endKm - seg.startKm;
-                  const dur = fmtTime((dist / seg.speedKmh) * 3600);
-                  const n = calcNutrition(seg, settings);
+                  const dur  = fmtTime((dist / seg.speedKmh) * 3600);
+                  const n    = calcNutrition(seg, settings);
                   return (
-                    <tr key={seg.id} onClick={() => openEdit(seg)}>
+                    <tr key={seg.id} onClick={() => openEdit(seg)} style={{ cursor: "pointer" }}>
                       <td style={{ color: "var(--muted-c)" }}>{i+1}</td>
                       <td>{seg.startKm} km</td>
                       <td>{seg.endKm} km</td>
@@ -1006,14 +1112,12 @@ function PreparationView({ race, segments, setSegments, settings }) {
                         <span className={`badge ${seg.slopePct > 9 ? "badge-red" : seg.slopePct < -12 ? "badge-blue" : "badge-sage"}`}>
                           {seg.slopePct > 0 ? "+" : ""}{seg.slopePct}%
                         </span>
-                        {seg.slopePct > 10 && <span style={{ marginLeft: 6, fontSize: 11 }}>⚠️ marche</span>}
+                        {seg.slopePct > 10 && <span style={{ marginLeft: 6, fontSize: 11, color: C.yellow }}>marche</span>}
                       </td>
                       <td style={{ fontWeight: 600 }}>{seg.speedKmh} km/h</td>
                       <td style={{ fontFamily: "'Playfair Display', serif" }}>{fmtPace(seg.speedKmh)}/km</td>
                       <td>{dur}</td>
-                      <td style={{ fontSize: 12, color: "var(--muted-c)" }}>
-                        💧{n.eauH} · 🍌{n.glucidesH}g · 🔥{n.kcalH}
-                      </td>
+                      <td style={{ fontSize: 12, color: "var(--muted-c)" }}>{n.eauH}mL · {n.glucidesH}g · {n.kcalH}kcal</td>
                       <td onClick={e => e.stopPropagation()}>
                         <Btn size="sm" variant="danger" onClick={() => setConfirmId(seg.id)}>✕</Btn>
                       </td>
@@ -1023,52 +1127,33 @@ function PreparationView({ race, segments, setSegments, settings }) {
               </table>
             </div>
           </Card>
-
-          <Card>
-            <div style={{ fontWeight: 600, marginBottom: 16 }}>Récap nutrition totale</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12 }}>
-              {[
-                { label: "🔥 Calories", val: `${nutriTotals.kcal} kcal` },
-                { label: "💧 Eau", val: `${(nutriTotals.eau/1000).toFixed(1)} L` },
-                { label: "🍌 Glucides", val: `${nutriTotals.glucides} g` },
-                { label: "🧂 Sel", val: `${nutriTotals.sel} mg` },
-              ].map(item => (
-                <div key={item.label} style={{ background: "var(--surface-2)", borderRadius: 10, padding: "12px 14px" }}>
-                  <div style={{ fontSize: 12, color: "var(--muted-c)" }}>{item.label}</div>
-                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 600, marginTop: 4 }}>{item.val}</div>
-                </div>
-              ))}
-            </div>
-          </Card>
         </>
       )}
 
       <Modal open={modal} onClose={() => setModal(false)} title={editId ? "Modifier segment" : "Nouveau segment"}>
         <div className="form-grid">
-          <Field label="Début (km)"><input type="number" min={0} step={0.1} value={form.startKm} onChange={e => upd("startKm", e.target.value)} /></Field>
-          <Field label="Fin (km)"><input type="number" min={0} step={0.1} value={form.endKm} onChange={e => upd("endKm", e.target.value)} /></Field>
+          <Field label="Début (km)"><input type="number" min={0} step={0.1} value={form.startKm} onChange={e => updForm("startKm", e.target.value)} /></Field>
+          <Field label="Fin (km)"><input type="number" min={0} step={0.1} value={form.endKm} onChange={e => updForm("endKm", e.target.value)} /></Field>
           <Field label="Pente (%)">
-            <div>
-              <input type="range" min={-25} max={30} step={1} value={form.slopePct} onChange={e => upd("slopePct", Number(e.target.value))} />
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--muted-c)", marginTop: 4 }}>
-                <span>-25%</span><span style={{ fontWeight: 600, color: form.slopePct > 10 ? C.red : "var(--text-c)" }}>{form.slopePct > 0 ? "+" : ""}{form.slopePct}%</span><span>+30%</span>
-              </div>
+            <input type="range" min={-25} max={30} step={1} value={form.slopePct} onChange={e => updForm("slopePct", Number(e.target.value))} />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--muted-c)", marginTop: 4 }}>
+              <span>-25%</span>
+              <span style={{ fontWeight: 600, color: form.slopePct > 10 ? C.red : "var(--text-c)" }}>{form.slopePct > 0 ? "+" : ""}{form.slopePct}%</span>
+              <span>+30%</span>
             </div>
           </Field>
           <Field label="Vitesse (km/h)">
-            <div>
-              <input type="range" min={2} max={15} step={0.5} value={form.speedKmh} onChange={e => upd("speedKmh", Number(e.target.value))} />
-              <div style={{ textAlign: "center", fontSize: 13, marginTop: 4 }}>
-                <span style={{ fontWeight: 600 }}>{form.speedKmh} km/h</span>
-                <span style={{ color: "var(--muted-c)", marginLeft: 8 }}>({fmtPace(form.speedKmh)}/km)</span>
-              </div>
+            <input type="range" min={2} max={15} step={0.5} value={form.speedKmh} onChange={e => updForm("speedKmh", Number(e.target.value))} />
+            <div style={{ textAlign: "center", fontSize: 13, marginTop: 4 }}>
+              <span style={{ fontWeight: 600 }}>{form.speedKmh} km/h</span>
+              <span style={{ color: "var(--muted-c)", marginLeft: 8 }}>({fmtPace(form.speedKmh)}/km)</span>
             </div>
           </Field>
-          <Field label="Notes" full><textarea value={form.notes} onChange={e => upd("notes", e.target.value)} rows={2} /></Field>
+          <Field label="Notes" full><textarea value={form.notes} onChange={e => updForm("notes", e.target.value)} rows={2} /></Field>
         </div>
         {form.slopePct > 10 && (
           <div style={{ marginTop: 12, padding: "10px 14px", background: C.yellowPale, borderRadius: 10, fontSize: 13, color: C.yellow }}>
-            ⚠️ Marche conseillée — pente élevée ({form.slopePct}%)
+            Marche conseillée — pente élevée ({form.slopePct}%)
           </div>
         )}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
@@ -1280,10 +1365,10 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
 
   return (
     <div className="anim">
-      <PageTitle sub="Profil coureur, infos course, météo et calibration">Paramètres</PageTitle>
+      <PageTitle sub="Profil coureur, calibration Garmin et apparence">Paramètres</PageTitle>
       <div className="grid-2col" style={{ gap: 20 }}>
         <Card>
-          <div style={{ fontWeight: 600, marginBottom: 16 }}>👤 Profil coureur</div>
+          <div style={{ fontWeight: 600, marginBottom: 16 }}>Profil coureur</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <Field label="Nom"><input value={settings.name} onChange={e => upd("name", e.target.value)} placeholder="Ton prénom" /></Field>
             <SliderField label="Poids" value={settings.weight} min={40} max={120} unit=" kg" onChange={v => upd("weight", v)} />
@@ -1292,29 +1377,13 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
         </Card>
 
         <Card>
-          <div style={{ fontWeight: 600, marginBottom: 16 }}>🏔️ Course actuelle</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Field label="Nom de la course"><input value={settings.raceName || race.name || ""} onChange={e => { upd("raceName", e.target.value); setRace(r => ({ ...r, name: e.target.value })); }} placeholder="Ex : UTMB, TDS..." /></Field>
-            <Field label="Heure de départ"><input type="time" value={settings.startTime || "07:00"} onChange={e => upd("startTime", e.target.value)} /></Field>
+          <div style={{ fontWeight: 600, marginBottom: 16 }}>Apparence</div>
+          <Toggle label="Mode sombre" checked={settings.darkMode} onChange={v => upd("darkMode", v)} />
+          <div style={{ marginTop: 20 }}>
             <Btn variant="danger" size="sm" onClick={() => { if (confirm("Reset complet — es-tu sûr ?")) { setRace({}); upd("raceName", ""); } }}>
-              🔄 Reset complet course
+              Reset complet course
             </Btn>
           </div>
-        </Card>
-
-        <Card>
-          <div style={{ fontWeight: 600, marginBottom: 16 }}>🌤️ Météo</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <SliderField label="Température" value={settings.tempC} min={-10} max={45} unit="°C" onChange={v => upd("tempC", v)} />
-            <Toggle label="🌧️ Pluie" checked={settings.rain} onChange={v => upd("rain", v)} />
-            <Toggle label="💨 Vent fort" checked={settings.wind} onChange={v => upd("wind", v)} />
-            <Toggle label="🌡️ Forte chaleur (> 25°C)" checked={settings.heat} onChange={v => upd("heat", v)} />
-          </div>
-        </Card>
-
-        <Card>
-          <div style={{ fontWeight: 600, marginBottom: 16 }}>🎨 Apparence</div>
-          <Toggle label="🌙 Mode sombre" checked={settings.darkMode} onChange={v => upd("darkMode", v)} />
         </Card>
 
         <Card style={{ gridColumn: "1 / -1" }}>
@@ -1372,10 +1441,10 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
 
 // ─── NAVIGATION ───────────────────────────────────────────────────────────────
 const NAVS = [
-  { id: "profil",      label: "Profil de course",  icon: "🗺️" },
-  { id: "preparation", label: "Préparation",        icon: "✂️" },
-  { id: "onepager",   label: "One-pager",           icon: "📄" },
-  { id: "parametres", label: "Paramètres",          icon: "⚙️" },
+  { id: "profil",      label: "Profil de course",    icon: "🗺️" },
+  { id: "preparation", label: "Stratégie de course",  icon: "🎯" },
+  { id: "onepager",   label: "One-pager",             icon: "📄" },
+  { id: "parametres", label: "Paramètres",            icon: "⚙️" },
 ];
 
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
@@ -1548,7 +1617,7 @@ export default function App() {
           padding: isMobile ? "76px 16px 32px" : "44px 52px",
         }}>
           {view === "profil" && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} onExportPNG={() => doExportPNG(race, segments, settings)} />}
-          {view === "preparation" && <PreparationView race={race} segments={segments} setSegments={setSegments} settings={settings} />}
+          {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} />}
           {view === "onepager" && <OnePagerView race={race} segments={segments} settings={settings} />}
           {view === "parametres" && <ParamètresView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} />}
         </main>
