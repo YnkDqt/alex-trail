@@ -31,15 +31,42 @@ const C = {
 
 // ─── CONSTANTES GLOBALES ─────────────────────────────────────────────────────
 const DEFAULT_FLAT_SPEED = 9.5;
+const DEFAULT_EQUIPMENT = [
+  { id: 1, cat: "Équipement", label: "Gilet de trail", checked: false },
+  { id: 2, cat: "Équipement", label: "T-shirt course", checked: false },
+  { id: 3, cat: "Équipement", label: "T-shirt change × 2", checked: false },
+  { id: 4, cat: "Équipement", label: "Short / cuissard", checked: false },
+  { id: 5, cat: "Équipement", label: "Chaussettes", checked: false },
+  { id: 6, cat: "Équipement", label: "Chaussures de trail", checked: false },
+  { id: 7, cat: "Équipement", label: "Bâtons", checked: false },
+  { id: 8, cat: "Équipement", label: "Veste imperméable", checked: false },
+  { id: 9, cat: "Équipement", label: "Casquette / buff", checked: false },
+  { id: 10, cat: "Équipement", label: "Lampe frontale + piles", checked: false },
+  { id: 11, cat: "Équipement", label: "Couverture de survie", checked: false },
+  { id: 12, cat: "Équipement", label: "Sifflet", checked: false },
+  { id: 13, cat: "Ravitaillement", label: "Pâtes de fruits sucrées", checked: false },
+  { id: 14, cat: "Ravitaillement", label: "Pâtes de fruits salées", checked: false },
+  { id: 15, cat: "Ravitaillement", label: "Barres de céréales", checked: false },
+  { id: 16, cat: "Ravitaillement", label: "Gels énergétiques", checked: false },
+  { id: 17, cat: "Ravitaillement", label: "Gourde / flasques", checked: false },
+  { id: 18, cat: "Ravitaillement", label: "Sel / électrolytes", checked: false },
+  { id: 19, cat: "Divers", label: "Dossard + épingles", checked: false },
+  { id: 20, cat: "Divers", label: "Téléphone chargé", checked: false },
+  { id: 21, cat: "Divers", label: "Crème anti-frottements", checked: false },
+  { id: 22, cat: "Divers", label: "Brosse à dents / hygiène", checked: false },
+  { id: 23, cat: "Divers", label: "Vêtements post-course", checked: false },
+];
+
 const EMPTY_SETTINGS = {
   name: "", weight: 70, kcalPerKm: 65,
   raceName: "", startTime: "07:00",
   tempC: 15, rain: false, wind: false, heat: false,
   darkMode: false,
   garminCoeff: 1, garminStats: null,
-  effortTarget: "normal",   // "comfort" | "normal" | "perf"
-  paceStrategy: 0,          // -2 (partir vite) → +2 (partir lentement / négatif)
-  ravitoTimeMin: 3,         // minutes passées à chaque ravito
+  effortTarget: "normal",
+  paceStrategy: 0,
+  ravitoTimeMin: 3,
+  equipment: DEFAULT_EQUIPMENT,
 };
 
 // ─── ALGOS TRAIL ─────────────────────────────────────────────────────────────
@@ -1343,6 +1370,22 @@ function OnePagerView({ race, segments, settings }) {
 function ParamètresView({ settings, setSettings, race, setRace, segments }) {
   const garminRef = useRef();
   const upd = (k, v) => setSettings(s => ({ ...s, [k]: v }));
+  const [newItem, setNewItem] = useState("");
+  const [newCat, setNewCat]   = useState("Équipement");
+
+  const equipment = settings.equipment || DEFAULT_EQUIPMENT;
+  const cats = [...new Set(equipment.map(i => i.cat))];
+
+  const toggleItem  = id => upd("equipment", equipment.map(i => i.id === id ? { ...i, checked: !i.checked } : i));
+  const deleteItem  = id => upd("equipment", equipment.filter(i => i.id !== id));
+  const addItem     = () => {
+    if (!newItem.trim()) return;
+    upd("equipment", [...equipment, { id: Date.now(), cat: newCat, label: newItem.trim(), checked: false }]);
+    setNewItem("");
+  };
+  const resetChecks = () => upd("equipment", equipment.map(i => ({ ...i, checked: false })));
+
+  const checkedCount = equipment.filter(i => i.checked).length;
 
   const totalTime = segments.reduce((s, seg) => s + ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600, 0);
   const nutriTotals = segments.reduce((acc, seg) => {
@@ -1365,74 +1408,143 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
 
   return (
     <div className="anim">
-      <PageTitle sub="Profil coureur, calibration Garmin et apparence">Paramètres</PageTitle>
-      <div className="grid-2col" style={{ gap: 20 }}>
-        <Card>
-          <div style={{ fontWeight: 600, marginBottom: 16 }}>Profil coureur</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Field label="Nom"><input value={settings.name} onChange={e => upd("name", e.target.value)} placeholder="Ton prénom" /></Field>
-            <SliderField label="Poids" value={settings.weight} min={40} max={120} unit=" kg" onChange={v => upd("weight", v)} />
-            <SliderField label="Kcal brûlées par km" value={settings.kcalPerKm} min={40} max={100} unit=" kcal/km" onChange={v => upd("kcalPerKm", v)} />
-          </div>
-        </Card>
+      <PageTitle sub="Profil, équipement et calibration">Paramètres du coureur</PageTitle>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
 
-        <Card>
-          <div style={{ fontWeight: 600, marginBottom: 16 }}>Apparence</div>
-          <Toggle label="Mode sombre" checked={settings.darkMode} onChange={v => upd("darkMode", v)} />
-          <div style={{ marginTop: 20 }}>
-            <Btn variant="danger" size="sm" onClick={() => { if (confirm("Reset complet — es-tu sûr ?")) { setRace({}); upd("raceName", ""); } }}>
-              Reset complet course
-            </Btn>
-          </div>
-        </Card>
-
-        <Card style={{ gridColumn: "1 / -1" }}>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>⌚ Calibration Garmin</div>
-          <p style={{ color: "var(--muted-c)", fontSize: 13, marginBottom: 16 }}>
-            Importe ton export CSV Garmin Connect (Activities.csv) pour calibrer les vitesses suggérées à ton niveau réel.
-          </p>
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <Btn variant="soft" onClick={() => garminRef.current?.click()}>📂 Charger Activities.csv</Btn>
-            <input ref={garminRef} type="file" accept=".csv" style={{ display: "none" }} onChange={handleGarmin} />
-            <span style={{ color: "var(--muted-c)", fontSize: 13 }}>
-              Coefficient actuel : <strong>{settings.garminCoeff}</strong>
-              {settings.garminStats && ` (${settings.garminStats.count} sorties, GAP moy. ${settings.garminStats.avgGapKmh} km/h)`}
-            </span>
-          </div>
-          {settings.garminStats && (
-            <div style={{ marginTop: 12, padding: "10px 14px", background: "var(--surface-2)", borderRadius: 10, fontSize: 13, display: "flex", gap: 16, flexWrap: "wrap" }}>
-              <span>📊 {settings.garminStats.count} activités analysées</span>
-              <span>⚡ GAP moyen : {settings.garminStats.avgGapKmh} km/h</span>
-              <span>🎯 Coefficient : ×{settings.garminStats.coeff}</span>
-              <span>📅 Calculé le {settings.garminStats.lastDate}</span>
+        {/* Colonne gauche : profil + dark mode */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <Card>
+            <div style={{ fontWeight: 600, marginBottom: 16 }}>Profil coureur</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <Field label="Nom"><input value={settings.name} onChange={e => upd("name", e.target.value)} placeholder="Ton prénom" /></Field>
+              <SliderField label="Poids" value={settings.weight} min={40} max={120} unit=" kg" onChange={v => upd("weight", v)} />
+              <SliderField label="Kcal brûlées par km" value={settings.kcalPerKm} min={40} max={100} unit=" kcal/km" onChange={v => upd("kcalPerKm", v)} />
+              <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 14 }}>
+                <Toggle label="Mode sombre" checked={settings.darkMode} onChange={v => upd("darkMode", v)} />
+              </div>
             </div>
-          )}
-          <div style={{ marginTop: 12 }}>
-            <Btn variant="ghost" size="sm" onClick={() => { upd("garminCoeff", 1); upd("garminStats", null); }}>Réinitialiser (coeff = 1)</Btn>
-          </div>
-        </Card>
+          </Card>
 
-        <Card style={{ gridColumn: "1 / -1" }}>
-          <div style={{ fontWeight: 600, marginBottom: 16 }}>🧪 Simulateur d'effort</div>
-          {!segments.length ? (
-            <p style={{ color: "var(--muted-c)", fontSize: 13 }}>Définis d'abord des segments dans l'onglet Préparation.</p>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
-              {[
-                { icon: "⏱️", label: "Temps total estimé", value: fmtTime(totalTime) },
-                { icon: "🔥", label: "Calories totales", value: `${nutriTotals.kcal} kcal` },
-                { icon: "💧", label: "Eau nécessaire", value: `${(nutriTotals.eau/1000).toFixed(1)} L` },
-                { icon: "🍌", label: "Glucides totaux", value: `${nutriTotals.glucides} g` },
-                { icon: "⚖️", label: "Pour ton profil", value: `${settings.weight} kg · ${settings.kcalPerKm} kcal/km` },
-              ].map(item => (
-                <div key={item.label} style={{ background: "var(--surface-2)", borderRadius: 12, padding: "14px 16px" }}>
-                  <div style={{ fontSize: 20, marginBottom: 6 }}>{item.icon}</div>
-                  <div style={{ fontSize: 12, color: "var(--muted-c)" }}>{item.label}</div>
-                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 600, marginTop: 2 }}>{item.value}</div>
-                </div>
-              ))}
+          <Card>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Calibration Garmin</div>
+            <p style={{ color: "var(--muted-c)", fontSize: 13, marginBottom: 14 }}>
+              Importe ton export CSV Garmin Connect (Activities.csv) pour calibrer les vitesses suggérées à ton niveau réel.
+            </p>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <Btn variant="soft" onClick={() => garminRef.current?.click()}>Charger Activities.csv</Btn>
+              <input ref={garminRef} type="file" accept=".csv" style={{ display: "none" }} onChange={handleGarmin} />
+              <span style={{ color: "var(--muted-c)", fontSize: 13 }}>
+                Coeff. : <strong>{settings.garminCoeff}</strong>
+                {settings.garminStats && ` (${settings.garminStats.count} sorties)`}
+              </span>
             </div>
+            {settings.garminStats && (
+              <div style={{ marginTop: 10, padding: "10px 14px", background: "var(--surface-2)", borderRadius: 10, fontSize: 13, display: "flex", gap: 16, flexWrap: "wrap" }}>
+                <span>{settings.garminStats.count} activités</span>
+                <span>GAP moy. {settings.garminStats.avgGapKmh} km/h</span>
+                <span>Coeff. ×{settings.garminStats.coeff}</span>
+              </div>
+            )}
+            <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Btn variant="ghost" size="sm" onClick={() => { upd("garminCoeff", 1); upd("garminStats", null); }}>Réinitialiser (coeff = 1)</Btn>
+              <Btn variant="danger" size="sm" onClick={() => { if (confirm("Reset complet — es-tu sûr ?")) { setRace({}); upd("raceName", ""); } }}>
+                Reset course
+              </Btn>
+            </div>
+          </Card>
+
+          {segments.length > 0 && (
+            <Card>
+              <div style={{ fontWeight: 600, marginBottom: 14 }}>Simulateur d'effort</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {[
+                  { label: "Temps estimé", value: fmtTime(totalTime) },
+                  { label: "Calories", value: `${nutriTotals.kcal} kcal` },
+                  { label: "Eau", value: `${(nutriTotals.eau/1000).toFixed(1)} L` },
+                  { label: "Glucides", value: `${nutriTotals.glucides} g` },
+                ].map(item => (
+                  <div key={item.label} style={{ background: "var(--surface-2)", borderRadius: 10, padding: "10px 12px" }}>
+                    <div style={{ fontSize: 11, color: "var(--muted-c)" }}>{item.label}</div>
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 600, marginTop: 2 }}>{item.value}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
           )}
+        </div>
+
+        {/* Colonne droite : checklist équipement */}
+        <Card style={{ alignSelf: "start" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div>
+              <div style={{ fontWeight: 600 }}>Checklist équipement</div>
+              <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 2 }}>
+                {checkedCount}/{equipment.length} éléments préparés
+              </div>
+            </div>
+            <Btn size="sm" variant="ghost" onClick={resetChecks}>Tout décocher</Btn>
+          </div>
+
+          {/* Barre de progression */}
+          <div style={{ height: 6, background: "var(--surface-2)", borderRadius: 3, marginBottom: 20, overflow: "hidden" }}>
+            <div style={{
+              height: "100%", borderRadius: 3, transition: "width 0.3s",
+              width: `${equipment.length ? (checkedCount / equipment.length) * 100 : 0}%`,
+              background: checkedCount === equipment.length ? C.green : C.primary,
+            }} />
+          </div>
+
+          {/* Items groupés par catégorie */}
+          {cats.map(cat => (
+            <div key={cat} style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                {cat}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {equipment.filter(i => i.cat === cat).map(item => (
+                  <div key={item.id} style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
+                    borderRadius: 8, background: item.checked ? C.green + "14" : "var(--surface-2)",
+                    transition: "background 0.15s", cursor: "pointer",
+                  }} onClick={() => toggleItem(item.id)}>
+                    <div style={{
+                      width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                      border: `2px solid ${item.checked ? C.green : "var(--border-c)"}`,
+                      background: item.checked ? C.green : "transparent",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      transition: "all 0.15s",
+                    }}>
+                      {item.checked && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>}
+                    </div>
+                    <span style={{
+                      fontSize: 13, flex: 1,
+                      color: item.checked ? "var(--muted-c)" : "var(--text-c)",
+                      textDecoration: item.checked ? "line-through" : "none",
+                      transition: "all 0.15s",
+                    }}>{item.label}</span>
+                    <span style={{ fontSize: 11, color: "var(--muted-c)", opacity: 0.5, cursor: "pointer", padding: "0 2px" }}
+                      onClick={e => { e.stopPropagation(); deleteItem(item.id); }}>✕</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Ajouter un élément */}
+          <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 14, marginTop: 4 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted-c)", marginBottom: 8 }}>Ajouter un élément</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <select value={newCat} onChange={e => setNewCat(e.target.value)} style={{ flex: "0 0 auto", fontSize: 13 }}>
+                {cats.map(c => <option key={c}>{c}</option>)}
+                <option value="Autre">Autre</option>
+              </select>
+              <input value={newItem} onChange={e => setNewItem(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && addItem()}
+                placeholder="Ex : Baume à lèvres..."
+                style={{ flex: 1, minWidth: 120, fontSize: 13 }} />
+              <Btn size="sm" onClick={addItem}>Ajouter</Btn>
+            </div>
+          </div>
         </Card>
       </div>
     </div>
@@ -1444,7 +1556,7 @@ const NAVS = [
   { id: "profil",      label: "Profil de course",    icon: "🗺️" },
   { id: "preparation", label: "Stratégie de course",  icon: "🎯" },
   { id: "onepager",   label: "One-pager",             icon: "📄" },
-  { id: "parametres", label: "Paramètres",            icon: "⚙️" },
+  { id: "parametres", label: "Paramètres du coureur", icon: "⚙️" },
 ];
 
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
