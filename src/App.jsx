@@ -587,6 +587,315 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
+// ─── EXPORT FOND D'ÉCRAN (1080×1920) ─────────────────────────────────────────
+function exportWallpaper(race, segments, settings, profile) {
+  const W = 1080, H = 1920;
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  // Fond dégradé sombre trail
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0,   "#0E0B08");
+  bg.addColorStop(0.5, "#1A1108");
+  bg.addColorStop(1,   "#0A0806");
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+  // Texture grain subtile
+  for (let i = 0; i < 4000; i++) {
+    ctx.fillStyle = `rgba(255,220,160,${Math.random() * 0.025})`;
+    ctx.fillRect(Math.random() * W, Math.random() * H, 1, 1);
+  }
+
+  // Ligne déco haut
+  ctx.strokeStyle = C.primary + "60"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(60, 80); ctx.lineTo(W - 60, 80); ctx.stroke();
+
+  // Titre course
+  const raceName = settings.raceName || race.name || "MA COURSE";
+  ctx.fillStyle = C.primaryLight;
+  ctx.font = "bold 68px 'Georgia', serif";
+  ctx.textAlign = "center";
+  ctx.letterSpacing = "4px";
+  ctx.fillText(raceName.toUpperCase(), W / 2, 140);
+
+  // Sous-titre
+  ctx.fillStyle = "#9A8870";
+  ctx.font = "28px 'Georgia', serif";
+  ctx.fillText(`${race.totalDistance?.toFixed(0)} km · ${Math.round(race.totalElevPos)} m D+`, W / 2, 190);
+
+  // Ligne déco
+  ctx.strokeStyle = C.primary + "40"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(60, 215); ctx.lineTo(W - 60, 215); ctx.stroke();
+
+  // ── Profil altimétrique ──
+  if (profile.length > 1) {
+    const chartX = 60, chartY = 240, chartW = W - 120, chartH = 260;
+    const minE = Math.min(...profile.map(p => p.ele));
+    const maxE = Math.max(...profile.map(p => p.ele));
+    const totalDist = profile[profile.length - 1].dist;
+    const px = d => chartX + (d / totalDist) * chartW;
+    const py = e => chartY + chartH - ((e - minE) / (maxE - minE || 1)) * chartH;
+
+    // Remplissage dégradé sous la courbe
+    const grad = ctx.createLinearGradient(0, chartY, 0, chartY + chartH);
+    grad.addColorStop(0, C.primary + "70");
+    grad.addColorStop(1, C.primary + "00");
+    ctx.beginPath();
+    ctx.moveTo(px(profile[0].dist), chartY + chartH);
+    profile.forEach(p => ctx.lineTo(px(p.dist), py(p.ele)));
+    ctx.lineTo(px(profile[profile.length - 1].dist), chartY + chartH);
+    ctx.closePath();
+    ctx.fillStyle = grad; ctx.fill();
+
+    // Courbe principale
+    ctx.beginPath();
+    profile.forEach((p, i) => i === 0 ? ctx.moveTo(px(p.dist), py(p.ele)) : ctx.lineTo(px(p.dist), py(p.ele)));
+    ctx.strokeStyle = C.primaryLight; ctx.lineWidth = 3; ctx.stroke();
+
+    // Points ravitos
+    (race.ravitos || []).forEach(rv => {
+      const x = px(rv.km);
+      ctx.beginPath(); ctx.arc(x, py(profile.find(p => Math.abs(p.dist - rv.km) < 0.5)?.ele || minE), 7, 0, Math.PI * 2);
+      ctx.fillStyle = C.green; ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.font = "bold 18px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("R", x, py(profile.find(p => Math.abs(p.dist - rv.km) < 0.5)?.ele || minE) + 6);
+    });
+
+    // Altitudes min/max
+    ctx.fillStyle = "#9A8870"; ctx.font = "22px sans-serif"; ctx.textAlign = "left";
+    ctx.fillText(`${Math.round(minE)} m`, chartX, chartY + chartH + 28);
+    ctx.textAlign = "right";
+    ctx.fillText(`${Math.round(maxE)} m`, chartX + chartW, chartY + chartH + 28);
+  }
+
+  // ── Segments ──
+  const segY0 = 600;
+  const maxSegs = Math.min(segments.length, 12);
+  const segH = 82;
+
+  ctx.fillStyle = "#9A8870"; ctx.font = "bold 20px sans-serif"; ctx.textAlign = "left"; ctx.letterSpacing = "3px";
+  ctx.fillText("SEGMENTS DE COURSE", 60, segY0 - 16);
+  ctx.letterSpacing = "0px";
+
+  segments.slice(0, maxSegs).forEach((seg, i) => {
+    const y = segY0 + i * segH;
+    const isWalk = seg.slopePct > 10;
+    const dist = seg.endKm - seg.startKm;
+    const dur = fmtTime((dist / seg.speedKmh) * 3600);
+
+    // Fond alternance subtile
+    if (i % 2 === 0) {
+      ctx.fillStyle = "rgba(255,200,120,0.04)";
+      ctx.beginPath(); ctx.roundRect(48, y, W - 96, segH - 4, 8); ctx.fill();
+    }
+
+    // Barre vitesse (largeur proportionnelle)
+    const barW = Math.round((seg.speedKmh / 15) * 220);
+    const barColor = isWalk ? C.yellow : (seg.slopePct > 4 ? C.red : C.green);
+    ctx.fillStyle = barColor + "40";
+    ctx.beginPath(); ctx.roundRect(W - 290, y + 20, barW, 18, 4); ctx.fill();
+    ctx.fillStyle = barColor;
+    ctx.beginPath(); ctx.roundRect(W - 290, y + 20, barW, 18, 4); ctx.strokeStyle = barColor; ctx.lineWidth = 1; ctx.stroke();
+
+    // Numéro segment
+    ctx.fillStyle = C.primaryLight; ctx.font = "bold 28px 'Georgia', serif"; ctx.textAlign = "left";
+    ctx.fillText(`${i + 1}`, 60, y + 44);
+
+    // km de → à
+    ctx.fillStyle = "#F0EAE0"; ctx.font = "24px sans-serif";
+    ctx.fillText(`${seg.startKm} → ${seg.endKm} km`, 100, y + 44);
+
+    // Pente
+    ctx.fillStyle = isWalk ? C.yellow : "#9A8870"; ctx.font = "20px sans-serif";
+    ctx.fillText(`${seg.slopePct > 0 ? "+" : ""}${seg.slopePct}%${isWalk ? " ✦ marche" : ""}`, 340, y + 44);
+
+    // Vitesse + durée
+    ctx.fillStyle = "#F0EAE0"; ctx.font = "bold 22px sans-serif"; ctx.textAlign = "right";
+    ctx.fillText(`${seg.speedKmh} km/h`, W - 60, y + 34);
+    ctx.fillStyle = "#9A8870"; ctx.font = "19px sans-serif";
+    ctx.fillText(dur, W - 60, y + 58);
+  });
+
+  if (segments.length > maxSegs) {
+    ctx.fillStyle = "#9A8870"; ctx.font = "italic 20px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText(`+ ${segments.length - maxSegs} segments supplémentaires`, W / 2, segY0 + maxSegs * segH + 20);
+  }
+
+  // ── Bande nutrition / récap bas ──
+  const botY = H - 320;
+  const botGrad = ctx.createLinearGradient(0, botY - 40, 0, H);
+  botGrad.addColorStop(0, "rgba(0,0,0,0)");
+  botGrad.addColorStop(0.2, "rgba(20,14,6,0.95)");
+  botGrad.addColorStop(1, "#14100C");
+  ctx.fillStyle = botGrad; ctx.fillRect(0, botY - 40, W, H - botY + 40);
+
+  ctx.strokeStyle = C.primary + "50"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(60, botY); ctx.lineTo(W - 60, botY); ctx.stroke();
+
+  const totalTime = segments.reduce((s, seg) => s + ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600, 0);
+  const ravitoSec = (race.ravitos?.length || 0) * (settings.ravitoTimeMin || 3) * 60;
+
+  const stats = [
+    { label: "TEMPS TOTAL", val: fmtTime(totalTime + ravitoSec) },
+    { label: "DÉPART", val: settings.startTime || "07:00" },
+    { label: "RAVITOS", val: String(race.ravitos?.length || 0) },
+    { label: "MÉTÉO", val: `${settings.tempC}°C${settings.rain ? " 🌧" : ""}${settings.wind ? " 💨" : ""}` },
+  ];
+  const colW = (W - 120) / stats.length;
+  stats.forEach((s, i) => {
+    const cx = 60 + i * colW + colW / 2;
+    ctx.fillStyle = "#9A8870"; ctx.font = "18px sans-serif"; ctx.textAlign = "center"; ctx.letterSpacing = "2px";
+    ctx.fillText(s.label, cx, botY + 44);
+    ctx.fillStyle = C.primaryLight; ctx.font = "bold 36px 'Georgia', serif"; ctx.letterSpacing = "0px";
+    ctx.fillText(s.val, cx, botY + 88);
+  });
+
+  // Ligne déco bas
+  ctx.strokeStyle = C.primary + "60"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(60, H - 80); ctx.lineTo(W - 60, H - 80); ctx.stroke();
+  ctx.fillStyle = "#9A8870"; ctx.font = "italic 22px 'Georgia', serif"; ctx.textAlign = "center"; ctx.letterSpacing = "0px";
+  ctx.fillText("Alex · Trail Running Strategy", W / 2, H - 44);
+
+  const link = document.createElement("a");
+  link.download = `${(settings.raceName || race.name || "course").replace(/\s+/g, "-").toLowerCase()}-wallpaper.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
+
+// ─── EXPORT EMAIL HTML ────────────────────────────────────────────────────────
+function exportEmail(race, segments, settings, nutriTotals, totalTime, totalRavitoSec) {
+  const raceName = settings.raceName || race.name || "Ma Course";
+  const totalWithRavitos = fmtTime(totalTime + totalRavitoSec);
+  const totalDist = race.totalDistance?.toFixed(1) || "?";
+  const elevPos = Math.round(race.totalElevPos) || 0;
+
+  const segRows = segments.map((seg, i) => {
+    const dist = (seg.endKm - seg.startKm).toFixed(1);
+    const dur = fmtTime(((seg.endKm - seg.startKm) / seg.speedKmh) * 3600);
+    const isWalk = seg.slopePct > 10;
+    const color = isWalk ? "#D4820A" : seg.slopePct > 4 ? "#C0392B" : "#2E7D52";
+    return `
+      <tr style="border-bottom:1px solid #2A2010;">
+        <td style="padding:10px 12px;color:#9A8870;font-weight:700;font-size:15px;">${i + 1}</td>
+        <td style="padding:10px 12px;color:#F0EAE0;">${seg.startKm} → ${seg.endKm} km</td>
+        <td style="padding:10px 12px;color:#F0EAE0;">${dist} km</td>
+        <td style="padding:10px 12px;">
+          <span style="background:${color}22;color:${color};padding:3px 8px;border-radius:6px;font-size:13px;font-weight:600;">
+            ${seg.slopePct > 0 ? "+" : ""}${seg.slopePct}%${isWalk ? " · marche" : ""}
+          </span>
+        </td>
+        <td style="padding:10px 12px;color:#F0EAE0;font-weight:600;">${seg.speedKmh} km/h</td>
+        <td style="padding:10px 12px;color:#9A8870;">${fmtPace(seg.speedKmh)}/km</td>
+        <td style="padding:10px 12px;color:#F0EAE0;">${dur}</td>
+      </tr>`;
+  }).join("");
+
+  const ravitoRows = [...(race.ravitos || [])].sort((a, b) => a.km - b.km).map(rv =>
+    `<li style="margin:4px 0;color:#F0EAE0;">${rv.name} <span style="color:#2E7D52;font-weight:600;">km ${rv.km}</span></li>`
+  ).join("") || "<li style='color:#9A8870;'>Aucun ravitaillement défini</li>";
+
+  const meteo = [
+    `${settings.tempC}°C`,
+    settings.rain ? "Pluie" : null,
+    settings.wind ? "Vent fort" : null,
+    settings.heat ? "Forte chaleur" : null,
+  ].filter(Boolean).join(" · ");
+
+  const html = `<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stratégie ${raceName}</title></head>
+<body style="margin:0;padding:0;background:#1A1108;font-family:'Georgia',serif;">
+<div style="max-width:680px;margin:0 auto;background:#1A1108;color:#F0EAE0;">
+
+  <!-- Header -->
+  <div style="background:linear-gradient(135deg,#1A1108 0%,#2A1F0E 100%);padding:48px 40px 32px;border-bottom:2px solid ${C.primary}40;">
+    <div style="font-size:11px;letter-spacing:4px;color:#9A8870;text-transform:uppercase;margin-bottom:12px;">Stratégie de course · Alex</div>
+    <h1 style="margin:0;font-size:42px;color:${C.primaryLight};letter-spacing:1px;">${raceName}</h1>
+    <div style="margin-top:12px;font-size:16px;color:#9A8870;">${totalDist} km · ${elevPos} m D+ · Départ ${settings.startTime || "07:00"}</div>
+  </div>
+
+  <!-- Stats -->
+  <div style="display:flex;background:#0E0B08;border-bottom:1px solid #2A2010;">
+    ${[
+      ["⏱", "Temps total", totalWithRavitos],
+      ["📏", "Distance", `${totalDist} km`],
+      ["⛰", "D+", `${elevPos} m`],
+      ["✂", "Segments", String(segments.length)],
+    ].map(([ic, lb, vl]) => `
+    <div style="flex:1;padding:20px 16px;text-align:center;border-right:1px solid #2A2010;">
+      <div style="font-size:22px;margin-bottom:6px;">${ic}</div>
+      <div style="font-size:11px;letter-spacing:2px;color:#9A8870;text-transform:uppercase;">${lb}</div>
+      <div style="font-size:22px;font-weight:700;color:${C.primaryLight};margin-top:4px;">${vl}</div>
+    </div>`).join("")}
+  </div>
+
+  <!-- Météo -->
+  <div style="padding:14px 40px;background:#130F0A;border-bottom:1px solid #2A2010;font-size:13px;color:#9A8870;">
+    Météo prévue : <strong style="color:#F0EAE0;">${meteo}</strong>
+    &nbsp;·&nbsp; Temps aux ravitos : <strong style="color:#F0EAE0;">${settings.ravitoTimeMin || 3} min</strong>
+  </div>
+
+  <!-- Segments -->
+  <div style="padding:32px 40px 24px;">
+    <h2 style="margin:0 0 20px;font-size:18px;letter-spacing:2px;text-transform:uppercase;color:#9A8870;border-bottom:1px solid #2A2010;padding-bottom:12px;">Segments</h2>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;">
+      <thead>
+        <tr style="border-bottom:2px solid ${C.primary}60;">
+          <th style="padding:8px 12px;text-align:left;color:#9A8870;font-size:11px;letter-spacing:2px;font-weight:600;text-transform:uppercase;">#</th>
+          <th style="padding:8px 12px;text-align:left;color:#9A8870;font-size:11px;letter-spacing:2px;font-weight:600;text-transform:uppercase;">Tronçon</th>
+          <th style="padding:8px 12px;text-align:left;color:#9A8870;font-size:11px;letter-spacing:2px;font-weight:600;text-transform:uppercase;">Dist.</th>
+          <th style="padding:8px 12px;text-align:left;color:#9A8870;font-size:11px;letter-spacing:2px;font-weight:600;text-transform:uppercase;">Pente</th>
+          <th style="padding:8px 12px;text-align:left;color:#9A8870;font-size:11px;letter-spacing:2px;font-weight:600;text-transform:uppercase;">Vitesse</th>
+          <th style="padding:8px 12px;text-align:left;color:#9A8870;font-size:11px;letter-spacing:2px;font-weight:600;text-transform:uppercase;">Allure</th>
+          <th style="padding:8px 12px;text-align:left;color:#9A8870;font-size:11px;letter-spacing:2px;font-weight:600;text-transform:uppercase;">Durée</th>
+        </tr>
+      </thead>
+      <tbody>${segRows}</tbody>
+    </table>
+  </div>
+
+  <!-- Ravitos -->
+  <div style="padding:0 40px 32px;">
+    <h2 style="margin:0 0 16px;font-size:18px;letter-spacing:2px;text-transform:uppercase;color:#9A8870;border-bottom:1px solid #2A2010;padding-bottom:12px;">Ravitaillements</h2>
+    <ul style="margin:0;padding:0 0 0 18px;">${ravitoRows}</ul>
+  </div>
+
+  <!-- Nutrition -->
+  <div style="background:#0E0B08;padding:24px 40px;border-top:1px solid #2A2010;border-bottom:1px solid #2A2010;">
+    <h2 style="margin:0 0 16px;font-size:18px;letter-spacing:2px;text-transform:uppercase;color:#9A8870;">Nutrition estimée</h2>
+    <div style="display:flex;gap:0;">
+      ${[
+        ["🔥", `${nutriTotals.kcal} kcal`, "Calories"],
+        ["💧", `${(nutriTotals.eau/1000).toFixed(1)} L`, "Eau"],
+        ["🍌", `${nutriTotals.glucides} g`, "Glucides"],
+        ["🧂", `${nutriTotals.sel} mg`, "Sel"],
+      ].map(([ic, vl, lb]) => `
+      <div style="flex:1;text-align:center;padding:12px 8px;border-right:1px solid #2A2010;">
+        <div style="font-size:20px;">${ic}</div>
+        <div style="font-size:20px;font-weight:700;color:${C.primaryLight};margin:6px 0 4px;">${vl}</div>
+        <div style="font-size:11px;color:#9A8870;letter-spacing:1px;text-transform:uppercase;">${lb}</div>
+      </div>`).join("")}
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="padding:24px 40px;text-align:center;color:#9A8870;font-size:13px;font-style:italic;">
+    Généré par Alex · Trail Running Strategy
+  </div>
+</div>
+</body></html>`;
+
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.download = `${(raceName).replace(/\s+/g, "-").toLowerCase()}-recap.html`;
+  link.href = url;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
 function ProfilView({ race, setRace, segments, setSegments, settings }) {
   const [gpxError, setGpxError]       = useState(null);
@@ -686,8 +995,14 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
     <div className="anim">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28 }}>
         <PageTitle sub={race.gpxPoints?.length ? `${race.totalDistance?.toFixed(1)} km chargés` : "Importe ton tracé GPX pour commencer"}>
-          {race.name || "Profil de course"}
+          {settings.raceName || race.name || "Profil de course"}
         </PageTitle>
+        {race.gpxPoints?.length > 0 && segments.length > 0 && (
+          <div style={{ display: "flex", gap: 8, marginTop: 4, flexShrink: 0 }}>
+            <Btn size="sm" variant="soft" onClick={() => exportWallpaper(race, segments, settings, profile)}>🖼️ Fond d'écran</Btn>
+            <Btn size="sm" variant="soft" onClick={() => exportEmail(race, segments, settings, nutriTotals, totalTime, totalRavitoSec)}>✉️ Récap mail</Btn>
+          </div>
+        )}
       </div>
 
       {!race.gpxPoints?.length ? (
@@ -715,7 +1030,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
             <KPI label="D+" value={`${Math.round(race.totalElevPos)} m`} color={C.red} icon="⛰️" />
             <KPI label="D−" value={`${Math.round(race.totalElevNeg)} m`} color={C.blue} icon="🏔️" />
             <KPI label="Segments" value={segments.length} icon="✂️" />
-            <KPI label="Temps estimé" value={fmtTime(totalTime)} color={C.secondary} icon="⏱️" />
+            <KPI label="Temps estimé" value={fmtTime(totalTime + totalRavitoSec)} color={C.secondary} icon="⏱️" sub="ravitos inclus" />
           </div>
 
           <Card noPad style={{ marginBottom: 14 }}>
