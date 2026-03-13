@@ -1252,9 +1252,6 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
               <Field label="Nom"><input value={settings.name} onChange={e => upd("name", e.target.value)} placeholder="Ton prénom" /></Field>
               <SliderField label="Poids" value={settings.weight} min={40} max={120} unit=" kg" onChange={v => upd("weight", v)} />
               <SliderField label="Kcal brûlées par km" value={settings.kcalPerKm} min={40} max={100} unit=" kcal/km" onChange={v => upd("kcalPerKm", v)} />
-              <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 14 }}>
-                <Toggle label="Mode sombre" checked={settings.darkMode} onChange={v => upd("darkMode", v)} />
-              </div>
             </div>
           </Card>
 
@@ -1600,24 +1597,24 @@ export default function App() {
   const hasRace = !!race.gpxPoints?.length;
 
   const SidebarContent = () => (
-    <>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {/* Logo */}
       <div style={{ padding: "24px 20px 16px" }}>
         <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: C.primary }}>Alex</div>
         <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 2 }}>Trail Running Strategy</div>
       </div>
       <Hr />
-      <nav style={{ padding: "0 10px", display: "flex", flexDirection: "column", gap: 2 }}>
+
+      {/* Nav — prend tout l'espace disponible */}
+      <nav style={{ padding: "0 10px", display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
         {NAVS.map(n => (
           <div key={n.id} className={`nav-item${view === n.id ? " active" : ""}`} onClick={() => navigate(n.id)}>
             <span>{n.icon}</span>
             <span>{n.label}</span>
           </div>
         ))}
-      </nav>
-      <Hr />
-      <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
         {hasRace && (
-          <div style={{ background: "var(--surface-2)", borderRadius: 12, padding: "12px 14px", fontSize: 13 }}>
+          <div style={{ background: "var(--surface-2)", borderRadius: 12, padding: "12px 14px", fontSize: 13, marginTop: 12 }}>
             <div style={{ fontWeight: 600, marginBottom: 4 }}>{settings.raceName || race.name || "Course sans nom"}</div>
             <div style={{ color: "var(--muted-c)", fontSize: 12 }}>
               {race.totalDistance?.toFixed(1)} km · {Math.round(race.totalElevPos)} m D+
@@ -1625,27 +1622,59 @@ export default function App() {
             <div style={{ color: "var(--muted-c)", fontSize: 12 }}>{segments.length} segments</div>
           </div>
         )}
+      </nav>
+
+      {/* Bas de sidebar — dark mode + boutons données */}
+      <Hr />
+      <div style={{ padding: "12px 16px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
+
+        {/* Toggle dark mode */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "8px 12px", borderRadius: 12, background: "var(--surface-2)",
+        }}>
+          <span style={{ fontSize: 13, color: "var(--muted-c)", fontWeight: 500 }}>
+            {settings.darkMode ? "🌙 Mode sombre" : "☀️ Mode clair"}
+          </span>
+          <div
+            onClick={() => setSettings(s => ({ ...s, darkMode: !s.darkMode }))}
+            style={{
+              width: 40, height: 22, borderRadius: 11, cursor: "pointer", transition: "background 0.2s", position: "relative",
+              background: settings.darkMode ? C.primary : "var(--border-c)",
+            }}>
+            <div style={{
+              position: "absolute", top: 3, left: settings.darkMode ? 21 : 3,
+              width: 16, height: 16, borderRadius: "50%", background: "#fff",
+              transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+            }} />
+          </div>
+        </div>
+
+        {/* Télécharger la stratégie */}
         <button
           onClick={saveData}
           style={{
             background: hasUnsaved ? C.primary : "var(--surface-2)",
             color: hasUnsaved ? C.white : "var(--text-c)",
             border: "none", borderRadius: 12, padding: "10px 14px", cursor: "pointer",
-            fontSize: 14, fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
-            display: "flex", alignItems: "center", gap: 8, transition: "all 0.2s",
+            fontSize: 13, fontFamily: "'DM Sans', sans-serif", fontWeight: 500,
+            display: "flex", alignItems: "center", gap: 8, transition: "all 0.2s", width: "100%",
           }}>
-          💾 Données {hasUnsaved && <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.yellowPale, display: "inline-block" }} />}
+          💾 Télécharger la stratégie
+          {hasUnsaved && <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.yellowPale, display: "inline-block", marginLeft: "auto" }} />}
         </button>
+
+        {/* Charger une stratégie */}
         <label style={{ display: "block" }}>
           <div style={{
             background: "var(--surface-2)", border: "1px solid var(--border-c)",
-            borderRadius: 12, padding: "9px 14px", cursor: "pointer", fontSize: 14,
-            fontWeight: 500, textAlign: "center",
-          }}>📂 Charger</div>
+            borderRadius: 12, padding: "9px 14px", cursor: "pointer", fontSize: 13,
+            fontWeight: 500, textAlign: "center", color: "var(--text-c)",
+          }}>📂 Charger une stratégie</div>
           <input type="file" accept=".json" style={{ display: "none" }} onChange={e => { if (e.target.files[0]) loadData(e.target.files[0]); }} />
         </label>
       </div>
-    </>
+    </div>
   );
 
   return (
@@ -1677,7 +1706,7 @@ export default function App() {
         {!isMobile && (
           <div style={{
             width: 240, flexShrink: 0, background: "var(--surface)", borderRight: "1px solid var(--border-c)",
-            overflowY: "auto", display: "flex", flexDirection: "column",
+            overflowY: "auto", display: "flex", flexDirection: "column", height: "100vh",
           }}>
             <SidebarContent />
           </div>
