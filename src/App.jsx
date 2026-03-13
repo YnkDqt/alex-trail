@@ -568,8 +568,12 @@ function ProfilView({ race, setRace, segments, setSegments, settings, onExportPN
   const totalTime = segments.reduce((s, seg) => s + ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600, 0);
 
   const highlightData = useMemo(() => {
-    if (!hoveredSeg || !profile.length) return [];
-    return profile.map(p => ({ dist: p.dist, ele: p.dist >= hoveredSeg.startKm && p.dist <= hoveredSeg.endKm ? p.ele : null }));
+    if (!profile.length) return profile;
+    if (!hoveredSeg) return profile.map(p => ({ ...p, eleHL: null }));
+    return profile.map(p => ({
+      ...p,
+      eleHL: p.dist >= hoveredSeg.startKm && p.dist <= hoveredSeg.endKm ? p.ele : null,
+    }));
   }, [hoveredSeg, profile]);
 
   const handleGPX = (file) => {
@@ -682,18 +686,18 @@ function ProfilView({ race, setRace, segments, setSegments, settings, onExportPN
               )}
             </div>
             <ResponsiveContainer width="100%" height={240}>
-              <AreaChart data={profile} margin={{ top: 10, right: 20, bottom: 10, left: 40 }}>
+              <AreaChart data={highlightData} margin={{ top: 10, right: 20, bottom: 10, left: 40 }}>
                 <defs>
                   <linearGradient id="eleGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={C.primary} stopOpacity={0.35} />
-                    <stop offset="95%" stopColor={C.primary} stopOpacity={0.05} />
+                    <stop offset="5%" stopColor={C.primary} stopOpacity={hoveredSeg ? 0.15 : 0.35} />
+                    <stop offset="95%" stopColor={C.primary} stopOpacity={0.03} />
                   </linearGradient>
                   <linearGradient id="eleHover" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={C.yellow} stopOpacity={0.6} />
                     <stop offset="95%" stopColor={C.yellow} stopOpacity={0.1} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="dist" tickFormatter={v => `${v.toFixed(0)}km`} tick={{ fontSize: 11, fill: C.muted }} />
+                <XAxis dataKey="dist" type="number" domain={profile.length ? [0, profile[profile.length-1].dist] : ["auto","auto"]} tickFormatter={v => `${v.toFixed(0)}km`} tick={{ fontSize: 11, fill: C.muted }} />
                 <YAxis domain={[minEle, "auto"]} tick={{ fontSize: 11, fill: C.muted }} />
                 <RTooltip content={<CustomTooltip />} formatter={(v, n) => [n === "ele" ? `${v} m` : `${v} km`, n === "ele" ? "Altitude" : "Dist"]} />
                 {(race.ravitos||[]).map(rv => (
@@ -703,12 +707,10 @@ function ProfilView({ race, setRace, segments, setSegments, settings, onExportPN
                 {hoveredSeg && <ReferenceLine x={hoveredSeg.endKm}   stroke={C.yellow} strokeWidth={2} strokeDasharray="5 3" />}
                 <Area type="monotone" dataKey="ele" stroke={C.primary}
                   strokeWidth={hoveredSeg ? 1.5 : 2.5} strokeOpacity={hoveredSeg ? 0.3 : 1}
-                  fill="url(#eleGrad)" fillOpacity={hoveredSeg ? 0.3 : 1} dot={false} name="Altitude" />
-                {hoveredSeg && (
-                  <Area data={highlightData} type="monotone" dataKey="ele"
-                    stroke={C.yellow} strokeWidth={3} fill="url(#eleHover)"
-                    dot={false} connectNulls={false} name="Segment" />
-                )}
+                  fill="url(#eleGrad)" dot={false} name="Altitude" />
+                <Area type="monotone" dataKey="eleHL"
+                  stroke={C.yellow} strokeWidth={3} fill="url(#eleHover)"
+                  dot={false} connectNulls={false} name="Segment" />
               </AreaChart>
             </ResponsiveContainer>
           </Card>
