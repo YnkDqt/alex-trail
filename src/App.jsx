@@ -365,9 +365,10 @@ function parseGarminCSV(text) {
 
 // ─── NUTRITION ───────────────────────────────────────────────────────────────
 function calcNutrition(seg, settings) {
+  if (seg.type === "repos") return { kcal: 0, kcalH: 0, glucidesH: 0, proteinesH: 0, eauH: 0, selH: 0, cafeineH: 0, durationH: 0 };
   const { weight = 70, kcalPerKm = 65, tempC = 15, rain = false, wind = false, heat = false } = settings;
   const distKm = seg.endKm - seg.startKm;
-  const durationH = distKm / seg.speedKmh;
+  const durationH = seg.speedKmh > 0 ? distKm / seg.speedKmh : 0;
   const kcal = Math.round(distKm * kcalPerKm * (weight / 70));
   const kcalH = durationH > 0 ? Math.round(kcal / durationH) : 0;
   const isHot = heat || tempC > 25;
@@ -376,8 +377,7 @@ function calcNutrition(seg, settings) {
   const waterBase = isHot ? 750 : 500;
   const eauH = Math.round(waterBase + (wind ? 100 : 0));
   const selH = Math.round(isHot ? 800 : 500);
-  const startKmTot = seg.startKm;
-  const cumDurationH = startKmTot / seg.speedKmh;
+  const cumDurationH = seg.speedKmh > 0 ? (seg.startKm || 0) / seg.speedKmh : 0;
   const cafeineH = cumDurationH >= 2 ? Math.round(30 + Math.min(seg.slopePct * 2, 40)) : 0;
   return { kcal, kcalH, glucidesH, proteinesH, eauH, selH, cafeineH, durationH };
 }
@@ -767,7 +767,7 @@ function exportWallpaper(race, segments, settings, profile) {
   ctx.strokeStyle = C.primary + "50"; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(60, botY); ctx.lineTo(W - 60, botY); ctx.stroke();
 
-  const totalTime = segments.reduce((s, seg) => s + ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600, 0);
+  const totalTime = segments.reduce((s, seg) => seg.type === "repos" ? s + (seg.dureeMin||0)*60 : s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
   const ravitoSec = (race.ravitos?.length || 0) * (settings.ravitoTimeMin || 3) * 60;
 
   const stats = [
@@ -947,7 +947,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
   const fileRef = useRef();
 
   const profile = useMemo(() => race.gpxPoints?.length ? buildElevationProfile(race.gpxPoints, 300) : [], [race.gpxPoints]);
-  const totalTime = segments.reduce((s, seg) => s + ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600, 0);
+  const totalTime = segments.reduce((s, seg) => seg.type === "repos" ? s + (seg.dureeMin||0)*60 : s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
   const totalRavitoSec = (race.ravitos?.length || 0) * (settings.ravitoTimeMin || 3) * 60;
   const nutriTotals = useMemo(() => segments.reduce((acc, seg) => {
     const n = calcNutrition(seg, settings);
@@ -1033,7 +1033,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
         </PageTitle>
         {race.gpxPoints?.length > 0 && segments.length > 0 && (
           <div style={{ display: "flex", gap: 8, marginTop: 4, flexShrink: 0 }}>
-            <Btn size="sm" variant="soft" onClick={() => exportWallpaper(race, segments, settings, profile)}>🖼️ Fond d'écran</Btn>
+            <Btn size="sm" variant="soft" onClick={() => exportWallpaper(race, segments, settings, profile)}>🗺️ Mémo de course</Btn>
             <Btn size="sm" variant="soft" onClick={() => exportEmail(race, segments, settings, nutriTotals, totalTime, totalRavitoSec)}>✉️ Récap mail</Btn>
           </div>
         )}
@@ -1067,44 +1067,66 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
             <KPI label="Temps estimé" value={fmtTime(totalTime + totalRavitoSec)} color={C.secondary} icon="⏱️" sub="ravitos inclus" />
           </div>
 
-          <Card noPad style={{ marginBottom: 14 }}>
-            <div style={{ padding: "16px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontWeight: 600 }}>Profil altimétrique</div>
-              {hoveredSeg && (
-                <span style={{ fontSize: 12, fontWeight: 600, color: C.yellow }}>
-                  S{segments.indexOf(hoveredSeg)+1} — {hoveredSeg.startKm}→{hoveredSeg.endKm} km
-                </span>
-              )}
-            </div>
-            <ResponsiveContainer width="100%" height={240}>
-              <AreaChart data={highlightData} margin={{ top: 10, right: 20, bottom: 10, left: 40 }}>
-                <defs>
-                  <linearGradient id="eleGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={C.primary} stopOpacity={hoveredSeg ? 0.15 : 0.35} />
-                    <stop offset="95%" stopColor={C.primary} stopOpacity={0.03} />
-                  </linearGradient>
-                  <linearGradient id="eleHover" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={C.yellow} stopOpacity={0.6} />
-                    <stop offset="95%" stopColor={C.yellow} stopOpacity={0.1} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="dist" type="number" domain={profile.length ? [0, profile[profile.length-1].dist] : ["auto","auto"]} tickFormatter={v => `${v.toFixed(0)}km`} tick={{ fontSize: 11, fill: C.muted }} />
-                <YAxis domain={[minEle, "auto"]} tick={{ fontSize: 11, fill: C.muted }} />
-                <RTooltip content={<CustomTooltip />} formatter={(v, n) => [n === "ele" ? `${v} m` : `${v} km`, n === "ele" ? "Altitude" : "Dist"]} />
-                {(race.ravitos||[]).map(rv => (
-                  <ReferenceLine key={rv.id} x={rv.km} stroke={C.green} strokeWidth={1.5} label={{ value: rv.name, position: "top", fontSize: 10, fill: C.green }} />
-                ))}
-                {hoveredSeg && <ReferenceLine x={hoveredSeg.startKm} stroke={C.yellow} strokeWidth={2} strokeDasharray="5 3" />}
-                {hoveredSeg && <ReferenceLine x={hoveredSeg.endKm}   stroke={C.yellow} strokeWidth={2} strokeDasharray="5 3" />}
-                <Area type="monotone" dataKey="ele" stroke={C.primary}
-                  strokeWidth={hoveredSeg ? 1.5 : 2.5} strokeOpacity={hoveredSeg ? 0.3 : 1}
-                  fill="url(#eleGrad)" dot={false} name="Altitude" />
-                <Area type="monotone" dataKey="eleHL"
-                  stroke={C.yellow} strokeWidth={3} fill="url(#eleHover)"
-                  dot={false} connectNulls={false} name="Segment" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Card>
+          {/* Graphe sticky */}
+          <div style={{ position: "sticky", top: 0, zIndex: 10, background: "var(--surface)", paddingBottom: 6, marginBottom: 6 }}>
+            <Card noPad>
+              <div style={{ padding: "14px 20px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontWeight: 600 }}>Profil altimétrique</div>
+                {hoveredSeg && (
+                  <span style={{ fontSize: 12, fontWeight: 600, color: C.yellow }}>
+                    S{segments.indexOf(hoveredSeg)+1} — {hoveredSeg.startKm}→{hoveredSeg.endKm} km · {hoveredSeg.slopePct > 0 ? "+" : ""}{hoveredSeg.slopePct}%
+                  </span>
+                )}
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={highlightData} margin={{ top: 10, right: 20, bottom: 10, left: 40 }}>
+                  <defs>
+                    <linearGradient id="eleGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={C.primary} stopOpacity={hoveredSeg ? 0.12 : 0.35} />
+                      <stop offset="95%" stopColor={C.primary} stopOpacity={0.03} />
+                    </linearGradient>
+                    <linearGradient id="eleHover" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={C.yellow} stopOpacity={0.72} />
+                      <stop offset="100%" stopColor={C.yellow} stopOpacity={0.06} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="dist" type="number" domain={profile.length ? [0, profile[profile.length-1].dist] : ["auto","auto"]} tickFormatter={v => `${v.toFixed(0)}km`} tick={{ fontSize: 11, fill: C.muted }} />
+                  <YAxis domain={[minEle, "auto"]} tick={{ fontSize: 11, fill: C.muted }} />
+                  <RTooltip content={<CustomTooltip />} formatter={(v, n) => [n === "ele" ? `${v} m` : `${v} km`, n === "ele" ? "Altitude" : "Dist"]} />
+                  {(race.ravitos||[]).map(rv => (
+                    <ReferenceLine key={rv.id} x={rv.km} stroke={C.green} strokeWidth={1.5}
+                      label={({ viewBox }) => {
+                        const { x, y } = viewBox;
+                        const words = rv.name.split(" ");
+                        const lines = [];
+                        let line = "";
+                        words.forEach(w => {
+                          if ((line + w).length > 14) { lines.push(line.trim()); line = w + " "; }
+                          else line += w + " ";
+                        });
+                        lines.push(line.trim());
+                        return (
+                          <g>
+                            {lines.map((l, i) => (
+                              <text key={i} x={x + 4} y={y - 4 - (lines.length - 1 - i) * 13}
+                                fontSize={10} fill={C.green} fontWeight={600}>{l}</text>
+                            ))}
+                          </g>
+                        );
+                      }}
+                    />
+                  ))}
+                  {/* Surbrillance segment — remplissage dégradé plein, sans pointillés */}
+                  <Area type="monotone" dataKey="ele" stroke={C.primary}
+                    strokeWidth={hoveredSeg ? 1.5 : 2.5} strokeOpacity={hoveredSeg ? 0.3 : 1}
+                    fill="url(#eleGrad)" dot={false} name="Altitude" />
+                  <Area type="monotone" dataKey="eleHL"
+                    stroke={C.yellow} strokeWidth={2.5} fill="url(#eleHover)"
+                    dot={false} connectNulls={false} name="Segment" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </Card>
+          </div>
 
           {/* Infos course — bandeau discret */}
           <div style={{
@@ -1154,12 +1176,12 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {[...(race.ravitos||[])].sort((a,b) => a.km - b.km).map(rv => (
-                    <div key={rv.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", background: "var(--surface-2)", borderRadius: 9 }}>
-                      <div>
-                        <span style={{ fontWeight: 600, fontSize: 13 }}>{rv.name}</span>
-                        <span style={{ color: "var(--muted-c)", marginLeft: 6, fontSize: 12 }}>{rv.km} km</span>
+                    <div key={rv.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "7px 10px", background: "var(--surface-2)", borderRadius: 9, gap: 8 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, wordBreak: "break-word", lineHeight: 1.3 }}>{rv.name}</div>
+                        <div style={{ color: "var(--muted-c)", fontSize: 12, marginTop: 2 }}>{rv.km} km</div>
                       </div>
-                      <div style={{ display: "flex", gap: 4 }}>
+                      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                         <Btn size="sm" variant="ghost" onClick={() => openEditRavito(rv)}>✏️</Btn>
                         <Btn size="sm" variant="danger" onClick={() => setConfirmId("rv-" + rv.id)}>✕</Btn>
                       </div>
@@ -1187,14 +1209,15 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
                   Aucun segment — utilise le découpage auto ou ajoute-en un manuellement.
                 </div>
               ) : (
-                <div className="tbl-wrap">
+                <div className="tbl-wrap" style={{ maxHeight: 320, overflowY: "auto" }}>
                   <table>
                     <thead><tr>
-                      <th>#</th><th>Début</th><th>Fin</th><th>Pente</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th></th>
+                      <th>#</th><th>Début</th><th>Fin</th><th>Pente moy.</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th></th>
                     </tr></thead>
                     <tbody>{segments.map((seg, i) => {
                       const dur = fmtTime(((seg.endKm - seg.startKm) / seg.speedKmh) * 3600);
                       const isH = hoveredSeg?.id === seg.id;
+                      const slopeColor = seg.slopePct > 15 ? C.red : seg.slopePct > 8 ? C.yellow : seg.slopePct < -10 ? C.blue : C.green;
                       return (
                         <tr key={seg.id}
                           onMouseEnter={() => setHoveredSeg(seg)}
@@ -1208,6 +1231,8 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
                             <span className={`badge ${seg.slopePct > 9 ? "badge-red" : seg.slopePct < 0 ? "badge-blue" : "badge-sage"}`}>
                               {seg.slopePct > 0 ? "+" : ""}{seg.slopePct}%
                             </span>
+                            {seg.slopePct > 15 && <span style={{ marginLeft: 5, fontSize: 10, color: C.red }}>bâtons</span>}
+                            {seg.slopePct > 8 && seg.slopePct <= 15 && <span style={{ marginLeft: 5, fontSize: 10, color: C.yellow }}>marche</span>}
                           </td>
                           <td style={{ fontWeight: isH ? 700 : 600 }}>{seg.speedKmh} km/h</td>
                           <td style={{ fontFamily: "'Playfair Display', serif", fontWeight: isH ? 700 : 400 }}>{fmtPace(seg.speedKmh)}/km</td>
@@ -1224,10 +1249,30 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
             </Card>
           </div>
 
-          <div style={{ marginTop: 16 }}>
+          <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Btn variant="ghost" size="sm" onClick={() => { setRace(r => ({ ...r, gpxPoints: null, totalDistance: 0, totalElevPos: 0, totalElevNeg: 0 })); setSegments([]); }}>
               🔄 Recharger un autre GPX
             </Btn>
+            {race.gpxPoints?.length > 0 && (
+              <Btn variant="ghost" size="sm" onClick={() => {
+                const pts = [...race.gpxPoints].reverse();
+                const maxDist = pts[pts.length - 1]?.dist || 0;
+                const reversed = pts.map((p, i) => {
+                  const cumDist = maxDist - pts[pts.length - 1 - i].dist;
+                  return { ...p, dist: +cumDist.toFixed(3) };
+                }).reverse();
+                // Recalcul D+ et D- sur le sens inversé
+                let elvPos = 0, elvNeg = 0;
+                for (let i = 1; i < reversed.length; i++) {
+                  const dE = reversed[i].ele - reversed[i-1].ele;
+                  if (dE > 0) elvPos += dE; else elvNeg += Math.abs(dE);
+                }
+                setRace(r => ({ ...r, gpxPoints: reversed, totalElevPos: elvPos, totalElevNeg: elvNeg }));
+                setSegments([]);
+              }}>
+                ↔️ Inverser le sens du parcours
+              </Btn>
+            )}
           </div>
         </>
       )}
@@ -1354,12 +1399,29 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
     }, 50);
   };
 
-  const totalTime = segments.reduce((s, seg) => s + ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600, 0);
+  const [reposModal, setReposModal] = useState(false);
+  const [reposForm, setReposForm]   = useState({ label: "", dureeMin: 20 });
+
+  // Segments de course normaux vs segments de repos
+  const segsNormaux = segments.filter(s => s.type !== "repos");
+  const segsRepos   = segments.filter(s => s.type === "repos");
+
+  // Temps course = segments normaux seulement
+  const totalTime = segsNormaux.reduce((s, seg) => s + ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600, 0);
+  // Temps repos = somme des durées de repos
+  const totalReposSec = segsRepos.reduce((s, seg) => s + (seg.dureeMin || 0) * 60, 0);
   const ravitoCount = race.ravitos?.length || 0;
   const totalRavitoSec = ravitoCount * (settings.ravitoTimeMin || 3) * 60;
-  const totalWithRavitos = totalTime + totalRavitoSec;
+  const totalWithRavitos = totalTime + totalRavitoSec + totalReposSec;
 
-  const barData = segments.map((s, i) => ({ name: `S${i+1}`, vitesse: s.speedKmh, pente: s.slopePct }));
+  const addRepos = () => {
+    if (!reposForm.label.trim() || !reposForm.dureeMin) return;
+    setSegments(s => [...s, { id: Date.now(), type: "repos", label: reposForm.label, dureeMin: Number(reposForm.dureeMin), startKm: null, endKm: null, speedKmh: 0, slopePct: 0, terrain: "normal", notes: "" }]);
+    setReposModal(false);
+    setReposForm({ label: "", dureeMin: 20 });
+  };
+
+  const barData = segsNormaux.map((s, i) => ({ name: `S${i+1}`, vitesse: s.speedKmh, pente: s.slopePct }));
 
   const EFFORT_OPTIONS = [
     { key: "comfort", label: "Finisher", desc: "Terminer sans se cramer — vitesses -12%", color: C.green },
@@ -1503,7 +1565,10 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
           <Card noPad>
             <div style={{ padding: "14px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 600 }}>Segments</span>
-              <Btn size="sm" onClick={openNew}>+ Segment</Btn>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn size="sm" variant="ghost" onClick={() => setReposModal(true)}>💤 Repos</Btn>
+                <Btn size="sm" onClick={openNew}>+ Segment</Btn>
+              </div>
             </div>
             <div className="tbl-wrap">
               <table>
@@ -1511,6 +1576,24 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
                   <th>#</th><th>De</th><th>À</th><th>Dist.</th><th>Pente</th><th>Terrain</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th>Nutrition/h</th><th></th>
                 </tr></thead>
                 <tbody>{segments.map((seg, i) => {
+                  // ── Segment de repos ──
+                  if (seg.type === "repos") {
+                    return (
+                      <tr key={seg.id} style={{ background: "var(--surface-2)", cursor: "default" }}>
+                        <td style={{ color: "var(--muted-c)" }}>{i+1}</td>
+                        <td colSpan={3} style={{ fontWeight: 600, color: C.blue }}>
+                          💤 {seg.label}
+                        </td>
+                        <td colSpan={5} style={{ color: "var(--muted-c)", fontSize: 13 }}>
+                          Repos — {seg.dureeMin} min ({fmtTime(seg.dureeMin * 60)})
+                        </td>
+                        <td onClick={e => e.stopPropagation()}>
+                          <Btn size="sm" variant="danger" onClick={() => setConfirmId(seg.id)}>✕</Btn>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  // ── Segment normal ──
                   const dist = seg.endKm - seg.startKm;
                   const dur  = fmtTime((dist / seg.speedKmh) * 3600);
                   const n    = calcNutrition(seg, settings);
@@ -1529,10 +1612,9 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
                         {seg.slopePct > 10 && <span style={{ marginLeft: 6, fontSize: 11, color: C.yellow }}>marche</span>}
                       </td>
                       <td>
-                        {terrainKey !== "normal" && (
-                          <span className="badge badge-yellow" style={{ fontSize: 11 }}>{terrainLabel}</span>
-                        )}
-                        {terrainKey === "normal" && <span style={{ fontSize: 12, color: "var(--muted-c)" }}>—</span>}
+                        {terrainKey !== "normal"
+                          ? <span className="badge badge-yellow" style={{ fontSize: 11 }}>{terrainLabel}</span>
+                          : <span style={{ fontSize: 12, color: "var(--muted-c)" }}>—</span>}
                       </td>
                       <td style={{ fontWeight: 600 }}>{seg.speedKmh} km/h</td>
                       <td style={{ fontFamily: "'Playfair Display', serif" }}>{fmtPace(seg.speedKmh)}/km</td>
@@ -1601,6 +1683,31 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
           <Btn variant="ghost" onClick={() => setModal(false)}>Annuler</Btn>
           <Btn onClick={save}>Enregistrer</Btn>
+        </div>
+      </Modal>
+      <Modal open={reposModal} onClose={() => setReposModal(false)} title="Ajouter un segment de repos">
+        <div className="form-grid">
+          <Field label="Description" full>
+            <input value={reposForm.label} onChange={e => setReposForm(f => ({ ...f, label: e.target.value }))}
+              placeholder="Ex : Bivouac km 60, Sieste ravito..." />
+          </Field>
+          <Field label="Durée (minutes)" full>
+            <div>
+              <input type="range" min={5} max={480} step={5} value={reposForm.dureeMin}
+                onChange={e => setReposForm(f => ({ ...f, dureeMin: Number(e.target.value) }))} />
+              <div style={{ textAlign: "center", fontSize: 13, marginTop: 6 }}>
+                <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700 }}>{reposForm.dureeMin} min</span>
+                <span style={{ color: "var(--muted-c)", marginLeft: 8 }}>({fmtTime(reposForm.dureeMin * 60)})</span>
+              </div>
+            </div>
+          </Field>
+        </div>
+        <div style={{ marginTop: 12, padding: "10px 14px", background: "var(--surface-2)", borderRadius: 10, fontSize: 13, color: "var(--muted-c)" }}>
+          Ce segment n'a pas de distance — il ajoute uniquement du temps au total de course.
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+          <Btn variant="ghost" onClick={() => setReposModal(false)}>Annuler</Btn>
+          <Btn onClick={addRepos}>Ajouter</Btn>
         </div>
       </Modal>
       <ConfirmDialog open={!!confirmId} message="Supprimer ce segment ?" onConfirm={() => { setSegments(s => s.filter(x => x.id !== confirmId)); setConfirmId(null); }} onCancel={() => setConfirmId(null)} />
@@ -1806,7 +1913,7 @@ function NutritionView({ segments, settings, race }) {
     };
   }, { kcal: 0, eau: 0, glucides: 0, sel: 0 });
 
-  const totalTime = segments.reduce((s, seg) => s + ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600, 0);
+  const totalTime = segments.reduce((s, seg) => seg.type === "repos" ? s + (seg.dureeMin||0)*60 : s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
   const totalDist = segments.length ? segments[segments.length - 1].endKm : 0;
 
   // Nutrition par ravito (entre chaque ravitaillement)
