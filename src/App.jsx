@@ -68,7 +68,7 @@ const EMPTY_SETTINGS = {
   paceStrategy: 0,
   ravitoTimeMin: 3,
   equipment: DEFAULT_EQUIPMENT,
-  recettes: [],
+  produits: [],   // bibliothèque permanente de produits nutritionnels
 };
 
 // ─── ALGOS TRAIL ─────────────────────────────────────────────────────────────
@@ -2017,41 +2017,68 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
 
 
 // ─── VUE NUTRITION ───────────────────────────────────────────────────────────
-function NutritionView({ segments, settings, setSettings, race }) {
-  const recettes = settings.recettes || [];
-  const ravitos  = [...(race.ravitos || [])].sort((a, b) => a.km - b.km);
-  const upd = v => setSettings(s => ({ ...s, recettes: v }));
+function NutritionView({ segments, settings, setSettings, race, setRace }) {
+  const produits = settings.produits || [];
+  const planNutrition = race.planNutrition || {};
+  const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km);
 
-  const [modal, setModal]       = useState(false);
-  const [editId, setEditId]     = useState(null);
-  const [confirmId, setConfirmId] = useState(null);
-  const emptyForm = { nom: "", par100g: true, poids: "", kcal: "", proteines: "", lipides: "", glucides: "", sodium: "", potassium: "", magnesium: "", zinc: "", calcium: "", quantite: 1, dropBag: "depart" };
-  const [form, setForm] = useState(emptyForm);
-  const updF = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const updProduits = v => setSettings(s => ({ ...s, produits: v }));
+  const updPlan = v => setRace(r => ({ ...r, planNutrition: v }));
 
-  const openNew  = ()  => { setEditId(null);  setForm(emptyForm);                          setModal(true); };
-  const openEdit = r   => { setEditId(r.id);  setForm({ ...emptyForm, ...r });              setModal(true); };
-  const save = () => {
-    if (!form.nom.trim()) return;
-    const item = { ...form, id: editId || Date.now(), poids: +form.poids||0, kcal: +form.kcal||0, proteines: +form.proteines||0, lipides: +form.lipides||0, glucides: +form.glucides||0, sodium: +form.sodium||0, potassium: +form.potassium||0, magnesium: +form.magnesium||0, zinc: +form.zinc||0, calcium: +form.calcium||0, quantite: +form.quantite||1 };
-    if (editId) upd(recettes.map(r => r.id === editId ? item : r));
-    else upd([...recettes, item]);
-    setModal(false);
+  // ── État modaux ──
+  const [prodModal, setProdModal] = useState(false);
+  const [editProdId, setEditProdId] = useState(null);
+  const [confirmProdId, setConfirmProdId] = useState(null);
+  const emptyProd = { nom: "", par100g: true, poids: "", kcal: "", proteines: "", lipides: "", glucides: "", sodium: "", potassium: "", magnesium: "", zinc: "", calcium: "" };
+  const [prodForm, setProdForm] = useState(emptyProd);
+  const updP = (k, v) => setProdForm(f => ({ ...f, [k]: v }));
+
+  const openNewProd  = ()  => { setEditProdId(null);  setProdForm(emptyProd); setProdModal(true); };
+  const openEditProd = p   => { setEditProdId(p.id);  setProdForm({ ...emptyProd, ...p }); setProdModal(true); };
+  const saveProd = () => {
+    if (!prodForm.nom.trim()) return;
+    const item = { ...prodForm, id: editProdId || Date.now(), poids: +prodForm.poids||0, kcal: +prodForm.kcal||0, proteines: +prodForm.proteines||0, lipides: +prodForm.lipides||0, glucides: +prodForm.glucides||0, sodium: +prodForm.sodium||0, potassium: +prodForm.potassium||0, magnesium: +prodForm.magnesium||0, zinc: +prodForm.zinc||0, calcium: +prodForm.calcium||0 };
+    if (editProdId) updProduits(produits.map(p => p.id === editProdId ? item : p));
+    else updProduits([...produits, item]);
+    setProdModal(false);
   };
 
-  // Calcul valeur nutritive par item (ramené à la quantité emportée)
-  const itemNutri = r => {
-    const factor = r.par100g ? (r.poids * r.quantite / 100) : r.quantite;
-    return { kcal: r.kcal * factor, glucides: r.glucides * factor, proteines: r.proteines * factor, lipides: r.lipides * factor, sodium: r.sodium * factor, potassium: r.potassium * factor, magnesium: r.magnesium * factor };
+  // ── Helpers nutrition ──
+  const nutriProduit = (prod, qte) => {
+    const factor = prod.par100g ? (prod.poids * qte / 100) : qte;
+    return { kcal: Math.round(prod.kcal * factor), glucides: Math.round(prod.glucides * factor), proteines: Math.round(prod.proteines * factor), sodium: Math.round(prod.sodium * factor) };
   };
 
-  // Totaux emportés
-  const totalEmporte = recettes.reduce((acc, r) => {
-    const n = itemNutri(r);
-    return { kcal: acc.kcal + n.kcal, glucides: acc.glucides + n.glucides, proteines: acc.proteines + n.proteines, lipides: acc.lipides + n.lipides, sodium: acc.sodium + n.sodium, potassium: acc.potassium + n.potassium, magnesium: acc.magnesium + n.magnesium };
-  }, { kcal: 0, glucides: 0, proteines: 0, lipides: 0, sodium: 0, potassium: 0, magnesium: 0 });
+  const totalPoint = pointKey => {
+    const items = planNutrition[pointKey] || [];
+    return items.reduce((acc, { produitId, quantite }) => {
+      const p = produits.find(x => x.id === produitId);
+      if (!p) return acc;
+      const n = nutriProduit(p, quantite);
+      return { kcal: acc.kcal + n.kcal, glucides: acc.glucides + n.glucides, proteines: acc.proteines + n.proteines, sodium: acc.sodium + n.sodium };
+    }, { kcal: 0, glucides: 0, proteines: 0, sodium: 0 });
+  };
 
-  // Besoins calculés depuis les segments
+  const totalEmporte = ["depart", ...ravitos.map(r => String(r.id))].reduce((acc, key) => {
+    const t = totalPoint(key);
+    return { kcal: acc.kcal + t.kcal, glucides: acc.glucides + t.glucides, proteines: acc.proteines + t.proteines, sodium: acc.sodium + t.sodium };
+  }, { kcal: 0, glucides: 0, proteines: 0, sodium: 0 });
+
+  const setQte = (pointKey, produitId, qte) => {
+    const current = planNutrition[pointKey] || [];
+    let updated;
+    if (qte <= 0) {
+      updated = current.filter(x => x.produitId !== produitId);
+    } else {
+      const exists = current.find(x => x.produitId === produitId);
+      updated = exists ? current.map(x => x.produitId === produitId ? { ...x, quantite: qte } : x) : [...current, { produitId, quantite: qte }];
+    }
+    updPlan({ ...planNutrition, [pointKey]: updated });
+  };
+
+  const getQte = (pointKey, produitId) => (planNutrition[pointKey] || []).find(x => x.produitId === produitId)?.quantite || 0;
+
+  // ── Besoins calculés ──
   const nutriTotals = segments.reduce((acc, seg) => {
     if (seg.type === "ravito" || seg.type === "repos") return acc;
     const n = calcNutrition(seg, settings);
@@ -2061,46 +2088,40 @@ function NutritionView({ segments, settings, setSettings, race }) {
 
   const totalTime = segments.reduce((s, seg) => (seg.type === "repos" || seg.type === "ravito") ? s + (seg.dureeMin||0)*60 : s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
   const totalDist = segments.filter(s => s.type !== "ravito" && s.type !== "repos").reduce((s, seg) => Math.max(s, seg.endKm), 0);
+  const isHot = settings.heat || settings.tempC > 25;
+  const waterPerHour = 500 + (settings.wind ? 100 : 0) + (isHot ? 150 : 0);
 
-  // Zones par tronçon
-  const zones = [];
+  // Zones tronçons pour le plan
   const bornes = [0, ...ravitos.map(r => r.km), totalDist].filter((v, i, a) => v !== a[i-1]);
-  for (let i = 0; i < bornes.length - 1; i++) {
-    const from = bornes[i], to = bornes[i + 1];
+  const zones = bornes.slice(0, -1).map((from, i) => {
+    const to = bornes[i + 1];
     const label = i === 0 ? "Départ" : (ravitos[i-1]?.name || `Ravito ${i}`);
     const toLbl = i === bornes.length - 2 ? "Arrivée" : (ravitos[i]?.name || `Ravito ${i+1}`);
-    const segsInZone = segments.filter(s => s.type !== "ravito" && s.type !== "repos" && s.startKm < to && s.endKm > from);
-    const zNutri = segsInZone.reduce((acc, seg) => {
+    const pointKey = i === 0 ? "depart" : String(ravitos[i-1]?.id);
+    const segsZ = segments.filter(s => s.type !== "ravito" && s.type !== "repos" && s.startKm < to && s.endKm > from);
+    const besoin = segsZ.reduce((acc, seg) => {
       const overlap = Math.min(seg.endKm, to) - Math.max(seg.startKm, from);
       const ratio = overlap / (seg.endKm - seg.startKm || 1);
       const n = calcNutrition(seg, settings);
       const dH = (seg.endKm - seg.startKm) / seg.speedKmh * ratio;
       return { kcal: acc.kcal + Math.round(n.kcalH * dH), eau: acc.eau + Math.round(n.eauH * dH), glucides: acc.glucides + Math.round(n.glucidesH * dH) };
     }, { kcal: 0, eau: 0, glucides: 0 });
-    const ravitoId = ravitos[i]?.id;
-    const zRecettes = recettes.filter(r => r.dropBag === (ravitoId ? String(ravitoId) : "depart") || (i === 0 && r.dropBag === "depart"));
-    zones.push({ label, toLbl, from, to, ravitoId, ...zNutri, recettesZone: zRecettes });
-  }
+    return { label, toLbl, from, to, pointKey, besoin };
+  });
 
   const barData = segments.filter(s => s.type !== "ravito" && s.type !== "repos").map((s, i) => {
     const n = calcNutrition(s, settings);
     const dH = s.speedKmh > 0 ? (s.endKm - s.startKm) / s.speedKmh : 0;
-    return { name: `S${i+1}`, eau: Math.round(n.eauH * dH), glucides: Math.round(n.glucidesH * dH), kcal: Math.round(n.kcalH * dH) };
+    return { name: `S${i+1}`, eau: Math.round(n.eauH * dH), glucides: Math.round(n.glucidesH * dH) };
   });
 
-  const isHot = settings.heat || settings.tempC > 25;
-  const waterPerHour = 500 + (settings.wind ? 100 : 0) + (isHot ? 150 : 0);
-
-  // Gap analysis
-  const gapKcal     = totalEmporte.kcal     - nutriTotals.kcal;
-  const gapGlucides = totalEmporte.glucides - nutriTotals.glucides;
   const gapColor = v => v >= 0 ? C.green : C.red;
-  const gapLabel = v => v >= 0 ? `+${Math.round(v)} excédent` : `${Math.round(v)} manque`;
+  const gapLabel = (v, unit) => v >= 0 ? `+${Math.round(v)} ${unit} excédent` : `${Math.round(v)} ${unit} manque`;
 
   if (!segments.length) {
     return (
       <div className="anim">
-        <PageTitle sub="Besoins, inventaire et analyse des gaps">Nutrition</PageTitle>
+        <PageTitle sub="Besoins, bibliothèque et plan de ravitaillement">Nutrition</PageTitle>
         <Empty icon="🍌" title="Aucun segment défini" sub="Définis des segments dans Stratégie de course pour calculer tes besoins nutritionnels." />
       </div>
     );
@@ -2108,7 +2129,7 @@ function NutritionView({ segments, settings, setSettings, race }) {
 
   return (
     <div className="anim">
-      <PageTitle sub="Besoins, inventaire et analyse des gaps">Nutrition</PageTitle>
+      <PageTitle sub="Besoins, bibliothèque et plan de ravitaillement">Nutrition</PageTitle>
 
       {/* KPIs besoins */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 24 }}>
@@ -2158,95 +2179,149 @@ function NutritionView({ segments, settings, setSettings, race }) {
         </Card>
       </div>
 
-      {/* Plan par tronçon */}
-      <Card noPad style={{ marginBottom: 24 }}>
-        <div style={{ padding: "16px 20px 12px", fontWeight: 600 }}>
-          Plan par tronçon {ravitos.length > 0 ? `(${ravitos.length} ravito${ravitos.length>1?"s":""})` : ""}
-        </div>
-        <div className="tbl-wrap">
-          <table>
-            <thead><tr><th>De</th><th>Vers</th><th>Distance</th><th>Eau</th><th>Glucides</th><th>Calories</th></tr></thead>
-            <tbody>
-              {zones.map((z, i) => (
-                <tr key={i}>
-                  <td style={{ fontWeight: 600 }}>{z.label}</td>
-                  <td style={{ color: "var(--muted-c)" }}>{z.toLbl}</td>
-                  <td>{(z.to - z.from).toFixed(1)} km</td>
-                  <td><span style={{ fontWeight: 600, color: C.blue }}>{z.eau >= 1000 ? `${(z.eau/1000).toFixed(1)} L` : `${z.eau} mL`}</span></td>
-                  <td><span style={{ fontWeight: 600, color: C.yellow }}>{z.glucides} g</span></td>
-                  <td style={{ color: "var(--muted-c)" }}>{z.kcal} kcal</td>
-                </tr>
-              ))}
-              <tr style={{ borderTop: `2px solid var(--border-c)`, fontWeight: 600 }}>
-                <td colSpan={3}>Total besoins</td>
-                <td style={{ color: C.blue }}>{nutriTotals.eau >= 1000 ? `${(nutriTotals.eau/1000).toFixed(1)} L` : `${nutriTotals.eau} mL`}</td>
-                <td style={{ color: C.yellow }}>{nutriTotals.glucides} g</td>
-                <td>{nutriTotals.kcal} kcal</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      {/* ── INVENTAIRE ─────────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      {/* ══ SECTION 1 : BIBLIOTHÈQUE DE PRODUITS ══════════════════════════════ */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div>
-          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700 }}>Inventaire nutrition</div>
-          <div style={{ fontSize: 13, color: "var(--muted-c)", marginTop: 2 }}>Ce que tu emportes réellement</div>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700 }}>Bibliothèque de produits</div>
+          <div style={{ fontSize: 13, color: "var(--muted-c)", marginTop: 2 }}>Crée tes produits une fois, utilise-les partout</div>
         </div>
-        <Btn onClick={openNew}>+ Produit</Btn>
+        <Btn onClick={openNewProd}>+ Produit</Btn>
       </div>
 
-      {recettes.length === 0 ? (
-        <Empty icon="🎒" title="Inventaire vide" sub="Ajoute tes produits pour comparer avec tes besoins estimés." action={<Btn onClick={openNew}>+ Produit</Btn>} />
+      {produits.length === 0 ? (
+        <Card style={{ marginBottom: 24, textAlign: "center", color: "var(--muted-c)" }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>🏪</div>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Bibliothèque vide</div>
+          <div style={{ fontSize: 13, marginBottom: 14 }}>Ajoute tes barres, gels et boissons pour construire ton plan.</div>
+          <Btn onClick={openNewProd}>+ Ajouter un produit</Btn>
+        </Card>
       ) : (
-        <>
-          {/* Tableau produits */}
-          <Card noPad style={{ marginBottom: 20 }}>
-            <div className="tbl-wrap">
-              <table>
-                <thead><tr>
-                  <th>Produit</th><th>Qté</th><th>Poids total</th><th>Kcal</th><th>Glucides</th><th>Protéines</th><th>Na</th><th>Drop-bag</th><th></th>
-                </tr></thead>
-                <tbody>
-                  {recettes.map(r => {
-                    const n = itemNutri(r);
-                    const poidsTot = r.par100g ? r.poids * r.quantite : r.poids * r.quantite;
-                    const dbLabel = r.dropBag === "depart" ? "Départ" : (ravitos.find(rv => String(rv.id) === r.dropBag)?.name || "Ravito");
-                    return (
-                      <tr key={r.id} onClick={() => openEdit(r)} style={{ cursor: "pointer" }}>
-                        <td style={{ fontWeight: 600 }}>{r.nom}</td>
-                        <td>{r.quantite}{r.par100g ? " × 100g" : " unité(s)"}</td>
-                        <td style={{ color: "var(--muted-c)" }}>{poidsTot > 0 ? `${poidsTot} g` : "—"}</td>
-                        <td style={{ fontWeight: 600, color: C.red }}>{Math.round(n.kcal)} kcal</td>
-                        <td style={{ color: C.yellow }}>{Math.round(n.glucides)} g</td>
-                        <td style={{ color: "var(--muted-c)" }}>{Math.round(n.proteines)} g</td>
-                        <td style={{ color: "var(--muted-c)" }}>{Math.round(n.sodium)} mg</td>
-                        <td>
-                          <span className={`badge ${r.dropBag === "depart" ? "badge-sage" : "badge-blue"}`} style={{ fontSize: 11 }}>
-                            {dbLabel}
-                          </span>
-                        </td>
-                        <td onClick={e => e.stopPropagation()}>
-                          <Btn size="sm" variant="danger" onClick={() => setConfirmId(r.id)}>✕</Btn>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+        <Card noPad style={{ marginBottom: 24 }}>
+          <div className="tbl-wrap">
+            <table>
+              <thead><tr>
+                <th>Produit</th><th>Base</th><th>Poids</th><th>Kcal</th><th>Glucides</th><th>Protéines</th><th>Na (mg)</th><th></th>
+              </tr></thead>
+              <tbody>
+                {produits.map(p => (
+                  <tr key={p.id} onClick={() => openEditProd(p)} style={{ cursor: "pointer" }}>
+                    <td style={{ fontWeight: 600 }}>{p.nom}</td>
+                    <td style={{ color: "var(--muted-c)", fontSize: 12 }}>{p.par100g ? "/ 100g" : "/ unité"}</td>
+                    <td>{p.poids > 0 ? `${p.poids} g` : "—"}</td>
+                    <td style={{ color: C.red, fontWeight: 600 }}>{p.kcal} kcal</td>
+                    <td style={{ color: C.yellow }}>{p.glucides} g</td>
+                    <td style={{ color: "var(--muted-c)" }}>{p.proteines} g</td>
+                    <td style={{ color: "var(--muted-c)" }}>{p.sodium} mg</td>
+                    <td onClick={e => e.stopPropagation()}>
+                      <Btn size="sm" variant="danger" onClick={() => setConfirmProdId(p.id)}>✕</Btn>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
-          {/* ── GAP ANALYSIS ── */}
-          <Card style={{ marginBottom: 20 }}>
-            <div style={{ fontWeight: 600, marginBottom: 16 }}>Analyse des gaps — Emporté vs Besoins</div>
+      {/* ══ SECTION 2 : PLAN DE RAVITAILLEMENT ════════════════════════════════ */}
+      {produits.length > 0 && (
+        <>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Plan de ravitaillement</div>
+          <div style={{ fontSize: 13, color: "var(--muted-c)", marginBottom: 16 }}>Définis ce que tu emportes à chaque point</div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 24 }}>
+            {zones.map(zone => {
+              const ptTotal = totalPoint(zone.pointKey);
+              const gapKcal = ptTotal.kcal - zone.besoin.kcal;
+              const gapGlu  = ptTotal.glucides - zone.besoin.glucides;
+              return (
+                <Card key={zone.pointKey} style={{ borderLeft: `4px solid ${zone.pointKey === "depart" ? C.primary : C.green}` }}>
+                  {/* En-tête zone */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 15 }}>
+                        {zone.pointKey === "depart" ? "🏁" : "🥤"} {zone.label}
+                        <span style={{ fontSize: 12, color: "var(--muted-c)", fontWeight: 400, marginLeft: 8 }}>→ {zone.toLbl} · {(zone.to - zone.from).toFixed(1)} km</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 3 }}>
+                        Besoin : {zone.besoin.kcal} kcal · {zone.besoin.glucides} g glucides · {zone.besoin.eau >= 1000 ? `${(zone.besoin.eau/1000).toFixed(1)} L` : `${zone.besoin.eau} mL`} eau
+                      </div>
+                    </div>
+                    {ptTotal.kcal > 0 && (
+                      <div style={{ textAlign: "right", fontSize: 12 }}>
+                        <div style={{ fontWeight: 700, color: gapColor(gapKcal), fontSize: 13 }}>{gapLabel(gapKcal, "kcal")}</div>
+                        <div style={{ color: gapColor(gapGlu) }}>{gapLabel(gapGlu, "g gluc.")}</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Sélection produits */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {produits.map(p => {
+                      const qte = getQte(zone.pointKey, p.id);
+                      const n = qte > 0 ? nutriProduit(p, qte) : null;
+                      return (
+                        <div key={p.id} style={{
+                          display: "flex", alignItems: "center", gap: 12, padding: "8px 12px",
+                          borderRadius: 10, background: qte > 0 ? C.green + "14" : "var(--surface-2)",
+                          border: `1px solid ${qte > 0 ? C.green + "40" : "var(--border-c)"}`,
+                          transition: "all 0.15s",
+                        }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: 13 }}>{p.nom}</div>
+                            <div style={{ fontSize: 11, color: "var(--muted-c)" }}>
+                              {p.kcal} kcal · {p.glucides}g glucides{p.par100g ? ` / 100g` : ` / unité`}
+                            </div>
+                          </div>
+                          {/* Quantité */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                            {qte > 0 && (
+                              <div style={{ fontSize: 11, color: C.green, fontWeight: 600, whiteSpace: "nowrap" }}>
+                                → {n.kcal} kcal · {n.glucides}g
+                              </div>
+                            )}
+                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                              <button onClick={() => setQte(zone.pointKey, p.id, Math.max(0, qte - 1))} style={{
+                                width: 26, height: 26, border: "1px solid var(--border-c)", borderRadius: 6,
+                                background: "var(--surface)", cursor: "pointer", fontWeight: 700, fontSize: 14,
+                                color: "var(--text-c)", fontFamily: "inherit",
+                              }}>−</button>
+                              <span style={{ minWidth: 24, textAlign: "center", fontWeight: 700, fontSize: 14 }}>{qte}</span>
+                              <button onClick={() => setQte(zone.pointKey, p.id, qte + 1)} style={{
+                                width: 26, height: 26, border: "1px solid var(--border-c)", borderRadius: 6,
+                                background: qte > 0 ? C.green : "var(--surface)", cursor: "pointer", fontWeight: 700, fontSize: 14,
+                                color: qte > 0 ? "#fff" : "var(--text-c)", fontFamily: "inherit", transition: "all 0.15s",
+                              }}>+</button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Total zone */}
+                  {ptTotal.kcal > 0 && (
+                    <div style={{ marginTop: 12, padding: "8px 12px", background: "var(--surface-2)", borderRadius: 8, display: "flex", gap: 16, fontSize: 12, flexWrap: "wrap" }}>
+                      <span>Total emporté :</span>
+                      <span style={{ color: C.red, fontWeight: 600 }}>{ptTotal.kcal} kcal</span>
+                      <span style={{ color: C.yellow, fontWeight: 600 }}>{ptTotal.glucides} g glucides</span>
+                      <span style={{ color: C.primary, fontWeight: 600 }}>{ptTotal.proteines} g protéines</span>
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Gap analysis global */}
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 14 }}>Bilan global</div>
+          <Card>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
               {[
-                { label: "Calories", besoin: nutriTotals.kcal, emporte: Math.round(totalEmporte.kcal), unit: "kcal", color: C.red, icon: "🔥" },
-                { label: "Glucides", besoin: nutriTotals.glucides, emporte: Math.round(totalEmporte.glucides), unit: "g", color: C.yellow, icon: "🍌" },
-                { label: "Protéines", besoin: null, emporte: Math.round(totalEmporte.proteines), unit: "g", color: C.primary, icon: "💪" },
-                { label: "Sodium", besoin: nutriTotals.sel, emporte: Math.round(totalEmporte.sodium), unit: "mg", color: C.green, icon: "🧂" },
+                { label: "Calories", besoin: nutriTotals.kcal, emporte: totalEmporte.kcal, unit: "kcal", color: C.red, icon: "🔥" },
+                { label: "Glucides", besoin: nutriTotals.glucides, emporte: totalEmporte.glucides, unit: "g", color: C.yellow, icon: "🍌" },
+                { label: "Protéines", besoin: null, emporte: totalEmporte.proteines, unit: "g", color: C.primary, icon: "💪" },
+                { label: "Sodium", besoin: nutriTotals.sel, emporte: totalEmporte.sodium, unit: "mg", color: C.green, icon: "🧂" },
               ].map(item => {
                 const gap = item.besoin !== null ? item.emporte - item.besoin : null;
                 const pct = item.besoin ? Math.min((item.emporte / item.besoin) * 100, 150) : 100;
@@ -2255,9 +2330,7 @@ function NutritionView({ segments, settings, setSettings, race }) {
                   <div key={item.label} style={{ padding: "14px 16px", background: "var(--surface-2)", borderRadius: 12 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
                       <span style={{ fontSize: 13, color: "var(--muted-c)" }}>{item.icon} {item.label}</span>
-                      {gap !== null && (
-                        <span style={{ fontSize: 12, fontWeight: 700, color: gapColor(gap) }}>{gapLabel(gap)} {item.unit}</span>
-                      )}
+                      {gap !== null && <span style={{ fontSize: 12, fontWeight: 700, color: gapColor(gap) }}>{gapLabel(gap, item.unit)}</span>}
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                       <span style={{ fontSize: 11, color: "var(--muted-c)" }}>Emporté</span>
@@ -2265,10 +2338,10 @@ function NutritionView({ segments, settings, setSettings, race }) {
                     </div>
                     {item.besoin !== null && (
                       <>
-                        <div style={{ height: 6, background: "var(--surface-3,var(--surface))", borderRadius: 3, overflow: "hidden", marginBottom: 4 }}>
+                        <div style={{ height: 6, background: "var(--surface)", borderRadius: 3, overflow: "hidden", marginBottom: 4 }}>
                           <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: 3, transition: "width 0.4s" }} />
                         </div>
-                        <div style={{ fontSize: 11, color: "var(--muted-c)" }}>Besoin : {item.besoin} {item.unit}</div>
+                        <div style={{ fontSize: 11, color: "var(--muted-c)" }}>Besoin estimé : {item.besoin} {item.unit}</div>
                       </>
                     )}
                   </div>
@@ -2276,89 +2349,47 @@ function NutritionView({ segments, settings, setSettings, race }) {
               })}
             </div>
           </Card>
-
-          {/* ── DROP-BAGS PAR ZONE ── */}
-          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 14 }}>Répartition drop-bags</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
-            {[
-              { key: "depart", label: "🏁 Porté au départ", color: C.primary },
-              ...ravitos.map(rv => ({ key: String(rv.id), label: `🥤 ${rv.name} (km ${rv.km})`, color: C.green })),
-            ].map(zone => {
-              const items = recettes.filter(r => r.dropBag === zone.key);
-              if (!items.length) return null;
-              const totKcal   = Math.round(items.reduce((s, r) => s + itemNutri(r).kcal, 0));
-              const totPoids  = items.reduce((s, r) => s + (r.poids * r.quantite), 0);
-              return (
-                <Card key={zone.key} style={{ borderLeft: `4px solid ${zone.color}` }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                    <span style={{ fontWeight: 700 }}>{zone.label}</span>
-                    <div style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--muted-c)" }}>
-                      <span>~{totPoids} g</span>
-                      <span style={{ color: C.red, fontWeight: 600 }}>{totKcal} kcal</span>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                    {items.map(r => {
-                      const n = itemNutri(r);
-                      return (
-                        <div key={r.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "5px 8px", background: "var(--surface-2)", borderRadius: 8 }}>
-                          <span>{r.nom} <span style={{ color: "var(--muted-c)", fontSize: 12 }}>× {r.quantite}</span></span>
-                          <span style={{ color: "var(--muted-c)", fontSize: 12 }}>{Math.round(n.kcal)} kcal · {Math.round(n.glucides)} g glucides</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Card>
-              );
-            }).filter(Boolean)}
-          </div>
         </>
       )}
 
       {/* Modal produit */}
-      <Modal open={modal} onClose={() => setModal(false)} title={editId ? "Modifier le produit" : "Ajouter un produit"}>
+      <Modal open={prodModal} onClose={() => setProdModal(false)} title={editProdId ? "Modifier le produit" : "Ajouter un produit"}>
         <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
-          {[{ v: true, l: "Pour 100g/100mL" }, { v: false, l: "À l'unité" }].map(o => (
-            <div key={String(o.v)} onClick={() => updF("par100g", o.v)} style={{
+          {[{ v: true, l: "Valeurs pour 100g / 100mL" }, { v: false, l: "Valeurs à l'unité" }].map(o => (
+            <div key={String(o.v)} onClick={() => updP("par100g", o.v)} style={{
               flex: 1, padding: "8px 12px", borderRadius: 10, cursor: "pointer", textAlign: "center",
-              border: `2px solid ${form.par100g === o.v ? C.primary : "var(--border-c)"}`,
-              background: form.par100g === o.v ? C.primaryPale : "var(--surface-2)",
-              fontSize: 13, fontWeight: form.par100g === o.v ? 600 : 400,
-              color: form.par100g === o.v ? C.primaryDeep : "var(--text-c)",
+              border: `2px solid ${prodForm.par100g === o.v ? C.primary : "var(--border-c)"}`,
+              background: prodForm.par100g === o.v ? C.primaryPale : "var(--surface-2)",
+              fontSize: 13, fontWeight: prodForm.par100g === o.v ? 600 : 400,
+              color: prodForm.par100g === o.v ? C.primaryDeep : "var(--text-c)",
             }}>{o.l}</div>
           ))}
         </div>
         <div className="form-grid">
-          <Field label="Nom du produit" full><input value={form.nom} onChange={e => updF("nom", e.target.value)} placeholder="Ex : Barre Trail Power" autoFocus /></Field>
-          <Field label={form.par100g ? "Poids (g)" : "Poids unitaire (g)"}><input type="number" min={0} value={form.poids} onChange={e => updF("poids", e.target.value)} /></Field>
-          <Field label="Quantité emportée"><input type="number" min={1} value={form.quantite} onChange={e => updF("quantite", e.target.value)} /></Field>
-          <Field label="Kcal"><input type="number" min={0} value={form.kcal} onChange={e => updF("kcal", e.target.value)} /></Field>
-          <Field label="Glucides (g)"><input type="number" min={0} value={form.glucides} onChange={e => updF("glucides", e.target.value)} /></Field>
-          <Field label="Protéines (g)"><input type="number" min={0} value={form.proteines} onChange={e => updF("proteines", e.target.value)} /></Field>
-          <Field label="Lipides (g)"><input type="number" min={0} value={form.lipides} onChange={e => updF("lipides", e.target.value)} /></Field>
-          <Field label="Sodium (mg)"><input type="number" min={0} value={form.sodium} onChange={e => updF("sodium", e.target.value)} /></Field>
-          <Field label="Potassium (mg)"><input type="number" min={0} value={form.potassium} onChange={e => updF("potassium", e.target.value)} /></Field>
-          <Field label="Magnésium (mg)"><input type="number" min={0} value={form.magnesium} onChange={e => updF("magnesium", e.target.value)} /></Field>
-          <Field label="Zinc (mg)"><input type="number" min={0} value={form.zinc} onChange={e => updF("zinc", e.target.value)} /></Field>
-          <Field label="Calcium (mg)"><input type="number" min={0} value={form.calcium} onChange={e => updF("calcium", e.target.value)} /></Field>
-          <Field label="Drop-bag" full>
-            <select value={form.dropBag} onChange={e => updF("dropBag", e.target.value)}>
-              <option value="depart">Porté au départ</option>
-              {ravitos.map(rv => <option key={rv.id} value={String(rv.id)}>Assistance — {rv.name} (km {rv.km})</option>)}
-            </select>
-          </Field>
+          <Field label="Nom du produit" full><input value={prodForm.nom} onChange={e => updP("nom", e.target.value)} placeholder="Ex : Barre Trail Power" autoFocus /></Field>
+          <Field label={prodForm.par100g ? "Poids unitaire (g)" : "Poids (g)"}><input type="number" min={0} value={prodForm.poids} onChange={e => updP("poids", e.target.value)} /></Field>
+          <Field label="Kcal"><input type="number" min={0} value={prodForm.kcal} onChange={e => updP("kcal", e.target.value)} /></Field>
+          <Field label="Glucides (g)"><input type="number" min={0} value={prodForm.glucides} onChange={e => updP("glucides", e.target.value)} /></Field>
+          <Field label="Protéines (g)"><input type="number" min={0} value={prodForm.proteines} onChange={e => updP("proteines", e.target.value)} /></Field>
+          <Field label="Lipides (g)"><input type="number" min={0} value={prodForm.lipides} onChange={e => updP("lipides", e.target.value)} /></Field>
+          <Field label="Sodium (mg)"><input type="number" min={0} value={prodForm.sodium} onChange={e => updP("sodium", e.target.value)} /></Field>
+          <Field label="Potassium (mg)"><input type="number" min={0} value={prodForm.potassium} onChange={e => updP("potassium", e.target.value)} /></Field>
+          <Field label="Magnésium (mg)"><input type="number" min={0} value={prodForm.magnesium} onChange={e => updP("magnesium", e.target.value)} /></Field>
+          <Field label="Zinc (mg)"><input type="number" min={0} value={prodForm.zinc} onChange={e => updP("zinc", e.target.value)} /></Field>
+          <Field label="Calcium (mg)"><input type="number" min={0} value={prodForm.calcium} onChange={e => updP("calcium", e.target.value)} /></Field>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
-          <Btn variant="ghost" onClick={() => setModal(false)}>Annuler</Btn>
-          <Btn onClick={save}>Enregistrer</Btn>
+          <Btn variant="ghost" onClick={() => setProdModal(false)}>Annuler</Btn>
+          <Btn onClick={saveProd}>Enregistrer</Btn>
         </div>
       </Modal>
-      <ConfirmDialog open={!!confirmId} message="Supprimer ce produit ?" onConfirm={() => { upd(recettes.filter(r => r.id !== confirmId)); setConfirmId(null); }} onCancel={() => setConfirmId(null)} />
+
+      <ConfirmDialog open={!!confirmProdId} message="Supprimer ce produit de la bibliothèque ?" onConfirm={() => { updProduits(produits.filter(p => p.id !== confirmProdId)); setConfirmProdId(null); }} onCancel={() => setConfirmProdId(null)} />
     </div>
   );
 }
 
-// ─── NAVIGATION ───────────────────────────────────────────────────────────────
+
 // ─── VUE TEAM ────────────────────────────────────────────────────────────────
 function TeamView({ race, segments, settings, sharedMode, installPrompt, onInstall }) {
   const [realTimes, setRealTimes] = useState({}); // ravitoId → "HH:MM"
@@ -2819,7 +2850,7 @@ const NAVS = [
 function encodeStrategy(race, segments, settings) {
   // On exclut les points GPX (trop lourds) + équipement/recettes (inutiles pour l'assistant)
   const { gpxPoints, ...raceLight } = race;
-  const { equipment, recettes, garminStats, ...settingsLight } = settings;
+  const { equipment, produits, garminStats, ...settingsLight } = settings;
   const payload = { race: raceLight, segments, settings: settingsLight, v: 1, ts: Date.now() };
   try {
     const json    = JSON.stringify(payload);
@@ -3374,7 +3405,7 @@ export default function App() {
         }}>
           {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} onOpenRepos={() => setReposModal(true)} />}
           {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} />}
-          {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} />}
+          {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} />}
           {view === "team"        && <TeamView race={race} segments={segments} settings={settings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} />}
           {view === "courses"     && <MesCoursesView courses={courses} onLoad={loadCourse} onDelete={deleteCourse} onSaveCurrent={() => { saveCourse(); alert("✅ Stratégie sauvegardée dans Mes courses !"); }} race={race} segments={segments} settings={settings} />}
           {view === "parametres"  && <ParamètresView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} />}
