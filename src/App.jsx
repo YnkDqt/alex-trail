@@ -63,11 +63,12 @@ const EMPTY_SETTINGS = {
   tempC: 15, rain: false, wind: false, heat: false,
   darkMode: false,
   garminCoeff: 1, garminStats: null,
-  runnerLevel: "intermediaire", // "debutant" | "intermediaire" | "confirme" | "expert"
+  runnerLevel: "intermediaire",
   effortTarget: "normal",
   paceStrategy: 0,
   ravitoTimeMin: 3,
   equipment: DEFAULT_EQUIPMENT,
+  recettes: [],
 };
 
 // ─── ALGOS TRAIL ─────────────────────────────────────────────────────────────
@@ -2020,30 +2021,59 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
 
 
 // ─── VUE NUTRITION ───────────────────────────────────────────────────────────
-function NutritionView({ segments, settings, race }) {
+function NutritionView({ segments, settings, setSettings, race }) {
+  const recettes = settings.recettes || [];
+  const ravitos  = [...(race.ravitos || [])].sort((a, b) => a.km - b.km);
+  const upd = v => setSettings(s => ({ ...s, recettes: v }));
+
+  const [modal, setModal]       = useState(false);
+  const [editId, setEditId]     = useState(null);
+  const [confirmId, setConfirmId] = useState(null);
+  const emptyForm = { nom: "", par100g: true, poids: "", kcal: "", proteines: "", lipides: "", glucides: "", sodium: "", potassium: "", magnesium: "", zinc: "", calcium: "", quantite: 1, dropBag: "depart" };
+  const [form, setForm] = useState(emptyForm);
+  const updF = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const openNew  = ()  => { setEditId(null);  setForm(emptyForm);                          setModal(true); };
+  const openEdit = r   => { setEditId(r.id);  setForm({ ...emptyForm, ...r });              setModal(true); };
+  const save = () => {
+    if (!form.nom.trim()) return;
+    const item = { ...form, id: editId || Date.now(), poids: +form.poids||0, kcal: +form.kcal||0, proteines: +form.proteines||0, lipides: +form.lipides||0, glucides: +form.glucides||0, sodium: +form.sodium||0, potassium: +form.potassium||0, magnesium: +form.magnesium||0, zinc: +form.zinc||0, calcium: +form.calcium||0, quantite: +form.quantite||1 };
+    if (editId) upd(recettes.map(r => r.id === editId ? item : r));
+    else upd([...recettes, item]);
+    setModal(false);
+  };
+
+  // Calcul valeur nutritive par item (ramené à la quantité emportée)
+  const itemNutri = r => {
+    const factor = r.par100g ? (r.poids * r.quantite / 100) : r.quantite;
+    return { kcal: r.kcal * factor, glucides: r.glucides * factor, proteines: r.proteines * factor, lipides: r.lipides * factor, sodium: r.sodium * factor, potassium: r.potassium * factor, magnesium: r.magnesium * factor };
+  };
+
+  // Totaux emportés
+  const totalEmporte = recettes.reduce((acc, r) => {
+    const n = itemNutri(r);
+    return { kcal: acc.kcal + n.kcal, glucides: acc.glucides + n.glucides, proteines: acc.proteines + n.proteines, lipides: acc.lipides + n.lipides, sodium: acc.sodium + n.sodium, potassium: acc.potassium + n.potassium, magnesium: acc.magnesium + n.magnesium };
+  }, { kcal: 0, glucides: 0, proteines: 0, lipides: 0, sodium: 0, potassium: 0, magnesium: 0 });
+
+  // Besoins calculés depuis les segments
   const nutriTotals = segments.reduce((acc, seg) => {
+    if (seg.type === "ravito" || seg.type === "repos") return acc;
     const n = calcNutrition(seg, settings);
-    const durationH = (seg.endKm - seg.startKm) / seg.speedKmh;
-    return {
-      kcal: acc.kcal + n.kcal,
-      eau:  acc.eau  + Math.round(n.eauH  * durationH),
-      glucides: acc.glucides + Math.round(n.glucidesH * durationH),
-      sel:  acc.sel  + Math.round(n.selH  * durationH),
-    };
+    const dH = seg.speedKmh > 0 ? (seg.endKm - seg.startKm) / seg.speedKmh : 0;
+    return { kcal: acc.kcal + n.kcal, eau: acc.eau + Math.round(n.eauH * dH), glucides: acc.glucides + Math.round(n.glucidesH * dH), sel: acc.sel + Math.round(n.selH * dH) };
   }, { kcal: 0, eau: 0, glucides: 0, sel: 0 });
 
   const totalTime = segments.reduce((s, seg) => (seg.type === "repos" || seg.type === "ravito") ? s + (seg.dureeMin||0)*60 : s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
-  const totalDist = segments.length ? segments[segments.length - 1].endKm : 0;
+  const totalDist = segments.filter(s => s.type !== "ravito" && s.type !== "repos").reduce((s, seg) => Math.max(s, seg.endKm), 0);
 
-  // Nutrition par ravito (entre chaque ravitaillement)
-  const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km);
+  // Zones par tronçon
   const zones = [];
   const bornes = [0, ...ravitos.map(r => r.km), totalDist].filter((v, i, a) => v !== a[i-1]);
   for (let i = 0; i < bornes.length - 1; i++) {
     const from = bornes[i], to = bornes[i + 1];
-    const label = i === 0 ? "Départ" : (ravitos[i - 1]?.name || `Ravito ${i}`);
-    const toLbl = i === bornes.length - 2 ? "Arrivée" : (ravitos[i]?.name || `Ravito ${i + 1}`);
-    const segsInZone = segments.filter(s => s.startKm < to && s.endKm > from);
+    const label = i === 0 ? "Départ" : (ravitos[i-1]?.name || `Ravito ${i}`);
+    const toLbl = i === bornes.length - 2 ? "Arrivée" : (ravitos[i]?.name || `Ravito ${i+1}`);
+    const segsInZone = segments.filter(s => s.type !== "ravito" && s.type !== "repos" && s.startKm < to && s.endKm > from);
     const zNutri = segsInZone.reduce((acc, seg) => {
       const overlap = Math.min(seg.endKm, to) - Math.max(seg.startKm, from);
       const ratio = overlap / (seg.endKm - seg.startKm || 1);
@@ -2051,23 +2081,30 @@ function NutritionView({ segments, settings, race }) {
       const dH = (seg.endKm - seg.startKm) / seg.speedKmh * ratio;
       return { kcal: acc.kcal + Math.round(n.kcalH * dH), eau: acc.eau + Math.round(n.eauH * dH), glucides: acc.glucides + Math.round(n.glucidesH * dH) };
     }, { kcal: 0, eau: 0, glucides: 0 });
-    zones.push({ label, toLbl, from, to, ...zNutri });
+    const ravitoId = ravitos[i]?.id;
+    const zRecettes = recettes.filter(r => r.dropBag === (ravitoId ? String(ravitoId) : "depart") || (i === 0 && r.dropBag === "depart"));
+    zones.push({ label, toLbl, from, to, ravitoId, ...zNutri, recettesZone: zRecettes });
   }
 
-  // Données pour le graphique nutrition par segment
-  const barData = segments.map((s, i) => {
+  const barData = segments.filter(s => s.type !== "ravito" && s.type !== "repos").map((s, i) => {
     const n = calcNutrition(s, settings);
-    const dH = (s.endKm - s.startKm) / s.speedKmh;
+    const dH = s.speedKmh > 0 ? (s.endKm - s.startKm) / s.speedKmh : 0;
     return { name: `S${i+1}`, eau: Math.round(n.eauH * dH), glucides: Math.round(n.glucidesH * dH), kcal: Math.round(n.kcalH * dH) };
   });
 
   const isHot = settings.heat || settings.tempC > 25;
   const waterPerHour = 500 + (settings.wind ? 100 : 0) + (isHot ? 150 : 0);
 
+  // Gap analysis
+  const gapKcal     = totalEmporte.kcal     - nutriTotals.kcal;
+  const gapGlucides = totalEmporte.glucides - nutriTotals.glucides;
+  const gapColor = v => v >= 0 ? C.green : C.red;
+  const gapLabel = v => v >= 0 ? `+${Math.round(v)} excédent` : `${Math.round(v)} manque`;
+
   if (!segments.length) {
     return (
       <div className="anim">
-        <PageTitle sub="Besoins caloriques et hydriques estimés pour ta course">Nutrition</PageTitle>
+        <PageTitle sub="Besoins, inventaire et analyse des gaps">Nutrition</PageTitle>
         <Empty icon="🍌" title="Aucun segment défini" sub="Définis des segments dans Stratégie de course pour calculer tes besoins nutritionnels." />
       </div>
     );
@@ -2075,26 +2112,23 @@ function NutritionView({ segments, settings, race }) {
 
   return (
     <div className="anim">
-      <PageTitle sub="Besoins caloriques et hydriques estimés pour ta course">Nutrition</PageTitle>
+      <PageTitle sub="Besoins, inventaire et analyse des gaps">Nutrition</PageTitle>
 
-      {/* KPIs totaux */}
+      {/* KPIs besoins */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 24 }}>
-        <KPI label="Calories totales" value={`${nutriTotals.kcal} kcal`} icon="🔥" color={C.red} sub={`${Math.round(nutriTotals.kcal / (totalDist || 1))} kcal/km`} />
-        <KPI label="Eau totale" value={`${(nutriTotals.eau / 1000).toFixed(1)} L`} icon="💧" color={C.blue} sub={`${waterPerHour} mL/h visé`} />
-        <KPI label="Glucides" value={`${nutriTotals.glucides} g`} icon="🍌" color={C.yellow} sub={`${Math.round(nutriTotals.glucides / (totalTime / 3600 || 1))} g/h`} />
-        <KPI label="Sel" value={`${nutriTotals.sel} mg`} icon="🧂" color={C.green} sub="sodium estimé" />
+        <KPI label="Calories estimées" value={`${nutriTotals.kcal} kcal`} icon="🔥" color={C.red} sub={`${Math.round(nutriTotals.kcal / (totalDist||1))} kcal/km`} />
+        <KPI label="Eau estimée" value={`${(nutriTotals.eau/1000).toFixed(1)} L`} icon="💧" color={C.blue} sub={`${waterPerHour} mL/h visé`} />
+        <KPI label="Glucides estimés" value={`${nutriTotals.glucides} g`} icon="🍌" color={C.yellow} sub={`${Math.round(nutriTotals.glucides/(totalTime/3600||1))} g/h`} />
+        <KPI label="Sel estimé" value={`${nutriTotals.sel} mg`} icon="🧂" color={C.green} sub="sodium" />
       </div>
 
-      {/* Alerte chaleur */}
       {isHot && (
         <div style={{ background: C.yellowPale, border: `1px solid ${C.yellow}40`, borderRadius: 12, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: C.yellow }}>
-          Forte chaleur détectée — besoins en eau augmentés. Anticipe les ravitos et bois avant d'avoir soif.
+          Forte chaleur — besoins en eau augmentés. Anticipe les ravitos.
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-
-        {/* Graphique eau + glucides par segment */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
         <Card noPad>
           <div style={{ padding: "16px 20px 0", fontWeight: 600 }}>Eau & glucides par segment</div>
           <ResponsiveContainer width="100%" height={200}>
@@ -2107,39 +2141,17 @@ function NutritionView({ segments, settings, race }) {
             </BarChart>
           </ResponsiveContainer>
         </Card>
-
-        {/* Recommandations pratiques */}
         <Card>
           <div style={{ fontWeight: 600, marginBottom: 14 }}>Recommandations</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {[
-              {
-                label: "Fréquence d'hydratation",
-                val: "Toutes les 15–20 min",
-                detail: `${Math.round(waterPerHour / 4)} mL par prise`,
-                color: C.blue,
-              },
-              {
-                label: "Apport glucidique",
-                val: `${Math.round(nutriTotals.glucides / (totalTime / 3600 || 1))} g/h`,
-                detail: totalTime / 3600 > 4 ? "Mix sucré + salé après 3h" : "Sucré seul suffisant",
-                color: C.yellow,
-              },
-              {
-                label: "Sel & électrolytes",
-                val: totalTime > 14400 ? "Indispensable" : "Recommandé",
-                detail: totalTime > 14400 ? "Pastilles ou boisson isotonique" : "Pâtes de fruits salées",
-                color: C.green,
-              },
-              {
-                label: "Caféine",
-                val: totalTime > 18000 ? "Envisager" : "Optionnel",
-                detail: totalTime > 18000 ? "Gel caféiné après km " + Math.round(totalDist * 0.6) : "Cola aux ravitos",
-                color: C.primary,
-              },
+              { label: "Hydratation", val: "Toutes les 15–20 min", detail: `${Math.round(waterPerHour/4)} mL par prise`, color: C.blue },
+              { label: "Glucides", val: `${Math.round(nutriTotals.glucides/(totalTime/3600||1))} g/h`, detail: totalTime/3600 > 4 ? "Mix sucré + salé après 3h" : "Sucré seul suffisant", color: C.yellow },
+              { label: "Sel", val: totalTime > 14400 ? "Indispensable" : "Recommandé", detail: totalTime > 14400 ? "Pastilles isotoniques" : "Pâtes de fruits salées", color: C.green },
+              { label: "Caféine", val: totalTime > 18000 ? "Envisager" : "Optionnel", detail: totalTime > 18000 ? `Gel caféiné après km ${Math.round(totalDist*0.6)}` : "Cola aux ravitos", color: C.primary },
             ].map(r => (
-              <div key={r.label} style={{ padding: "10px 12px", background: "var(--surface-2)", borderRadius: 10, borderLeft: `3px solid ${r.color}` }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <div key={r.label} style={{ padding: "9px 12px", background: "var(--surface-2)", borderRadius: 10, borderLeft: `3px solid ${r.color}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ fontSize: 12, color: "var(--muted-c)" }}>{r.label}</span>
                   <span style={{ fontWeight: 600, fontSize: 13, color: r.color }}>{r.val}</span>
                 </div>
@@ -2150,47 +2162,205 @@ function NutritionView({ segments, settings, race }) {
         </Card>
       </div>
 
-      {/* Plan par zone / ravito */}
-      <Card noPad>
+      {/* Plan par tronçon */}
+      <Card noPad style={{ marginBottom: 24 }}>
         <div style={{ padding: "16px 20px 12px", fontWeight: 600 }}>
-          Plan par tronçon {ravitos.length > 0 ? `(${ravitos.length} ravito${ravitos.length > 1 ? "s" : ""})` : ""}
+          Plan par tronçon {ravitos.length > 0 ? `(${ravitos.length} ravito${ravitos.length>1?"s":""})` : ""}
         </div>
         <div className="tbl-wrap">
           <table>
-            <thead><tr>
-              <th>De</th><th>Vers</th><th>Distance</th><th>Eau</th><th>Glucides</th><th>Calories</th>
-            </tr></thead>
+            <thead><tr><th>De</th><th>Vers</th><th>Distance</th><th>Eau</th><th>Glucides</th><th>Calories</th></tr></thead>
             <tbody>
               {zones.map((z, i) => (
                 <tr key={i}>
                   <td style={{ fontWeight: 600 }}>{z.label}</td>
                   <td style={{ color: "var(--muted-c)" }}>{z.toLbl}</td>
                   <td>{(z.to - z.from).toFixed(1)} km</td>
-                  <td>
-                    <span style={{ fontWeight: 600, color: C.blue }}>
-                      {z.eau >= 1000 ? `${(z.eau/1000).toFixed(1)} L` : `${z.eau} mL`}
-                    </span>
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 600, color: C.yellow }}>{z.glucides} g</span>
-                  </td>
+                  <td><span style={{ fontWeight: 600, color: C.blue }}>{z.eau >= 1000 ? `${(z.eau/1000).toFixed(1)} L` : `${z.eau} mL`}</span></td>
+                  <td><span style={{ fontWeight: 600, color: C.yellow }}>{z.glucides} g</span></td>
                   <td style={{ color: "var(--muted-c)" }}>{z.kcal} kcal</td>
                 </tr>
               ))}
               <tr style={{ borderTop: `2px solid var(--border-c)`, fontWeight: 600 }}>
-                <td colSpan={3}>Total</td>
+                <td colSpan={3}>Total besoins</td>
                 <td style={{ color: C.blue }}>{nutriTotals.eau >= 1000 ? `${(nutriTotals.eau/1000).toFixed(1)} L` : `${nutriTotals.eau} mL`}</td>
                 <td style={{ color: C.yellow }}>{nutriTotals.glucides} g</td>
-                <td style={{ color: "var(--muted-c)" }}>{nutriTotals.kcal} kcal</td>
+                <td>{nutriTotals.kcal} kcal</td>
               </tr>
             </tbody>
           </table>
         </div>
       </Card>
+
+      {/* ── INVENTAIRE ─────────────────────────────────────────────────────── */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700 }}>Inventaire nutrition</div>
+          <div style={{ fontSize: 13, color: "var(--muted-c)", marginTop: 2 }}>Ce que tu emportes réellement</div>
+        </div>
+        <Btn onClick={openNew}>+ Produit</Btn>
+      </div>
+
+      {recettes.length === 0 ? (
+        <Empty icon="🎒" title="Inventaire vide" sub="Ajoute tes produits pour comparer avec tes besoins estimés." action={<Btn onClick={openNew}>+ Produit</Btn>} />
+      ) : (
+        <>
+          {/* Tableau produits */}
+          <Card noPad style={{ marginBottom: 20 }}>
+            <div className="tbl-wrap">
+              <table>
+                <thead><tr>
+                  <th>Produit</th><th>Qté</th><th>Poids total</th><th>Kcal</th><th>Glucides</th><th>Protéines</th><th>Na</th><th>Drop-bag</th><th></th>
+                </tr></thead>
+                <tbody>
+                  {recettes.map(r => {
+                    const n = itemNutri(r);
+                    const poidsTot = r.par100g ? r.poids * r.quantite : r.poids * r.quantite;
+                    const dbLabel = r.dropBag === "depart" ? "Départ" : (ravitos.find(rv => String(rv.id) === r.dropBag)?.name || "Ravito");
+                    return (
+                      <tr key={r.id} onClick={() => openEdit(r)} style={{ cursor: "pointer" }}>
+                        <td style={{ fontWeight: 600 }}>{r.nom}</td>
+                        <td>{r.quantite}{r.par100g ? " × 100g" : " unité(s)"}</td>
+                        <td style={{ color: "var(--muted-c)" }}>{poidsTot > 0 ? `${poidsTot} g` : "—"}</td>
+                        <td style={{ fontWeight: 600, color: C.red }}>{Math.round(n.kcal)} kcal</td>
+                        <td style={{ color: C.yellow }}>{Math.round(n.glucides)} g</td>
+                        <td style={{ color: "var(--muted-c)" }}>{Math.round(n.proteines)} g</td>
+                        <td style={{ color: "var(--muted-c)" }}>{Math.round(n.sodium)} mg</td>
+                        <td>
+                          <span className={`badge ${r.dropBag === "depart" ? "badge-sage" : "badge-blue"}`} style={{ fontSize: 11 }}>
+                            {dbLabel}
+                          </span>
+                        </td>
+                        <td onClick={e => e.stopPropagation()}>
+                          <Btn size="sm" variant="danger" onClick={() => setConfirmId(r.id)}>✕</Btn>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          {/* ── GAP ANALYSIS ── */}
+          <Card style={{ marginBottom: 20 }}>
+            <div style={{ fontWeight: 600, marginBottom: 16 }}>Analyse des gaps — Emporté vs Besoins</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
+              {[
+                { label: "Calories", besoin: nutriTotals.kcal, emporte: Math.round(totalEmporte.kcal), unit: "kcal", color: C.red, icon: "🔥" },
+                { label: "Glucides", besoin: nutriTotals.glucides, emporte: Math.round(totalEmporte.glucides), unit: "g", color: C.yellow, icon: "🍌" },
+                { label: "Protéines", besoin: null, emporte: Math.round(totalEmporte.proteines), unit: "g", color: C.primary, icon: "💪" },
+                { label: "Sodium", besoin: nutriTotals.sel, emporte: Math.round(totalEmporte.sodium), unit: "mg", color: C.green, icon: "🧂" },
+              ].map(item => {
+                const gap = item.besoin !== null ? item.emporte - item.besoin : null;
+                const pct = item.besoin ? Math.min((item.emporte / item.besoin) * 100, 150) : 100;
+                const barColor = gap === null ? C.primary : gap >= 0 ? C.green : C.red;
+                return (
+                  <div key={item.label} style={{ padding: "14px 16px", background: "var(--surface-2)", borderRadius: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+                      <span style={{ fontSize: 13, color: "var(--muted-c)" }}>{item.icon} {item.label}</span>
+                      {gap !== null && (
+                        <span style={{ fontSize: 12, fontWeight: 700, color: gapColor(gap) }}>{gapLabel(gap)} {item.unit}</span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                      <span style={{ fontSize: 11, color: "var(--muted-c)" }}>Emporté</span>
+                      <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 18, color: barColor }}>{item.emporte} {item.unit}</span>
+                    </div>
+                    {item.besoin !== null && (
+                      <>
+                        <div style={{ height: 6, background: "var(--surface-3,var(--surface))", borderRadius: 3, overflow: "hidden", marginBottom: 4 }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: 3, transition: "width 0.4s" }} />
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--muted-c)" }}>Besoin : {item.besoin} {item.unit}</div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+          {/* ── DROP-BAGS PAR ZONE ── */}
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 14 }}>Répartition drop-bags</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+            {[
+              { key: "depart", label: "🏁 Porté au départ", color: C.primary },
+              ...ravitos.map(rv => ({ key: String(rv.id), label: `🥤 ${rv.name} (km ${rv.km})`, color: C.green })),
+            ].map(zone => {
+              const items = recettes.filter(r => r.dropBag === zone.key);
+              if (!items.length) return null;
+              const totKcal   = Math.round(items.reduce((s, r) => s + itemNutri(r).kcal, 0));
+              const totPoids  = items.reduce((s, r) => s + (r.poids * r.quantite), 0);
+              return (
+                <Card key={zone.key} style={{ borderLeft: `4px solid ${zone.color}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <span style={{ fontWeight: 700 }}>{zone.label}</span>
+                    <div style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--muted-c)" }}>
+                      <span>~{totPoids} g</span>
+                      <span style={{ color: C.red, fontWeight: 600 }}>{totKcal} kcal</span>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    {items.map(r => {
+                      const n = itemNutri(r);
+                      return (
+                        <div key={r.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "5px 8px", background: "var(--surface-2)", borderRadius: 8 }}>
+                          <span>{r.nom} <span style={{ color: "var(--muted-c)", fontSize: 12 }}>× {r.quantite}</span></span>
+                          <span style={{ color: "var(--muted-c)", fontSize: 12 }}>{Math.round(n.kcal)} kcal · {Math.round(n.glucides)} g glucides</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+              );
+            }).filter(Boolean)}
+          </div>
+        </>
+      )}
+
+      {/* Modal produit */}
+      <Modal open={modal} onClose={() => setModal(false)} title={editId ? "Modifier le produit" : "Ajouter un produit"}>
+        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+          {[{ v: true, l: "Pour 100g/100mL" }, { v: false, l: "À l'unité" }].map(o => (
+            <div key={String(o.v)} onClick={() => updF("par100g", o.v)} style={{
+              flex: 1, padding: "8px 12px", borderRadius: 10, cursor: "pointer", textAlign: "center",
+              border: `2px solid ${form.par100g === o.v ? C.primary : "var(--border-c)"}`,
+              background: form.par100g === o.v ? C.primaryPale : "var(--surface-2)",
+              fontSize: 13, fontWeight: form.par100g === o.v ? 600 : 400,
+              color: form.par100g === o.v ? C.primaryDeep : "var(--text-c)",
+            }}>{o.l}</div>
+          ))}
+        </div>
+        <div className="form-grid">
+          <Field label="Nom du produit" full><input value={form.nom} onChange={e => updF("nom", e.target.value)} placeholder="Ex : Barre Trail Power" autoFocus /></Field>
+          <Field label={form.par100g ? "Poids (g)" : "Poids unitaire (g)"}><input type="number" min={0} value={form.poids} onChange={e => updF("poids", e.target.value)} /></Field>
+          <Field label="Quantité emportée"><input type="number" min={1} value={form.quantite} onChange={e => updF("quantite", e.target.value)} /></Field>
+          <Field label="Kcal"><input type="number" min={0} value={form.kcal} onChange={e => updF("kcal", e.target.value)} /></Field>
+          <Field label="Glucides (g)"><input type="number" min={0} value={form.glucides} onChange={e => updF("glucides", e.target.value)} /></Field>
+          <Field label="Protéines (g)"><input type="number" min={0} value={form.proteines} onChange={e => updF("proteines", e.target.value)} /></Field>
+          <Field label="Lipides (g)"><input type="number" min={0} value={form.lipides} onChange={e => updF("lipides", e.target.value)} /></Field>
+          <Field label="Sodium (mg)"><input type="number" min={0} value={form.sodium} onChange={e => updF("sodium", e.target.value)} /></Field>
+          <Field label="Potassium (mg)"><input type="number" min={0} value={form.potassium} onChange={e => updF("potassium", e.target.value)} /></Field>
+          <Field label="Magnésium (mg)"><input type="number" min={0} value={form.magnesium} onChange={e => updF("magnesium", e.target.value)} /></Field>
+          <Field label="Zinc (mg)"><input type="number" min={0} value={form.zinc} onChange={e => updF("zinc", e.target.value)} /></Field>
+          <Field label="Calcium (mg)"><input type="number" min={0} value={form.calcium} onChange={e => updF("calcium", e.target.value)} /></Field>
+          <Field label="Drop-bag" full>
+            <select value={form.dropBag} onChange={e => updF("dropBag", e.target.value)}>
+              <option value="depart">Porté au départ</option>
+              {ravitos.map(rv => <option key={rv.id} value={String(rv.id)}>Assistance — {rv.name} (km {rv.km})</option>)}
+            </select>
+          </Field>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+          <Btn variant="ghost" onClick={() => setModal(false)}>Annuler</Btn>
+          <Btn onClick={save}>Enregistrer</Btn>
+        </div>
+      </Modal>
+      <ConfirmDialog open={!!confirmId} message="Supprimer ce produit ?" onConfirm={() => { upd(recettes.filter(r => r.id !== confirmId)); setConfirmId(null); }} onCancel={() => setConfirmId(null)} />
     </div>
   );
 }
-
 
 // ─── NAVIGATION ───────────────────────────────────────────────────────────────
 // ─── VUE TEAM ────────────────────────────────────────────────────────────────
@@ -2893,7 +3063,7 @@ export default function App() {
         }}>
           {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} />}
           {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} />}
-          {view === "nutrition"   && <NutritionView segments={segments} settings={settings} race={race} />}
+          {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} />}
           {view === "team"        && <TeamView race={race} segments={segments} settings={settings} />}
           {view === "parametres"  && <ParamètresView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} />}
         </main>
