@@ -1452,6 +1452,36 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
 
   const barData = segsNormaux.map((s, i) => ({ name: `S${i+1}`, vitesse: s.speedKmh, pente: s.slopePct }));
 
+  // ── Heures de passage ──────────────────────────────────────────────────────
+  const startTimeParts = (settings.startTime || "07:00").split(":").map(Number);
+  const startSec = startTimeParts[0] * 3600 + (startTimeParts[1] || 0) * 60;
+
+  // Pour chaque segment, calculer l'heure d'arrivée cumulée (en secondes depuis minuit)
+  const passingTimes = [];
+  let cumSec = startSec;
+  segments.forEach(seg => {
+    if (seg.type === "ravito" || seg.type === "repos") {
+      cumSec += (seg.dureeMin || 0) * 60;
+    } else {
+      const dist = seg.endKm - seg.startKm;
+      cumSec += seg.speedKmh > 0 ? (dist / seg.speedKmh) * 3600 : 0;
+    }
+    passingTimes.push(cumSec);
+  });
+
+  const fmtHeure = sec => {
+    const total = sec % 86400; // gère le passage minuit
+    const h = Math.floor(total / 3600) % 24;
+    const m = Math.floor((total % 3600) / 60);
+    return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+  };
+  const isNight = sec => {
+    const h = Math.floor((sec % 86400) / 3600) % 24;
+    return h >= 21 || h < 6;
+  };
+  const arrivalTime = passingTimes.length ? passingTimes[passingTimes.length - 1] : startSec;
+  const isOvernight = arrivalTime - startSec > 86400 - startSec + (6 * 3600); // plus d'une nuit
+
   const EFFORT_OPTIONS = [
     { key: "comfort", label: "Finisher", desc: "Terminer sans se cramer — vitesses -12%", color: C.green },
     { key: "normal",  label: "Course normale", desc: "Equilibre selon ton profil Garmin", color: C.primary },
@@ -1573,6 +1603,7 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 20 }}>
             <KPI label="Temps course" value={fmtTime(totalTime)} color={C.secondary} icon="⏱️" sub="hors ravitos" />
             <KPI label="Temps total" value={fmtTime(totalWithRavitos)} icon="🏁" sub={`+${ravitoCount} ravito${ravitoCount>1?"s":""}`} />
+            {segments.length > 0 && <KPI label="Arrivée estimée" value={fmtHeure(arrivalTime)} icon={isNight(arrivalTime) ? "🌙" : "☀️"} color={isNight(arrivalTime) ? C.blue : C.yellow} sub={`départ ${settings.startTime || "07:00"}`} />}
           </div>
 
           <Card noPad style={{ marginBottom: 20 }}>
@@ -1602,43 +1633,57 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
             <div className="tbl-wrap">
               <table>
                 <thead><tr>
-                  <th>#</th><th>De</th><th>À</th><th>Dist.</th><th>Pente</th><th>Terrain</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th>Nutrition/h</th><th></th>
+                  <th>#</th><th>De</th><th>À</th><th>Dist.</th><th>Pente</th><th>Terrain</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th>Heure</th><th>Nutrition/h</th><th></th>
                 </tr></thead>
                 <tbody>{segments.map((seg, i) => {
                   // ── Segment ravitaillement ──
                   if (seg.type === "ravito") {
+                    const t = passingTimes[i];
+                    const night = isNight(t);
                     return (
                       <tr key={seg.id} style={{ background: C.green + "10", cursor: "default" }}>
                         <td style={{ color: "var(--muted-c)" }}>{i+1}</td>
-                        <td style={{ fontWeight: 600, color: C.green }}>
-                          🥤 {seg.label}
-                        </td>
+                        <td style={{ fontWeight: 600, color: C.green }}>🥤 {seg.label}</td>
                         <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
                         <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>
                           {seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}
                         </td>
-                        <td colSpan={5} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>
+                        <td colSpan={4} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>
                           Arrêt ravitaillement · pas de distance
                         </td>
+                        <td>
+                          <span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>
+                            {fmtHeure(t)}
+                          </span>
+                          {night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}
+                        </td>
+                        <td></td>
                         <td><span style={{ fontSize: 11, color: "var(--muted-c)" }}>auto</span></td>
                       </tr>
                     );
                   }
                   // ── Segment de repos ──
                   if (seg.type === "repos") {
+                    const t = passingTimes[i];
+                    const night = isNight(t);
                     return (
                       <tr key={seg.id} style={{ background: "var(--surface-2)", cursor: "default" }}>
                         <td style={{ color: "var(--muted-c)" }}>{i+1}</td>
-                        <td style={{ fontWeight: 600, color: C.blue }}>
-                          💤 {seg.label}
-                        </td>
+                        <td style={{ fontWeight: 600, color: C.blue }}>💤 {seg.label}</td>
                         <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
                         <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>
                           {seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}
                         </td>
-                        <td colSpan={5} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>
+                        <td colSpan={4} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>
                           Pas de distance · temps ajouté au total
                         </td>
+                        <td>
+                          <span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>
+                            {fmtHeure(t)}
+                          </span>
+                          {night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}
+                        </td>
+                        <td></td>
                         <td onClick={e => e.stopPropagation()}>
                           <Btn size="sm" variant="danger" onClick={() => setConfirmId(seg.id)}>✕</Btn>
                         </td>
@@ -1651,6 +1696,8 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
                   const n    = calcNutrition(seg, settings);
                   const terrainLabel = TERRAIN_TYPES.find(t => t.key === (seg.terrain || "normal"))?.label || "Normal";
                   const terrainKey   = seg.terrain || "normal";
+                  const t    = passingTimes[i];
+                  const night = isNight(t);
                   return (
                     <tr key={seg.id} onClick={() => openEdit(seg)} style={{ cursor: "pointer" }}>
                       <td style={{ color: "var(--muted-c)" }}>{i+1}</td>
@@ -1671,6 +1718,12 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
                       <td style={{ fontWeight: 600 }}>{seg.speedKmh} km/h</td>
                       <td style={{ fontFamily: "'Playfair Display', serif" }}>{fmtPace(seg.speedKmh)}/km</td>
                       <td>{dur}</td>
+                      <td>
+                        <span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>
+                          {fmtHeure(t)}
+                        </span>
+                        {night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}
+                      </td>
                       <td style={{ fontSize: 12, color: "var(--muted-c)" }}>{n.eauH}mL · {n.glucidesH}g · {n.kcalH}kcal</td>
                       <td onClick={e => e.stopPropagation()}>
                         <Btn size="sm" variant="danger" onClick={() => setConfirmId(seg.id)}>✕</Btn>
