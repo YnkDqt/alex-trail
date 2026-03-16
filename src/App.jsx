@@ -2529,6 +2529,37 @@ export default function App() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [autoSaved, setAutoSaved] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [installDone, setInstallDone] = useState(false);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
+
+  // Détection navigateur/OS
+  const ua = navigator.userAgent;
+  const isIOS     = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  const isSafari  = /^((?!chrome|android).)*safari/i.test(ua);
+  const isChrome  = /chrome/i.test(ua) && /google/i.test(navigator.vendor);
+  const isOpera   = /opr\//i.test(ua);
+  const isFirefox = /firefox/i.test(ua);
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone;
+
+  // Capturer l'événement beforeinstallprompt (Chrome, Edge, Opera)
+  useEffect(() => {
+    const handler = e => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (installPrompt) {
+      // Chrome / Edge / Opera — prompt natif
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === "accepted") { setInstallDone(true); setInstallPrompt(null); }
+    } else {
+      // Autres navigateurs — guide manuel
+      setShowInstallGuide(true);
+    }
+  };
 
   // ── IndexedDB helpers ────────────────────────────────────────────────────
   const IDB_NAME = "alex-trail", IDB_STORE = "state", IDB_KEY = "current";
@@ -2680,7 +2711,23 @@ export default function App() {
           </div>
         </div>
 
-        {/* Télécharger la stratégie */}
+        {/* Bouton installation PWA */}
+        {!isStandalone && !installDone && (
+          <button onClick={handleInstall} style={{
+            background: C.primaryPale, border: `1px solid ${C.primary}40`,
+            borderRadius: 12, padding: "10px 14px", cursor: "pointer",
+            fontSize: 13, fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+            display: "flex", alignItems: "center", gap: 8, color: C.primaryDeep,
+            width: "100%", transition: "all 0.2s",
+          }}>
+            📲 Installer l'app
+          </button>
+        )}
+        {isStandalone && (
+          <div style={{ fontSize: 11, color: C.green, textAlign: "center", padding: "4px 0" }}>
+            ✓ App installée
+          </div>
+        )}
         <button
           onClick={saveData}
           style={{
@@ -2710,6 +2757,74 @@ export default function App() {
   return (
     <>
       <style>{G}</style>
+
+      {/* GUIDE INSTALLATION PWA */}
+      {showInstallGuide && (
+        <div className="modal-overlay" onClick={() => setShowInstallGuide(false)}>
+          <div className="confirm-box" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: C.primary, marginBottom: 16 }}>
+              📲 Installer Alex
+            </div>
+            {isIOS ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <p style={{ color: "var(--muted-c)", fontSize: 14, lineHeight: 1.6 }}>
+                  Sur iPhone/iPad, l'installation se fait depuis <strong>Safari</strong> uniquement :
+                </p>
+                {[
+                  { step: "1", text: "Ouvre alex-trail.vercel.app dans Safari" },
+                  { step: "2", text: "Appuie sur l'icône Partage □↑ en bas de l'écran" },
+                  { step: "3", text: "Fais défiler et appuie sur « Sur l'écran d'accueil »" },
+                  { step: "4", text: "Appuie sur « Ajouter » en haut à droite" },
+                ].map(s => (
+                  <div key={s.step} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                    <div style={{ width: 24, height: 24, borderRadius: "50%", background: C.primary, color: "#fff", fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{s.step}</div>
+                    <span style={{ fontSize: 13, lineHeight: 1.5 }}>{s.text}</span>
+                  </div>
+                ))}
+              </div>
+            ) : isFirefox ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <p style={{ color: "var(--muted-c)", fontSize: 14, lineHeight: 1.6 }}>
+                  Sur Firefox Android :
+                </p>
+                {[
+                  { step: "1", text: "Appuie sur le menu ⋮ en haut à droite" },
+                  { step: "2", text: "Sélectionne « Installer »" },
+                  { step: "3", text: "Confirme l'installation" },
+                ].map(s => (
+                  <div key={s.step} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                    <div style={{ width: 24, height: 24, borderRadius: "50%", background: C.primary, color: "#fff", fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{s.step}</div>
+                    <span style={{ fontSize: 13, lineHeight: 1.5 }}>{s.text}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <p style={{ color: "var(--muted-c)", fontSize: 14, lineHeight: 1.6 }}>
+                  Sur ce navigateur, cherche l'option d'installation dans le menu :
+                </p>
+                {[
+                  { step: "1", text: "Ouvre le menu du navigateur (⋮ ou ···)" },
+                  { step: "2", text: "Cherche « Ajouter à l'écran d'accueil » ou « Installer »" },
+                  { step: "3", text: "Confirme l'installation" },
+                ].map(s => (
+                  <div key={s.step} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                    <div style={{ width: 24, height: 24, borderRadius: "50%", background: C.primary, color: "#fff", fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{s.step}</div>
+                    <span style={{ fontSize: 13, lineHeight: 1.5 }}>{s.text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
+              <button onClick={() => setShowInstallGuide(false)} style={{
+                background: C.primary, color: "#fff", border: "none", borderRadius: 10,
+                padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                fontFamily: "'DM Sans', sans-serif",
+              }}>Compris</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ONBOARDING */}
       {onboarding && (
