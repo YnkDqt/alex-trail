@@ -63,6 +63,7 @@ const EMPTY_SETTINGS = {
   tempC: 15, rain: false, wind: false, heat: false,
   darkMode: false,
   garminCoeff: 1, garminStats: null,
+  runnerLevel: "intermediaire", // "debutant" | "intermediaire" | "confirme" | "expert"
   effortTarget: "normal",
   paceStrategy: 0,
   ravitoTimeMin: 3,
@@ -70,6 +71,17 @@ const EMPTY_SETTINGS = {
 };
 
 // ─── ALGOS TRAIL ─────────────────────────────────────────────────────────────
+const RUNNER_LEVELS = [
+  { key: "debutant",      label: "Débutant",      coeff: 0.72, desc: "Premiers trails, objectif finisher" },
+  { key: "intermediaire", label: "Intermédiaire", coeff: 0.88, desc: "Quelques courses, chrono réaliste" },
+  { key: "confirme",      label: "Confirmé",      coeff: 1.00, desc: "Niveau entraîné, bonne régularité" },
+  { key: "expert",        label: "Expert",        coeff: 1.12, desc: "Compétiteur, podium régional" },
+];
+const TERRAIN_TYPES = [
+  { key: "normal",    label: "Normal",         coeff: 1.00, desc: "Chemin balisé, single track roulant" },
+  { key: "technique", label: "Technique",      coeff: 0.82, desc: "Cailloux, racines, passages délicats" },
+  { key: "trestech",  label: "Très technique", coeff: 0.68, desc: "Éboulis, hors-sentier, passages engagés" },
+];
 function fmtTime(seconds) {
   if (!seconds || seconds <= 0) return "--:--:--";
   const h = Math.floor(seconds / 3600);
@@ -128,7 +140,8 @@ function buildElevationProfile(points, resolution = 250) {
   }
   return profile;
 }
-function suggestSpeed(slopePct, coeff = 1) {
+function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, totalSegs = 1, totalDistKm = 0, coveredDistKm = 0) {
+  // Vitesse de base selon la pente
   let base;
   if      (slopePct >= 20)  base = 3.5;
   else if (slopePct >= 15)  base = 4.5;
@@ -140,7 +153,21 @@ function suggestSpeed(slopePct, coeff = 1) {
   else if (slopePct >= -6)  base = 10.5;
   else if (slopePct >= -13) base = 9.0;
   else                      base = 7.5;
-  return +(base * coeff).toFixed(1);
+
+  // Niveau coureur
+  const levelData = RUNNER_LEVELS.find(l => l.key === settings.runnerLevel) || RUNNER_LEVELS[1];
+  const levelCoeff = levelData.coeff;
+
+  // Coefficient fatigue progressif
+  // Effort cumulé = distance parcourue + D+ cumulé / 100 (le dénivelé épuise plus)
+  // On utilise la progression dans la course (0→1)
+  const paceStrat = settings.paceStrategy || 0;
+  const fatigueIntensity = paceStrat < 0 ? 0.18 : paceStrat > 0 ? 0.04 : 0.10;
+  const progress = totalDistKm > 0 ? coveredDistKm / totalDistKm : (segIndex / (totalSegs - 1 || 1));
+  // Fatigue nulle au départ, maximale à l'arrivée — courbe progressive
+  const fatigueCoeff = 1 - progress * fatigueIntensity;
+
+  return +(base * coeff * levelCoeff * fatigueCoeff).toFixed(1);
 }
 function calcSlopeFromGPX(points, startKm, endKm) {
   if (!points.length) return 0;
@@ -271,16 +298,23 @@ function autoSegmentGPX(points, coeff = 1, settings = {}) {
 
   const effortMult = settings.effortTarget === "perf" ? 1.08 : settings.effortTarget === "comfort" ? 0.88 : 1.0;
   const totalSegs = validated.length || 1;
+  // Distance totale pour calcul fatigue
+  const totalDistKm = +validated[validated.length - 1]?.end?.toFixed(1) || 0;
 
   return validated.map((seg, i) => {
     const realSlope = calcSlopeFromGPX(points, seg.start, seg.end);
-    // paceStrategy: -2=partir vite (accélérer en fin), +2=partir lentement (négatif split)
-    // progress 0→1 sur la course, coeff de départ/arrivée
-    const progress = i / (totalSegs - 1 || 1);
-    const paceStrat = settings.paceStrategy || 0;
-    const paceCoeff = 1 + (paceStrat / 2) * (progress - 0.5) * 0.3;
-    const finalSpeed = +(suggestSpeed(realSlope, coeff) * effortMult * paceCoeff).toFixed(1);
-    return { id: Date.now()+i, startKm: +seg.start.toFixed(1), endKm: +seg.end.toFixed(1), slopePct: realSlope, speedKmh: Math.max(2, finalSpeed), notes: "" };
+    const coveredDistKm = seg.start;
+    const speed = suggestSpeed(realSlope, coeff, settings, i, totalSegs, totalDistKm, coveredDistKm);
+    const finalSpeed = +(speed * effortMult).toFixed(1);
+    return {
+      id: Date.now()+i,
+      startKm: +seg.start.toFixed(1),
+      endKm: +seg.end.toFixed(1),
+      slopePct: realSlope,
+      speedKmh: Math.max(2, finalSpeed),
+      terrain: "normal",
+      notes: "",
+    };
   });
 }
 function parseGarminCSV(text) {
@@ -908,7 +942,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
   const [segModal, setSegModal]       = useState(false);
   const [editSegId, setEditSegId]     = useState(null);
   const [computing, setComputing]     = useState(false);
-  const emptySegForm = { startKm: "", endKm: "", slopePct: 0, speedKmh: 9.5, notes: "" };
+  const emptySegForm = { startKm: "", endKm: "", slopePct: 0, speedKmh: 9.5, terrain: "normal", notes: "" };
   const [segForm, setSegForm]         = useState(emptySegForm);
   const fileRef = useRef();
 
@@ -967,9 +1001,9 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
       const nf = { ...f, [key]: val };
       if (key === "startKm" || key === "endKm") {
         const slope = race.gpxPoints?.length ? calcSlopeFromGPX(race.gpxPoints, parseFloat(nf.startKm)||0, parseFloat(nf.endKm)||0) : nf.slopePct;
-        nf.slopePct = slope; nf.speedKmh = suggestSpeed(slope, settings.garminCoeff);
+        nf.slopePct = slope; nf.speedKmh = suggestSpeed(slope, settings.garminCoeff, settings);
       }
-      if (key === "slopePct") nf.speedKmh = suggestSpeed(val, settings.garminCoeff);
+      if (key === "slopePct") nf.speedKmh = suggestSpeed(val, settings.garminCoeff, settings);
       return nf;
     });
   };
@@ -1232,6 +1266,29 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
               <span style={{ color: "var(--muted-c)", marginLeft: 8 }}>({fmtPace(segForm.speedKmh)}/km)</span>
             </div>
           </Field>
+          <Field label="Terrain" full>
+            <div style={{ display: "flex", gap: 8 }}>
+              {TERRAIN_TYPES.map(t => {
+                const terrainCoeff = t.coeff;
+                const isActive = (segForm.terrain || "normal") === t.key;
+                return (
+                  <div key={t.key} onClick={() => {
+                    const baseSpeed = suggestSpeed(segForm.slopePct, settings.garminCoeff, settings);
+                    updSeg("terrain", t.key);
+                    setSegForm(f => ({ ...f, terrain: t.key, speedKmh: Math.max(2, +(baseSpeed * terrainCoeff).toFixed(1)) }));
+                  }} style={{
+                    flex: 1, padding: "8px 6px", borderRadius: 10, cursor: "pointer", textAlign: "center",
+                    border: `2px solid ${isActive ? C.primary : "var(--border-c)"}`,
+                    background: isActive ? C.primaryPale : "var(--surface-2)",
+                    transition: "all 0.15s",
+                  }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: isActive ? C.primaryDeep : "var(--text-c)" }}>{t.label}</div>
+                    <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>×{t.coeff}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </Field>
           <Field label="Notes" full><textarea value={segForm.notes} onChange={e => updSeg("notes", e.target.value)} rows={2} /></Field>
         </div>
         {segForm.slopePct > 10 && (
@@ -1263,7 +1320,7 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
   const [editId, setEditId] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
   const [computing, setComputing] = useState(false);
-  const emptyForm = { startKm: "", endKm: "", slopePct: 0, speedKmh: 9.5, notes: "" };
+  const emptyForm = { startKm: "", endKm: "", slopePct: 0, speedKmh: 9.5, terrain: "normal", notes: "" };
   const [form, setForm] = useState(emptyForm);
 
   const updS = (k, v) => setSettings(s => ({ ...s, [k]: v }));
@@ -1275,9 +1332,9 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
       if (key === "startKm" || key === "endKm") {
         const slope = race.gpxPoints?.length ? calcSlopeFromGPX(race.gpxPoints, parseFloat(nf.startKm)||0, parseFloat(nf.endKm)||0) : nf.slopePct;
         nf.slopePct = slope;
-        nf.speedKmh = suggestSpeed(slope, settings.garminCoeff);
+        nf.speedKmh = suggestSpeed(slope, settings.garminCoeff, settings);
       }
-      if (key === "slopePct") nf.speedKmh = suggestSpeed(val, settings.garminCoeff);
+      if (key === "slopePct") nf.speedKmh = suggestSpeed(val, settings.garminCoeff, settings);
       return nf;
     });
   };
@@ -1451,12 +1508,14 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
             <div className="tbl-wrap">
               <table>
                 <thead><tr>
-                  <th>#</th><th>De</th><th>À</th><th>Dist.</th><th>Pente</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th>Nutrition/h</th><th></th>
+                  <th>#</th><th>De</th><th>À</th><th>Dist.</th><th>Pente</th><th>Terrain</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th>Nutrition/h</th><th></th>
                 </tr></thead>
                 <tbody>{segments.map((seg, i) => {
                   const dist = seg.endKm - seg.startKm;
                   const dur  = fmtTime((dist / seg.speedKmh) * 3600);
                   const n    = calcNutrition(seg, settings);
+                  const terrainLabel = TERRAIN_TYPES.find(t => t.key === (seg.terrain || "normal"))?.label || "Normal";
+                  const terrainKey   = seg.terrain || "normal";
                   return (
                     <tr key={seg.id} onClick={() => openEdit(seg)} style={{ cursor: "pointer" }}>
                       <td style={{ color: "var(--muted-c)" }}>{i+1}</td>
@@ -1468,6 +1527,12 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
                           {seg.slopePct > 0 ? "+" : ""}{seg.slopePct}%
                         </span>
                         {seg.slopePct > 10 && <span style={{ marginLeft: 6, fontSize: 11, color: C.yellow }}>marche</span>}
+                      </td>
+                      <td>
+                        {terrainKey !== "normal" && (
+                          <span className="badge badge-yellow" style={{ fontSize: 11 }}>{terrainLabel}</span>
+                        )}
+                        {terrainKey === "normal" && <span style={{ fontSize: 12, color: "var(--muted-c)" }}>—</span>}
                       </td>
                       <td style={{ fontWeight: 600 }}>{seg.speedKmh} km/h</td>
                       <td style={{ fontFamily: "'Playfair Display', serif" }}>{fmtPace(seg.speedKmh)}/km</td>
@@ -1502,6 +1567,28 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
             <div style={{ textAlign: "center", fontSize: 13, marginTop: 4 }}>
               <span style={{ fontWeight: 600 }}>{form.speedKmh} km/h</span>
               <span style={{ color: "var(--muted-c)", marginLeft: 8 }}>({fmtPace(form.speedKmh)}/km)</span>
+            </div>
+          </Field>
+          <Field label="Terrain" full>
+            <div style={{ display: "flex", gap: 8 }}>
+              {TERRAIN_TYPES.map(t => {
+                const terrainCoeff = t.coeff;
+                const isActive = (form.terrain || "normal") === t.key;
+                return (
+                  <div key={t.key} onClick={() => {
+                    const baseSpeed = suggestSpeed(form.slopePct, settings.garminCoeff, settings);
+                    setForm(f => ({ ...f, terrain: t.key, speedKmh: Math.max(2, +(baseSpeed * terrainCoeff).toFixed(1)) }));
+                  }} style={{
+                    flex: 1, padding: "8px 6px", borderRadius: 10, cursor: "pointer", textAlign: "center",
+                    border: `2px solid ${isActive ? C.primary : "var(--border-c)"}`,
+                    background: isActive ? C.primaryPale : "var(--surface-2)",
+                    transition: "all 0.15s",
+                  }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: isActive ? C.primaryDeep : "var(--text-c)" }}>{t.label}</div>
+                    <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>×{t.coeff}</div>
+                  </div>
+                );
+              })}
             </div>
           </Field>
           <Field label="Notes" full><textarea value={form.notes} onChange={e => updForm("notes", e.target.value)} rows={2} /></Field>
@@ -1567,6 +1654,33 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
               <Field label="Nom"><input value={settings.name} onChange={e => upd("name", e.target.value)} placeholder="Ton prénom" /></Field>
               <SliderField label="Poids" value={settings.weight} min={40} max={120} unit=" kg" onChange={v => upd("weight", v)} />
               <SliderField label="Kcal brûlées par km" value={settings.kcalPerKm} min={40} max={100} unit=" kcal/km" onChange={v => upd("kcalPerKm", v)} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--muted-c)", marginBottom: 8 }}>Niveau coureur</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {RUNNER_LEVELS.map(lvl => {
+                    const isActive = (settings.runnerLevel || "intermediaire") === lvl.key;
+                    return (
+                      <div key={lvl.key} onClick={() => upd("runnerLevel", lvl.key)} style={{
+                        padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                        border: `2px solid ${isActive ? C.primary : "var(--border-c)"}`,
+                        background: isActive ? C.primaryPale : "var(--surface-2)",
+                        transition: "all 0.15s",
+                      }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: isActive ? C.primaryDeep : "var(--text-c)" }}>{lvl.label}</div>
+                        <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>{lvl.desc}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {(() => {
+                  const lvl = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel || "intermediaire"));
+                  return (
+                    <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-c)", textAlign: "center" }}>
+                      Coefficient vitesse : <strong style={{ color: "var(--text-c)" }}>×{lvl?.coeff}</strong>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
           </Card>
 
