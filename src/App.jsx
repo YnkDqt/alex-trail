@@ -1285,7 +1285,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings, onOpenRepo
                   Aucun segment — utilise le découpage auto ou ajoute-en un manuellement.
                 </div>
               ) : (
-                <div className="tbl-wrap" style={{ maxHeight: 320, overflowY: "auto" }}>
+                <div className="tbl-wrap" style={{ maxHeight: 520, overflowY: "auto" }}>
                   <table>
                     <thead><tr>
                       <th>#</th><th>Début</th><th>Fin</th><th>Pente moy.</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th></th>
