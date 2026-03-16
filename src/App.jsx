@@ -2339,7 +2339,7 @@ function NutritionView({ segments, settings, setSettings, race }) {
 
 // ─── NAVIGATION ───────────────────────────────────────────────────────────────
 // ─── VUE TEAM ────────────────────────────────────────────────────────────────
-function TeamView({ race, segments, settings }) {
+function TeamView({ race, segments, settings, sharedMode, installPrompt, onInstall }) {
   const [realTimes, setRealTimes] = useState({}); // ravitoId → "HH:MM"
   const [activeRavito, setActiveRavito] = useState(null);
   const [sosActive, setSosActive] = useState(false);
@@ -2462,21 +2462,73 @@ function TeamView({ race, segments, settings }) {
 
   return (
     <div className="anim">
-      {/* Header + SOS */}
+
+      {/* Bannière installation pour l'assistant */}
+      {sharedMode && !window.matchMedia("(display-mode: standalone)").matches && (
+        <div style={{
+          background: `linear-gradient(135deg, ${C.primary}18, ${C.primaryPale})`,
+          border: `1px solid ${C.primary}40`, borderRadius: 16,
+          padding: "16px 20px", marginBottom: 20,
+          display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
+        }}>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>
+              📲 Installe Alex sur ton téléphone
+            </div>
+            <div style={{ fontSize: 13, color: "var(--muted-c)", lineHeight: 1.5 }}>
+              Accède à la stratégie hors-ligne en montagne et suis le coureur en temps réel.
+            </div>
+          </div>
+          <button onClick={onInstall} style={{
+            background: C.primary, color: "#fff", border: "none",
+            borderRadius: 12, padding: "10px 18px", cursor: "pointer",
+            fontSize: 13, fontWeight: 700, fontFamily: "'DM Sans', sans-serif",
+            flexShrink: 0,
+          }}>
+            Installer gratuitement
+          </button>
+        </div>
+      )}
+
+      {/* Header + SOS + Partage */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
         <PageTitle sub={`${ravitos.length} ravito${ravitos.length > 1 ? "s" : ""} · départ ${settings.startTime || "07:00"}`}>
           {settings.raceName || race.name || "Team"}
         </PageTitle>
-        <button onClick={handleSOS} style={{
-          background: sosActive ? C.red + "cc" : C.red,
-          color: "#fff", border: "none", borderRadius: 14, padding: "10px 18px",
-          fontWeight: 700, fontSize: 14, cursor: "pointer", marginTop: 4,
-          display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
-          boxShadow: `0 4px 16px ${C.red}50`, transition: "all 0.2s",
-          fontFamily: "'DM Sans', sans-serif",
-        }}>
-          🆘 SOS Position
-        </button>
+        <div style={{ display: "flex", gap: 8, marginTop: 4, flexShrink: 0 }}>
+          {!sharedMode && (
+            <button onClick={() => {
+              const code = encodeStrategy(race, segments, settings);
+              if (!code) { alert("Erreur lors de la génération du lien."); return; }
+              const url = `${window.location.origin}${window.location.pathname}?s=${code}`;
+              if (navigator.share) {
+                navigator.share({ title: `Stratégie — ${settings.raceName || race.name || "Ma course"}`, text: "Voici ma stratégie de course. Installe Alex pour me suivre !", url });
+              } else {
+                navigator.clipboard?.writeText(url)
+                  .then(() => alert("✅ Lien copié ! Envoie-le par SMS ou WhatsApp."))
+                  .catch(() => { prompt("Copie ce lien et envoie-le à ton équipe :", url); });
+              }
+            }} style={{
+              background: C.green + "18", border: `1px solid ${C.green}50`,
+              color: C.green, borderRadius: 14, padding: "10px 16px",
+              fontWeight: 700, fontSize: 13, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+              fontFamily: "'DM Sans', sans-serif", transition: "all 0.2s",
+            }}>
+              🔗 Partager
+            </button>
+          )}
+          <button onClick={handleSOS} style={{
+            background: sosActive ? C.red + "cc" : C.red,
+            color: "#fff", border: "none", borderRadius: 14, padding: "10px 18px",
+            fontWeight: 700, fontSize: 14, cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
+            boxShadow: `0 4px 16px ${C.red}50`, transition: "all 0.2s",
+            fontFamily: "'DM Sans', sans-serif",
+          }}>
+            🆘 SOS Position
+          </button>
+        </div>
       </div>
 
       {gpsCoords && (
@@ -2663,6 +2715,26 @@ const NAVS = [
   { id: "parametres",  label: "Paramètres du coureur", icon: "⚙️" },
 ];
 
+// ─── PARTAGE STRATÉGIE ───────────────────────────────────────────────────────
+function encodeStrategy(race, segments, settings) {
+  // On exclut les points GPX (trop lourds) + équipement/recettes (inutiles pour l'assistant)
+  const { gpxPoints, ...raceLight } = race;
+  const { equipment, recettes, garminStats, ...settingsLight } = settings;
+  const payload = { race: raceLight, segments, settings: settingsLight, v: 1, ts: Date.now() };
+  try {
+    const json    = JSON.stringify(payload);
+    const encoded = btoa(unescape(encodeURIComponent(json)));
+    return encoded;
+  } catch { return null; }
+}
+
+function decodeStrategy(encoded) {
+  try {
+    const json = decodeURIComponent(escape(atob(encoded)));
+    return JSON.parse(json);
+  } catch { return null; }
+}
+
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [view, setView] = useState("profil");
@@ -2677,6 +2749,7 @@ export default function App() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [installDone, setInstallDone] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const [sharedMode, setSharedMode] = useState(false); // true = ouvert via lien partagé
   const [reposModal, setReposModal] = useState(false);
   const [reposForm, setReposForm]   = useState({ label: "", startKm: "", dureeMin: 20 });
   const addRepos = () => {
@@ -2743,8 +2816,28 @@ export default function App() {
     } catch { return null; }
   };
 
-  // ── Chargement au démarrage depuis IndexedDB ─────────────────────────────
+  // ── Chargement au démarrage ──────────────────────────────────────────────
   useEffect(() => {
+    // Priorité 1 : lien partagé ?s=... dans l'URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const shared = urlParams.get("s");
+    if (shared) {
+      const data = decodeStrategy(shared);
+      if (data) {
+        if (data.race)     setRaceRaw(data.race);
+        if (data.segments) setSegmentsRaw(data.segments);
+        if (data.settings) setSettingsRaw({ ...EMPTY_SETTINGS, ...data.settings });
+        setSharedMode(true);
+        setOnboarding(false);
+        setView("team");
+        // Sauvegarder dans IndexedDB pour usage offline
+        idbSave({ race: data.race, segments: data.segments, settings: { ...EMPTY_SETTINGS, ...data.settings } });
+        // Nettoyer l'URL sans recharger
+        window.history.replaceState({}, "", window.location.pathname);
+        return;
+      }
+    }
+    // Priorité 2 : données IndexedDB locales
     idbLoad().then(d => {
       if (d?.race) { setRaceRaw(d.race); setOnboarding(false); }
       if (d?.segments) setSegmentsRaw(d.segments);
@@ -2883,6 +2976,7 @@ export default function App() {
             ✓ App installée
           </div>
         )}
+
         <button
           onClick={saveData}
           style={{
@@ -3108,7 +3202,7 @@ export default function App() {
           {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} onOpenRepos={() => setReposModal(true)} />}
           {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} />}
           {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} />}
-          {view === "team"        && <TeamView race={race} segments={segments} settings={settings} />}
+          {view === "team"        && <TeamView race={race} segments={segments} settings={settings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} />}
           {view === "parametres"  && <ParamètresView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} />}
         </main>
       </div>
