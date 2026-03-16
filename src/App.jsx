@@ -436,7 +436,7 @@ const G = `
     accent-color: ${C.primary};
   }
   table { border-collapse: collapse; width: 100%; }
-  thead th { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-c); background: var(--surface-2); padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border-c); }
+  thead th { font-weight: 600; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted-c); background: var(--surface-2); padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border-c); }
   tbody tr { border-bottom: 1px solid var(--border-c); transition: background 0.15s; cursor: pointer; }
   tbody tr:hover { background: var(--surface-2); }
   tbody td { padding: 10px 14px; }
@@ -507,13 +507,13 @@ function Card({ children, style, noPad }) {
 function KPI({ label, value, sub, color, icon }) {
   const col = color || C.primary;
   return (
-    <div style={{ background: "var(--surface)", borderRadius: 16, border: "1px solid var(--border-c)", padding: "18px 20px" }}>
+    <div style={{ background: "var(--surface)", borderRadius: 14, border: "0.5px solid var(--border-c)", borderTop: `3px solid ${col}`, padding: "14px 16px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <span style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted-c)" }}>{label}</span>
-        {icon && <span style={{ fontSize: 18 }}>{icon}</span>}
+        <span style={{ fontSize: 9.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.11em", color: "var(--muted-c)" }}>{label}</span>
+        {icon && <span style={{ fontSize: 16 }}>{icon}</span>}
       </div>
-      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 600, color: col, lineHeight: 1.2, marginTop: 8 }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 4 }}>{sub}</div>}
+      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 700, color: col, lineHeight: 1.2, marginTop: 7 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 3 }}>{sub}</div>}
     </div>
   );
 }
@@ -1182,38 +1182,55 @@ function ProfilView({ race, setRace, segments, setSegments, settings, onOpenRepo
             </Card>
           </div>
 
-          {/* Infos course — bandeau discret */}
-          <div style={{
-            display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap",
-            padding: "9px 16px", marginBottom: segments.length ? 12 : 20,
-            background: "var(--surface-2)", borderRadius: 10,
-            border: "1px solid var(--border-c)", fontSize: 13, color: "var(--muted-c)",
-          }}>
-            <span style={{ fontWeight: 600, color: "var(--text-c)" }}>Course</span>
-            <span>Départ {settings.startTime || "07:00"}</span>
-            <span>{settings.tempC}°C</span>
-            {settings.rain && <span>Pluie</span>}
-            {settings.wind && <span>Vent</span>}
-            {settings.heat && <span>Chaleur</span>}
-            <span style={{ marginLeft: "auto", fontSize: 12, color: C.primary }}>Modifier dans Stratégie →</span>
-          </div>
-
-          {/* Effort estimé — visible seulement si segments définis */}
-          {segments.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 20 }}>
-              {[
-                { label: "Temps course", value: fmtTime(totalTime), sub: "hors ravitos" },
-                { label: "Temps total", value: fmtTime(totalTime + totalRavitoSec), sub: `+${(race.ravitos?.length||0)} ravitos` },
-                { label: "Calories", value: `${nutriTotals.kcal} kcal`, sub: `${settings.kcalPerKm} kcal/km` },
-                { label: "Eau", value: `${(nutriTotals.eau/1000).toFixed(1)} L`, sub: "total estimé" },
-                { label: "Glucides", value: `${nutriTotals.glucides} g`, sub: "total estimé" },
-              ].map(item => (
-                <div key={item.label} style={{ background: "var(--surface-2)", borderRadius: 10, padding: "11px 14px", border: "1px solid var(--border-c)" }}>
-                  <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 3 }}>{item.label}</div>
-                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700 }}>{item.value}</div>
-                  <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>{item.sub}</div>
+          {/* Résumé de course — bloc orangé si segments, bandeau discret sinon */}
+          {segments.filter(s => s.type !== "ravito" && s.type !== "repos").length > 0 ? (
+            <div style={{
+              background: "#A04010", borderRadius: 14, padding: "18px 24px",
+              marginBottom: 20, display: "flex", justifyContent: "space-between",
+              alignItems: "center", flexWrap: "wrap", gap: 16,
+            }}>
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "#F5C080", marginBottom: 4 }}>
+                  Résumé de course
                 </div>
-              ))}
+                <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, color: "#FDF5EE", marginBottom: 2 }}>
+                  {settings.raceName || race.name || "Course"}
+                </div>
+                <div style={{ fontSize: 11, color: "#D08860" }}>
+                  Départ {settings.startTime || "07:00"} · {settings.tempC}°C
+                  {settings.rain ? " · Pluie" : ""}{settings.wind ? " · Vent" : ""}{settings.heat ? " · Chaleur" : ""}
+                  {" · "}<span style={{ color: "#F5C080", cursor: "pointer" }} onClick={() => {}}>Modifier →</span>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+                {[
+                  { label: "Temps total", val: fmtTime(totalTime + totalRavitoSec) },
+                  { label: "Segments", val: segments.filter(s => s.type !== "ravito" && s.type !== "repos").length },
+                  { label: "Ravitos", val: race.ravitos?.length || 0 },
+                  { label: "Calories", val: `${nutriTotals.kcal}`, accent: "#F5C080" },
+                  { label: "Eau", val: `${(nutriTotals.eau/1000).toFixed(1)} L`, accent: "#90C4E8" },
+                ].map(s => (
+                  <div key={s.label} style={{ textAlign: "center" }}>
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700, color: s.accent || "#FDF5EE" }}>{s.val}</div>
+                    <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: "0.09em", textTransform: "uppercase", color: "#D08860", marginTop: 3 }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap",
+              padding: "9px 16px", marginBottom: 20,
+              background: "var(--surface-2)", borderRadius: 10,
+              border: "1px solid var(--border-c)", fontSize: 13, color: "var(--muted-c)",
+            }}>
+              <span style={{ fontWeight: 600, color: "var(--text-c)" }}>Course</span>
+              <span>Départ {settings.startTime || "07:00"}</span>
+              <span>{settings.tempC}°C</span>
+              {settings.rain && <span>Pluie</span>}
+              {settings.wind && <span>Vent</span>}
+              {settings.heat && <span>Chaleur</span>}
+              <span style={{ marginLeft: "auto", fontSize: 12, color: C.primary }}>Modifier dans Stratégie →</span>
             </div>
           )}
 
