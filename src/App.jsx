@@ -2920,6 +2920,26 @@ export default function App() {
           }}>📂 Charger une stratégie</div>
           <input type="file" accept=".json" style={{ display: "none" }} onChange={e => { if (e.target.files[0]) loadData(e.target.files[0]); }} />
         </label>
+
+        {/* Nouvelle course (reset) */}
+        <button onClick={() => {
+          if (confirm("Démarrer une nouvelle course ? Toutes les données actuelles seront effacées.")) {
+            setRaceRaw({});
+            setSegmentsRaw([]);
+            setSettingsRaw(EMPTY_SETTINGS);
+            setHasUnsaved(false);
+            setView("profil");
+            // Vider aussi IndexedDB
+            idbSave({ race: {}, segments: [], settings: EMPTY_SETTINGS });
+          }
+        }} style={{
+          background: "none", border: `1px solid ${C.border}`, borderRadius: 12,
+          padding: "9px 14px", cursor: "pointer", fontSize: 13, width: "100%",
+          fontWeight: 500, textAlign: "center", color: "var(--muted-c)",
+          fontFamily: "'DM Sans', sans-serif", transition: "all 0.2s",
+        }}>
+          🔄 Nouvelle course
+        </button>
       </div>
     </div>
   );
@@ -3006,9 +3026,16 @@ export default function App() {
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <Btn onClick={() => { setOnboarding(false); setView("profil"); }}>🚀 Commencer</Btn>
-              <label style={{ display: "block" }}>
-                <Btn variant="soft" style={{ width: "100%", justifyContent: "center" }} onClick={() => {}}>📂 Charger mes données</Btn>
-                <input type="file" accept=".json" style={{ display: "none" }} onChange={e => { if (e.target.files[0]) { loadData(e.target.files[0]); setOnboarding(false); } }} />
+              <label style={{ display: "block", cursor: "pointer" }}>
+                <div style={{
+                  background: C.sand, border: `1px solid ${C.border}`, borderRadius: 12,
+                  padding: "11px 16px", textAlign: "center", fontSize: 14, fontWeight: 500,
+                  color: C.text, fontFamily: "'DM Sans', sans-serif",
+                }}>
+                  📂 Charger une stratégie
+                </div>
+                <input type="file" accept=".json" style={{ display: "none" }}
+                  onChange={e => { if (e.target.files[0]) { loadData(e.target.files[0]); setOnboarding(false); } }} />
               </label>
               <Btn variant="ghost" onClick={() => { setOnboarding(false); setView("parametres"); }}>⚙️ Configurer d'abord</Btn>
             </div>
