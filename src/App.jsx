@@ -1068,7 +1068,13 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
   const autoSegment = () => {
     if (!race.gpxPoints?.length) return;
     setComputing(true);
-    setTimeout(() => { setSegments(autoSegmentGPX(race.gpxPoints, settings.garminCoeff, settings)); setComputing(false); }, 50);
+    setTimeout(() => {
+      const newSegs = autoSegmentGPX(race.gpxPoints, settings.garminCoeff, settings);
+      // Préserver ravitos et repos existants, remplacer uniquement les segments normaux
+      const preserved = segments.filter(s => s.type === "ravito" || s.type === "repos");
+      setSegments([...newSegs, ...preserved].sort((a, b) => (a.startKm ?? 0) - (b.startKm ?? 0)));
+      setComputing(false);
+    }, 50);
   };
 
   const minEle = profile.length ? Math.min(...profile.map(p => p.ele)) - 20 : 0;
@@ -1457,7 +1463,9 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
     if (!race.gpxPoints?.length) return;
     setComputing(true);
     setTimeout(() => {
-      setSegments(autoSegmentGPX(race.gpxPoints, settings.garminCoeff, settings));
+      const newSegs = autoSegmentGPX(race.gpxPoints, settings.garminCoeff, settings);
+      const preserved = segments.filter(s => s.type === "ravito" || s.type === "repos");
+      setSegments([...newSegs, ...preserved].sort((a, b) => (a.startKm ?? 0) - (b.startKm ?? 0)));
       setComputing(false);
     }, 50);
   };
@@ -2929,14 +2937,14 @@ export default function App() {
             setSettingsRaw(EMPTY_SETTINGS);
             setHasUnsaved(false);
             setView("profil");
-            // Vider aussi IndexedDB
+            setDrawerOpen(false);
             idbSave({ race: {}, segments: [], settings: EMPTY_SETTINGS });
           }
         }} style={{
-          background: "none", border: `1px solid ${C.border}`, borderRadius: 12,
+          background: "none", border: `1px solid var(--border-c)`, borderRadius: 12,
           padding: "9px 14px", cursor: "pointer", fontSize: 13, width: "100%",
           fontWeight: 500, textAlign: "center", color: "var(--muted-c)",
-          fontFamily: "'DM Sans', sans-serif", transition: "all 0.2s",
+          fontFamily: "'DM Sans', sans-serif", transition: "color 0.2s",
         }}>
           🔄 Nouvelle course
         </button>
