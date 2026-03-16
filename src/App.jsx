@@ -767,7 +767,7 @@ function exportWallpaper(race, segments, settings, profile) {
   ctx.strokeStyle = C.primary + "50"; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(60, botY); ctx.lineTo(W - 60, botY); ctx.stroke();
 
-  const totalTime = segments.reduce((s, seg) => seg.type === "repos" ? s + (seg.dureeMin||0)*60 : s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
+  const totalTime = segments.reduce((s, seg) => (seg.type === "repos" || seg.type === "ravito") ? s + (seg.dureeMin||0)*60 : s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
   const ravitoSec = (race.ravitos?.length || 0) * (settings.ravitoTimeMin || 3) * 60;
 
   const stats = [
@@ -947,7 +947,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
   const fileRef = useRef();
 
   const profile = useMemo(() => race.gpxPoints?.length ? buildElevationProfile(race.gpxPoints, 300) : [], [race.gpxPoints]);
-  const totalTime = segments.reduce((s, seg) => seg.type === "repos" ? s + (seg.dureeMin||0)*60 : s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
+  const totalTime = segments.reduce((s, seg) => (seg.type === "repos" || seg.type === "ravito") ? s + (seg.dureeMin||0)*60 : s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
   const totalRavitoSec = (race.ravitos?.length || 0) * (settings.ravitoTimeMin || 3) * 60;
   const nutriTotals = useMemo(() => segments.reduce((acc, seg) => {
     const n = calcNutrition(seg, settings);
@@ -988,13 +988,31 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
     if (isNaN(km) || !ravitoForm.name) return;
     if (editRavitoId) {
       setRace(r => ({ ...r, ravitos: r.ravitos.map(rv => rv.id === editRavitoId ? { ...ravitoForm, km, id: editRavitoId } : rv) }));
+      // Mettre à jour le segment ravito correspondant
+      setSegments(s => s.map(seg =>
+        seg.type === "ravito" && seg.ravitoId === editRavitoId
+          ? { ...seg, startKm: km, endKm: km, label: ravitoForm.name }
+          : seg
+      ).sort((a, b) => (a.startKm ?? 0) - (b.startKm ?? 0)));
     } else {
-      setRace(r => ({ ...r, ravitos: [...(r.ravitos||[]), { ...ravitoForm, km, id: Date.now() }] }));
+      const id = Date.now();
+      setRace(r => ({ ...r, ravitos: [...(r.ravitos||[]), { ...ravitoForm, km, id }] }));
+      // Ajouter un segment ravito trié
+      setSegments(s => [...s, {
+        id: id + 1, type: "ravito", ravitoId: id,
+        label: ravitoForm.name, startKm: km, endKm: km,
+        dureeMin: settings.ravitoTimeMin || 3,
+        speedKmh: 0, slopePct: 0, terrain: "normal", notes: "",
+      }].sort((a, b) => (a.startKm ?? 0) - (b.startKm ?? 0)));
     }
     setRavitoModal(false); setRavitoForm({ km: "", name: "" }); setEditRavitoId(null);
   };
   const openEditRavito = rv => { setEditRavitoId(rv.id); setRavitoForm({ km: rv.km, name: rv.name }); setRavitoModal(true); };
-  const deleteRavito = id => { setRace(r => ({ ...r, ravitos: (r.ravitos||[]).filter(rv => rv.id !== id) })); setConfirmId(null); };
+  const deleteRavito = id => {
+    setRace(r => ({ ...r, ravitos: (r.ravitos||[]).filter(rv => rv.id !== id) }));
+    setSegments(s => s.filter(seg => !(seg.type === "ravito" && seg.ravitoId === id)));
+    setConfirmId(null);
+  };
 
   const updSeg = (key, val) => {
     setSegForm(f => {
@@ -1411,8 +1429,8 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
   const [reposModal, setReposModal] = useState(false);
   const [reposForm, setReposForm]   = useState({ label: "", startKm: "", dureeMin: 20 });
 
-  // Segments de course normaux vs segments de repos
-  const segsNormaux = segments.filter(s => s.type !== "repos");
+  // Segments de course normaux vs segments de repos vs ravitos
+  const segsNormaux = segments.filter(s => s.type !== "repos" && s.type !== "ravito");
   const segsRepos   = segments.filter(s => s.type === "repos");
 
   // Temps course = segments normaux seulement
@@ -1426,7 +1444,8 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
   const addRepos = () => {
     if (!reposForm.label.trim() || !reposForm.dureeMin) return;
     const startKm = parseFloat(reposForm.startKm) || 0;
-    setSegments(s => [...s, { id: Date.now(), type: "repos", label: reposForm.label, startKm, dureeMin: Number(reposForm.dureeMin), endKm: startKm, speedKmh: 0, slopePct: 0, terrain: "normal", notes: "" }]);
+    setSegments(s => [...s, { id: Date.now(), type: "repos", label: reposForm.label, startKm, dureeMin: Number(reposForm.dureeMin), endKm: startKm, speedKmh: 0, slopePct: 0, terrain: "normal", notes: "" }]
+      .sort((a, b) => (a.startKm ?? 0) - (b.startKm ?? 0)));
     setReposModal(false);
     setReposForm({ label: "", startKm: "", dureeMin: 20 });
   };
@@ -1586,6 +1605,25 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
                   <th>#</th><th>De</th><th>À</th><th>Dist.</th><th>Pente</th><th>Terrain</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th>Nutrition/h</th><th></th>
                 </tr></thead>
                 <tbody>{segments.map((seg, i) => {
+                  // ── Segment ravitaillement ──
+                  if (seg.type === "ravito") {
+                    return (
+                      <tr key={seg.id} style={{ background: C.green + "10", cursor: "default" }}>
+                        <td style={{ color: "var(--muted-c)" }}>{i+1}</td>
+                        <td style={{ fontWeight: 600, color: C.green }}>
+                          🥤 {seg.label}
+                        </td>
+                        <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
+                        <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>
+                          {seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}
+                        </td>
+                        <td colSpan={5} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>
+                          Arrêt ravitaillement · pas de distance
+                        </td>
+                        <td><span style={{ fontSize: 11, color: "var(--muted-c)" }}>auto</span></td>
+                      </tr>
+                    );
+                  }
                   // ── Segment de repos ──
                   if (seg.type === "repos") {
                     return (
@@ -1932,7 +1970,7 @@ function NutritionView({ segments, settings, race }) {
     };
   }, { kcal: 0, eau: 0, glucides: 0, sel: 0 });
 
-  const totalTime = segments.reduce((s, seg) => seg.type === "repos" ? s + (seg.dureeMin||0)*60 : s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
+  const totalTime = segments.reduce((s, seg) => (seg.type === "repos" || seg.type === "ravito") ? s + (seg.dureeMin||0)*60 : s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
   const totalDist = segments.length ? segments[segments.length - 1].endKm : 0;
 
   // Nutrition par ravito (entre chaque ravitaillement)
