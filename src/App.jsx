@@ -1101,15 +1101,16 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
                         const lines = [];
                         let line = "";
                         words.forEach(w => {
-                          if ((line + w).length > 14) { lines.push(line.trim()); line = w + " "; }
+                          if ((line + w).length > 12) { lines.push(line.trim()); line = w + " "; }
                           else line += w + " ";
                         });
-                        lines.push(line.trim());
+                        if (line.trim()) lines.push(line.trim());
                         return (
                           <g>
                             {lines.map((l, i) => (
-                              <text key={i} x={x + 4} y={y - 4 - (lines.length - 1 - i) * 13}
-                                fontSize={10} fill={C.green} fontWeight={600}>{l}</text>
+                              <text key={i} x={x + 4} y={y + 14 + i * 13}
+                                fontSize={10} fill={C.green} fontWeight={600}
+                                style={{ pointerEvents: "none" }}>{l}</text>
                             ))}
                           </g>
                         );
@@ -1255,13 +1256,21 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
             </Btn>
             {race.gpxPoints?.length > 0 && (
               <Btn variant="ghost" size="sm" onClick={() => {
-                const pts = [...race.gpxPoints].reverse();
-                const maxDist = pts[pts.length - 1]?.dist || 0;
-                const reversed = pts.map((p, i) => {
-                  const cumDist = maxDist - pts[pts.length - 1 - i].dist;
+                // Inverser = retourner l'ordre des points, puis recalculer les distances cumulées
+                const orig = race.gpxPoints;
+                const rev = [...orig].reverse();
+                let cumDist = 0;
+                const reversed = rev.map((p, i) => {
+                  if (i > 0) {
+                    const prev = rev[i - 1];
+                    const dLat = (p.lat - prev.lat) * Math.PI / 180;
+                    const dLon = (p.lon - prev.lon) * Math.PI / 180;
+                    const a = Math.sin(dLat/2)**2 + Math.cos(prev.lat*Math.PI/180)*Math.cos(p.lat*Math.PI/180)*Math.sin(dLon/2)**2;
+                    cumDist += 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                  }
                   return { ...p, dist: +cumDist.toFixed(3) };
-                }).reverse();
-                // Recalcul D+ et D- sur le sens inversé
+                });
+                // Recalcul D+ et D-
                 let elvPos = 0, elvNeg = 0;
                 for (let i = 1; i < reversed.length; i++) {
                   const dE = reversed[i].ele - reversed[i-1].ele;
@@ -1400,7 +1409,7 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
   };
 
   const [reposModal, setReposModal] = useState(false);
-  const [reposForm, setReposForm]   = useState({ label: "", dureeMin: 20 });
+  const [reposForm, setReposForm]   = useState({ label: "", startKm: "", dureeMin: 20 });
 
   // Segments de course normaux vs segments de repos
   const segsNormaux = segments.filter(s => s.type !== "repos");
@@ -1416,9 +1425,10 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
 
   const addRepos = () => {
     if (!reposForm.label.trim() || !reposForm.dureeMin) return;
-    setSegments(s => [...s, { id: Date.now(), type: "repos", label: reposForm.label, dureeMin: Number(reposForm.dureeMin), startKm: null, endKm: null, speedKmh: 0, slopePct: 0, terrain: "normal", notes: "" }]);
+    const startKm = parseFloat(reposForm.startKm) || 0;
+    setSegments(s => [...s, { id: Date.now(), type: "repos", label: reposForm.label, startKm, dureeMin: Number(reposForm.dureeMin), endKm: startKm, speedKmh: 0, slopePct: 0, terrain: "normal", notes: "" }]);
     setReposModal(false);
-    setReposForm({ label: "", dureeMin: 20 });
+    setReposForm({ label: "", startKm: "", dureeMin: 20 });
   };
 
   const barData = segsNormaux.map((s, i) => ({ name: `S${i+1}`, vitesse: s.speedKmh, pente: s.slopePct }));
@@ -1581,11 +1591,15 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
                     return (
                       <tr key={seg.id} style={{ background: "var(--surface-2)", cursor: "default" }}>
                         <td style={{ color: "var(--muted-c)" }}>{i+1}</td>
-                        <td colSpan={3} style={{ fontWeight: 600, color: C.blue }}>
+                        <td style={{ fontWeight: 600, color: C.blue }}>
                           💤 {seg.label}
                         </td>
-                        <td colSpan={5} style={{ color: "var(--muted-c)", fontSize: 13 }}>
-                          Repos — {seg.dureeMin} min ({fmtTime(seg.dureeMin * 60)})
+                        <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
+                        <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>
+                          {seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}
+                        </td>
+                        <td colSpan={5} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>
+                          Pas de distance · temps ajouté au total
                         </td>
                         <td onClick={e => e.stopPropagation()}>
                           <Btn size="sm" variant="danger" onClick={() => setConfirmId(seg.id)}>✕</Btn>
@@ -1689,9 +1703,14 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
         <div className="form-grid">
           <Field label="Description" full>
             <input value={reposForm.label} onChange={e => setReposForm(f => ({ ...f, label: e.target.value }))}
-              placeholder="Ex : Bivouac km 60, Sieste ravito..." />
+              placeholder="Ex : Bivouac, Sieste ravito, Base vie..." />
           </Field>
-          <Field label="Durée (minutes)" full>
+          <Field label="Kilomètre de départ">
+            <input type="number" min={0} step={0.1} value={reposForm.startKm}
+              onChange={e => setReposForm(f => ({ ...f, startKm: e.target.value }))}
+              placeholder="Ex : 60" />
+          </Field>
+          <Field label="Durée (minutes)">
             <div>
               <input type="range" min={5} max={480} step={5} value={reposForm.dureeMin}
                 onChange={e => setReposForm(f => ({ ...f, dureeMin: Number(e.target.value) }))} />
@@ -1703,7 +1722,7 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
           </Field>
         </div>
         <div style={{ marginTop: 12, padding: "10px 14px", background: "var(--surface-2)", borderRadius: 10, fontSize: 13, color: "var(--muted-c)" }}>
-          Ce segment n'a pas de distance — il ajoute uniquement du temps au total de course.
+          Pas de distance associée — ajoute uniquement du temps au total de course.
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
           <Btn variant="ghost" onClick={() => setReposModal(false)}>Annuler</Btn>
