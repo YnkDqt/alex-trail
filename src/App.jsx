@@ -3080,10 +3080,12 @@ export default function App() {
   };
 
   const loadCourse = entry => {
+    // Préserver produits et equipment du profil courant — ils ne sont pas liés à une course spécifique
+    const mergedSettings = { ...EMPTY_SETTINGS, ...(entry.settings || {}), produits: settings.produits || [], equipment: settings.equipment || DEFAULT_EQUIPMENT };
     setRaceRaw(entry.race || {});
     setSegmentsRaw(entry.segments || []);
-    setSettingsRaw({ ...EMPTY_SETTINGS, ...(entry.settings || {}) });
-    idbSave({ race: entry.race, segments: entry.segments, settings: entry.settings });
+    setSettingsRaw(mergedSettings);
+    idbSave({ race: entry.race, segments: entry.segments, settings: mergedSettings });
     setHasUnsaved(false);
     setView("profil");
     setDrawerOpen(false);
@@ -3208,13 +3210,15 @@ export default function App() {
             );
             if (choice) saveCourse();
           }
+          // Préserver produits et equipment — ils appartiennent au profil coureur, pas à la course
+          const newSettings = { ...EMPTY_SETTINGS, produits: settings.produits || [], equipment: settings.equipment || DEFAULT_EQUIPMENT, darkMode: settings.darkMode };
           setRaceRaw({});
           setSegmentsRaw([]);
-          setSettingsRaw(EMPTY_SETTINGS);
+          setSettingsRaw(newSettings);
           setHasUnsaved(false);
           setView("profil");
           setDrawerOpen(false);
-          idbSave({ race: {}, segments: [], settings: EMPTY_SETTINGS });
+          idbSave({ race: {}, segments: [], settings: newSettings });
         }} style={{
           background: "none", border: `1px solid var(--border-c)`, borderRadius: 12,
           padding: "9px 14px", cursor: "pointer", fontSize: 13, width: "100%",
