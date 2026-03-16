@@ -2707,11 +2707,90 @@ function TeamView({ race, segments, settings, sharedMode, installPrompt, onInsta
   );
 }
 
+// ─── VUE MES COURSES ─────────────────────────────────────────────────────────
+function MesCoursesView({ courses, onLoad, onDelete, onSaveCurrent, race, segments, settings }) {
+  const [confirmId, setConfirmId] = useState(null);
+  const hasCurrentRace = race.gpxPoints?.length > 0 || segments.length > 0;
+
+  return (
+    <div className="anim">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+        <PageTitle sub={`${courses.length} stratégie${courses.length > 1 ? "s" : ""} sauvegardée${courses.length > 1 ? "s" : ""}`}>
+          Mes courses
+        </PageTitle>
+        {hasCurrentRace && (
+          <Btn onClick={onSaveCurrent} style={{ marginTop: 4, flexShrink: 0 }}>
+            💾 Sauvegarder la course actuelle
+          </Btn>
+        )}
+      </div>
+
+      {courses.length === 0 ? (
+        <Empty icon="📚" title="Aucune stratégie sauvegardée"
+          sub={hasCurrentRace ? "Clique sur \"Sauvegarder la course actuelle\" pour l'ajouter ici." : "Prépare une course et sauvegarde-la ici pour la retrouver plus tard."}
+          action={hasCurrentRace ? <Btn onClick={onSaveCurrent}>💾 Sauvegarder</Btn> : null}
+        />
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+          {courses.map(c => {
+            const date = new Date(c.savedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+            const time = new Date(c.savedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+            return (
+              <Card key={c.id} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Nom + date */}
+                <div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
+                    {c.name}
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--muted-c)" }}>Sauvegardée le {date} à {time}</div>
+                </div>
+
+                {/* Stats */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                  {[
+                    { label: "Distance", value: c.distance ? `${c.distance.toFixed(1)} km` : "—" },
+                    { label: "D+", value: c.elevPos ? `${Math.round(c.elevPos)} m` : "—" },
+                    { label: "Segments", value: c.segCount || "—" },
+                    { label: "Départ", value: c.startTime || "—" },
+                    { label: "Temps estimé", value: c.totalTime ? fmtTime(c.totalTime) : "—" },
+                    { label: "Ravitos", value: c.race?.ravitos?.length || 0 },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: "var(--surface-2)", borderRadius: 8, padding: "8px 10px" }}>
+                      <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 2 }}>{s.label}</div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{s.value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
+                  <Btn onClick={() => onLoad(c)} style={{ flex: 1, justifyContent: "center" }}>
+                    Charger
+                  </Btn>
+                  <Btn variant="danger" size="sm" onClick={() => setConfirmId(c.id)}>✕</Btn>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={!!confirmId}
+        message="Supprimer cette stratégie définitivement ?"
+        onConfirm={() => { onDelete(confirmId); setConfirmId(null); }}
+        onCancel={() => setConfirmId(null)}
+      />
+    </div>
+  );
+}
+
 const NAVS = [
   { id: "profil",      label: "Profil de course",    icon: "🗺️" },
   { id: "preparation", label: "Stratégie de course",  icon: "🎯" },
   { id: "nutrition",   label: "Nutrition",            icon: "🍌" },
   { id: "team",        label: "Team",                 icon: "👥" },
+  { id: "courses",     label: "Mes courses",          icon: "📚" },
   { id: "parametres",  label: "Paramètres du coureur", icon: "⚙️" },
 ];
 
@@ -2749,7 +2828,8 @@ export default function App() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [installDone, setInstallDone] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
-  const [sharedMode, setSharedMode] = useState(false); // true = ouvert via lien partagé
+  const [sharedMode, setSharedMode] = useState(false);
+  const [courses, setCourses] = useState([]); // galerie des stratégies sauvegardées // true = ouvert via lien partagé
   const [reposModal, setReposModal] = useState(false);
   const [reposForm, setReposForm]   = useState({ label: "", startKm: "", dureeMin: 20 });
   const addRepos = () => {
@@ -2790,10 +2870,14 @@ export default function App() {
   };
 
   // ── IndexedDB helpers ────────────────────────────────────────────────────
-  const IDB_NAME = "alex-trail", IDB_STORE = "state", IDB_KEY = "current";
+  const IDB_NAME = "alex-trail", IDB_STORE = "state", IDB_COURSES = "courses", IDB_KEY = "current";
   const openDB = () => new Promise((res, rej) => {
-    const req = indexedDB.open(IDB_NAME, 1);
-    req.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE);
+    const req = indexedDB.open(IDB_NAME, 2);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(IDB_STORE))   db.createObjectStore(IDB_STORE);
+      if (!db.objectStoreNames.contains(IDB_COURSES)) db.createObjectStore(IDB_COURSES, { keyPath: "id" });
+    };
     req.onsuccess = e => res(e.target.result);
     req.onerror = rej;
   });
@@ -2814,6 +2898,31 @@ export default function App() {
         req.onerror = () => res(null);
       });
     } catch { return null; }
+  };
+  const idbSaveCourse = async (id, data) => {
+    try {
+      const db = await openDB();
+      const tx = db.transaction(IDB_COURSES, "readwrite");
+      tx.objectStore(IDB_COURSES).put({ id, ...data });
+    } catch {}
+  };
+  const idbLoadCourses = async () => {
+    try {
+      const db = await openDB();
+      return new Promise(res => {
+        const tx = db.transaction(IDB_COURSES, "readonly");
+        const req = tx.objectStore(IDB_COURSES).getAll();
+        req.onsuccess = e => res(e.target.result || []);
+        req.onerror = () => res([]);
+      });
+    } catch { return []; }
+  };
+  const idbDeleteCourse = async id => {
+    try {
+      const db = await openDB();
+      const tx = db.transaction(IDB_COURSES, "readwrite");
+      tx.objectStore(IDB_COURSES).delete(id);
+    } catch {}
   };
 
   // ── Chargement au démarrage ──────────────────────────────────────────────
@@ -2843,6 +2952,8 @@ export default function App() {
       if (d?.segments) setSegmentsRaw(d.segments);
       if (d?.settings) setSettingsRaw({ ...EMPTY_SETTINGS, ...d.settings });
     });
+    // Charger la galerie des courses sauvegardées
+    idbLoadCourses().then(list => setCourses(list.sort((a, b) => b.savedAt - a.savedAt)));
   }, []);
 
   // ── Sauvegarde auto dans IndexedDB à chaque changement ───────────────────
@@ -2894,6 +3005,42 @@ export default function App() {
   };
 
   const navigate = id => { setView(id); setDrawerOpen(false); };
+
+  const saveCourse = () => {
+    const id = Date.now();
+    const totalTime = segments
+      .filter(s => s.type !== "ravito" && s.type !== "repos")
+      .reduce((s, seg) => s + (seg.endKm - seg.startKm) / seg.speedKmh * 3600, 0);
+    const entry = {
+      id,
+      savedAt: id,
+      name: settings.raceName || race.name || "Course sans nom",
+      distance: race.totalDistance || 0,
+      elevPos: race.totalElevPos || 0,
+      segCount: segments.filter(s => s.type !== "ravito" && s.type !== "repos").length,
+      startTime: settings.startTime || "07:00",
+      totalTime,
+      race, segments, settings,
+    };
+    idbSaveCourse(id, entry);
+    setCourses(prev => [entry, ...prev]);
+    return entry;
+  };
+
+  const loadCourse = entry => {
+    setRaceRaw(entry.race || {});
+    setSegmentsRaw(entry.segments || []);
+    setSettingsRaw({ ...EMPTY_SETTINGS, ...(entry.settings || {}) });
+    idbSave({ race: entry.race, segments: entry.segments, settings: entry.settings });
+    setHasUnsaved(false);
+    setView("profil");
+    setDrawerOpen(false);
+  };
+
+  const deleteCourse = id => {
+    idbDeleteCourse(id);
+    setCourses(prev => prev.filter(c => c.id !== id));
+  };
   const hasRace = !!race.gpxPoints?.length;
 
   const SidebarContent = () => (
@@ -3002,15 +3149,20 @@ export default function App() {
 
         {/* Nouvelle course (reset) */}
         <button onClick={() => {
-          if (confirm("Démarrer une nouvelle course ? Toutes les données actuelles seront effacées.")) {
-            setRaceRaw({});
-            setSegmentsRaw([]);
-            setSettingsRaw(EMPTY_SETTINGS);
-            setHasUnsaved(false);
-            setView("profil");
-            setDrawerOpen(false);
-            idbSave({ race: {}, segments: [], settings: EMPTY_SETTINGS });
+          const hasData = (race.gpxPoints?.length > 0 || segments.length > 0);
+          if (hasData) {
+            const choice = window.confirm(
+              `Démarrer une nouvelle course ?\n\nClique OK pour sauvegarder "${settings.raceName || race.name || "la course actuelle"}" dans Mes courses avant de continuer.\nClique Annuler pour tout effacer sans sauvegarder.`
+            );
+            if (choice) saveCourse();
           }
+          setRaceRaw({});
+          setSegmentsRaw([]);
+          setSettingsRaw(EMPTY_SETTINGS);
+          setHasUnsaved(false);
+          setView("profil");
+          setDrawerOpen(false);
+          idbSave({ race: {}, segments: [], settings: EMPTY_SETTINGS });
         }} style={{
           background: "none", border: `1px solid var(--border-c)`, borderRadius: 12,
           padding: "9px 14px", cursor: "pointer", fontSize: 13, width: "100%",
@@ -3203,6 +3355,7 @@ export default function App() {
           {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} />}
           {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} />}
           {view === "team"        && <TeamView race={race} segments={segments} settings={settings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} />}
+          {view === "courses"     && <MesCoursesView courses={courses} onLoad={loadCourse} onDelete={deleteCourse} onSaveCurrent={() => { saveCourse(); alert("✅ Stratégie sauvegardée dans Mes courses !"); }} race={race} segments={segments} settings={settings} />}
           {view === "parametres"  && <ParamètresView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} />}
         </main>
       </div>
