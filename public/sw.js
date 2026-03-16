@@ -1,46 +1,64 @@
-const CACHE = "alex-v1";
-const ASSETS = [
-  "/",
-  "/index.html",
-  "/src/main.jsx",
-  "/src/App.jsx",
-  "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap"
-];
+// Incrémenter ce numéro à chaque déploiement pour forcer la mise à jour
+const CACHE_VERSION = "alex-v3";
+const STATIC_CACHE  = `${CACHE_VERSION}-static`;
+const FONTS_CACHE   = "alex-fonts";
+
+const STATIC_ASSETS = ["/", "/index.html"];
 
 self.addEventListener("install", e => {
   e.waitUntil(
-    caches.open(CACHE).then(cache => cache.addAll(ASSETS).catch(() => {}))
+    caches.open(STATIC_CACHE)
+      .then(cache => cache.addAll(STATIC_ASSETS).catch(() => {}))
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
 self.addEventListener("activate", e => {
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
+      Promise.all(
+        keys.filter(k => k !== STATIC_CACHE && k !== FONTS_CACHE).map(k => caches.delete(k))
+      )
+    ).then(() => {
+      self.clients.claim();
+      self.clients.matchAll().then(clients =>
+        clients.forEach(client => client.postMessage({ type: "SW_UPDATED" }))
+      );
+    })
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", e => {
-  // Ne pas intercepter les requêtes non-GET
   if (e.request.method !== "GET") return;
-  // Ne pas intercepter les requêtes vers des APIs externes
   const url = new URL(e.request.url);
-  if (url.hostname !== self.location.hostname &&
-      !url.hostname.includes("fonts.googleapis.com") &&
-      !url.hostname.includes("fonts.gstatic.com")) return;
 
-  e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      return fetch(e.request).then(res => {
-        if (!res || res.status !== 200) return res;
-        const clone = res.clone();
-        caches.open(CACHE).then(cache => cache.put(e.request, clone));
-        return res;
-      }).catch(() => caches.match("/index.html"));
-    })
-  );
+  // Fontes : cache-first
+  if (url.hostname.includes("fonts.googleapis.com") || url.hostname.includes("fonts.gstatic.com")) {
+    e.respondWith(
+      caches.open(FONTS_CACHE).then(cache =>
+        cache.match(e.request).then(cached => {
+          if (cached) return cached;
+          return fetch(e.request).then(res => { cache.put(e.request, res.clone()); return res; });
+        })
+      )
+    );
+    return;
+  }
+
+  // Assets locaux : network-first → fallback cache offline
+  if (url.hostname === self.location.hostname) {
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          if (res && res.status === 200) {
+            const clone = res.clone();
+            caches.open(STATIC_CACHE).then(cache => cache.put(e.request, clone));
+          }
+          return res;
+        })
+        .catch(() =>
+          caches.match(e.request).then(cached => cached || caches.match("/index.html"))
+        )
+    );
+  }
 });

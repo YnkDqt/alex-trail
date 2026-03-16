@@ -21,7 +21,17 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
+          navigator.serviceWorker.register('/sw.js').then(reg => {
+            // Vérifier les mises à jour toutes les 60s
+            setInterval(() => reg.update(), 60000);
+          }).catch(() => {});
+
+          // Recharger la page quand le SW signale une mise à jour
+          navigator.serviceWorker.addEventListener('message', e => {
+            if (e.data?.type === 'SW_UPDATED') {
+              window.location.reload();
+            }
+          });
         });
       }
     </script>
