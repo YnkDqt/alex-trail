@@ -930,13 +930,41 @@ function exportEmail(race, segments, settings, nutriTotals, totalTime, totalRavi
   URL.revokeObjectURL(url);
 }
 
+// ─── HELPERS HEURES ──────────────────────────────────────────────────────────
+function fmtHeure(sec) {
+  const total = ((sec % 86400) + 86400) % 86400;
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+}
+function isNight(sec) {
+  const h = Math.floor(((sec % 86400) + 86400) % 86400 / 3600);
+  return h >= 21 || h < 6;
+}
+function calcPassingTimes(segments, startTime) {
+  const parts = (startTime || "07:00").split(":").map(Number);
+  const startSec = parts[0] * 3600 + (parts[1] || 0) * 60;
+  const times = [];
+  let cum = startSec;
+  segments.forEach(seg => {
+    if (seg.type === "ravito" || seg.type === "repos") {
+      cum += (seg.dureeMin || 0) * 60;
+    } else {
+      const dist = (seg.endKm || 0) - (seg.startKm || 0);
+      cum += seg.speedKmh > 0 ? (dist / seg.speedKmh) * 3600 : 0;
+    }
+    times.push(cum);
+  });
+  return { times, startSec };
+}
+
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
 function ProfilView({ race, setRace, segments, setSegments, settings }) {
   const [gpxError, setGpxError]       = useState(null);
   const [dragging, setDragging]       = useState(false);
   const [hoveredSeg, setHoveredSeg]   = useState(null);
   const [ravitoModal, setRavitoModal] = useState(false);
-  const [ravitoForm, setRavitoForm]   = useState({ km: "", name: "" });
+  const [ravitoForm, setRavitoForm]   = useState({ km: "", name: "", address: "", notes: "" });
   const [editRavitoId, setEditRavitoId] = useState(null);
   const [confirmId, setConfirmId]     = useState(null);
   const [segModal, setSegModal]       = useState(false);
@@ -950,8 +978,9 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
   const totalTime = segments.reduce((s, seg) => (seg.type === "repos" || seg.type === "ravito") ? s + (seg.dureeMin||0)*60 : s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
   const totalRavitoSec = (race.ravitos?.length || 0) * (settings.ravitoTimeMin || 3) * 60;
   const nutriTotals = useMemo(() => segments.reduce((acc, seg) => {
+    if (seg.type === "ravito" || seg.type === "repos") return acc;
     const n = calcNutrition(seg, settings);
-    const durationH = (seg.endKm - seg.startKm) / seg.speedKmh;
+    const durationH = seg.speedKmh > 0 ? (seg.endKm - seg.startKm) / seg.speedKmh : 0;
     return { kcal: acc.kcal + n.kcal, eau: acc.eau + Math.round(n.eauH * durationH), glucides: acc.glucides + Math.round(n.glucidesH * durationH), sel: acc.sel + Math.round(n.selH * durationH) };
   }, { kcal: 0, eau: 0, glucides: 0, sel: 0 }), [segments, settings]);
 
@@ -1005,9 +1034,9 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
         speedKmh: 0, slopePct: 0, terrain: "normal", notes: "",
       }].sort((a, b) => (a.startKm ?? 0) - (b.startKm ?? 0)));
     }
-    setRavitoModal(false); setRavitoForm({ km: "", name: "" }); setEditRavitoId(null);
+    setRavitoModal(false); setRavitoForm({ km: "", name: "", address: "", notes: "" }); setEditRavitoId(null);
   };
-  const openEditRavito = rv => { setEditRavitoId(rv.id); setRavitoForm({ km: rv.km, name: rv.name }); setRavitoModal(true); };
+  const openEditRavito = rv => { setEditRavitoId(rv.id); setRavitoForm({ km: rv.km, name: rv.name, address: rv.address || "", notes: rv.notes || "" }); setRavitoModal(true); };
   const deleteRavito = id => {
     setRace(r => ({ ...r, ravitos: (r.ravitos||[]).filter(rv => rv.id !== id) }));
     setSegments(s => s.filter(seg => !(seg.type === "ravito" && seg.ravitoId === id)));
@@ -1188,7 +1217,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
             <Card>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                 <div style={{ fontWeight: 600 }}>Ravitaillements</div>
-                <Btn size="sm" onClick={() => { setEditRavitoId(null); setRavitoForm({ km: "", name: "" }); setRavitoModal(true); }}>+ Ravito</Btn>
+                <Btn size="sm" onClick={() => { setEditRavitoId(null); setRavitoForm({ km: "", name: "", address: "", notes: "" }); setRavitoModal(true); }}>+ Ravito</Btn>
               </div>
               {!(race.ravitos?.length) ? (
                 <p style={{ color: "var(--muted-c)", fontSize: 13 }}>Aucun ravitaillement défini</p>
@@ -1308,6 +1337,12 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
         <div className="form-grid">
           <Field label="Kilomètre"><input type="number" min={0} step={0.1} value={ravitoForm.km} onChange={e => setRavitoForm(f => ({ ...f, km: e.target.value }))} /></Field>
           <Field label="Nom du point" full><input value={ravitoForm.name} onChange={e => setRavitoForm(f => ({ ...f, name: e.target.value }))} /></Field>
+          <Field label="Adresse (pour l'assistance)" full>
+            <input value={ravitoForm.address || ""} onChange={e => setRavitoForm(f => ({ ...f, address: e.target.value }))} placeholder="Ex : Col du Lautaret, D1091, 05480 Villar-d'Arêne" />
+          </Field>
+          <Field label="Notes pour l'assistance" full>
+            <textarea value={ravitoForm.notes || ""} onChange={e => setRavitoForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Ex : Parking en contrebas, préparer les bâtons, changer les chaussettes" />
+          </Field>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
           <Btn variant="ghost" onClick={() => setRavitoModal(false)}>Annuler</Btn>
@@ -1453,34 +1488,8 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
   const barData = segsNormaux.map((s, i) => ({ name: `S${i+1}`, vitesse: s.speedKmh, pente: s.slopePct }));
 
   // ── Heures de passage ──────────────────────────────────────────────────────
-  const startTimeParts = (settings.startTime || "07:00").split(":").map(Number);
-  const startSec = startTimeParts[0] * 3600 + (startTimeParts[1] || 0) * 60;
-
-  // Pour chaque segment, calculer l'heure d'arrivée cumulée (en secondes depuis minuit)
-  const passingTimes = [];
-  let cumSec = startSec;
-  segments.forEach(seg => {
-    if (seg.type === "ravito" || seg.type === "repos") {
-      cumSec += (seg.dureeMin || 0) * 60;
-    } else {
-      const dist = seg.endKm - seg.startKm;
-      cumSec += seg.speedKmh > 0 ? (dist / seg.speedKmh) * 3600 : 0;
-    }
-    passingTimes.push(cumSec);
-  });
-
-  const fmtHeure = sec => {
-    const total = sec % 86400; // gère le passage minuit
-    const h = Math.floor(total / 3600) % 24;
-    const m = Math.floor((total % 3600) / 60);
-    return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
-  };
-  const isNight = sec => {
-    const h = Math.floor((sec % 86400) / 3600) % 24;
-    return h >= 21 || h < 6;
-  };
+  const { times: passingTimes, startSec } = calcPassingTimes(segments, settings.startTime);
   const arrivalTime = passingTimes.length ? passingTimes[passingTimes.length - 1] : startSec;
-  const isOvernight = arrivalTime - startSec > 86400 - startSec + (6 * 3600); // plus d'une nuit
 
   const EFFORT_OPTIONS = [
     { key: "comfort", label: "Finisher", desc: "Terminer sans se cramer — vitesses -12%", color: C.green },
@@ -2184,10 +2193,328 @@ function NutritionView({ segments, settings, race }) {
 
 
 // ─── NAVIGATION ───────────────────────────────────────────────────────────────
+// ─── VUE TEAM ────────────────────────────────────────────────────────────────
+function TeamView({ race, segments, settings }) {
+  const [realTimes, setRealTimes] = useState({}); // ravitoId → "HH:MM"
+  const [activeRavito, setActiveRavito] = useState(null);
+  const [sosActive, setSosActive] = useState(false);
+  const [gpsCoords, setGpsCoords] = useState(null);
+
+  const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km);
+  const { times: passingTimes } = calcPassingTimes(segments, settings.startTime);
+
+  // Map segIndex → ravito pour retrouver les heures théoriques
+  const ravitoSegs = segments
+    .map((seg, i) => ({ seg, i }))
+    .filter(({ seg }) => seg.type === "ravito");
+
+  // Calcul du décalage depuis le dernier ravito réel saisi
+  const lastRealEntry = ravitos.reduce((last, rv) => {
+    if (realTimes[rv.id]) return rv;
+    return last;
+  }, null);
+
+  const getTheoSec = ravitoId => {
+    const entry = ravitoSegs.find(({ seg }) => seg.ravitoId === ravitoId);
+    return entry ? passingTimes[entry.i] : null;
+  };
+
+  const getAdjustedSec = ravitoId => {
+    const theo = getTheoSec(ravitoId);
+    if (!theo) return null;
+    if (!lastRealEntry) return theo;
+    const lastTheo = getTheoSec(lastRealEntry.id);
+    if (!lastTheo) return theo;
+    const parts = realTimes[lastRealEntry.id].split(":").map(Number);
+    const realSec = parts[0] * 3600 + parts[1] * 60;
+    const delta = realSec - lastTheo;
+    return theo + delta;
+  };
+
+  const getDelta = ravitoId => {
+    const theo = getTheoSec(ravitoId);
+    const adj  = getAdjustedSec(ravitoId);
+    if (!theo || !adj) return 0;
+    return adj - theo; // positif = retard, négatif = avance
+  };
+
+  const fmtDelta = sec => {
+    if (Math.abs(sec) < 60) return "Dans les temps";
+    const sign = sec > 0 ? "+" : "-";
+    const abs = Math.abs(sec);
+    const m = Math.floor(abs / 60);
+    return `${sign}${m} min`;
+  };
+
+  const deltaColor = sec => {
+    if (Math.abs(sec) < 120) return C.green;
+    if (sec > 0) return C.red;
+    return C.blue;
+  };
+
+  // Prochain ravito non encore passé
+  const now = new Date();
+  const nowSec = now.getHours() * 3600 + now.getMinutes() * 60;
+  const nextRavito = ravitos.find(rv => {
+    const t = getAdjustedSec(rv.id) || getTheoSec(rv.id);
+    return t && t > nowSec;
+  });
+
+  const nextRavitoSec = nextRavito
+    ? (getAdjustedSec(nextRavito.id) || getTheoSec(nextRavito.id))
+    : null;
+  const minutesToNext = nextRavitoSec
+    ? Math.max(0, Math.round((nextRavitoSec - nowSec) / 60))
+    : null;
+
+  // Nutrition pour un ravito (segments entre le précédent et ce ravito)
+  const getNutritionForRavito = rv => {
+    const rvIdx = ravitos.indexOf(rv);
+    const prevKm = rvIdx === 0 ? 0 : ravitos[rvIdx - 1].km;
+    const segsZone = segments.filter(s =>
+      s.type !== "ravito" && s.type !== "repos" &&
+      s.startKm >= prevKm && s.endKm <= rv.km
+    );
+    return segsZone.reduce((acc, seg) => {
+      const n = calcNutrition(seg, settings);
+      const dH = (seg.endKm - seg.startKm) / seg.speedKmh;
+      return { eau: acc.eau + Math.round(n.eauH * dH), glucides: acc.glucides + Math.round(n.glucidesH * dH), kcal: acc.kcal + n.kcal };
+    }, { eau: 0, glucides: 0, kcal: 0 });
+  };
+
+  // SOS géoloc
+  const handleSOS = () => {
+    setSosActive(true);
+    navigator.geolocation?.getCurrentPosition(
+      pos => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        setGpsCoords({ lat: latitude, lon: longitude, acc: Math.round(accuracy) });
+        const msg = `🆘 ALEX SOS — ${settings.name || "Coureur"} a besoin d'aide\nPosition GPS : ${latitude.toFixed(6)}, ${longitude.toFixed(6)} (±${Math.round(accuracy)}m)\nCourse : ${settings.raceName || race.name || "?"}\nhttps://maps.google.com/?q=${latitude},${longitude}`;
+        window.location.href = `sms:?body=${encodeURIComponent(msg)}`;
+      },
+      () => {
+        const msg = `🆘 ALEX SOS — ${settings.name || "Coureur"} a besoin d'aide\nCourse : ${settings.raceName || race.name || "?"}\nPosition GPS non disponible`;
+        window.location.href = `sms:?body=${encodeURIComponent(msg)}`;
+      },
+      { timeout: 8000, enableHighAccuracy: true }
+    );
+    setTimeout(() => setSosActive(false), 3000);
+  };
+
+  const copyAddress = addr => {
+    navigator.clipboard?.writeText(addr).catch(() => {});
+  };
+
+  if (!segments.length && !ravitos.length) {
+    return (
+      <div className="anim">
+        <PageTitle sub="Vue assistance — ravitos, horaires, préparation">Team</PageTitle>
+        <Empty icon="👥" title="Aucune stratégie définie"
+          sub="Définis des segments et des ravitaillements dans les onglets Profil et Stratégie." />
+      </div>
+    );
+  }
+
+  return (
+    <div className="anim">
+      {/* Header + SOS */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+        <PageTitle sub={`${ravitos.length} ravito${ravitos.length > 1 ? "s" : ""} · départ ${settings.startTime || "07:00"}`}>
+          {settings.raceName || race.name || "Team"}
+        </PageTitle>
+        <button onClick={handleSOS} style={{
+          background: sosActive ? C.red + "cc" : C.red,
+          color: "#fff", border: "none", borderRadius: 14, padding: "10px 18px",
+          fontWeight: 700, fontSize: 14, cursor: "pointer", marginTop: 4,
+          display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
+          boxShadow: `0 4px 16px ${C.red}50`, transition: "all 0.2s",
+          fontFamily: "'DM Sans', sans-serif",
+        }}>
+          🆘 SOS Position
+        </button>
+      </div>
+
+      {gpsCoords && (
+        <div style={{ background: C.red + "18", border: `1px solid ${C.red}40`, borderRadius: 12, padding: "12px 16px", marginBottom: 20, fontSize: 13 }}>
+          Position envoyée : <strong>{gpsCoords.lat.toFixed(5)}, {gpsCoords.lon.toFixed(5)}</strong> (±{gpsCoords.acc}m)
+        </div>
+      )}
+
+      {/* Statut global */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 24 }}>
+        <KPI label="Départ" value={settings.startTime || "07:00"} icon="🏁" />
+        <KPI label="Arrivée estimée" value={fmtHeure(passingTimes[passingTimes.length - 1] || 0)} icon="🏆" color={C.primary} />
+        {nextRavito && minutesToNext !== null && (
+          <KPI label={`Prochain : ${nextRavito.name}`} value={`~${minutesToNext} min`}
+            icon="🥤" color={minutesToNext < 20 ? C.red : C.yellow}
+            sub={`Arrivée théo. ${fmtHeure(getAdjustedSec(nextRavito.id) || getTheoSec(nextRavito.id) || 0)}`} />
+        )}
+        {lastRealEntry && (() => {
+          const d = getDelta(lastRealEntry.id);
+          return <KPI label="Écart actuel" value={fmtDelta(d)} icon={d > 120 ? "🐢" : d < -120 ? "⚡" : "✅"} color={deltaColor(d)} sub={`depuis ${lastRealEntry.name}`} />;
+        })()}
+      </div>
+
+      {/* Ravitos */}
+      {ravitos.length === 0 ? (
+        <div style={{ background: C.yellowPale, border: `1px solid ${C.yellow}40`, borderRadius: 12, padding: "14px 18px", fontSize: 13, color: C.yellow, marginBottom: 20 }}>
+          Aucun ravitaillement défini — ajoute-en dans l'onglet Profil de course.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {ravitos.map((rv, ri) => {
+            const theoSec  = getTheoSec(rv.id);
+            const adjSec   = getAdjustedSec(rv.id);
+            const delta    = getDelta(rv.id);
+            const nutri    = getNutritionForRavito(rv);
+            const isOpen   = activeRavito === rv.id;
+            const realVal  = realTimes[rv.id] || "";
+            const night    = theoSec ? isNight(adjSec || theoSec) : false;
+
+            return (
+              <Card key={rv.id} style={{ borderLeft: `4px solid ${isOpen ? C.primary : C.green}` }}>
+                {/* En-tête ravito */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", cursor: "pointer" }}
+                  onClick={() => setActiveRavito(isOpen ? null : rv.id)}>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                      <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 18 }}>
+                        🥤 {rv.name}
+                      </span>
+                      <span className="badge badge-sage" style={{ fontSize: 12 }}>km {rv.km}</span>
+                      {night && <span style={{ fontSize: 12 }}>🌙</span>}
+                    </div>
+                    <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--muted-c)", flexWrap: "wrap" }}>
+                      <span>Théo. <strong style={{ color: "var(--text-c)" }}>{theoSec ? fmtHeure(theoSec) : "--:--"}</strong></span>
+                      {adjSec && adjSec !== theoSec && (
+                        <span>Ajusté <strong style={{ color: deltaColor(delta) }}>{fmtHeure(adjSec)}</strong></span>
+                      )}
+                      {Math.abs(delta) >= 60 && (
+                        <span style={{ color: deltaColor(delta), fontWeight: 600 }}>{fmtDelta(delta)}</span>
+                      )}
+                      <span>Arrêt {settings.ravitoTimeMin || 3} min</span>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 18, color: "var(--muted-c)", marginTop: 2 }}>{isOpen ? "▲" : "▼"}</span>
+                </div>
+
+                {isOpen && (
+                  <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 16 }}>
+
+                    {/* Heure réelle de passage */}
+                    <div style={{ padding: "14px 16px", background: "var(--surface-2)", borderRadius: 12 }}>
+                      <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 13 }}>Heure réelle de passage</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <input type="time" value={realVal}
+                          onChange={e => setRealTimes(t => ({ ...t, [rv.id]: e.target.value }))}
+                          style={{ fontSize: 20, fontWeight: 700, fontFamily: "'Playfair Display', serif", padding: "8px 12px", borderRadius: 10, border: `2px solid ${realVal ? C.primary : "var(--border-c)"}`, background: "var(--surface)", color: "var(--text-c)", cursor: "pointer" }} />
+                        {realVal && (
+                          <div style={{ fontSize: 13 }}>
+                            <span style={{ color: deltaColor(delta), fontWeight: 700, fontSize: 15 }}>{fmtDelta(delta)}</span>
+                            <div style={{ color: "var(--muted-c)", fontSize: 12, marginTop: 2 }}>Heures suivantes recalculées</div>
+                          </div>
+                        )}
+                        {realVal && (
+                          <button onClick={() => setRealTimes(t => { const n = { ...t }; delete n[rv.id]; return n; })}
+                            style={{ background: "none", border: "none", color: "var(--muted-c)", cursor: "pointer", fontSize: 18 }}>✕</button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Adresse */}
+                    {rv.address ? (
+                      <div style={{ padding: "12px 16px", background: "var(--surface-2)", borderRadius: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                          <span style={{ fontWeight: 600, fontSize: 13 }}>Adresse</span>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button onClick={() => copyAddress(rv.address)} style={{ background: "none", border: `1px solid var(--border-c)`, borderRadius: 8, padding: "4px 10px", fontSize: 12, cursor: "pointer", color: "var(--text-c)" }}>
+                              📋 Copier
+                            </button>
+                            <a href={`https://maps.google.com/?q=${encodeURIComponent(rv.address)}`} target="_blank" rel="noreferrer"
+                              style={{ background: C.primary, color: C.white, border: "none", borderRadius: 8, padding: "4px 10px", fontSize: 12, cursor: "pointer", textDecoration: "none" }}>
+                              🗺️ Maps
+                            </a>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 13, color: "var(--muted-c)" }}>{rv.address}</div>
+                      </div>
+                    ) : (
+                      <div style={{ padding: "10px 14px", background: "var(--surface-2)", borderRadius: 10, fontSize: 13, color: "var(--muted-c)", fontStyle: "italic" }}>
+                        Aucune adresse — modifie ce ravito dans l'onglet Profil pour en ajouter une.
+                      </div>
+                    )}
+
+                    {/* Nutrition à préparer */}
+                    <div style={{ padding: "14px 16px", background: "var(--surface-2)", borderRadius: 12 }}>
+                      <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 13 }}>À préparer pour ce tronçon</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+                        {[
+                          { icon: "💧", label: "Eau", value: nutri.eau >= 1000 ? `${(nutri.eau/1000).toFixed(1)} L` : `${nutri.eau} mL`, color: C.blue },
+                          { icon: "🍌", label: "Glucides", value: `${nutri.glucides} g`, color: C.yellow },
+                          { icon: "🔥", label: "Calories", value: `${nutri.kcal} kcal`, color: C.red },
+                        ].map(item => (
+                          <div key={item.label} style={{ textAlign: "center", padding: "10px 8px", background: "var(--surface)", borderRadius: 10, border: `1px solid ${item.color}30` }}>
+                            <div style={{ fontSize: 18 }}>{item.icon}</div>
+                            <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 16, color: item.color, marginTop: 4 }}>{item.value}</div>
+                            <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>{item.label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Notes */}
+                    {rv.notes && (
+                      <div style={{ padding: "12px 16px", background: C.primaryPale, borderRadius: 12, fontSize: 13, borderLeft: `3px solid ${C.primary}` }}>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>Notes</div>
+                        <div style={{ color: "var(--muted-c)" }}>{rv.notes}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Segments après dernier ravito */}
+      {ravitos.length > 0 && (() => {
+        const lastRv = ravitos[ravitos.length - 1];
+        const segsAfter = segments.filter(s => s.type !== "ravito" && s.type !== "repos" && s.startKm >= lastRv.km);
+        if (!segsAfter.length) return null;
+        const nutri = segsAfter.reduce((acc, seg) => {
+          const n = calcNutrition(seg, settings);
+          const dH = (seg.endKm - seg.startKm) / seg.speedKmh;
+          return { eau: acc.eau + Math.round(n.eauH * dH), glucides: acc.glucides + Math.round(n.glucidesH * dH), kcal: acc.kcal + n.kcal };
+        }, { eau: 0, glucides: 0, kcal: 0 });
+        return (
+          <Card style={{ marginTop: 16, borderLeft: `4px solid ${C.primary}` }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>🏁 Dernier tronçon → Arrivée</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+              {[
+                { icon: "💧", label: "Eau", value: nutri.eau >= 1000 ? `${(nutri.eau/1000).toFixed(1)} L` : `${nutri.eau} mL`, color: C.blue },
+                { icon: "🍌", label: "Glucides", value: `${nutri.glucides} g`, color: C.yellow },
+                { icon: "🔥", label: "Calories", value: `${nutri.kcal} kcal`, color: C.red },
+              ].map(item => (
+                <div key={item.label} style={{ textAlign: "center", padding: "10px 8px", background: "var(--surface-2)", borderRadius: 10 }}>
+                  <div style={{ fontSize: 18 }}>{item.icon}</div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 16, color: item.color, marginTop: 4 }}>{item.value}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>{item.label}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        );
+      })()}
+    </div>
+  );
+}
+
 const NAVS = [
   { id: "profil",      label: "Profil de course",    icon: "🗺️" },
   { id: "preparation", label: "Stratégie de course",  icon: "🎯" },
   { id: "nutrition",   label: "Nutrition",            icon: "🍌" },
+  { id: "team",        label: "Team",                 icon: "👥" },
   { id: "parametres",  label: "Paramètres du coureur", icon: "⚙️" },
 ];
 
@@ -2201,6 +2528,54 @@ export default function App() {
   const [onboarding, setOnboarding] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [autoSaved, setAutoSaved] = useState(false);
+
+  // ── IndexedDB helpers ────────────────────────────────────────────────────
+  const IDB_NAME = "alex-trail", IDB_STORE = "state", IDB_KEY = "current";
+  const openDB = () => new Promise((res, rej) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE);
+    req.onsuccess = e => res(e.target.result);
+    req.onerror = rej;
+  });
+  const idbSave = async data => {
+    try {
+      const db = await openDB();
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).put(data, IDB_KEY);
+    } catch {}
+  };
+  const idbLoad = async () => {
+    try {
+      const db = await openDB();
+      return new Promise(res => {
+        const tx = db.transaction(IDB_STORE, "readonly");
+        const req = tx.objectStore(IDB_STORE).get(IDB_KEY);
+        req.onsuccess = e => res(e.target.result);
+        req.onerror = () => res(null);
+      });
+    } catch { return null; }
+  };
+
+  // ── Chargement au démarrage depuis IndexedDB ─────────────────────────────
+  useEffect(() => {
+    idbLoad().then(d => {
+      if (d?.race) { setRaceRaw(d.race); setOnboarding(false); }
+      if (d?.segments) setSegmentsRaw(d.segments);
+      if (d?.settings) setSettingsRaw({ ...EMPTY_SETTINGS, ...d.settings });
+    });
+  }, []);
+
+  // ── Sauvegarde auto dans IndexedDB à chaque changement ───────────────────
+  useEffect(() => {
+    if (!race && !segments.length) return;
+    const timer = setTimeout(() => {
+      idbSave({ race, segments, settings });
+      setAutoSaved(true);
+      setTimeout(() => setAutoSaved(false), 2000);
+    }, 800); // debounce 800ms
+    return () => clearTimeout(timer);
+  }, [race, segments, settings]);
 
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth <= 768);
@@ -2273,6 +2648,15 @@ export default function App() {
       {/* Bas de sidebar — dark mode + boutons données */}
       <Hr />
       <div style={{ padding: "12px 16px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
+
+        {/* Indicateur sauvegarde auto */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "4px 0", height: 20 }}>
+          {autoSaved && (
+            <span style={{ fontSize: 11, color: C.green, fontWeight: 500, animation: "fadeUp 0.3s ease" }}>
+              ✓ Sauvegarde auto
+            </span>
+          )}
+        </div>
 
         {/* Toggle dark mode */}
         <div style={{
@@ -2395,6 +2779,7 @@ export default function App() {
           {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} />}
           {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} />}
           {view === "nutrition"   && <NutritionView segments={segments} settings={settings} race={race} />}
+          {view === "team"        && <TeamView race={race} segments={segments} settings={settings} />}
           {view === "parametres"  && <ParamètresView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} />}
         </main>
       </div>
