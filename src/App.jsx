@@ -965,7 +965,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
   const [dragging, setDragging]       = useState(false);
   const [hoveredSeg, setHoveredSeg]   = useState(null);
   const [ravitoModal, setRavitoModal] = useState(false);
-  const [ravitoForm, setRavitoForm]   = useState({ km: "", name: "", address: "", notes: "" });
+  const [ravitoForm, setRavitoForm]   = useState({ km: "", name: "", address: "", notes: "", dureeMin: "" });
   const [editRavitoId, setEditRavitoId] = useState(null);
   const [confirmId, setConfirmId]     = useState(null);
   const [segModal, setSegModal]       = useState(false);
@@ -1016,28 +1016,27 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
   const saveRavito = () => {
     const km = parseFloat(ravitoForm.km);
     if (isNaN(km) || !ravitoForm.name) return;
+    const dureeMin = ravitoForm.dureeMin !== "" ? Number(ravitoForm.dureeMin) : (settings.ravitoTimeMin || 3);
     if (editRavitoId) {
-      setRace(r => ({ ...r, ravitos: r.ravitos.map(rv => rv.id === editRavitoId ? { ...ravitoForm, km, id: editRavitoId } : rv) }));
-      // Mettre à jour le segment ravito correspondant
+      setRace(r => ({ ...r, ravitos: r.ravitos.map(rv => rv.id === editRavitoId ? { ...ravitoForm, km, dureeMin, id: editRavitoId } : rv) }));
       setSegments(s => s.map(seg =>
         seg.type === "ravito" && seg.ravitoId === editRavitoId
-          ? { ...seg, startKm: km, endKm: km, label: ravitoForm.name }
+          ? { ...seg, startKm: km, endKm: km, label: ravitoForm.name, dureeMin }
           : seg
       ).sort((a, b) => (a.startKm ?? 0) - (b.startKm ?? 0)));
     } else {
       const id = Date.now();
-      setRace(r => ({ ...r, ravitos: [...(r.ravitos||[]), { ...ravitoForm, km, id }] }));
-      // Ajouter un segment ravito trié
+      setRace(r => ({ ...r, ravitos: [...(r.ravitos||[]), { ...ravitoForm, km, dureeMin, id }] }));
       setSegments(s => [...s, {
         id: id + 1, type: "ravito", ravitoId: id,
         label: ravitoForm.name, startKm: km, endKm: km,
-        dureeMin: settings.ravitoTimeMin || 3,
+        dureeMin,
         speedKmh: 0, slopePct: 0, terrain: "normal", notes: "",
       }].sort((a, b) => (a.startKm ?? 0) - (b.startKm ?? 0)));
     }
-    setRavitoModal(false); setRavitoForm({ km: "", name: "", address: "", notes: "" }); setEditRavitoId(null);
+    setRavitoModal(false); setRavitoForm({ km: "", name: "", address: "", notes: "", dureeMin: "" }); setEditRavitoId(null);
   };
-  const openEditRavito = rv => { setEditRavitoId(rv.id); setRavitoForm({ km: rv.km, name: rv.name, address: rv.address || "", notes: rv.notes || "" }); setRavitoModal(true); };
+  const openEditRavito = rv => { setEditRavitoId(rv.id); setRavitoForm({ km: rv.km, name: rv.name, address: rv.address || "", notes: rv.notes || "", dureeMin: rv.dureeMin || "" }); setRavitoModal(true); };
   const deleteRavito = id => {
     setRace(r => ({ ...r, ravitos: (r.ravitos||[]).filter(rv => rv.id !== id) }));
     setSegments(s => s.filter(seg => !(seg.type === "ravito" && seg.ravitoId === id)));
@@ -1224,7 +1223,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
             <Card>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                 <div style={{ fontWeight: 600 }}>Ravitaillements</div>
-                <Btn size="sm" onClick={() => { setEditRavitoId(null); setRavitoForm({ km: "", name: "", address: "", notes: "" }); setRavitoModal(true); }}>+ Ravito</Btn>
+                <Btn size="sm" onClick={() => { setEditRavitoId(null); setRavitoForm({ km: "", name: "", address: "", notes: "", dureeMin: "" }); setRavitoModal(true); }}>+ Ravito</Btn>
               </div>
               {!(race.ravitos?.length) ? (
                 <p style={{ color: "var(--muted-c)", fontSize: 13 }}>Aucun ravitaillement défini</p>
@@ -1344,6 +1343,12 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
         <div className="form-grid">
           <Field label="Kilomètre"><input type="number" min={0} step={0.1} value={ravitoForm.km} onChange={e => setRavitoForm(f => ({ ...f, km: e.target.value }))} /></Field>
           <Field label="Nom du point" full><input value={ravitoForm.name} onChange={e => setRavitoForm(f => ({ ...f, name: e.target.value }))} /></Field>
+          <Field label="Durée d'arrêt (min)">
+            <input type="number" min={1} max={60} step={1}
+              value={ravitoForm.dureeMin}
+              onChange={e => setRavitoForm(f => ({ ...f, dureeMin: e.target.value }))}
+              placeholder={`Défaut : ${settings.ravitoTimeMin || 3} min`} />
+          </Field>
           <Field label="Adresse (pour l'assistance)" full>
             <input value={ravitoForm.address || ""} onChange={e => setRavitoForm(f => ({ ...f, address: e.target.value }))} placeholder="Ex : Col du Lautaret, D1091, 05480 Villar-d'Arêne" />
           </Field>
@@ -1592,7 +1597,16 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
                 <span style={{ fontSize: 13, fontWeight: 600 }}>Temps aux ravitos</span>
                 <span style={{ fontSize: 12, color: C.primary, fontWeight: 600 }}>{settings.ravitoTimeMin || 3} min</span>
               </div>
-              <input type="range" min={1} max={20} step={1} value={settings.ravitoTimeMin || 3} onChange={e => updS("ravitoTimeMin", Number(e.target.value))} style={{ width: "100%" }} />
+              <input type="range" min={1} max={20} step={1} value={settings.ravitoTimeMin || 3} onChange={e => {
+                const val = Number(e.target.value);
+                updS("ravitoTimeMin", val);
+                // Mettre à jour les segments ravito qui n'ont pas de durée personnalisée
+                setSegments(s => s.map(seg =>
+                  seg.type === "ravito" && !(race.ravitos||[]).find(rv => rv.id === seg.ravitoId && rv.dureeMin)
+                    ? { ...seg, dureeMin: val }
+                    : seg
+                ));
+              }} style={{ width: "100%" }} />
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>
                 <span>1 min</span><span>20 min</span>
               </div>
@@ -1603,12 +1617,6 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
               )}
             </div>
 
-            <Btn onClick={autoSegment} disabled={computing || !race.gpxPoints?.length} style={{ width: "100%", justifyContent: "center" }}>
-              {computing ? "Calcul en cours..." : "Générer les segments"}
-            </Btn>
-            <p style={{ fontSize: 11, color: "var(--muted-c)", marginTop: -8, textAlign: "center" }}>
-              Applique objectif + rythme + météo aux vitesses suggérées
-            </p>
           </div>
         </Card>
       </div>
