@@ -976,7 +976,11 @@ function ProfilView({ race, setRace, segments, setSegments, settings, onOpenRepo
   const fileRef = useRef();
 
   const profile = useMemo(() => race.gpxPoints?.length ? buildElevationProfile(race.gpxPoints, 300) : [], [race.gpxPoints]);
-  const totalTime = segments.reduce((s, seg) => (seg.type === "repos" || seg.type === "ravito") ? s + (seg.dureeMin||0)*60 : s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
+  // Même logique que StrategieView — segments normaux + repos séparément, ravitos depuis race.ravitos
+  const segsNormaux  = segments.filter(s => s.type !== "ravito" && s.type !== "repos");
+  const segsRepos    = segments.filter(s => s.type === "repos");
+  const totalTime    = segsNormaux.reduce((s, seg) => s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
+  const totalReposSec = segsRepos.reduce((s, seg) => s + (seg.dureeMin || 0) * 60, 0);
   const totalRavitoSec = (race.ravitos?.length || 0) * (settings.ravitoTimeMin || 3) * 60;
   const nutriTotals = useMemo(() => segments.reduce((acc, seg) => {
     if (seg.type === "ravito" || seg.type === "repos") return acc;
@@ -1117,7 +1121,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings, onOpenRepo
             <KPI label="D+" value={`${Math.round(race.totalElevPos)} m`} color={C.red} icon="⛰️" />
             <KPI label="D−" value={`${Math.round(race.totalElevNeg)} m`} color={C.blue} icon="🏔️" />
             <KPI label="Segments" value={segments.length} icon="✂️" />
-            <KPI label="Temps estimé" value={fmtTime(totalTime + totalRavitoSec)} color={C.secondary} icon="⏱️" sub="ravitos inclus" />
+            <KPI label="Temps estimé" value={fmtTime(totalTime + totalRavitoSec + totalReposSec)} color={C.secondary} icon="⏱️" sub="ravitos inclus" />
           </div>
 
           {/* Graphe sticky */}
@@ -1204,14 +1208,14 @@ function ProfilView({ race, setRace, segments, setSegments, settings, onOpenRepo
               </div>
               <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
                 {[
-                  { label: "Temps total", val: fmtTime(totalTime + totalRavitoSec) },
+                  { label: "Temps total", val: fmtTime(totalTime + totalRavitoSec + totalReposSec) },
                   { label: "Segments", val: segments.filter(s => s.type !== "ravito" && s.type !== "repos").length },
                   { label: "Ravitos", val: race.ravitos?.length || 0 },
                   { label: "Calories", val: `${nutriTotals.kcal}`, accent: "#F5C080" },
                   { label: "Eau", val: `${(nutriTotals.eau/1000).toFixed(1)} L`, accent: "#90C4E8" },
                 ].map(s => (
                   <div key={s.label} style={{ textAlign: "center" }}>
-                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700, color: s.accent || "#FDF5EE" }}>{s.val}</div>
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 24, fontWeight: 700, color: s.accent || "#FDF5EE" }}>{s.val}</div>
                     <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: "0.09em", textTransform: "uppercase", color: "#D08860", marginTop: 3 }}>{s.label}</div>
                   </div>
                 ))}
