@@ -960,7 +960,7 @@ function calcPassingTimes(segments, startTime) {
 }
 
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
-function ProfilView({ race, setRace, segments, setSegments, settings }) {
+function ProfilView({ race, setRace, segments, setSegments, settings, onOpenRepos }) {
   const [gpxError, setGpxError]       = useState(null);
   const [dragging, setDragging]       = useState(false);
   const [hoveredSeg, setHoveredSeg]   = useState(null);
@@ -1255,6 +1255,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
                       {computing ? "Calcul…" : "Découpage auto"}
                     </Btn>
                   )}
+                  <Btn size="sm" variant="ghost" onClick={onOpenRepos}>💤 Repos</Btn>
                   <Btn size="sm" onClick={openNewSeg}>+ Segment</Btn>
                 </div>
               </div>
@@ -1434,7 +1435,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings }) {
 }
 
 // ─── VUE STRATÉGIE DE COURSE ─────────────────────────────────────────────────
-function StrategieView({ race, segments, setSegments, settings, setSettings }) {
+function StrategieView({ race, segments, setSegments, settings, setSettings, onOpenRepos }) {
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
@@ -1475,9 +1476,6 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
     }, 50);
   };
 
-  const [reposModal, setReposModal] = useState(false);
-  const [reposForm, setReposForm]   = useState({ label: "", startKm: "", dureeMin: 20 });
-
   // Segments de course normaux vs segments de repos vs ravitos
   const segsNormaux = segments.filter(s => s.type !== "repos" && s.type !== "ravito");
   const segsRepos   = segments.filter(s => s.type === "repos");
@@ -1489,15 +1487,6 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
   const ravitoCount = race.ravitos?.length || 0;
   const totalRavitoSec = ravitoCount * (settings.ravitoTimeMin || 3) * 60;
   const totalWithRavitos = totalTime + totalRavitoSec + totalReposSec;
-
-  const addRepos = () => {
-    if (!reposForm.label.trim() || !reposForm.dureeMin) return;
-    const startKm = parseFloat(reposForm.startKm) || 0;
-    setSegments(s => [...s, { id: Date.now(), type: "repos", label: reposForm.label, startKm, dureeMin: Number(reposForm.dureeMin), endKm: startKm, speedKmh: 0, slopePct: 0, terrain: "normal", notes: "" }]
-      .sort((a, b) => (a.startKm ?? 0) - (b.startKm ?? 0)));
-    setReposModal(false);
-    setReposForm({ label: "", startKm: "", dureeMin: 20 });
-  };
 
   const barData = segsNormaux.map((s, i) => ({ name: `S${i+1}`, vitesse: s.speedKmh, pente: s.slopePct }));
 
@@ -1652,7 +1641,7 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
             <div style={{ padding: "14px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 600 }}>Segments</span>
               <div style={{ display: "flex", gap: 8 }}>
-                <Btn size="sm" variant="ghost" onClick={() => setReposModal(true)}>💤 Repos</Btn>
+                <Btn size="sm" variant="ghost" onClick={onOpenRepos}>💤 Repos</Btn>
                 <Btn size="sm" onClick={openNew}>+ Segment</Btn>
               </div>
             </div>
@@ -1814,36 +1803,6 @@ function StrategieView({ race, segments, setSegments, settings, setSettings }) {
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
           <Btn variant="ghost" onClick={() => setModal(false)}>Annuler</Btn>
           <Btn onClick={save}>Enregistrer</Btn>
-        </div>
-      </Modal>
-      <Modal open={reposModal} onClose={() => setReposModal(false)} title="Ajouter un segment de repos">
-        <div className="form-grid">
-          <Field label="Description" full>
-            <input value={reposForm.label} onChange={e => setReposForm(f => ({ ...f, label: e.target.value }))}
-              placeholder="Ex : Bivouac, Sieste ravito, Base vie..." />
-          </Field>
-          <Field label="Kilomètre de départ">
-            <input type="number" min={0} step={0.1} value={reposForm.startKm}
-              onChange={e => setReposForm(f => ({ ...f, startKm: e.target.value }))}
-              placeholder="Ex : 60" />
-          </Field>
-          <Field label="Durée (minutes)">
-            <div>
-              <input type="range" min={5} max={480} step={5} value={reposForm.dureeMin}
-                onChange={e => setReposForm(f => ({ ...f, dureeMin: Number(e.target.value) }))} />
-              <div style={{ textAlign: "center", fontSize: 13, marginTop: 6 }}>
-                <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700 }}>{reposForm.dureeMin} min</span>
-                <span style={{ color: "var(--muted-c)", marginLeft: 8 }}>({fmtTime(reposForm.dureeMin * 60)})</span>
-              </div>
-            </div>
-          </Field>
-        </div>
-        <div style={{ marginTop: 12, padding: "10px 14px", background: "var(--surface-2)", borderRadius: 10, fontSize: 13, color: "var(--muted-c)" }}>
-          Pas de distance associée — ajoute uniquement du temps au total de course.
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
-          <Btn variant="ghost" onClick={() => setReposModal(false)}>Annuler</Btn>
-          <Btn onClick={addRepos}>Ajouter</Btn>
         </div>
       </Modal>
       <ConfirmDialog open={!!confirmId} message="Supprimer ce segment ?" onConfirm={() => { setSegments(s => s.filter(x => x.id !== confirmId)); setConfirmId(null); }} onCancel={() => setConfirmId(null)} />
@@ -2718,6 +2677,16 @@ export default function App() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [installDone, setInstallDone] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const [reposModal, setReposModal] = useState(false);
+  const [reposForm, setReposForm]   = useState({ label: "", startKm: "", dureeMin: 20 });
+  const addRepos = () => {
+    if (!reposForm.label.trim() || !reposForm.dureeMin) return;
+    const startKm = parseFloat(reposForm.startKm) || 0;
+    setSegments(s => [...s, { id: Date.now(), type: "repos", label: reposForm.label, startKm, dureeMin: Number(reposForm.dureeMin), endKm: startKm, speedKmh: 0, slopePct: 0, terrain: "normal", notes: "" }]
+      .sort((a, b) => (a.startKm ?? 0) - (b.startKm ?? 0)));
+    setReposModal(false);
+    setReposForm({ label: "", startKm: "", dureeMin: 20 });
+  };
 
   // Détection navigateur/OS
   const ua = navigator.userAgent;
@@ -2964,6 +2933,38 @@ export default function App() {
     <>
       <style>{G}</style>
 
+      {/* MODAL REPOS */}
+      <Modal open={reposModal} onClose={() => setReposModal(false)} title="Ajouter un segment de repos">
+        <div className="form-grid">
+          <Field label="Description" full>
+            <input value={reposForm.label} onChange={e => setReposForm(f => ({ ...f, label: e.target.value }))}
+              placeholder="Ex : Bivouac, Sieste ravito, Base vie..." autoFocus />
+          </Field>
+          <Field label="Kilomètre de départ">
+            <input type="number" min={0} step={0.1} value={reposForm.startKm}
+              onChange={e => setReposForm(f => ({ ...f, startKm: e.target.value }))}
+              placeholder="Ex : 60" />
+          </Field>
+          <Field label="Durée (minutes)">
+            <div>
+              <input type="range" min={5} max={480} step={5} value={reposForm.dureeMin}
+                onChange={e => setReposForm(f => ({ ...f, dureeMin: Number(e.target.value) }))} />
+              <div style={{ textAlign: "center", fontSize: 13, marginTop: 6 }}>
+                <span style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700 }}>{reposForm.dureeMin} min</span>
+                <span style={{ color: "var(--muted-c)", marginLeft: 8 }}>({fmtTime(reposForm.dureeMin * 60)})</span>
+              </div>
+            </div>
+          </Field>
+        </div>
+        <div style={{ marginTop: 12, padding: "10px 14px", background: "var(--surface-2)", borderRadius: 10, fontSize: 13, color: "var(--muted-c)" }}>
+          Pas de distance associée — ajoute uniquement du temps au total de course.
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+          <Btn variant="ghost" onClick={() => setReposModal(false)}>Annuler</Btn>
+          <Btn onClick={addRepos}>Ajouter</Btn>
+        </div>
+      </Modal>
+
       {/* GUIDE INSTALLATION PWA */}
       {showInstallGuide && (
         <div className="modal-overlay" onClick={() => setShowInstallGuide(false)}>
@@ -3104,8 +3105,8 @@ export default function App() {
           flex: 1, overflowY: "auto",
           padding: isMobile ? "76px 16px 32px" : "44px 52px",
         }}>
-          {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} />}
-          {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} />}
+          {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} onOpenRepos={() => setReposModal(true)} />}
+          {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} />}
           {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} />}
           {view === "team"        && <TeamView race={race} segments={segments} settings={settings} />}
           {view === "parametres"  && <ParamètresView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} />}
