@@ -2493,38 +2493,7 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
   const [activeRavito, setActiveRavito] = useState(null);
   const [sosActive, setSosActive] = useState(false);
   const [gpsCoords, setGpsCoords] = useState(null);
-  const [loadModal, setLoadModal] = useState(false);
-  const [loadInput, setLoadInput] = useState("");
-  const [loadError, setLoadError] = useState("");
 
-  const loadFromUrl = () => {
-    setLoadError("");
-    const raw = loadInput.trim();
-    if (!raw) { setLoadError("Colle d'abord le lien."); return; }
-    try {
-      // Extraire le paramètre s= peu importe la forme de l'URL
-      let code = null;
-      // Cas 1 : URL complète avec ?s=
-      if (raw.includes("?s=") || raw.includes("&s=")) {
-        const u = new URL(raw.startsWith("http") ? raw : "https://" + raw);
-        code = u.searchParams.get("s");
-      }
-      // Cas 2 : juste le code Base64 collé directement
-      if (!code && !raw.includes("http") && raw.length > 50) {
-        code = raw;
-      }
-      if (!code) { setLoadError("Lien invalide — colle l'URL complète reçue."); return; }
-      // Nettoyer les caractères parasites (espaces insécables, sauts de ligne WhatsApp...)
-      code = code.replace(/[\s\u00A0\u200B]/g, "");
-      const data = decodeStrategy(code);
-      if (!data) { setLoadError("Impossible de lire la stratégie. Le lien est peut-être tronqué."); return; }
-      onLoadStrategy(data);
-      setLoadModal(false);
-      setLoadInput("");
-    } catch (e) {
-      setLoadError("Lien invalide. Assure-toi de copier l'URL complète.");
-    }
-  };
 
   const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km);
   const { times: passingTimes } = calcPassingTimes(segments, settings.startTime);
@@ -2636,16 +2605,31 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
       <div className="anim">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
           <PageTitle sub="Vue assistance — ravitos, horaires, préparation">Team</PageTitle>
-          <button onClick={() => {
-            setLoadModal(true);
-          }} style={{
-            background: C.primaryPale, border: `1px solid ${C.primary}50`,
-            color: C.primaryDeep, borderRadius: 14, padding: "10px 16px",
-            fontWeight: 700, fontSize: 13, cursor: "pointer", flexShrink: 0,
-            fontFamily: "'DM Sans', sans-serif", marginTop: 4,
-          }}>
-            📋 Charger stratégie
-          </button>
+          <label style={{ display: "flex", alignItems: "center", flexShrink: 0, cursor: "pointer", marginTop: 4 }}>
+            <div style={{
+              background: C.primaryPale, border: `1px solid ${C.primary}50`,
+              color: C.primaryDeep, borderRadius: 14, padding: "10px 16px",
+              fontWeight: 700, fontSize: 13,
+              display: "flex", alignItems: "center", gap: 6,
+              fontFamily: "'DM Sans', sans-serif",
+            }}>
+              📋 Charger stratégie
+            </div>
+            <input type="file" accept=".json" style={{ display: "none" }}
+              onChange={e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = ev => {
+                  try {
+                    const d = JSON.parse(ev.target.result);
+                    onLoadStrategy(d);
+                  } catch { alert("Fichier JSON invalide."); }
+                };
+                reader.readAsText(file);
+                e.target.value = "";
+              }} />
+          </label>
         </div>
         <Empty icon="👥" title="Aucune stratégie définie"
           sub="Charge une stratégie via le bouton ci-dessus, ou définis des segments dans l'onglet Profil de course." />
@@ -2690,41 +2674,56 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
         </PageTitle>
         <div style={{ display: "flex", gap: 8, marginTop: 4, flexShrink: 0 }}>
 
-          {/* Bouton charger stratégie — toujours visible dans Team */}
-          <button onClick={() => {
-            setLoadModal(true);
-          }} style={{
-            background: C.primaryPale, border: `1px solid ${C.primary}50`,
-            color: C.primaryDeep, borderRadius: 14, padding: "10px 16px",
-            fontWeight: 700, fontSize: 13, cursor: "pointer",
-            display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
-            fontFamily: "'DM Sans', sans-serif",
-          }}>
-            📋 Charger stratégie
-          </button>
+          {/* Bouton charger stratégie — file picker JSON, toujours visible */}
+          <label style={{ display: "flex", alignItems: "center", flexShrink: 0, cursor: "pointer" }}>
+            <div style={{
+              background: C.primaryPale, border: `1px solid ${C.primary}50`,
+              color: C.primaryDeep, borderRadius: 14, padding: "10px 16px",
+              fontWeight: 700, fontSize: 13,
+              display: "flex", alignItems: "center", gap: 6,
+              fontFamily: "'DM Sans', sans-serif",
+            }}>
+              📋 Charger stratégie
+            </div>
+            <input type="file" accept=".json" style={{ display: "none" }}
+              onChange={e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = ev => {
+                  try {
+                    const d = JSON.parse(ev.target.result);
+                    onLoadStrategy(d);
+                  } catch { alert("Fichier JSON invalide."); }
+                };
+                reader.readAsText(file);
+                e.target.value = "";
+              }} />
+          </label>
 
-          {/* Bouton partager — côté coureur uniquement */}
+          {/* Bouton partager — côté coureur uniquement, génère JSON */}
           {!sharedMode && (
             <button onClick={() => {
-              const code = encodeStrategy(race, segments, settings);
-              if (!code) { alert("Erreur lors de la génération du lien."); return; }
-              const url = `${window.location.origin}${window.location.pathname}?s=${code}`;
-              if (url.length > 2000) {
-                alert(`⚠️ Lien très long (${url.length} caractères) — il risque d'être tronqué par SMS.\n\nConseil : envoie-le par email ou WhatsApp.`);
-              }
-              if (navigator.share) {
-                navigator.share({
-                  title: `Stratégie — ${settings.raceName || race.name || "Ma course"}`,
-                  text: url,
-                }).catch(() => {
-                  navigator.clipboard?.writeText(url)
-                    .then(() => alert("✅ Lien copié !"))
-                    .catch(() => prompt("Copie ce lien :", url));
-                });
+              const nom = settings.raceName || race.name || "ma-course";
+              const filename = `alex-${nom.toLowerCase().replace(/\s+/g, "-")}.json`;
+              const blob = new Blob([JSON.stringify({ race, segments, settings })], { type: "application/json" });
+              const file = new File([blob], filename, { type: "application/json" });
+              const appUrl = window.location.origin + window.location.pathname;
+              const msg = `Voici ma stratégie de course !\n\nInstalle Alex : ${appUrl}\nPuis charge le fichier joint dans l'onglet Team.`;
+
+              if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                navigator.share({ title: `Stratégie Alex — ${nom}`, text: msg, files: [file] })
+                  .catch(() => {
+                    const u = URL.createObjectURL(blob);
+                    const a = document.createElement("a"); a.href = u; a.download = filename; a.click();
+                    URL.revokeObjectURL(u);
+                    alert(`Fichier téléchargé ! Envoie-le à ton équipe avec le lien : ${appUrl}`);
+                  });
               } else {
-                navigator.clipboard?.writeText(url)
-                  .then(() => alert("✅ Lien copié ! Envoie-le à ton équipe."))
-                  .catch(() => prompt("Copie ce lien :", url));
+                const u = URL.createObjectURL(blob);
+                const a = document.createElement("a"); a.href = u; a.download = filename; a.click();
+                URL.revokeObjectURL(u);
+                alert(`Fichier téléchargé ! Envoie-le à ton équipe avec le lien : ${appUrl}`);
               }
             }} style={{
               background: C.green + "18", border: `1px solid ${C.green}50`,
@@ -2733,7 +2732,7 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
               display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
               fontFamily: "'DM Sans', sans-serif",
             }}>
-              🔗 Partager
+              📤 Partager
             </button>
           )}
           <button onClick={handleSOS} style={{
@@ -2963,42 +2962,6 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
           </Card>
         );
       })()}
-
-      {/* Modal charger stratégie */}
-      {loadModal && (
-        <div className="modal-overlay" onClick={() => { setLoadModal(false); setLoadError(""); setLoadInput(""); }}>
-          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
-              📋 Charger une stratégie
-            </div>
-            <p style={{ fontSize: 13, color: "var(--muted-c)", marginBottom: 16, lineHeight: 1.6 }}>
-              Colle le lien reçu par WhatsApp ou SMS. Tu peux coller l'URL complète ou juste le code.
-            </p>
-            <textarea
-              value={loadInput}
-              onChange={e => { setLoadInput(e.target.value); setLoadError(""); }}
-              placeholder="https://alex-trail.vercel.app/?s=eyJ..."
-              rows={4}
-              autoFocus
-              style={{
-                width: "100%", fontSize: 12, fontFamily: "monospace",
-                padding: "10px 12px", borderRadius: 10, border: `1px solid ${loadError ? "#B84A3A" : "var(--border-c)"}`,
-                background: "var(--surface-2)", color: "var(--text-c)", resize: "vertical",
-                boxSizing: "border-box",
-              }}
-            />
-            {loadError && (
-              <div style={{ marginTop: 8, fontSize: 12, color: "#B84A3A", fontWeight: 500 }}>
-                ⚠️ {loadError}
-              </div>
-            )}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
-              <Btn variant="ghost" onClick={() => { setLoadModal(false); setLoadError(""); setLoadInput(""); }}>Annuler</Btn>
-              <Btn onClick={loadFromUrl}>Charger</Btn>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
