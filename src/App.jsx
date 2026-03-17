@@ -59,6 +59,7 @@ const DEFAULT_EQUIPMENT = [
 
 const EMPTY_SETTINGS = {
   name: "", weight: 70, kcalPerKm: 65,
+  emergencyName: "", emergencyPhone: "",
   raceName: "", startTime: "07:00",
   tempC: 15, rain: false, wind: false, heat: false, snow: false,
   darkMode: false,
@@ -1208,7 +1209,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                 <div style={{ fontSize: 11, color: "#D08860" }}>
                   Départ {settings.startTime || "07:00"} · {settings.tempC}°C
                   {settings.rain ? " · Pluie" : ""}{settings.snow ? " · Neige" : ""}{settings.wind ? " · Vent" : ""}{settings.heat ? " · Chaleur" : ""}
-                  {" · "}<span style={{ color: "#F5C080", cursor: "pointer" }} onClick={() => {}}>Modifier →</span>
+                  
                 </div>
               </div>
               <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
@@ -2008,6 +2009,20 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
               <Field label="Nom"><input value={settings.name} onChange={e => upd("name", e.target.value)} placeholder="Ton prénom" /></Field>
               <SliderField label="Poids" value={settings.weight} min={40} max={120} unit=" kg" onChange={v => upd("weight", v)} />
               <SliderField label="Kcal brûlées par km" value={settings.kcalPerKm} min={40} max={100} unit=" kcal/km" onChange={v => upd("kcalPerKm", v)} />
+              <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12, marginTop: 4, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Contact d'urgence SOS</div>
+                <Field label="Nom du contact">
+                  <input value={settings.emergencyName} onChange={e => upd("emergencyName", e.target.value)} placeholder="Ex : Morgane, Coach, Accompagnatrice..." />
+                </Field>
+                <Field label="Numéro de téléphone">
+                  <input value={settings.emergencyPhone} onChange={e => upd("emergencyPhone", e.target.value)} placeholder="Ex : +33612345678" type="tel" />
+                </Field>
+                {settings.emergencyPhone && (
+                  <div style={{ fontSize: 12, color: C.green, display: "flex", alignItems: "center", gap: 6 }}>
+                    ✓ Le bouton SOS enverra directement à {settings.emergencyName || settings.emergencyPhone}
+                  </div>
+                )}
+              </div>
             </div>
             <div style={{ marginTop: 16, padding: "10px 14px", background: C.primaryPale, borderRadius: 10, fontSize: 12, color: C.primaryDeep, borderLeft: `3px solid ${C.primary}` }}>
               Niveau coureur et calibration Garmin → <strong>Profil de course</strong>
@@ -2627,16 +2642,18 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
   // SOS géoloc
   const handleSOS = () => {
     setSosActive(true);
+    const phone = settings.emergencyPhone ? settings.emergencyPhone.replace(/\s/g, "") : "";
+    const smsTarget = phone ? `sms:${phone}` : "sms:";
     navigator.geolocation?.getCurrentPosition(
       pos => {
         const { latitude, longitude, accuracy } = pos.coords;
         setGpsCoords({ lat: latitude, lon: longitude, acc: Math.round(accuracy) });
         const msg = `🆘 ALEX SOS — ${settings.name || "Coureur"} a besoin d'aide\nPosition GPS : ${latitude.toFixed(6)}, ${longitude.toFixed(6)} (±${Math.round(accuracy)}m)\nCourse : ${settings.raceName || race.name || "?"}\nhttps://maps.google.com/?q=${latitude},${longitude}`;
-        window.location.href = `sms:?body=${encodeURIComponent(msg)}`;
+        window.location.href = `${smsTarget}?body=${encodeURIComponent(msg)}`;
       },
       () => {
         const msg = `🆘 ALEX SOS — ${settings.name || "Coureur"} a besoin d'aide\nCourse : ${settings.raceName || race.name || "?"}\nPosition GPS non disponible`;
-        window.location.href = `sms:?body=${encodeURIComponent(msg)}`;
+        window.location.href = `${smsTarget}?body=${encodeURIComponent(msg)}`;
       },
       { timeout: 8000, enableHighAccuracy: true }
     );
