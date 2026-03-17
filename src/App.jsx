@@ -2490,7 +2490,7 @@ function NutritionView({ segments, settings, setSettings, race, setRace }) {
 
 
 // ─── VUE TEAM ────────────────────────────────────────────────────────────────
-function TeamView({ race, setRace, segments, setSegments, settings, setSettings, sharedMode, installPrompt, onInstall, onLoadStrategy }) {
+function TeamView({ race, setRace, segments, setSegments, settings, setSettings, sharedMode, installPrompt, onInstall, onLoadStrategy, isMobile }) {
   const [realTimes, setRealTimes] = useState({});
   const [activeRavito, setActiveRavito] = useState(null);
   const [sosActive, setSosActive] = useState(false);
@@ -2670,19 +2670,19 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
       )}
 
       {/* Header + SOS + Partage */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "stretch" : "flex-start", gap: isMobile ? 10 : 0, marginBottom: 24 }}>
         <PageTitle sub={`${ravitos.length} ravito${ravitos.length > 1 ? "s" : ""} · départ ${settings.startTime || "07:00"}`}>
           {settings.raceName || race.name || "Team"}
         </PageTitle>
-        <div style={{ display: "flex", gap: 8, marginTop: 4, flexShrink: 0 }}>
+        <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: 8, marginTop: isMobile ? 0 : 4, flexShrink: 0 }}>
 
           {/* Bouton charger stratégie — file picker JSON, toujours visible */}
           <label style={{ display: "flex", alignItems: "center", flexShrink: 0, cursor: "pointer" }}>
             <div style={{
               background: C.primaryPale, border: `1px solid ${C.primary}50`,
               color: C.primaryDeep, borderRadius: 14, padding: "10px 16px",
-              fontWeight: 700, fontSize: 13,
-              display: "flex", alignItems: "center", gap: 6,
+              fontWeight: 700, fontSize: 13, width: isMobile ? "100%" : "auto",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               fontFamily: "'DM Sans', sans-serif",
             }}>
               📋 Charger stratégie
@@ -2749,7 +2749,8 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
               background: C.green + "18", border: `1px solid ${C.green}50`,
               color: C.green, borderRadius: 14, padding: "10px 16px",
               fontWeight: 700, fontSize: 13, cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              width: isMobile ? "100%" : "auto",
               fontFamily: "'DM Sans', sans-serif",
             }}>
               📤 Partager
@@ -2759,7 +2760,8 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
             background: sosActive ? C.red + "cc" : C.red,
             color: "#fff", border: "none", borderRadius: 14, padding: "10px 18px",
             fontWeight: 700, fontSize: 14, cursor: "pointer",
-            display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            width: isMobile ? "100%" : "auto",
             boxShadow: `0 4px 16px ${C.red}50`, transition: "all 0.2s",
             fontFamily: "'DM Sans', sans-serif",
           }}>
@@ -3647,7 +3649,7 @@ export default function App() {
           {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} isMobile={isMobile} />}
           {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} />}
           {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} />}
-          {view === "team"        && <TeamView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} onLoadStrategy={data => {
+          {view === "team"        && <TeamView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} isMobile={isMobile} onLoadStrategy={data => {
             if (data.race)     setRaceRaw(data.race);
             if (data.segments) setSegmentsRaw(data.segments);
             if (data.settings) setSettingsRaw({ ...EMPTY_SETTINGS, ...data.settings });
