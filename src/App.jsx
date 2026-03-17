@@ -2700,7 +2700,6 @@ function TeamView({ race, setRace, segments, settings, sharedMode, installPrompt
             const theoSec  = getTheoSec(rv.id);
             const adjSec   = getAdjustedSec(rv.id);
             const delta    = getDelta(rv.id);
-            const nutri    = getNutritionForRavito(rv);
             const isOpen   = activeRavito === rv.id;
             const realVal  = realTimes[rv.id] || "";
             const night    = theoSec ? isNight(adjSec || theoSec) : false;
@@ -2797,54 +2796,39 @@ function TeamView({ race, setRace, segments, settings, sharedMode, installPrompt
                       </div>
                     )}
 
-                    {/* Nutrition à préparer */}
-                    <div style={{ padding: "14px 16px", background: "var(--surface-2)", borderRadius: 12 }}>
-                      <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 13 }}>À préparer pour ce tronçon</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 12 }}>
-                        {[
-                          { icon: "💧", label: "Eau", value: nutri.eau >= 1000 ? `${(nutri.eau/1000).toFixed(1)} L` : `${nutri.eau} mL`, color: C.blue },
-                          { icon: "🍌", label: "Glucides", value: `${nutri.glucides} g`, color: C.yellow },
-                          { icon: "🔥", label: "Calories", value: `${nutri.kcal} kcal`, color: C.red },
-                        ].map(item => (
-                          <div key={item.label} style={{ textAlign: "center", padding: "10px 8px", background: "var(--surface)", borderRadius: 10, border: `1px solid ${item.color}30` }}>
-                            <div style={{ fontSize: 18 }}>{item.icon}</div>
-                            <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 16, color: item.color, marginTop: 4 }}>{item.value}</div>
-                            <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>{item.label}</div>
-                          </div>
-                        ))}
-                      </div>
-                      {/* Produits du plan nutrition */}
-                      {(() => {
-                        const pointKey = String(rv.id);
-                        const items = (race.planNutrition?.[pointKey] || []);
-                        const produits = settings.produits || [];
-                        if (!items.length) return null;
-                        return (
-                          <div>
-                            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--muted-c)", marginBottom: 8 }}>
-                              Ravito à préparer
-                            </div>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                              {items.map(({ produitId, quantite }) => {
-                                const p = produits.find(x => x.id === produitId);
-                                if (!p) return null;
-                                return (
-                                  <div key={produitId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: "var(--surface)", borderRadius: 8, fontSize: 13 }}>
-                                    <span style={{ fontWeight: 600 }}>{p.nom}</span>
-                                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                                      <span style={{ color: "var(--muted-c)", fontSize: 12 }}>× {quantite}</span>
-                                      <span style={{ color: C.red, fontWeight: 600, fontSize: 12 }}>
-                                        {p.par100g ? Math.round(p.kcal * p.poids * quantite / 100) : Math.round(p.kcal * quantite)} kcal
-                                      </span>
-                                    </div>
+                    {/* Ravito à préparer */}
+                    {(() => {
+                      const pointKey = String(rv.id);
+                      const items = (race.planNutrition?.[pointKey] || []);
+                      const produits = settings.produits || [];
+                      if (!items.length) return (
+                        <div style={{ padding: "12px 16px", background: "var(--surface-2)", borderRadius: 12, fontSize: 13, color: "var(--muted-c)", fontStyle: "italic" }}>
+                          Aucun produit planifié — configure le plan dans l'onglet Nutrition.
+                        </div>
+                      );
+                      return (
+                        <div style={{ padding: "14px 16px", background: "var(--surface-2)", borderRadius: 12 }}>
+                          <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 13 }}>Ravito à préparer</div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                            {items.map(({ produitId, quantite }) => {
+                              const p = produits.find(x => x.id === produitId);
+                              if (!p) return null;
+                              return (
+                                <div key={produitId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", background: "var(--surface)", borderRadius: 8, fontSize: 13 }}>
+                                  <span style={{ fontWeight: 600 }}>{p.nom}</span>
+                                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                                    <span style={{ color: "var(--muted-c)", fontSize: 12 }}>× {quantite}</span>
+                                    <span style={{ color: C.red, fontWeight: 600, fontSize: 12 }}>
+                                      {p.par100g ? Math.round(p.kcal * p.poids * quantite / 100) : Math.round(p.kcal * quantite)} kcal
+                                    </span>
                                   </div>
-                                );
-                              })}
-                            </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      })()}
-                    </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Notes */}
                     {rv.notes && (
