@@ -1337,6 +1337,86 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
             );
           })()}
 
+          {/* ── PROFIL COUREUR + GARMIN ── */}
+          {(() => {
+            const updS = (k, v) => setSettings(s => ({ ...s, [k]: v }));
+            const garminRef2 = { current: null };
+            const handleGarmin2 = e => {
+              const file = e.target.files[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = ev => {
+                const result = parseGarminCSV(ev.target.result);
+                if (result) { updS("garminCoeff", result.coeff); updS("garminStats", result); }
+                else alert("Fichier CSV Garmin non reconnu. Vérifie le format Activities.csv.");
+              };
+              reader.readAsText(file);
+            };
+            return (
+              <Card style={{ marginBottom: 24 }}>
+                <div style={{ fontWeight: 600, marginBottom: 16, borderBottom: "1px solid var(--border-c)", paddingBottom: 12 }}>
+                  Profil du coureur & algo
+                  <span style={{ fontSize: 12, color: "var(--muted-c)", fontWeight: 400, marginLeft: 8 }}>Influence directement les vitesses calculées</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                  {/* Niveau coureur */}
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Niveau coureur</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      {RUNNER_LEVELS.map(lvl => {
+                        const isActive = (settings.runnerLevel || "intermediaire") === lvl.key;
+                        return (
+                          <div key={lvl.key} onClick={() => updS("runnerLevel", lvl.key)} style={{
+                            padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                            border: `2px solid ${isActive ? C.primary : "var(--border-c)"}`,
+                            background: isActive ? C.primaryPale : "var(--surface-2)",
+                            transition: "all 0.15s",
+                          }}>
+                            <div style={{ fontWeight: 600, fontSize: 13, color: isActive ? C.primaryDeep : "var(--text-c)" }}>{lvl.label}</div>
+                            <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>{lvl.desc}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {(() => {
+                      const lvl = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel || "intermediaire"));
+                      return <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-c)", textAlign: "center" }}>Coefficient vitesse : <strong style={{ color: "var(--text-c)" }}>×{lvl?.coeff}</strong></div>;
+                    })()}
+                  </div>
+                  {/* Calibration Garmin */}
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Calibration Garmin</div>
+                    <p style={{ color: "var(--muted-c)", fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}>
+                      Importe ton Activities.csv depuis Garmin Connect pour calibrer les vitesses à ton niveau réel.
+                    </p>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+                      <Btn variant="soft" size="sm" onClick={() => document.getElementById("garmin-input-profil").click()}>
+                        Charger Activities.csv
+                      </Btn>
+                      <input id="garmin-input-profil" type="file" accept=".csv" style={{ display: "none" }} onChange={handleGarmin2} />
+                      <span style={{ color: "var(--muted-c)", fontSize: 12 }}>
+                        Coeff. : <strong>{settings.garminCoeff}</strong>
+                        {settings.garminStats && ` (${settings.garminStats.count} sorties)`}
+                      </span>
+                    </div>
+                    {settings.garminStats && (
+                      <div style={{ padding: "8px 12px", background: "var(--surface-2)", borderRadius: 9, fontSize: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                        <span>{settings.garminStats.count} activités</span>
+                        <span>GAP moy. {settings.garminStats.avgGapKmh} km/h</span>
+                        <span style={{ color: C.primary, fontWeight: 600 }}>×{settings.garminStats.coeff}</span>
+                      </div>
+                    )}
+                    {settings.garminCoeff !== 1 && (
+                      <Btn variant="ghost" size="sm" style={{ marginTop: 8 }} onClick={() => { updS("garminCoeff", 1); updS("garminStats", null); }}>
+                        Réinitialiser (coeff = 1)
+                      </Btn>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            );
+          })()}
+
           {/* Ravitos + Segments */}
           <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 20, marginBottom: 24, alignItems: "start" }}>
             {/* Ravitos */}
@@ -1835,7 +1915,6 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
 
 // ─── VUE PARAMÈTRES ──────────────────────────────────────────────────────────
 function ParamètresView({ settings, setSettings, race, setRace, segments }) {
-  const garminRef = useRef();
   const upd = (k, v) => setSettings(s => ({ ...s, [k]: v }));
   const [newItem, setNewItem] = useState("");
   const [newCat, setNewCat]   = useState("Équipement");
@@ -1857,18 +1936,6 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
   const activeItems  = equipment.filter(i => i.actif !== false); // items sélectionnés pour la course
   const checkedCount = activeItems.filter(i => i.checked).length;
 
-  const handleGarmin = e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const result = parseGarminCSV(ev.target.result);
-      if (result) { upd("garminCoeff", result.coeff); upd("garminStats", result); }
-      else alert("Fichier CSV Garmin non reconnu. Vérifie le format Activities.csv.");
-    };
-    reader.readAsText(file);
-  };
-
   return (
     <div className="anim">
       <PageTitle sub="Profil, équipement et calibration">Paramètres du coureur</PageTitle>
@@ -1877,66 +1944,14 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
         {/* Colonne gauche : profil + dark mode */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <Card>
-            <div style={{ fontWeight: 600, marginBottom: 16 }}>Profil coureur</div>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>Profil coureur</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <Field label="Nom"><input value={settings.name} onChange={e => upd("name", e.target.value)} placeholder="Ton prénom" /></Field>
               <SliderField label="Poids" value={settings.weight} min={40} max={120} unit=" kg" onChange={v => upd("weight", v)} />
               <SliderField label="Kcal brûlées par km" value={settings.kcalPerKm} min={40} max={100} unit=" kcal/km" onChange={v => upd("kcalPerKm", v)} />
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--muted-c)", marginBottom: 8 }}>Niveau coureur</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  {RUNNER_LEVELS.map(lvl => {
-                    const isActive = (settings.runnerLevel || "intermediaire") === lvl.key;
-                    return (
-                      <div key={lvl.key} onClick={() => upd("runnerLevel", lvl.key)} style={{
-                        padding: "10px 12px", borderRadius: 10, cursor: "pointer",
-                        border: `2px solid ${isActive ? C.primary : "var(--border-c)"}`,
-                        background: isActive ? C.primaryPale : "var(--surface-2)",
-                        transition: "all 0.15s",
-                      }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: isActive ? C.primaryDeep : "var(--text-c)" }}>{lvl.label}</div>
-                        <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>{lvl.desc}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {(() => {
-                  const lvl = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel || "intermediaire"));
-                  return (
-                    <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-c)", textAlign: "center" }}>
-                      Coefficient vitesse : <strong style={{ color: "var(--text-c)" }}>×{lvl?.coeff}</strong>
-                    </div>
-                  );
-                })()}
-              </div>
             </div>
-          </Card>
-
-          <Card>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>Calibration Garmin</div>
-            <p style={{ color: "var(--muted-c)", fontSize: 13, marginBottom: 14 }}>
-              Importe ton export CSV Garmin Connect (Activities.csv) pour calibrer les vitesses suggérées à ton niveau réel.
-            </p>
-            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <Btn variant="soft" onClick={() => garminRef.current?.click()}>Charger Activities.csv</Btn>
-              <input ref={garminRef} type="file" accept=".csv" style={{ display: "none" }} onChange={handleGarmin} />
-              <span style={{ color: "var(--muted-c)", fontSize: 13 }}>
-                Coeff. : <strong>{settings.garminCoeff}</strong>
-                {settings.garminStats && ` (${settings.garminStats.count} sorties)`}
-              </span>
-            </div>
-            {settings.garminStats && (
-              <div style={{ marginTop: 10, padding: "10px 14px", background: "var(--surface-2)", borderRadius: 10, fontSize: 13, display: "flex", gap: 16, flexWrap: "wrap" }}>
-                <span>{settings.garminStats.count} activités</span>
-                <span>GAP moy. {settings.garminStats.avgGapKmh} km/h</span>
-                <span>Coeff. ×{settings.garminStats.coeff}</span>
-              </div>
-            )}
-            <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Btn variant="ghost" size="sm" onClick={() => { upd("garminCoeff", 1); upd("garminStats", null); }}>Réinitialiser (coeff = 1)</Btn>
-              <Btn variant="danger" size="sm" onClick={() => { if (confirm("Reset complet — es-tu sûr ?")) { setRace({}); upd("raceName", ""); } }}>
-                Reset course
-              </Btn>
+            <div style={{ marginTop: 16, padding: "10px 14px", background: C.primaryPale, borderRadius: 10, fontSize: 12, color: C.primaryDeep, borderLeft: `3px solid ${C.primary}` }}>
+              Niveau coureur et calibration Garmin → <strong>Profil de course</strong>
             </div>
           </Card>
 
