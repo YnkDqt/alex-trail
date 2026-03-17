@@ -597,9 +597,9 @@ function SliderField({ label, value, min, max, step = 1, unit, onChange }) {
 }
 function Toggle({ label, checked, onChange }) {
   return (
-    <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}>
+    <label onClick={() => onChange(!checked)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}>
       <div style={{
-        width: 40, height: 22, borderRadius: 11, background: checked ? C.primary : "var(--surface-3)",
+        width: 40, height: 22, borderRadius: 11, background: checked ? C.primary : "var(--border-c)",
         position: "relative", transition: "background 0.2s", flexShrink: 0,
       }}>
         <div style={{
@@ -608,7 +608,7 @@ function Toggle({ label, checked, onChange }) {
           boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
         }} />
       </div>
-      <span style={{ fontSize: 14, color: "var(--text-c)" }}>{label}</span>
+      <span style={{ fontSize: 13, color: "var(--text-c)" }}>{label}</span>
     </label>
   );
 }
@@ -1276,11 +1276,10 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                     </div>
                     <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12, marginTop: 2 }}>
                       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Météo</div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        <SliderField label="Température" value={settings.tempC} min={-10} max={45} unit="°C" onChange={v => updS("tempC", v)} />
-                        <Toggle label="Pluie" checked={settings.rain} onChange={v => updS("rain", v)} />
-                        <Toggle label="Vent fort" checked={settings.wind} onChange={v => updS("wind", v)} />
-                        <Toggle label="Forte chaleur (> 25°C)" checked={settings.heat} onChange={v => updS("heat", v)} />
+                      <SliderField label="Température" value={settings.tempC} min={-10} max={45} unit="°C" onChange={v => updS("tempC", v)} />
+                      <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
+                        <Toggle label="🌧️ Pluie" checked={settings.rain} onChange={v => updS("rain", v)} />
+                        <Toggle label="💨 Vent fort" checked={settings.wind} onChange={v => updS("wind", v)} />
                       </div>
                     </div>
                   </div>
