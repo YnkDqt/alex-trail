@@ -2654,28 +2654,83 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
     .map((seg, i) => ({ seg, i }))
     .filter(({ seg }) => seg.type === "ravito");
 
-  // Calcul du décalage depuis le dernier ravito réel saisi
-  const lastRealEntry = ravitos.reduce((last, rv) => {
-    if (realTimes[rv.id]) return rv;
-    return last;
-  }, null);
-
   const getTheoSec = ravitoId => {
     const entry = ravitoSegs.find(({ seg }) => seg.ravitoId === ravitoId);
     return entry ? passingTimes[entry.i] : null;
   };
 
+  // ── Recalibration vitesse Option B ──────────────────────────────────────────
+  // On cherche les deux derniers ravitos avec heure réelle saisie
+  // pour calculer un coefficient de vitesse réelle vs théorique
+  const realEntries = ravitos.filter(rv => realTimes[rv.id]);
+
+  // Coefficient vitesse : temps réel entre 2 ravitos / temps théo entre ces 2 ravitos
+  // Si on n'a qu'un seul ravito réel → fallback décalage fixe
+  const speedCoeff = (() => {
+    if (realEntries.length >= 2) {
+      const prev = realEntries[realEntries.length - 2];
+      const last = realEntries[realEntries.length - 1];
+      const prevTheo = getTheoSec(prev.id);
+      const lastTheo = getTheoSec(last.id);
+      if (!prevTheo || !lastTheo || lastTheo === prevTheo) return null;
+      const prevParts = realTimes[prev.id].split(":").map(Number);
+      const lastParts = realTimes[last.id].split(":").map(Number);
+      const prevReal = prevParts[0] * 3600 + prevParts[1] * 60;
+      const lastReal = lastParts[0] * 3600 + lastParts[1] * 60;
+      const realDuration = lastReal - prevReal;
+      const theoDuration = lastTheo - prevTheo;
+      if (theoDuration <= 0 || realDuration <= 0) return null;
+      return realDuration / theoDuration; // >1 = plus lent, <1 = plus rapide
+    }
+    return null; // pas assez de données pour recalibrer
+  })();
+
+  // Heure réelle au dernier ravito renseigné (point d'ancrage)
+  const anchorRavito = realEntries[realEntries.length - 1] || null;
+  const anchorSec = anchorRavito ? (() => {
+    const parts = realTimes[anchorRavito.id].split(":").map(Number);
+    return parts[0] * 3600 + parts[1] * 60;
+  })() : null;
+  const anchorTheo = anchorRavito ? getTheoSec(anchorRavito.id) : null;
+
   const getAdjustedSec = ravitoId => {
     const theo = getTheoSec(ravitoId);
     if (!theo) return null;
-    if (!lastRealEntry) return theo;
-    const lastTheo = getTheoSec(lastRealEntry.id);
-    if (!lastTheo) return theo;
-    const parts = realTimes[lastRealEntry.id].split(":").map(Number);
-    const realSec = parts[0] * 3600 + parts[1] * 60;
-    const delta = realSec - lastTheo;
-    return theo + delta;
+    if (!anchorRavito || !anchorSec || !anchorTheo) return theo;
+
+    // Ce ravito est-il avant ou après l'ancre ?
+    const anchorIdx = ravitos.findIndex(rv => rv.id === anchorRavito.id);
+    const thisIdx   = ravitos.findIndex(rv => rv.id === ravitoId);
+
+    if (thisIdx <= anchorIdx) {
+      // Déjà passé — on renvoie l'heure réelle si disponible, sinon théo + delta fixe
+      if (realTimes[ravitoId]) {
+        const p = realTimes[ravitoId].split(":").map(Number);
+        return p[0] * 3600 + p[1] * 60;
+      }
+      return theo + (anchorSec - anchorTheo);
+    }
+
+    // Ravito futur — recalibrer avec coefficient vitesse si disponible
+    const timeFromAnchor = theo - anchorTheo; // durée théo depuis l'ancre
+    if (speedCoeff !== null) {
+      return anchorSec + timeFromAnchor * speedCoeff;
+    }
+    // Fallback : décalage fixe
+    return theo + (anchorSec - anchorTheo);
   };
+
+  // Heure d'arrivée recalibrée (dernier temps passingTimes + correction)
+  const getAdjustedArrival = () => {
+    const theoArrival = passingTimes[passingTimes.length - 1];
+    if (!theoArrival) return null;
+    if (!anchorRavito || !anchorSec || !anchorTheo) return theoArrival;
+    const timeFromAnchor = theoArrival - anchorTheo;
+    if (speedCoeff !== null) return anchorSec + timeFromAnchor * speedCoeff;
+    return theoArrival + (anchorSec - anchorTheo);
+  };
+
+  const adjustedArrival = getAdjustedArrival();
 
   const getDelta = ravitoId => {
     const theo = getTheoSec(ravitoId);
@@ -2963,19 +3018,50 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
       )}
 
       {/* Statut global */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: anchorRavito ? 12 : 24 }}>
         <KPI label="Départ" value={settings.startTime || "07:00"} icon="🏁" />
-        <KPI label="Arrivée estimée" value={fmtHeure(passingTimes[passingTimes.length - 1] || 0)} icon="🏆" color={C.primary} />
+        <KPI
+          label="Arrivée estimée"
+          value={fmtHeure(adjustedArrival || passingTimes[passingTimes.length - 1] || 0)}
+          icon="🏆" color={C.primary}
+          sub={adjustedArrival && adjustedArrival !== passingTimes[passingTimes.length - 1]
+            ? `Théo. ${fmtHeure(passingTimes[passingTimes.length - 1] || 0)}`
+            : undefined}
+        />
         {nextRavito && minutesToNext !== null && (
           <KPI label={`Prochain : ${nextRavito.name}`} value={`~${minutesToNext} min`}
             icon="🥤" color={minutesToNext < 20 ? C.red : C.yellow}
             sub={`Arrivée théo. ${fmtHeure(getAdjustedSec(nextRavito.id) || getTheoSec(nextRavito.id) || 0)}`} />
         )}
-        {lastRealEntry && (() => {
-          const d = getDelta(lastRealEntry.id);
-          return <KPI label="Écart actuel" value={fmtDelta(d)} icon={d > 120 ? "🐢" : d < -120 ? "⚡" : "✅"} color={deltaColor(d)} sub={`depuis ${lastRealEntry.name}`} />;
+        {anchorRavito && (() => {
+          const d = getDelta(anchorRavito.id);
+          return <KPI label="Écart actuel" value={fmtDelta(d)} icon={d > 120 ? "🐢" : d < -120 ? "⚡" : "✅"} color={deltaColor(d)} sub={`depuis ${anchorRavito.name}`} />;
         })()}
       </div>
+
+      {/* Bandeau recalibration vitesse */}
+      {speedCoeff !== null && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10, marginBottom: 20,
+          padding: "10px 14px", borderRadius: 12,
+          background: speedCoeff > 1.05 ? C.red + "15" : speedCoeff < 0.95 ? C.blue + "15" : C.green + "15",
+          border: `1px solid ${speedCoeff > 1.05 ? C.red : speedCoeff < 0.95 ? C.blue : C.green}30`,
+        }}>
+          <span style={{ fontSize: 18 }}>{speedCoeff > 1.05 ? "🐢" : speedCoeff < 0.95 ? "⚡" : "✅"}</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: speedCoeff > 1.05 ? C.red : speedCoeff < 0.95 ? C.blue : C.green }}>
+              {speedCoeff > 1.05
+                ? `Allure −${Math.round((speedCoeff - 1) * 100)}% — prévisions ajustées`
+                : speedCoeff < 0.95
+                  ? `Allure +${Math.round((1 - speedCoeff) * 100)}% — prévisions ajustées`
+                  : "Allure conforme — prévisions fiables"}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 1 }}>
+              Basé sur {realEntries[realEntries.length-2]?.name} → {anchorRavito.name}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Ravitos */}
       {ravitos.length === 0 ? (
@@ -3138,11 +3224,37 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
         const lastRv = ravitos[ravitos.length - 1];
         const segsAfter = segments.filter(s => s.type !== "ravito" && s.type !== "repos" && s.startKm >= lastRv.km);
         if (!segsAfter.length) return null;
+        const theoArrival = passingTimes[passingTimes.length - 1];
         return (
           <Card style={{ marginTop: 16, borderLeft: `4px solid ${C.primary}` }}>
             <div style={{ fontWeight: 700, fontSize: 15 }}>🏁 Dernier tronçon → Arrivée</div>
             <div style={{ fontSize: 13, color: "var(--muted-c)", marginTop: 4 }}>
               {(segsAfter[segsAfter.length-1]?.endKm - lastRv.km).toFixed(1)} km restants depuis {lastRv.name}
+            </div>
+            <div style={{ display: "flex", gap: 20, marginTop: 10, flexWrap: "wrap" }}>
+              {adjustedArrival && adjustedArrival !== theoArrival ? (
+                <>
+                  <div>
+                    <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 2 }}>Arrivée ajustée</div>
+                    <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 22, color: C.primary }}>
+                      {fmtHeure(adjustedArrival)}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 2 }}>Théorique</div>
+                    <div style={{ fontSize: 16, color: "var(--muted-c)", fontWeight: 500, marginTop: 4 }}>
+                      {fmtHeure(theoArrival)}
+                    </div>
+                  </div>
+                </>
+              ) : theoArrival ? (
+                <div>
+                  <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 2 }}>Arrivée estimée</div>
+                  <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 22, color: C.primary }}>
+                    {fmtHeure(theoArrival)}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </Card>
         );
