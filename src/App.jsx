@@ -60,7 +60,7 @@ const DEFAULT_EQUIPMENT = [
 const EMPTY_SETTINGS = {
   name: "", weight: 70, kcalPerKm: 65,
   raceName: "", startTime: "07:00",
-  tempC: 15, rain: false, wind: false, heat: false,
+  tempC: 15, rain: false, wind: false, heat: false, snow: false,
   darkMode: false,
   garminCoeff: 1, garminStats: null,
   runnerLevel: "intermediaire",
@@ -168,7 +168,10 @@ function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, totalSeg
   // Fatigue nulle au départ, maximale à l'arrivée — courbe progressive
   const fatigueCoeff = 1 - progress * fatigueIntensity;
 
-  return +(base * coeff * levelCoeff * fatigueCoeff).toFixed(1);
+  return +(base * coeff * levelCoeff * fatigueCoeff
+    * (settings.snow ? 0.85 : 1)
+    * (settings.tempC <= -10 ? 0.95 : 1)
+  ).toFixed(1);
 }
 function calcSlopeFromGPX(points, startKm, endKm) {
   if (!points.length) return 0;
@@ -367,17 +370,18 @@ function parseGarminCSV(text) {
 // ─── NUTRITION ───────────────────────────────────────────────────────────────
 function calcNutrition(seg, settings) {
   if (seg.type === "repos") return { kcal: 0, kcalH: 0, glucidesH: 0, proteinesH: 0, eauH: 0, selH: 0, cafeineH: 0, durationH: 0 };
-  const { weight = 70, kcalPerKm = 65, tempC = 15, rain = false, wind = false, heat = false } = settings;
+  const { weight = 70, kcalPerKm = 65, tempC = 15, rain = false, wind = false, heat = false, snow = false } = settings;
   const distKm = seg.endKm - seg.startKm;
   const durationH = seg.speedKmh > 0 ? distKm / seg.speedKmh : 0;
   const kcal = Math.round(distKm * kcalPerKm * (weight / 70));
   const kcalH = durationH > 0 ? Math.round(kcal / durationH) : 0;
   const isHot = heat || tempC > 25;
+  const isCold = tempC < 0 || snow;
   const glucidesH = Math.round(kcalH * 0.55 / 4);
   const proteinesH = Math.round(kcalH * 0.10 / 4);
-  const waterBase = isHot ? 750 : 500;
+  const waterBase = isHot ? 750 : isCold ? 350 : 500;
   const eauH = Math.round(waterBase + (wind ? 100 : 0));
-  const selH = Math.round(isHot ? 800 : 500);
+  const selH = Math.round(isHot ? 800 : snow ? 700 : 500);
   const cumDurationH = seg.speedKmh > 0 ? (seg.startKm || 0) / seg.speedKmh : 0;
   const cafeineH = cumDurationH >= 2 ? Math.round(30 + Math.min(seg.slopePct * 2, 40)) : 0;
   return { kcal, kcalH, glucidesH, proteinesH, eauH, selH, cafeineH, durationH };
@@ -775,7 +779,7 @@ function exportWallpaper(race, segments, settings, profile) {
     { label: "TEMPS TOTAL", val: fmtTime(totalTime + ravitoSec) },
     { label: "DÉPART", val: settings.startTime || "07:00" },
     { label: "RAVITOS", val: String(race.ravitos?.length || 0) },
-    { label: "MÉTÉO", val: `${settings.tempC}°C${settings.rain ? " 🌧" : ""}${settings.wind ? " 💨" : ""}` },
+    { label: "MÉTÉO", val: `${settings.tempC}°C${settings.rain ? " 🌧" : ""}${settings.snow ? " ❄️" : ""}${settings.wind ? " 💨" : ""}` },
   ];
   const colW = (W - 120) / stats.length;
   stats.forEach((s, i) => {
@@ -833,6 +837,7 @@ function exportEmail(race, segments, settings, nutriTotals, totalTime, totalRavi
   const meteo = [
     `${settings.tempC}°C`,
     settings.rain ? "Pluie" : null,
+    settings.snow ? "Neige" : null,
     settings.wind ? "Vent fort" : null,
     settings.heat ? "Forte chaleur" : null,
   ].filter(Boolean).join(" · ");
@@ -1202,7 +1207,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                 </div>
                 <div style={{ fontSize: 11, color: "#D08860" }}>
                   Départ {settings.startTime || "07:00"} · {settings.tempC}°C
-                  {settings.rain ? " · Pluie" : ""}{settings.wind ? " · Vent" : ""}{settings.heat ? " · Chaleur" : ""}
+                  {settings.rain ? " · Pluie" : ""}{settings.snow ? " · Neige" : ""}{settings.wind ? " · Vent" : ""}{settings.heat ? " · Chaleur" : ""}
                   {" · "}<span style={{ color: "#F5C080", cursor: "pointer" }} onClick={() => {}}>Modifier →</span>
                 </div>
               </div>
@@ -1232,6 +1237,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
               <span>Départ {settings.startTime || "07:00"}</span>
               <span>{settings.tempC}°C</span>
               {settings.rain && <span>Pluie</span>}
+              {settings.snow && <span>Neige</span>}
               {settings.wind && <span>Vent</span>}
               {settings.heat && <span>Chaleur</span>}
               <span style={{ marginLeft: "auto", fontSize: 12, color: C.primary }}>Modifier dans Stratégie →</span>
@@ -1276,9 +1282,10 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                     </div>
                     <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12, marginTop: 2 }}>
                       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Météo</div>
-                      <SliderField label="Température" value={settings.tempC} min={-10} max={45} unit="°C" onChange={v => updS("tempC", v)} />
-                      <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
+                      <SliderField label="Température" value={settings.tempC} min={-30} max={45} unit="°C" onChange={v => updS("tempC", v)} />
+                      <div style={{ display: "flex", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
                         <Toggle label="🌧️ Pluie" checked={settings.rain} onChange={v => updS("rain", v)} />
+                        <Toggle label="❄️ Neige" checked={settings.snow} onChange={v => updS("snow", v)} />
                         <Toggle label="💨 Vent fort" checked={settings.wind} onChange={v => updS("wind", v)} />
                       </div>
                     </div>
