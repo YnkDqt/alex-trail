@@ -1483,35 +1483,69 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                     <thead><tr>
                       <th>#</th><th>Début</th><th>Fin</th><th>Pente moy.</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th></th>
                     </tr></thead>
-                    <tbody>{segments.map((seg, i) => {
-                      const dur = fmtTime(((seg.endKm - seg.startKm) / seg.speedKmh) * 3600);
-                      const isH = hoveredSeg?.id === seg.id;
-                      const slopeColor = seg.slopePct > 15 ? C.red : seg.slopePct > 8 ? C.yellow : seg.slopePct < -10 ? C.blue : C.green;
-                      return (
-                        <tr key={seg.id}
-                          onMouseEnter={() => setHoveredSeg(seg)}
-                          onMouseLeave={() => setHoveredSeg(null)}
-                          onClick={() => openEditSeg(seg)}
-                          style={{ background: isH ? C.yellowPale : undefined, cursor: "pointer" }}>
-                          <td style={{ color: isH ? C.yellow : "var(--muted-c)", fontWeight: isH ? 700 : 400 }}>{i+1}</td>
-                          <td style={{ fontWeight: isH ? 700 : 400 }}>{seg.startKm} km</td>
-                          <td style={{ fontWeight: isH ? 700 : 400 }}>{seg.endKm} km</td>
-                          <td>
-                            <span className={`badge ${seg.slopePct > 9 ? "badge-red" : seg.slopePct < 0 ? "badge-blue" : "badge-sage"}`}>
-                              {seg.slopePct > 0 ? "+" : ""}{seg.slopePct}%
-                            </span>
-                            {seg.slopePct > 15 && <span style={{ marginLeft: 5, fontSize: 10, color: C.red }}>bâtons</span>}
-                            {seg.slopePct > 8 && seg.slopePct <= 15 && <span style={{ marginLeft: 5, fontSize: 10, color: C.yellow }}>marche</span>}
-                          </td>
-                          <td style={{ fontWeight: isH ? 700 : 600 }}>{seg.speedKmh} km/h</td>
-                          <td style={{ fontFamily: "'Playfair Display', serif", fontWeight: isH ? 700 : 400 }}>{fmtPace(seg.speedKmh)}/km</td>
-                          <td style={{ fontWeight: isH ? 700 : 400 }}>{dur}</td>
-                          <td onClick={e => e.stopPropagation()}>
-                            <Btn size="sm" variant="danger" onClick={() => setConfirmId("seg-" + seg.id)}>✕</Btn>
-                          </td>
-                        </tr>
-                      );
-                    })}</tbody>
+                    <tbody>{(() => {
+                      let segNum = 0;
+                      return segments.map((seg, i) => {
+                        // ── Ravito ──
+                        if (seg.type === "ravito") {
+                          return (
+                            <tr key={seg.id} style={{ background: C.green + "10", cursor: "default" }}
+                              onMouseEnter={() => setHoveredSeg(seg)} onMouseLeave={() => setHoveredSeg(null)}>
+                              <td style={{ fontSize: 16 }}>🥤</td>
+                              <td style={{ fontWeight: 600, color: C.green }} colSpan={3}>{seg.label} — km {seg.startKm}</td>
+                              <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 12 }}>{seg.dureeMin} min</td>
+                              <td></td>
+                              <td onClick={e => e.stopPropagation()}>
+                                <Btn size="sm" variant="danger" onClick={() => setConfirmId("seg-" + seg.id)}>✕</Btn>
+                              </td>
+                            </tr>
+                          );
+                        }
+                        // ── Repos ──
+                        if (seg.type === "repos") {
+                          return (
+                            <tr key={seg.id} style={{ background: "var(--surface-2)", cursor: "default" }}
+                              onMouseEnter={() => setHoveredSeg(seg)} onMouseLeave={() => setHoveredSeg(null)}>
+                              <td style={{ fontSize: 16 }}>💤</td>
+                              <td style={{ fontWeight: 600, color: C.blue }} colSpan={3}>{seg.label} — km {seg.startKm}</td>
+                              <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 12 }}>{seg.dureeMin} min</td>
+                              <td></td>
+                              <td onClick={e => e.stopPropagation()}>
+                                <Btn size="sm" variant="danger" onClick={() => setConfirmId("seg-" + seg.id)}>✕</Btn>
+                              </td>
+                            </tr>
+                          );
+                        }
+                        // ── Segment normal ──
+                        segNum++;
+                        const dur = fmtTime(((seg.endKm - seg.startKm) / seg.speedKmh) * 3600);
+                        const isH = hoveredSeg?.id === seg.id;
+                        return (
+                          <tr key={seg.id}
+                            onMouseEnter={() => setHoveredSeg(seg)}
+                            onMouseLeave={() => setHoveredSeg(null)}
+                            onClick={() => openEditSeg(seg)}
+                            style={{ background: isH ? C.yellowPale : undefined, cursor: "pointer" }}>
+                            <td style={{ color: isH ? C.yellow : "var(--muted-c)", fontWeight: isH ? 700 : 400 }}>{segNum}</td>
+                            <td style={{ fontWeight: isH ? 700 : 400 }}>{seg.startKm} km</td>
+                            <td style={{ fontWeight: isH ? 700 : 400 }}>{seg.endKm} km</td>
+                            <td>
+                              <span className={`badge ${seg.slopePct > 9 ? "badge-red" : seg.slopePct < 0 ? "badge-blue" : "badge-sage"}`}>
+                                {seg.slopePct > 0 ? "+" : ""}{seg.slopePct}%
+                              </span>
+                              {seg.slopePct > 15 && <span style={{ marginLeft: 5, fontSize: 10, color: C.red }}>bâtons</span>}
+                              {seg.slopePct > 8 && seg.slopePct <= 15 && <span style={{ marginLeft: 5, fontSize: 10, color: C.yellow }}>marche</span>}
+                            </td>
+                            <td style={{ fontWeight: isH ? 700 : 600 }}>{seg.speedKmh} km/h</td>
+                            <td style={{ fontFamily: "'Playfair Display', serif", fontWeight: isH ? 700 : 400 }}>{fmtPace(seg.speedKmh)}/km</td>
+                            <td style={{ fontWeight: isH ? 700 : 400 }}>{dur}</td>
+                            <td onClick={e => e.stopPropagation()}>
+                              <Btn size="sm" variant="danger" onClick={() => setConfirmId("seg-" + seg.id)}>✕</Btn>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}</tbody>
                   </table>
                 </div>
               )}
