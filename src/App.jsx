@@ -1649,7 +1649,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
 }
 
 // ─── VUE STRATÉGIE DE COURSE ─────────────────────────────────────────────────
-function StrategieView({ race, segments, setSegments, settings, setSettings, onOpenRepos }) {
+function StrategieView({ race, segments, setSegments, settings, setSettings, onOpenRepos, isMobile }) {
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
@@ -1732,7 +1732,7 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
         <Empty icon="✂️" title="Aucun segment défini" sub="Génère les segments depuis ta stratégie, ou ajoute-en un manuellement." action={<Btn onClick={openNew}>+ Ajouter un segment</Btn>} />
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(180px, 1fr))", gap: isMobile ? 8 : 14, marginBottom: 20 }}>
             <KPI label="Temps course" value={fmtTime(totalTime)} color={C.secondary} icon="⏱️" sub="hors ravitos" />
             <KPI label="Temps total" value={fmtTime(totalWithRavitos)} icon="🏁" sub={`+${ravitoCount} ravito${ravitoCount>1?"s":""}`} />
             {segments.length > 0 && <KPI label="Arrivée estimée" value={fmtHeure(arrivalTime)} icon={isNight(arrivalTime) ? "🌙" : "☀️"} color={isNight(arrivalTime) ? C.blue : C.yellow} sub={`départ ${settings.startTime || "07:00"}`} />}
@@ -1763,7 +1763,7 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
               </div>
             </div>
             <div className="tbl-wrap">
-              <table>
+              <table style={{ fontSize: isMobile ? 11 : undefined }}>
                 <thead><tr>
                   <th>#</th><th>De</th><th>À</th><th>Dist.</th><th>Pente</th><th>Terrain</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th>Heure</th><th>Nutrition/h</th><th></th>
                 </tr></thead>
@@ -3647,7 +3647,7 @@ export default function App() {
           padding: isMobile ? "76px 16px 32px" : "44px 52px",
         }}>
           {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} isMobile={isMobile} />}
-          {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} />}
+          {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} isMobile={isMobile} />}
           {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} />}
           {view === "team"        && <TeamView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} isMobile={isMobile} onLoadStrategy={data => {
             if (data.race)     setRaceRaw(data.race);
