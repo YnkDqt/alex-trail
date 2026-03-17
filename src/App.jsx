@@ -2701,7 +2701,7 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
               }} />
           </label>
 
-          {/* Bouton partager — côté coureur uniquement, génère JSON */}
+          {/* Bouton partager — côté coureur uniquement, génère JSON + ouvre SMS */}
           {!sharedMode && (
             <button onClick={() => {
               const nom = settings.raceName || race.name || "ma-course";
@@ -2709,21 +2709,39 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
               const blob = new Blob([JSON.stringify({ race, segments, settings })], { type: "application/json" });
               const file = new File([blob], filename, { type: "application/json" });
               const appUrl = window.location.origin + window.location.pathname;
-              const msg = `Voici ma stratégie de course !\n\nInstalle Alex : ${appUrl}\nPuis charge le fichier joint dans l'onglet Team.`;
 
+              const smsMsg = `Voici ma stratégie de course pour ${settings.raceName || race.name || "ma course"} 🏔️\n\n1- Télécharge le fichier JSON que je t'envoie\n2- Va sur Alex : ${appUrl}\n3- Onglet "Team"\n4- Clique sur "Charger stratégie" et sélectionne le fichier`;
+
+              const doShare = () => {
+                // Ouvrir le share sheet avec le message texte
+                if (navigator.share) {
+                  navigator.share({ title: `Stratégie Alex — ${nom}`, text: smsMsg })
+                    .catch(() => {
+                      // Fallback SMS
+                      window.location.href = `sms:?body=${encodeURIComponent(smsMsg)}`;
+                    });
+                } else {
+                  window.location.href = `sms:?body=${encodeURIComponent(smsMsg)}`;
+                }
+              };
+
+              // D'abord télécharger le JSON, puis ouvrir le share
               if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                navigator.share({ title: `Stratégie Alex — ${nom}`, text: msg, files: [file] })
+                // Android moderne : partage direct avec fichier joint
+                navigator.share({ title: `Stratégie Alex — ${nom}`, text: smsMsg, files: [file] })
                   .catch(() => {
+                    // Fallback : télécharger + message séparé
                     const u = URL.createObjectURL(blob);
                     const a = document.createElement("a"); a.href = u; a.download = filename; a.click();
                     URL.revokeObjectURL(u);
-                    alert(`Fichier téléchargé ! Envoie-le à ton équipe avec le lien : ${appUrl}`);
+                    setTimeout(doShare, 800);
                   });
               } else {
+                // Télécharger le JSON puis ouvrir le message
                 const u = URL.createObjectURL(blob);
                 const a = document.createElement("a"); a.href = u; a.download = filename; a.click();
                 URL.revokeObjectURL(u);
-                alert(`Fichier téléchargé ! Envoie-le à ton équipe avec le lien : ${appUrl}`);
+                setTimeout(doShare, 800);
               }
             }} style={{
               background: C.green + "18", border: `1px solid ${C.green}50`,
