@@ -1262,6 +1262,18 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                     <Field label="Heure de départ">
                       <input type="time" value={settings.startTime || "07:00"} onChange={e => updS("startTime", e.target.value)} />
                     </Field>
+                    <Field label="Adresse de départ">
+                      <input value={race.startAddress || ""} onChange={e => setRace(r => ({ ...r, startAddress: e.target.value }))} placeholder="Ex : Place du village, 73210 Bourg-Saint-Maurice" />
+                    </Field>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <Field label="Adresse d'arrivée">
+                        <input value={race.endAddress || ""} onChange={e => setRace(r => ({ ...r, endAddress: e.target.value }))} placeholder="Idem si boucle" disabled={race.sameAddress} style={{ opacity: race.sameAddress ? 0.5 : 1 }} />
+                      </Field>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--muted-c)" }}>
+                        <input type="checkbox" checked={!!race.sameAddress} onChange={e => setRace(r => ({ ...r, sameAddress: e.target.checked, endAddress: e.target.checked ? r.startAddress : r.endAddress }))} />
+                        Même adresse que le départ (boucle)
+                      </label>
+                    </div>
                     <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12, marginTop: 2 }}>
                       <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Météo</div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -2667,7 +2679,7 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
               if (navigator.share) {
                 navigator.share({
                   title: `Stratégie — ${settings.raceName || race.name || "Ma course"}`,
-                  text: `Voici ma stratégie de course Alex !\n\n${url}`,
+                  text: url,
                 }).catch(() => {
                   navigator.clipboard?.writeText(url)
                     .then(() => alert("✅ Lien copié !"))
@@ -2704,6 +2716,29 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
       {gpsCoords && (
         <div style={{ background: C.red + "18", border: `1px solid ${C.red}40`, borderRadius: 12, padding: "12px 16px", marginBottom: 20, fontSize: 13 }}>
           Position envoyée : <strong>{gpsCoords.lat.toFixed(5)}, {gpsCoords.lon.toFixed(5)}</strong> (±{gpsCoords.acc}m)
+        </div>
+      )}
+
+      {/* Adresses départ / arrivée */}
+      {(race.startAddress || race.endAddress) && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+          {race.startAddress && (
+            <div style={{ padding: "12px 16px", background: "var(--surface-2)", borderRadius: 12, borderLeft: `3px solid ${C.green}` }}>
+              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: C.green, marginBottom: 4 }}>Départ</div>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>{race.startAddress}</div>
+              <a href={`https://maps.google.com/?q=${encodeURIComponent(race.startAddress)}`} target="_blank" rel="noreferrer"
+                style={{ fontSize: 11, color: C.blue, marginTop: 4, display: "inline-block" }}>📍 Ouvrir dans Maps</a>
+            </div>
+          )}
+          {(race.endAddress || race.sameAddress) && (
+            <div style={{ padding: "12px 16px", background: "var(--surface-2)", borderRadius: 12, borderLeft: `3px solid ${C.primary}` }}>
+              <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: C.primary, marginBottom: 4 }}>Arrivée</div>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>{race.sameAddress ? race.startAddress : race.endAddress}</div>
+              {race.sameAddress && <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>Même lieu que le départ</div>}
+              <a href={`https://maps.google.com/?q=${encodeURIComponent(race.sameAddress ? race.startAddress : race.endAddress)}`} target="_blank" rel="noreferrer"
+                style={{ fontSize: 11, color: C.blue, marginTop: 4, display: "inline-block" }}>📍 Ouvrir dans Maps</a>
+            </div>
+          )}
         </div>
       )}
 
@@ -2883,26 +2918,11 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
         const lastRv = ravitos[ravitos.length - 1];
         const segsAfter = segments.filter(s => s.type !== "ravito" && s.type !== "repos" && s.startKm >= lastRv.km);
         if (!segsAfter.length) return null;
-        const nutri = segsAfter.reduce((acc, seg) => {
-          const n = calcNutrition(seg, settings);
-          const dH = (seg.endKm - seg.startKm) / seg.speedKmh;
-          return { eau: acc.eau + Math.round(n.eauH * dH), glucides: acc.glucides + Math.round(n.glucidesH * dH), kcal: acc.kcal + n.kcal };
-        }, { eau: 0, glucides: 0, kcal: 0 });
         return (
           <Card style={{ marginTop: 16, borderLeft: `4px solid ${C.primary}` }}>
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>🏁 Dernier tronçon → Arrivée</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-              {[
-                { icon: "💧", label: "Eau", value: nutri.eau >= 1000 ? `${(nutri.eau/1000).toFixed(1)} L` : `${nutri.eau} mL`, color: C.blue },
-                { icon: "🍌", label: "Glucides", value: `${nutri.glucides} g`, color: C.yellow },
-                { icon: "🔥", label: "Calories", value: `${nutri.kcal} kcal`, color: C.red },
-              ].map(item => (
-                <div key={item.label} style={{ textAlign: "center", padding: "10px 8px", background: "var(--surface-2)", borderRadius: 10 }}>
-                  <div style={{ fontSize: 18 }}>{item.icon}</div>
-                  <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 16, color: item.color, marginTop: 4 }}>{item.value}</div>
-                  <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>{item.label}</div>
-                </div>
-              ))}
+            <div style={{ fontWeight: 700, fontSize: 15 }}>🏁 Dernier tronçon → Arrivée</div>
+            <div style={{ fontSize: 13, color: "var(--muted-c)", marginTop: 4 }}>
+              {(segsAfter[segsAfter.length-1]?.endKm - lastRv.km).toFixed(1)} km restants depuis {lastRv.name}
             </div>
           </Card>
         );
@@ -3000,10 +3020,11 @@ const NAVS = [
 
 // ─── PARTAGE STRATÉGIE ───────────────────────────────────────────────────────
 function encodeStrategy(race, segments, settings) {
-  // On exclut les points GPX (trop lourds) + équipement/recettes (inutiles pour l'assistant)
+  // On exclut les points GPX (trop lourds) + équipement + garminStats (inutiles pour l'assistant)
+  // On INCLUT produits car nécessaire pour afficher le plan nutrition côté Team
   const { gpxPoints, ...raceLight } = race;
-  const { equipment, produits, garminStats, ...settingsLight } = settings;
-  const payload = { race: raceLight, segments, settings: settingsLight, v: 1, ts: Date.now() };
+  const { equipment, garminStats, ...settingsLight } = settings;
+  const payload = { race: raceLight, segments, settings: settingsLight, v: 2, ts: Date.now() };
   try {
     const json    = JSON.stringify(payload);
     const encoded = btoa(unescape(encodeURIComponent(json)));
