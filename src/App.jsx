@@ -462,7 +462,7 @@ const G = `
   :root.dark .nav-item.active { background: #3A2C1E; color: ${C.primaryLight}; }
   @media (max-width: 768px) {
     .grid-2col { grid-template-columns: 1fr; }
-    .form-grid { grid-template-columns: 1fr; }
+    .form-grid { grid-template-columns: repeat(2, 1fr); }
     .modal-overlay { align-items: flex-end; }
     .modal-box { border-radius: 20px 20px 0 0; max-height: 90vh; width: 100vw; padding: 24px; }
   }
@@ -2098,7 +2098,7 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
 
 
 // ─── VUE NUTRITION ───────────────────────────────────────────────────────────
-function NutritionView({ segments, settings, setSettings, race, setRace }) {
+function NutritionView({ segments, settings, setSettings, race, setRace, isMobile }) {
   const produits = settings.produits || [];
   const planNutrition = race.planNutrition || {};
   const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km);
@@ -2227,7 +2227,7 @@ function NutritionView({ segments, settings, setSettings, race, setRace }) {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20, marginBottom: 24 }}>
         <Card noPad>
           <div style={{ padding: "16px 20px 0", fontWeight: 600 }}>Eau & glucides par segment</div>
           <ResponsiveContainer width="100%" height={200}>
@@ -3648,7 +3648,7 @@ export default function App() {
         }}>
           {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} isMobile={isMobile} />}
           {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} isMobile={isMobile} />}
-          {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} />}
+          {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} isMobile={isMobile} />}
           {view === "team"        && <TeamView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} isMobile={isMobile} onLoadStrategy={data => {
             if (data.race)     setRaceRaw(data.race);
             if (data.segments) setSegmentsRaw(data.segments);
