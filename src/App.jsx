@@ -2476,7 +2476,7 @@ function NutritionView({ segments, settings, setSettings, race, setRace }) {
 
 
 // ─── VUE TEAM ────────────────────────────────────────────────────────────────
-function TeamView({ race, setRace, segments, settings, sharedMode, installPrompt, onInstall }) {
+function TeamView({ race, setRace, segments, setSegments, settings, setSettings, sharedMode, installPrompt, onInstall, onLoadStrategy }) {
   const [realTimes, setRealTimes] = useState({}); // ravitoId → "HH:MM"
   const [activeRavito, setActiveRavito] = useState(null);
   const [sosActive, setSosActive] = useState(false);
@@ -2633,17 +2633,51 @@ function TeamView({ race, setRace, segments, settings, sharedMode, installPrompt
           {settings.raceName || race.name || "Team"}
         </PageTitle>
         <div style={{ display: "flex", gap: 8, marginTop: 4, flexShrink: 0 }}>
-          {!sharedMode && (
+          {sharedMode && (
+            <button onClick={() => {
+              const url = prompt("Colle le nouveau lien de stratégie reçu :");
+              if (!url) return;
+              try {
+                const s = new URL(url).searchParams.get("s");
+                if (!s) { alert("Lien invalide — colle l'URL complète."); return; }
+                const data = decodeStrategy(s);
+                if (!data) { alert("Impossible de lire la stratégie. Le lien est peut-être incomplet."); return; }
+                onLoadStrategy(data);
+              } catch { alert("Lien invalide — colle l'URL complète."); }
+            }} style={{
+              background: C.primary + "18", border: `1px solid ${C.primary}50`,
+              color: C.primaryDeep, borderRadius: 14, padding: "10px 16px",
+              fontWeight: 700, fontSize: 13, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+              fontFamily: "'DM Sans', sans-serif",
+            }}>
+              🔗 Nouvelle stratégie
+            </button>
+          )}
             <button onClick={() => {
               const code = encodeStrategy(race, segments, settings);
               if (!code) { alert("Erreur lors de la génération du lien."); return; }
               const url = `${window.location.origin}${window.location.pathname}?s=${code}`;
+              const urlLen = url.length;
+
+              if (urlLen > 2000) {
+                alert(`⚠️ Lien très long (${urlLen} caractères) — il risque d'être tronqué par SMS ou WhatsApp.\n\nConseil : envoie-le par email ou copie-colle-le directement dans WhatsApp.`);
+              }
+
               if (navigator.share) {
-                navigator.share({ title: `Stratégie — ${settings.raceName || race.name || "Ma course"}`, text: "Voici ma stratégie de course. Installe Alex pour me suivre !", url });
+                navigator.share({
+                  title: `Stratégie — ${settings.raceName || race.name || "Ma course"}`,
+                  text: `Voici ma stratégie de course Alex !\n\n${url}`,
+                }).catch(() => {
+                  // Fallback si share annulé ou échoue
+                  navigator.clipboard?.writeText(url)
+                    .then(() => alert("✅ Lien copié ! Colle-le dans ton SMS ou WhatsApp."))
+                    .catch(() => prompt("Copie ce lien :", url));
+                });
               } else {
                 navigator.clipboard?.writeText(url)
                   .then(() => alert("✅ Lien copié ! Envoie-le par SMS ou WhatsApp."))
-                  .catch(() => { prompt("Copie ce lien et envoie-le à ton équipe :", url); });
+                  .catch(() => prompt("Copie ce lien et envoie-le à ton équipe :", url));
               }
             }} style={{
               background: C.green + "18", border: `1px solid ${C.green}50`,
@@ -3098,9 +3132,15 @@ export default function App() {
 
   // ── Chargement au démarrage ──────────────────────────────────────────────
   useEffect(() => {
-    // Priorité 1 : lien partagé ?s=... dans l'URL
+    // Priorité 1 : lien partagé ?s=... dans l'URL (ou #s=... en fallback)
     const urlParams = new URLSearchParams(window.location.search);
-    const shared = urlParams.get("s");
+    let shared = urlParams.get("s");
+
+    // Fallback : certains navigateurs iOS préservent mieux le hash que les query params
+    if (!shared && window.location.hash.startsWith("#s=")) {
+      shared = window.location.hash.slice(3);
+    }
+
     if (shared) {
       const data = decodeStrategy(shared);
       if (data) {
@@ -3110,11 +3150,13 @@ export default function App() {
         setSharedMode(true);
         setOnboarding(false);
         setView("team");
-        // Sauvegarder dans IndexedDB pour usage offline
         idbSave({ race: data.race, segments: data.segments, settings: { ...EMPTY_SETTINGS, ...data.settings } });
-        // Nettoyer l'URL sans recharger
         window.history.replaceState({}, "", window.location.pathname);
         return;
+      } else {
+        // Le lien existe mais est corrompu/tronqué
+        console.warn("[Alex] Lien partagé détecté mais invalide. Longueur du code :", shared.length);
+        // On continue vers IndexedDB
       }
     }
     // Priorité 2 : données IndexedDB locales
@@ -3475,6 +3517,23 @@ export default function App() {
                 <input type="file" accept=".json" style={{ display: "none" }}
                   onChange={e => { if (e.target.files[0]) { loadData(e.target.files[0]); setOnboarding(false); } }} />
               </label>
+              <Btn variant="soft" onClick={() => {
+                const url = prompt("Colle le lien de stratégie reçu :");
+                if (!url) return;
+                try {
+                  const s = new URL(url).searchParams.get("s");
+                  if (!s) { alert("Lien invalide — assure-toi de coller l'URL complète."); return; }
+                  const data = decodeStrategy(s);
+                  if (!data) { alert("Impossible de lire la stratégie. Le lien est peut-être incomplet."); return; }
+                  if (data.race)     setRaceRaw(data.race);
+                  if (data.segments) setSegmentsRaw(data.segments);
+                  if (data.settings) setSettingsRaw({ ...EMPTY_SETTINGS, ...data.settings });
+                  setSharedMode(true);
+                  setOnboarding(false);
+                  setView("team");
+                  idbSave({ race: data.race, segments: data.segments, settings: { ...EMPTY_SETTINGS, ...data.settings } });
+                } catch { alert("Lien invalide — assure-toi de coller l'URL complète."); }
+              }}>🔗 J'ai un lien de stratégie</Btn>
               <Btn variant="ghost" onClick={() => { setOnboarding(false); setView("parametres"); }}>⚙️ Configurer d'abord</Btn>
             </div>
           </div>
@@ -3529,7 +3588,12 @@ export default function App() {
           {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} />}
           {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} />}
           {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} />}
-          {view === "team"        && <TeamView race={race} setRace={setRace} segments={segments} settings={settings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} />}
+          {view === "team"        && <TeamView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} onLoadStrategy={data => {
+            if (data.race)     setRaceRaw(data.race);
+            if (data.segments) setSegmentsRaw(data.segments);
+            if (data.settings) setSettingsRaw({ ...EMPTY_SETTINGS, ...data.settings });
+            idbSave({ race: data.race, segments: data.segments, settings: { ...EMPTY_SETTINGS, ...data.settings } });
+          }} />}
           {view === "courses"     && <MesCoursesView courses={courses} onLoad={loadCourse} onDelete={deleteCourse} onSaveCurrent={() => { saveCourse(); alert("✅ Stratégie sauvegardée dans Mes courses !"); }} race={race} segments={segments} settings={settings} />}
           {view === "parametres"  && <ParamètresView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} />}
         </main>
