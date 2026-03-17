@@ -2602,9 +2602,29 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
   if (!segments.length && !ravitos.length) {
     return (
       <div className="anim">
-        <PageTitle sub="Vue assistance — ravitos, horaires, préparation">Team</PageTitle>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+          <PageTitle sub="Vue assistance — ravitos, horaires, préparation">Team</PageTitle>
+          <button onClick={() => {
+            const url = prompt("Colle le lien de stratégie reçu :");
+            if (!url) return;
+            try {
+              const s = new URL(url).searchParams.get("s");
+              if (!s) { alert("Lien invalide — colle l'URL complète."); return; }
+              const data = decodeStrategy(s);
+              if (!data) { alert("Impossible de lire la stratégie. Le lien est peut-être incomplet."); return; }
+              onLoadStrategy(data);
+            } catch { alert("Lien invalide — colle l'URL complète."); }
+          }} style={{
+            background: C.primaryPale, border: `1px solid ${C.primary}50`,
+            color: C.primaryDeep, borderRadius: 14, padding: "10px 16px",
+            fontWeight: 700, fontSize: 13, cursor: "pointer", flexShrink: 0,
+            fontFamily: "'DM Sans', sans-serif", marginTop: 4,
+          }}>
+            📋 Charger stratégie
+          </button>
+        </div>
         <Empty icon="👥" title="Aucune stratégie définie"
-          sub="Définis des segments et des ravitaillements dans les onglets Profil et Stratégie." />
+          sub="Charge une stratégie via le bouton ci-dessus, ou définis des segments dans l'onglet Profil de course." />
       </div>
     );
   }
