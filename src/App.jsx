@@ -2633,58 +2633,57 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
           {settings.raceName || race.name || "Team"}
         </PageTitle>
         <div style={{ display: "flex", gap: 8, marginTop: 4, flexShrink: 0 }}>
-          {sharedMode && (
-            <button onClick={() => {
-              const url = prompt("Colle le nouveau lien de stratégie reçu :");
-              if (!url) return;
-              try {
-                const s = new URL(url).searchParams.get("s");
-                if (!s) { alert("Lien invalide — colle l'URL complète."); return; }
-                const data = decodeStrategy(s);
-                if (!data) { alert("Impossible de lire la stratégie. Le lien est peut-être incomplet."); return; }
-                onLoadStrategy(data);
-              } catch { alert("Lien invalide — colle l'URL complète."); }
-            }} style={{
-              background: C.primary + "18", border: `1px solid ${C.primary}50`,
-              color: C.primaryDeep, borderRadius: 14, padding: "10px 16px",
-              fontWeight: 700, fontSize: 13, cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
-              fontFamily: "'DM Sans', sans-serif",
-            }}>
-              🔗 Nouvelle stratégie
-            </button>
-          )}
+
+          {/* Bouton charger stratégie — toujours visible dans Team */}
+          <button onClick={() => {
+            const url = prompt("Colle le lien de stratégie reçu :");
+            if (!url) return;
+            try {
+              const s = new URL(url).searchParams.get("s");
+              if (!s) { alert("Lien invalide — colle l'URL complète."); return; }
+              const data = decodeStrategy(s);
+              if (!data) { alert("Impossible de lire la stratégie. Le lien est peut-être incomplet."); return; }
+              onLoadStrategy(data);
+            } catch { alert("Lien invalide — colle l'URL complète."); }
+          }} style={{
+            background: C.primaryPale, border: `1px solid ${C.primary}50`,
+            color: C.primaryDeep, borderRadius: 14, padding: "10px 16px",
+            fontWeight: 700, fontSize: 13, cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+            fontFamily: "'DM Sans', sans-serif",
+          }}>
+            📋 Charger stratégie
+          </button>
+
+          {/* Bouton partager — côté coureur uniquement */}
+          {!sharedMode && (
             <button onClick={() => {
               const code = encodeStrategy(race, segments, settings);
               if (!code) { alert("Erreur lors de la génération du lien."); return; }
               const url = `${window.location.origin}${window.location.pathname}?s=${code}`;
-              const urlLen = url.length;
-
-              if (urlLen > 2000) {
-                alert(`⚠️ Lien très long (${urlLen} caractères) — il risque d'être tronqué par SMS ou WhatsApp.\n\nConseil : envoie-le par email ou copie-colle-le directement dans WhatsApp.`);
+              if (url.length > 2000) {
+                alert(`⚠️ Lien très long (${url.length} caractères) — il risque d'être tronqué par SMS.\n\nConseil : envoie-le par email ou WhatsApp.`);
               }
-
               if (navigator.share) {
                 navigator.share({
                   title: `Stratégie — ${settings.raceName || race.name || "Ma course"}`,
                   text: `Voici ma stratégie de course Alex !\n\n${url}`,
                 }).catch(() => {
-                  // Fallback si share annulé ou échoue
                   navigator.clipboard?.writeText(url)
-                    .then(() => alert("✅ Lien copié ! Colle-le dans ton SMS ou WhatsApp."))
+                    .then(() => alert("✅ Lien copié !"))
                     .catch(() => prompt("Copie ce lien :", url));
                 });
               } else {
                 navigator.clipboard?.writeText(url)
-                  .then(() => alert("✅ Lien copié ! Envoie-le par SMS ou WhatsApp."))
-                  .catch(() => prompt("Copie ce lien et envoie-le à ton équipe :", url));
+                  .then(() => alert("✅ Lien copié ! Envoie-le à ton équipe."))
+                  .catch(() => prompt("Copie ce lien :", url));
               }
             }} style={{
               background: C.green + "18", border: `1px solid ${C.green}50`,
               color: C.green, borderRadius: 14, padding: "10px 16px",
               fontWeight: 700, fontSize: 13, cursor: "pointer",
               display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
-              fontFamily: "'DM Sans', sans-serif", transition: "all 0.2s",
+              fontFamily: "'DM Sans', sans-serif",
             }}>
               🔗 Partager
             </button>
