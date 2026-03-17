@@ -60,7 +60,8 @@ const DEFAULT_EQUIPMENT = [
 const EMPTY_SETTINGS = {
   name: "", weight: 70, kcalPerKm: 65,
   emergencyName: "", emergencyPhone: "",
-  raceName: "", startTime: "07:00",
+  raceName: "", startTime: "07:00", raceDate: "",
+  meteoLoading: false, meteoFetched: false, meteoInfo: "",
   tempC: 15, rain: false, wind: false, heat: false, snow: false,
   darkMode: false,
   garminCoeff: 1, garminStats: null,
@@ -1248,6 +1249,62 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
           {/* ── BLOCS CONFIGURATION COURSE ── */}
           {(() => {
             const updS = (k, v) => setSettings(s => ({ ...s, [k]: v }));
+
+            const fetchMeteo = async () => {
+              const pt = race.gpxPoints?.[0];
+              if (!pt) { alert("Charge d'abord un fichier GPX pour obtenir la météo automatique."); return; }
+              updS("meteoLoading", true);
+              try {
+                // Calcul de la fenêtre horaire : date de course + heure de départ + durée estimée
+                const dateStr = settings.raceDate || new Date().toISOString().slice(0, 10);
+                const [hh, mm] = (settings.startTime || "07:00").split(":").map(Number);
+                const startDate = new Date(`${dateStr}T${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}:00`);
+                // Durée estimée en heures depuis les segments
+                const totalSecsEst = segments.filter(s => s.type !== "ravito" && s.type !== "repos")
+                  .reduce((acc, seg) => acc + (seg.endKm - seg.startKm) / seg.speedKmh * 3600, 0);
+                const durationH = Math.max(2, Math.ceil(totalSecsEst / 3600) + 1);
+
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${pt.lat.toFixed(4)}&longitude=${pt.lon.toFixed(4)}&hourly=temperature_2m,precipitation,windspeed_10m,snowfall&timezone=auto&forecast_days=7`;
+                const res = await fetch(url);
+                if (!res.ok) throw new Error("API indisponible");
+                const data = await res.json();
+
+                // Trouver l'index de l'heure de départ dans le tableau hourly
+                const times = data.hourly.time;
+                const startIso = startDate.toISOString().slice(0, 13); // "2026-06-07T06"
+                let startIdx = times.findIndex(t => t.startsWith(startIso));
+                if (startIdx === -1) startIdx = 0;
+                const endIdx = Math.min(startIdx + durationH, times.length);
+
+                // Moyenner sur la durée de course
+                const slice = (arr) => arr.slice(startIdx, endIdx);
+                const avg = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
+
+                const temps = slice(data.hourly.temperature_2m);
+                const precips = slice(data.hourly.precipitation);
+                const winds = slice(data.hourly.windspeed_10m);
+                const snows = slice(data.hourly.snowfall);
+
+                const avgTemp = Math.round(avg(temps));
+                const totalPrecip = precips.reduce((a, b) => a + b, 0);
+                const totalSnow = snows.reduce((a, b) => a + b, 0);
+                const maxWind = Math.max(...winds);
+                const hasRain = totalPrecip > 1;
+                const hasSnow = totalSnow > 0.5;
+                const hasWind = maxWind > 30;
+
+                updS("tempC", avgTemp);
+                updS("rain", hasRain && !hasSnow);
+                updS("snow", hasSnow);
+                updS("wind", hasWind);
+                updS("meteoLoading", false);
+                updS("meteoFetched", true);
+                updS("meteoInfo", `${dateStr} · ${avgTemp}°C moy · précip ${totalPrecip.toFixed(1)}mm · vent max ${Math.round(maxWind)} km/h`);
+              } catch (e) {
+                updS("meteoLoading", false);
+                alert("Impossible de récupérer la météo. Vérifie ta connexion et réessaie.");
+              }
+            };
             const EFFORT_OPTIONS_P = [
               { key: "comfort", label: "Finisher",   desc: "Terminer sans se cramer — vitesses -12%", color: C.green },
               { key: "normal",  label: "Chrono",     desc: "Objectif temps réaliste — vitesses normales", color: C.primary },
@@ -1258,13 +1315,16 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
             const ravitoCount_P = race.ravitos?.length || 0;
             const totalRavitoSec_P = ravitoCount_P * (settings.ravitoTimeMin || 3) * 60;
             return (
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
-                {/* Course + Météo */}
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16, marginBottom: 24 }}>
+                {/* Course */}
                 <Card>
                   <div style={{ fontWeight: 600, marginBottom: 14 }}>Course</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <Field label="Nom de la course">
                       <input value={settings.raceName || race.name || ""} onChange={e => updS("raceName", e.target.value)} placeholder="Ex : UTMB, TDS..." />
+                    </Field>
+                    <Field label="Date de la course">
+                      <input type="date" value={settings.raceDate || ""} onChange={e => updS("raceDate", e.target.value)} />
                     </Field>
                     <Field label="Heure de départ">
                       <input type="time" value={settings.startTime || "07:00"} onChange={e => updS("startTime", e.target.value)} />
@@ -1281,17 +1341,42 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                         Même adresse que le départ (boucle)
                       </label>
                     </div>
-                    <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12, marginTop: 2 }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Météo</div>
-                      <SliderField label="Température" value={settings.tempC} min={-30} max={45} unit="°C" onChange={v => updS("tempC", v)} />
-                      <div style={{ display: "flex", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
-                        <Toggle label="🌧️ Pluie" checked={settings.rain} onChange={v => updS("rain", v)} />
-                        <Toggle label="❄️ Neige" checked={settings.snow} onChange={v => updS("snow", v)} />
-                        <Toggle label="💨 Vent fort" checked={settings.wind} onChange={v => updS("wind", v)} />
-                      </div>
+                  </div>
+                </Card>
+
+                {/* Météo */}
+                <Card>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                    <div style={{ fontWeight: 600 }}>Météo</div>
+                    <button onClick={fetchMeteo} disabled={settings.meteoLoading} style={{
+                      background: C.primaryPale, border: `1px solid ${C.primary}50`,
+                      color: C.primaryDeep, borderRadius: 10, padding: "5px 12px",
+                      fontSize: 12, fontWeight: 700, cursor: settings.meteoLoading ? "wait" : "pointer",
+                      fontFamily: "'DM Sans', sans-serif", opacity: settings.meteoLoading ? 0.7 : 1,
+                    }}>
+                      {settings.meteoLoading ? "⏳ Chargement..." : "⛅ Météo auto"}
+                    </button>
+                  </div>
+                  {settings.meteoFetched && settings.meteoInfo && (
+                    <div style={{ fontSize: 11, color: C.green, marginBottom: 12, padding: "6px 10px", background: C.green + "12", borderRadius: 8 }}>
+                      ✓ {settings.meteoInfo}
+                    </div>
+                  )}
+                  {!settings.meteoFetched && (
+                    <div style={{ fontSize: 12, color: "var(--muted-c)", marginBottom: 12, lineHeight: 1.5 }}>
+                      Configure la date et l'heure de départ, puis clique sur "Météo auto" pour récupérer les prévisions sur ton parcours.
+                    </div>
+                  )}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    <SliderField label="Température" value={settings.tempC} min={-30} max={45} unit="°C" onChange={v => updS("tempC", v)} />
+                    <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                      <Toggle label="🌧️ Pluie" checked={settings.rain} onChange={v => updS("rain", v)} />
+                      <Toggle label="❄️ Neige" checked={settings.snow} onChange={v => updS("snow", v)} />
+                      <Toggle label="💨 Vent fort" checked={settings.wind} onChange={v => updS("wind", v)} />
                     </div>
                   </div>
                 </Card>
+
                 {/* Objectif */}
                 <Card>
                   <div style={{ fontWeight: 600, marginBottom: 14 }}>Objectif</div>
