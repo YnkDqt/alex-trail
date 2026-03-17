@@ -960,7 +960,7 @@ function calcPassingTimes(segments, startTime) {
 }
 
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
-function ProfilView({ race, setRace, segments, setSegments, settings, setSettings, onOpenRepos }) {
+function ProfilView({ race, setRace, segments, setSegments, settings, setSettings, onOpenRepos, isMobile }) {
   const [gpxError, setGpxError]       = useState(null);
   const [dragging, setDragging]       = useState(false);
   const [hoveredSeg, setHoveredSeg]   = useState(null);
@@ -1116,7 +1116,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
         </div>
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(140px, 1fr))", gap: isMobile ? 8 : 14, marginBottom: 16 }}>
             <KPI label="Distance" value={`${race.totalDistance?.toFixed(1)} km`} icon="📏" />
             <KPI label="D+" value={`${Math.round(race.totalElevPos)} m`} color={C.red} icon="⛰️" />
             <KPI label="D−" value={`${Math.round(race.totalElevNeg)} m`} color={C.blue} icon="🏔️" />
@@ -1251,7 +1251,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
             const ravitoCount_P = race.ravitos?.length || 0;
             const totalRavitoSec_P = ravitoCount_P * (settings.ravitoTimeMin || 3) * 60;
             return (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
                 {/* Course + Météo */}
                 <Card>
                   <div style={{ fontWeight: 600, marginBottom: 14 }}>Course</div>
@@ -1369,33 +1369,36 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                   Profil du coureur & algo
                   <span style={{ fontSize: 12, color: "var(--muted-c)", fontWeight: 400, marginLeft: 8 }}>Influence directement les vitesses calculées</span>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-                  {/* Niveau coureur */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {/* Niveau coureur — 4 boutons sur une ligne */}
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Niveau coureur</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
                       {RUNNER_LEVELS.map(lvl => {
                         const isActive = (settings.runnerLevel || "intermediaire") === lvl.key;
                         return (
                           <div key={lvl.key} onClick={() => updS("runnerLevel", lvl.key)} style={{
-                            padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                            padding: isMobile ? "8px 6px" : "10px 12px", borderRadius: 10, cursor: "pointer",
                             border: `2px solid ${isActive ? C.primary : "var(--border-c)"}`,
                             background: isActive ? C.primaryPale : "var(--surface-2)",
-                            transition: "all 0.15s",
+                            transition: "all 0.15s", textAlign: "center",
                           }}>
-                            <div style={{ fontWeight: 600, fontSize: 13, color: isActive ? C.primaryDeep : "var(--text-c)" }}>{lvl.label}</div>
-                            <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>{lvl.desc}</div>
+                            <div style={{ fontWeight: 600, fontSize: isMobile ? 12 : 13, color: isActive ? C.primaryDeep : "var(--text-c)" }}>{lvl.label}</div>
+                            {!isMobile && <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>{lvl.desc}</div>}
                           </div>
                         );
                       })}
                     </div>
                     {(() => {
                       const lvl = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel || "intermediaire"));
-                      return <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-c)", textAlign: "center" }}>Coefficient vitesse : <strong style={{ color: "var(--text-c)" }}>×{lvl?.coeff}</strong></div>;
+                      return <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted-c)" }}>
+                        {isMobile && <span style={{ marginRight: 6 }}>{lvl?.desc} — </span>}
+                        Coefficient : <strong style={{ color: "var(--text-c)" }}>×{lvl?.coeff}</strong>
+                      </div>;
                     })()}
                   </div>
-                  {/* Calibration Garmin */}
-                  <div>
+                  {/* Calibration Garmin — pleine largeur en dessous */}
+                  <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 14 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Calibration Garmin</div>
                     <p style={{ color: "var(--muted-c)", fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}>
                       Importe ton Activities.csv depuis Garmin Connect pour calibrer les vitesses à ton niveau réel.
@@ -1429,7 +1432,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
           })()}
 
           {/* Ravitos + Segments */}
-          <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 20, marginBottom: 24, alignItems: "start" }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "260px 1fr", gap: 20, marginBottom: 24, alignItems: "start" }}>
             {/* Ravitos */}
             <Card>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -3641,7 +3644,7 @@ export default function App() {
           flex: 1, overflowY: "auto",
           padding: isMobile ? "76px 16px 32px" : "44px 52px",
         }}>
-          {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} />}
+          {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} isMobile={isMobile} />}
           {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} />}
           {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} />}
           {view === "team"        && <TeamView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} onLoadStrategy={data => {
