@@ -32,29 +32,29 @@ const C = {
 // ─── CONSTANTES GLOBALES ─────────────────────────────────────────────────────
 const DEFAULT_FLAT_SPEED = 9.5;
 const DEFAULT_EQUIPMENT = [
-  { id: 1, cat: "Équipement", label: "Gilet de trail", checked: false },
-  { id: 2, cat: "Équipement", label: "T-shirt course", checked: false },
-  { id: 3, cat: "Équipement", label: "T-shirt change × 2", checked: false },
-  { id: 4, cat: "Équipement", label: "Short / cuissard", checked: false },
-  { id: 5, cat: "Équipement", label: "Chaussettes", checked: false },
-  { id: 6, cat: "Équipement", label: "Chaussures de trail", checked: false },
-  { id: 7, cat: "Équipement", label: "Bâtons", checked: false },
-  { id: 8, cat: "Équipement", label: "Veste imperméable", checked: false },
-  { id: 9, cat: "Équipement", label: "Casquette / buff", checked: false },
-  { id: 10, cat: "Équipement", label: "Lampe frontale + piles", checked: false },
-  { id: 11, cat: "Équipement", label: "Couverture de survie", checked: false },
-  { id: 12, cat: "Équipement", label: "Sifflet", checked: false },
-  { id: 13, cat: "Ravitaillement", label: "Pâtes de fruits sucrées", checked: false },
-  { id: 14, cat: "Ravitaillement", label: "Pâtes de fruits salées", checked: false },
-  { id: 15, cat: "Ravitaillement", label: "Barres de céréales", checked: false },
-  { id: 16, cat: "Ravitaillement", label: "Gels énergétiques", checked: false },
-  { id: 17, cat: "Ravitaillement", label: "Gourde / flasques", checked: false },
-  { id: 18, cat: "Ravitaillement", label: "Sel / électrolytes", checked: false },
-  { id: 19, cat: "Divers", label: "Dossard + épingles", checked: false },
-  { id: 20, cat: "Divers", label: "Téléphone chargé", checked: false },
-  { id: 21, cat: "Divers", label: "Crème anti-frottements", checked: false },
-  { id: 22, cat: "Divers", label: "Brosse à dents / hygiène", checked: false },
-  { id: 23, cat: "Divers", label: "Vêtements post-course", checked: false },
+  { id: 1,  cat: "Équipement",     label: "Gilet de trail",           checked: false, actif: true },
+  { id: 2,  cat: "Équipement",     label: "T-shirt course",           checked: false, actif: true },
+  { id: 3,  cat: "Équipement",     label: "T-shirt change × 2",       checked: false, actif: false },
+  { id: 4,  cat: "Équipement",     label: "Short / cuissard",         checked: false, actif: true },
+  { id: 5,  cat: "Équipement",     label: "Chaussettes",              checked: false, actif: true },
+  { id: 6,  cat: "Équipement",     label: "Chaussures de trail",      checked: false, actif: true },
+  { id: 7,  cat: "Équipement",     label: "Bâtons",                   checked: false, actif: false },
+  { id: 8,  cat: "Équipement",     label: "Veste imperméable",        checked: false, actif: true },
+  { id: 9,  cat: "Équipement",     label: "Casquette / buff",         checked: false, actif: true },
+  { id: 10, cat: "Équipement",     label: "Lampe frontale + piles",   checked: false, actif: true },
+  { id: 11, cat: "Équipement",     label: "Couverture de survie",     checked: false, actif: true },
+  { id: 12, cat: "Équipement",     label: "Sifflet",                  checked: false, actif: true },
+  { id: 13, cat: "Ravitaillement", label: "Pâtes de fruits sucrées",  checked: false, actif: false },
+  { id: 14, cat: "Ravitaillement", label: "Pâtes de fruits salées",   checked: false, actif: false },
+  { id: 15, cat: "Ravitaillement", label: "Barres de céréales",       checked: false, actif: false },
+  { id: 16, cat: "Ravitaillement", label: "Gels énergétiques",        checked: false, actif: false },
+  { id: 17, cat: "Ravitaillement", label: "Gourde / flasques",        checked: false, actif: true },
+  { id: 18, cat: "Ravitaillement", label: "Sel / électrolytes",       checked: false, actif: false },
+  { id: 19, cat: "Divers",         label: "Dossard + épingles",       checked: false, actif: true },
+  { id: 20, cat: "Divers",         label: "Téléphone chargé",         checked: false, actif: true },
+  { id: 21, cat: "Divers",         label: "Crème anti-frottements",   checked: false, actif: false },
+  { id: 22, cat: "Divers",         label: "Brosse à dents / hygiène", checked: false, actif: false },
+  { id: 23, cat: "Divers",         label: "Vêtements post-course",    checked: false, actif: false },
 ];
 
 const EMPTY_SETTINGS = {
@@ -1837,20 +1837,23 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
   const upd = (k, v) => setSettings(s => ({ ...s, [k]: v }));
   const [newItem, setNewItem] = useState("");
   const [newCat, setNewCat]   = useState("Équipement");
+  const [checklistModal, setChecklistModal] = useState(false);
 
   const equipment = settings.equipment || DEFAULT_EQUIPMENT;
   const cats = [...new Set(equipment.map(i => i.cat))];
 
-  const toggleItem  = id => upd("equipment", equipment.map(i => i.id === id ? { ...i, checked: !i.checked } : i));
-  const deleteItem  = id => upd("equipment", equipment.filter(i => i.id !== id));
-  const addItem     = () => {
+  const toggleItem   = id => upd("equipment", equipment.map(i => i.id === id ? { ...i, checked: !i.checked } : i));
+  const toggleActif  = id => upd("equipment", equipment.map(i => i.id === id ? { ...i, actif: !i.actif, checked: false } : i));
+  const deleteItem   = id => upd("equipment", equipment.filter(i => i.id !== id));
+  const addItem      = () => {
     if (!newItem.trim()) return;
-    upd("equipment", [...equipment, { id: Date.now(), cat: newCat, label: newItem.trim(), checked: false }]);
+    upd("equipment", [...equipment, { id: Date.now(), cat: newCat, label: newItem.trim(), checked: false, actif: true }]);
     setNewItem("");
   };
-  const resetChecks = () => upd("equipment", equipment.map(i => ({ ...i, checked: false })));
+  const resetChecks  = () => upd("equipment", equipment.map(i => ({ ...i, checked: false })));
 
-  const checkedCount = equipment.filter(i => i.checked).length;
+  const activeItems  = equipment.filter(i => i.actif !== false); // items sélectionnés pour la course
+  const checkedCount = activeItems.filter(i => i.checked).length;
 
   const handleGarmin = e => {
     const file = e.target.files[0];
@@ -1937,80 +1940,127 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
 
         </div>
 
-        {/* Colonne droite : checklist équipement */}
+        {/* Colonne droite : checklist cochable */}
         <Card style={{ alignSelf: "start" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <div>
               <div style={{ fontWeight: 600 }}>Checklist équipement</div>
-              <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 2 }}>
-                {checkedCount}/{equipment.length} éléments préparés
-              </div>
+              <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 2 }}>{checkedCount}/{activeItems.length} préparés</div>
             </div>
-            <Btn size="sm" variant="ghost" onClick={resetChecks}>Tout décocher</Btn>
+            <div style={{ display: "flex", gap: 6 }}>
+              <Btn size="sm" variant="ghost" onClick={resetChecks}>Tout décocher</Btn>
+              <Btn size="sm" variant="soft" onClick={() => setChecklistModal(true)}>⚙️ Configurer</Btn>
+            </div>
           </div>
 
           {/* Barre de progression */}
-          <div style={{ height: 6, background: "var(--surface-2)", borderRadius: 3, marginBottom: 20, overflow: "hidden" }}>
+          <div style={{ height: 5, background: "var(--surface-2)", borderRadius: 3, marginBottom: 16, overflow: "hidden" }}>
             <div style={{
               height: "100%", borderRadius: 3, transition: "width 0.3s",
-              width: `${equipment.length ? (checkedCount / equipment.length) * 100 : 0}%`,
-              background: checkedCount === equipment.length ? C.green : C.primary,
+              width: `${activeItems.length ? (checkedCount / activeItems.length) * 100 : 0}%`,
+              background: checkedCount === activeItems.length && activeItems.length > 0 ? C.green : C.primary,
             }} />
           </div>
 
-          {/* Items groupés par catégorie */}
-          {cats.map(cat => (
-            <div key={cat} style={{ marginBottom: 18 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
-                {cat}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {equipment.filter(i => i.cat === cat).map(item => (
-                  <div key={item.id} style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: "8px 10px",
-                    borderRadius: 8, background: item.checked ? C.green + "14" : "var(--surface-2)",
-                    transition: "background 0.15s", cursor: "pointer",
-                  }} onClick={() => toggleItem(item.id)}>
-                    <div style={{
-                      width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-                      border: `2px solid ${item.checked ? C.green : "var(--border-c)"}`,
-                      background: item.checked ? C.green : "transparent",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      transition: "all 0.15s",
-                    }}>
-                      {item.checked && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>}
+          {/* Items actifs groupés par catégorie */}
+          {activeItems.length === 0 ? (
+            <div style={{ textAlign: "center", color: "var(--muted-c)", fontSize: 13, padding: "16px 0" }}>
+              Aucun item sélectionné.<br/>
+              <span style={{ cursor: "pointer", color: C.primary, textDecoration: "underline" }} onClick={() => setChecklistModal(true)}>Configure ta liste</span>
+            </div>
+          ) : (
+            [...new Set(activeItems.map(i => i.cat))].map(cat => (
+              <div key={cat} style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>{cat}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {activeItems.filter(i => i.cat === cat).map(item => (
+                    <div key={item.id} style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: "7px 10px",
+                      borderRadius: 8, background: item.checked ? C.green + "14" : "var(--surface-2)",
+                      transition: "background 0.15s", cursor: "pointer",
+                    }} onClick={() => toggleItem(item.id)}>
+                      <div style={{
+                        width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                        border: `2px solid ${item.checked ? C.green : "var(--border-c)"}`,
+                        background: item.checked ? C.green : "transparent",
+                        display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s",
+                      }}>
+                        {item.checked && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>}
+                      </div>
+                      <span style={{
+                        fontSize: 13, flex: 1,
+                        color: item.checked ? "var(--muted-c)" : "var(--text-c)",
+                        textDecoration: item.checked ? "line-through" : "none",
+                        transition: "all 0.15s",
+                      }}>{item.label}</span>
                     </div>
-                    <span style={{
-                      fontSize: 13, flex: 1,
-                      color: item.checked ? "var(--muted-c)" : "var(--text-c)",
-                      textDecoration: item.checked ? "line-through" : "none",
-                      transition: "all 0.15s",
-                    }}>{item.label}</span>
-                    <span style={{ fontSize: 11, color: "var(--muted-c)", opacity: 0.5, cursor: "pointer", padding: "0 2px" }}
-                      onClick={e => { e.stopPropagation(); deleteItem(item.id); }}>✕</span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
-
-          {/* Ajouter un élément */}
-          <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 14, marginTop: 4 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted-c)", marginBottom: 8 }}>Ajouter un élément</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <select value={newCat} onChange={e => setNewCat(e.target.value)} style={{ flex: "0 0 auto", fontSize: 13 }}>
-                {cats.map(c => <option key={c}>{c}</option>)}
-                <option value="Autre">Autre</option>
-              </select>
-              <input value={newItem} onChange={e => setNewItem(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && addItem()}
-                placeholder="Ex : Baume à lèvres..."
-                style={{ flex: 1, minWidth: 120, fontSize: 13 }} />
-              <Btn size="sm" onClick={addItem}>Ajouter</Btn>
-            </div>
-          </div>
+            ))
+          )}
         </Card>
       </div>
+
+      {/* Modal checklist — configuration */}
+      <Modal open={checklistModal} onClose={() => setChecklistModal(false)} title="Configurer ma checklist">
+        <p style={{ fontSize: 13, color: "var(--muted-c)", marginBottom: 16 }}>
+          Sélectionne les items que tu emportes. Seuls les items actifs apparaîtront dans ta checklist.
+        </p>
+        {cats.map(cat => (
+          <div key={cat} style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>{cat}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {equipment.filter(i => i.cat === cat).map(item => {
+                const isActif = item.actif !== false;
+                return (
+                  <div key={item.id} style={{
+                    display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+                    borderRadius: 9, background: isActif ? C.primaryPale : "var(--surface-2)",
+                    border: `1px solid ${isActif ? C.primary + "40" : "var(--border-c)"}`,
+                    cursor: "pointer", transition: "all 0.15s",
+                  }} onClick={() => toggleActif(item.id)}>
+                    {/* Toggle switch — distinct de la checkbox de la checklist */}
+                    <div style={{
+                      width: 32, height: 18, borderRadius: 9, flexShrink: 0,
+                      background: isActif ? C.primary : "var(--border-c)",
+                      position: "relative", transition: "background 0.2s",
+                    }}>
+                      <div style={{
+                        position: "absolute", top: 2, left: isActif ? 14 : 2,
+                        width: 14, height: 14, borderRadius: "50%", background: "#fff",
+                        transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                      }} />
+                    </div>
+                    <span style={{ fontSize: 13, flex: 1, fontWeight: isActif ? 500 : 400, color: isActif ? "var(--text-c)" : "var(--muted-c)" }}>
+                      {item.label}
+                    </span>
+                    <span style={{ fontSize: 11, color: "var(--muted-c)", opacity: 0.5, cursor: "pointer", padding: "0 4px" }}
+                      onClick={e => { e.stopPropagation(); deleteItem(item.id); }}>✕</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 14, marginTop: 4 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted-c)", marginBottom: 8 }}>Ajouter un item</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <select value={newCat} onChange={e => setNewCat(e.target.value)} style={{ flex: "0 0 auto", fontSize: 13 }}>
+              {cats.map(c => <option key={c}>{c}</option>)}
+              <option value="Autre">Autre</option>
+            </select>
+            <input value={newItem} onChange={e => setNewItem(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && addItem()}
+              placeholder="Ex : Baume à lèvres..."
+              style={{ flex: 1, minWidth: 120, fontSize: 13 }} />
+            <Btn size="sm" onClick={addItem}>Ajouter</Btn>
+          </div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+          <Btn onClick={() => setChecklistModal(false)}>Fermer</Btn>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -2029,7 +2079,7 @@ function NutritionView({ segments, settings, setSettings, race, setRace }) {
   const [prodModal, setProdModal] = useState(false);
   const [editProdId, setEditProdId] = useState(null);
   const [confirmProdId, setConfirmProdId] = useState(null);
-  const emptyProd = { nom: "", par100g: true, poids: "", kcal: "", proteines: "", lipides: "", glucides: "", sodium: "", potassium: "", magnesium: "", zinc: "", calcium: "" };
+  const emptyProd = { nom: "", par100g: true, poids: "", kcal: "", proteines: "", lipides: "", glucides: "", sodium: "", potassium: "", magnesium: "", zinc: "", calcium: "", boisson: false, volumeMl: "" };
   const [prodForm, setProdForm] = useState(emptyProd);
   const updP = (k, v) => setProdForm(f => ({ ...f, [k]: v }));
 
@@ -2046,7 +2096,8 @@ function NutritionView({ segments, settings, setSettings, race, setRace }) {
   // ── Helpers nutrition ──
   const nutriProduit = (prod, qte) => {
     const factor = prod.par100g ? (prod.poids * qte / 100) : qte;
-    return { kcal: Math.round(prod.kcal * factor), glucides: Math.round(prod.glucides * factor), proteines: Math.round(prod.proteines * factor), sodium: Math.round(prod.sodium * factor) };
+    const eauMl = prod.boisson ? ((prod.par100g ? prod.volumeMl * qte / 100 : prod.volumeMl * qte) || 0) : 0;
+    return { kcal: Math.round(prod.kcal * factor), glucides: Math.round(prod.glucides * factor), proteines: Math.round(prod.proteines * factor), sodium: Math.round(prod.sodium * factor), eauMl: Math.round(eauMl) };
   };
 
   const totalPoint = pointKey => {
@@ -2055,14 +2106,14 @@ function NutritionView({ segments, settings, setSettings, race, setRace }) {
       const p = produits.find(x => x.id === produitId);
       if (!p) return acc;
       const n = nutriProduit(p, quantite);
-      return { kcal: acc.kcal + n.kcal, glucides: acc.glucides + n.glucides, proteines: acc.proteines + n.proteines, sodium: acc.sodium + n.sodium };
-    }, { kcal: 0, glucides: 0, proteines: 0, sodium: 0 });
+      return { kcal: acc.kcal + n.kcal, glucides: acc.glucides + n.glucides, proteines: acc.proteines + n.proteines, sodium: acc.sodium + n.sodium, eauMl: acc.eauMl + n.eauMl };
+    }, { kcal: 0, glucides: 0, proteines: 0, sodium: 0, eauMl: 0 });
   };
 
   const totalEmporte = ["depart", ...ravitos.map(r => String(r.id))].reduce((acc, key) => {
     const t = totalPoint(key);
-    return { kcal: acc.kcal + t.kcal, glucides: acc.glucides + t.glucides, proteines: acc.proteines + t.proteines, sodium: acc.sodium + t.sodium };
-  }, { kcal: 0, glucides: 0, proteines: 0, sodium: 0 });
+    return { kcal: acc.kcal + t.kcal, glucides: acc.glucides + t.glucides, proteines: acc.proteines + t.proteines, sodium: acc.sodium + t.sodium, eauMl: acc.eauMl + t.eauMl };
+  }, { kcal: 0, glucides: 0, proteines: 0, sodium: 0, eauMl: 0 });
 
   const setQte = (pointKey, produitId, qte) => {
     const current = planNutrition[pointKey] || [];
@@ -2322,6 +2373,7 @@ function NutritionView({ segments, settings, setSettings, race, setRace }) {
                 { label: "Glucides", besoin: nutriTotals.glucides, emporte: totalEmporte.glucides, unit: "g", color: C.yellow, icon: "🍌" },
                 { label: "Protéines", besoin: null, emporte: totalEmporte.proteines, unit: "g", color: C.primary, icon: "💪" },
                 { label: "Sodium", besoin: nutriTotals.sel, emporte: totalEmporte.sodium, unit: "mg", color: C.green, icon: "🧂" },
+                { label: "Eau (boissons)", besoin: nutriTotals.eau, emporte: totalEmporte.eauMl, unit: "mL", color: C.blue, icon: "💧" },
               ].map(item => {
                 const gap = item.besoin !== null ? item.emporte - item.besoin : null;
                 const pct = item.besoin ? Math.min((item.emporte / item.besoin) * 100, 150) : 100;
@@ -2377,6 +2429,22 @@ function NutritionView({ segments, settings, setSettings, race, setRace }) {
           <Field label="Magnésium (mg)"><input type="number" min={0} value={prodForm.magnesium} onChange={e => updP("magnesium", e.target.value)} /></Field>
           <Field label="Zinc (mg)"><input type="number" min={0} value={prodForm.zinc} onChange={e => updP("zinc", e.target.value)} /></Field>
           <Field label="Calcium (mg)"><input type="number" min={0} value={prodForm.calcium} onChange={e => updP("calcium", e.target.value)} /></Field>
+          <Field label="C'est une boisson" full>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4 }}>
+              <div onClick={() => updP("boisson", !prodForm.boisson)} style={{
+                width: 40, height: 22, borderRadius: 11, cursor: "pointer", transition: "background 0.2s", position: "relative",
+                background: prodForm.boisson ? C.blue : "var(--border-c)", flexShrink: 0,
+              }}>
+                <div style={{ position: "absolute", top: 3, left: prodForm.boisson ? 21 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+              </div>
+              <span style={{ fontSize: 13, color: "var(--muted-c)" }}>Compte dans le total eau</span>
+            </div>
+          </Field>
+          {prodForm.boisson && (
+            <Field label={prodForm.par100g ? "Volume (mL / 100g)" : "Volume par unité (mL)"}>
+              <input type="number" min={0} value={prodForm.volumeMl} onChange={e => updP("volumeMl", e.target.value)} placeholder="Ex : 500" />
+            </Field>
+          )}
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
           <Btn variant="ghost" onClick={() => setProdModal(false)}>Annuler</Btn>
@@ -2391,7 +2459,7 @@ function NutritionView({ segments, settings, setSettings, race, setRace }) {
 
 
 // ─── VUE TEAM ────────────────────────────────────────────────────────────────
-function TeamView({ race, segments, settings, sharedMode, installPrompt, onInstall }) {
+function TeamView({ race, setRace, segments, settings, sharedMode, installPrompt, onInstall }) {
   const [realTimes, setRealTimes] = useState({}); // ravitoId → "HH:MM"
   const [activeRavito, setActiveRavito] = useState(null);
   const [sosActive, setSosActive] = useState(false);
@@ -2621,17 +2689,19 @@ function TeamView({ race, segments, settings, sharedMode, installPrompt, onInsta
             const night    = theoSec ? isNight(adjSec || theoSec) : false;
 
             return (
-              <Card key={rv.id} style={{ borderLeft: `4px solid ${isOpen ? C.primary : C.green}` }}>
+              <Card key={rv.id} style={{ borderLeft: `4px solid ${rv.assistancePresente === false ? C.muted : (isOpen ? C.primary : C.green)}`, opacity: rv.assistancePresente === false ? 0.7 : 1 }}>
                 {/* En-tête ravito */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", cursor: "pointer" }}
-                  onClick={() => setActiveRavito(isOpen ? null : rv.id)}>
-                  <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setActiveRavito(isOpen ? null : rv.id)}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                       <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 18 }}>
                         🥤 {rv.name}
                       </span>
                       <span className="badge badge-sage" style={{ fontSize: 12 }}>km {rv.km}</span>
                       {night && <span style={{ fontSize: 12 }}>🌙</span>}
+                      {rv.assistancePresente === false && (
+                        <span style={{ fontSize: 11, background: "var(--surface-2)", color: "var(--muted-c)", padding: "2px 8px", borderRadius: 6, fontWeight: 600 }}>Autonome</span>
+                      )}
                     </div>
                     <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--muted-c)", flexWrap: "wrap" }}>
                       <span>Théo. <strong style={{ color: "var(--text-c)" }}>{theoSec ? fmtHeure(theoSec) : "--:--"}</strong></span>
@@ -2644,7 +2714,24 @@ function TeamView({ race, segments, settings, sharedMode, installPrompt, onInsta
                       <span>Arrêt {settings.ravitoTimeMin || 3} min</span>
                     </div>
                   </div>
-                  <span style={{ fontSize: 18, color: "var(--muted-c)", marginTop: 2 }}>{isOpen ? "▲" : "▼"}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 2, flexShrink: 0 }}>
+                    {/* Toggle assistance */}
+                    {!sharedMode && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 11, color: "var(--muted-c)" }}>Assistance</span>
+                        <div onClick={e => {
+                          e.stopPropagation();
+                          setRace(r => ({ ...r, ravitos: r.ravitos.map(x => x.id === rv.id ? { ...x, assistancePresente: x.assistancePresente === false ? true : false } : x) }));
+                        }} style={{
+                          width: 36, height: 20, borderRadius: 10, cursor: "pointer", transition: "background 0.2s", position: "relative",
+                          background: rv.assistancePresente === false ? "var(--border-c)" : C.green,
+                        }}>
+                          <div style={{ position: "absolute", top: 2, left: rv.assistancePresente === false ? 2 : 18, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                        </div>
+                      </div>
+                    )}
+                    <span style={{ fontSize: 18, color: "var(--muted-c)", cursor: "pointer" }} onClick={() => setActiveRavito(isOpen ? null : rv.id)}>{isOpen ? "▲" : "▼"}</span>
+                  </div>
                 </div>
 
                 {isOpen && (
@@ -2696,7 +2783,7 @@ function TeamView({ race, segments, settings, sharedMode, installPrompt, onInsta
                     {/* Nutrition à préparer */}
                     <div style={{ padding: "14px 16px", background: "var(--surface-2)", borderRadius: 12 }}>
                       <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 13 }}>À préparer pour ce tronçon</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 12 }}>
                         {[
                           { icon: "💧", label: "Eau", value: nutri.eau >= 1000 ? `${(nutri.eau/1000).toFixed(1)} L` : `${nutri.eau} mL`, color: C.blue },
                           { icon: "🍌", label: "Glucides", value: `${nutri.glucides} g`, color: C.yellow },
@@ -2709,6 +2796,37 @@ function TeamView({ race, segments, settings, sharedMode, installPrompt, onInsta
                           </div>
                         ))}
                       </div>
+                      {/* Produits du plan nutrition */}
+                      {(() => {
+                        const pointKey = String(rv.id);
+                        const items = (race.planNutrition?.[pointKey] || []);
+                        const produits = settings.produits || [];
+                        if (!items.length) return null;
+                        return (
+                          <div>
+                            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--muted-c)", marginBottom: 8 }}>
+                              Ravito à préparer
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                              {items.map(({ produitId, quantite }) => {
+                                const p = produits.find(x => x.id === produitId);
+                                if (!p) return null;
+                                return (
+                                  <div key={produitId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: "var(--surface)", borderRadius: 8, fontSize: 13 }}>
+                                    <span style={{ fontWeight: 600 }}>{p.nom}</span>
+                                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                                      <span style={{ color: "var(--muted-c)", fontSize: 12 }}>× {quantite}</span>
+                                      <span style={{ color: C.red, fontWeight: 600, fontSize: 12 }}>
+                                        {p.par100g ? Math.round(p.kcal * p.poids * quantite / 100) : Math.round(p.kcal * quantite)} kcal
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Notes */}
@@ -3410,7 +3528,7 @@ export default function App() {
           {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} onOpenRepos={() => setReposModal(true)} />}
           {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} />}
           {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} />}
-          {view === "team"        && <TeamView race={race} segments={segments} settings={settings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} />}
+          {view === "team"        && <TeamView race={race} setRace={setRace} segments={segments} settings={settings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} />}
           {view === "courses"     && <MesCoursesView courses={courses} onLoad={loadCourse} onDelete={deleteCourse} onSaveCurrent={() => { saveCourse(); alert("✅ Stratégie sauvegardée dans Mes courses !"); }} race={race} segments={segments} settings={settings} />}
           {view === "parametres"  && <ParamètresView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} />}
         </main>
