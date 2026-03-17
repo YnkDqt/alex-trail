@@ -2489,10 +2489,42 @@ function NutritionView({ segments, settings, setSettings, race, setRace }) {
 
 // ─── VUE TEAM ────────────────────────────────────────────────────────────────
 function TeamView({ race, setRace, segments, setSegments, settings, setSettings, sharedMode, installPrompt, onInstall, onLoadStrategy }) {
-  const [realTimes, setRealTimes] = useState({}); // ravitoId → "HH:MM"
+  const [realTimes, setRealTimes] = useState({});
   const [activeRavito, setActiveRavito] = useState(null);
   const [sosActive, setSosActive] = useState(false);
   const [gpsCoords, setGpsCoords] = useState(null);
+  const [loadModal, setLoadModal] = useState(false);
+  const [loadInput, setLoadInput] = useState("");
+  const [loadError, setLoadError] = useState("");
+
+  const loadFromUrl = () => {
+    setLoadError("");
+    const raw = loadInput.trim();
+    if (!raw) { setLoadError("Colle d'abord le lien."); return; }
+    try {
+      // Extraire le paramètre s= peu importe la forme de l'URL
+      let code = null;
+      // Cas 1 : URL complète avec ?s=
+      if (raw.includes("?s=") || raw.includes("&s=")) {
+        const u = new URL(raw.startsWith("http") ? raw : "https://" + raw);
+        code = u.searchParams.get("s");
+      }
+      // Cas 2 : juste le code Base64 collé directement
+      if (!code && !raw.includes("http") && raw.length > 50) {
+        code = raw;
+      }
+      if (!code) { setLoadError("Lien invalide — colle l'URL complète reçue."); return; }
+      // Nettoyer les caractères parasites (espaces insécables, sauts de ligne WhatsApp...)
+      code = code.replace(/[\s\u00A0\u200B]/g, "");
+      const data = decodeStrategy(code);
+      if (!data) { setLoadError("Impossible de lire la stratégie. Le lien est peut-être tronqué."); return; }
+      onLoadStrategy(data);
+      setLoadModal(false);
+      setLoadInput("");
+    } catch (e) {
+      setLoadError("Lien invalide. Assure-toi de copier l'URL complète.");
+    }
+  };
 
   const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km);
   const { times: passingTimes } = calcPassingTimes(segments, settings.startTime);
@@ -2605,15 +2637,7 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
           <PageTitle sub="Vue assistance — ravitos, horaires, préparation">Team</PageTitle>
           <button onClick={() => {
-            const url = prompt("Colle le lien de stratégie reçu :");
-            if (!url) return;
-            try {
-              const s = new URL(url).searchParams.get("s");
-              if (!s) { alert("Lien invalide — colle l'URL complète."); return; }
-              const data = decodeStrategy(s);
-              if (!data) { alert("Impossible de lire la stratégie. Le lien est peut-être incomplet."); return; }
-              onLoadStrategy(data);
-            } catch { alert("Lien invalide — colle l'URL complète."); }
+            setLoadModal(true);
           }} style={{
             background: C.primaryPale, border: `1px solid ${C.primary}50`,
             color: C.primaryDeep, borderRadius: 14, padding: "10px 16px",
@@ -2668,15 +2692,7 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
 
           {/* Bouton charger stratégie — toujours visible dans Team */}
           <button onClick={() => {
-            const url = prompt("Colle le lien de stratégie reçu :");
-            if (!url) return;
-            try {
-              const s = new URL(url).searchParams.get("s");
-              if (!s) { alert("Lien invalide — colle l'URL complète."); return; }
-              const data = decodeStrategy(s);
-              if (!data) { alert("Impossible de lire la stratégie. Le lien est peut-être incomplet."); return; }
-              onLoadStrategy(data);
-            } catch { alert("Lien invalide — colle l'URL complète."); }
+            setLoadModal(true);
           }} style={{
             background: C.primaryPale, border: `1px solid ${C.primary}50`,
             color: C.primaryDeep, borderRadius: 14, padding: "10px 16px",
@@ -2947,6 +2963,42 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
           </Card>
         );
       })()}
+
+      {/* Modal charger stratégie */}
+      {loadModal && (
+        <div className="modal-overlay" onClick={() => { setLoadModal(false); setLoadError(""); setLoadInput(""); }}>
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+              📋 Charger une stratégie
+            </div>
+            <p style={{ fontSize: 13, color: "var(--muted-c)", marginBottom: 16, lineHeight: 1.6 }}>
+              Colle le lien reçu par WhatsApp ou SMS. Tu peux coller l'URL complète ou juste le code.
+            </p>
+            <textarea
+              value={loadInput}
+              onChange={e => { setLoadInput(e.target.value); setLoadError(""); }}
+              placeholder="https://alex-trail.vercel.app/?s=eyJ..."
+              rows={4}
+              autoFocus
+              style={{
+                width: "100%", fontSize: 12, fontFamily: "monospace",
+                padding: "10px 12px", borderRadius: 10, border: `1px solid ${loadError ? "#B84A3A" : "var(--border-c)"}`,
+                background: "var(--surface-2)", color: "var(--text-c)", resize: "vertical",
+                boxSizing: "border-box",
+              }}
+            />
+            {loadError && (
+              <div style={{ marginTop: 8, fontSize: 12, color: "#B84A3A", fontWeight: 500 }}>
+                ⚠️ {loadError}
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+              <Btn variant="ghost" onClick={() => { setLoadModal(false); setLoadError(""); setLoadInput(""); }}>Annuler</Btn>
+              <Btn onClick={loadFromUrl}>Charger</Btn>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3557,23 +3609,7 @@ export default function App() {
                 <input type="file" accept=".json" style={{ display: "none" }}
                   onChange={e => { if (e.target.files[0]) { loadData(e.target.files[0]); setOnboarding(false); } }} />
               </label>
-              <Btn variant="soft" onClick={() => {
-                const url = prompt("Colle le lien de stratégie reçu :");
-                if (!url) return;
-                try {
-                  const s = new URL(url).searchParams.get("s");
-                  if (!s) { alert("Lien invalide — assure-toi de coller l'URL complète."); return; }
-                  const data = decodeStrategy(s);
-                  if (!data) { alert("Impossible de lire la stratégie. Le lien est peut-être incomplet."); return; }
-                  if (data.race)     setRaceRaw(data.race);
-                  if (data.segments) setSegmentsRaw(data.segments);
-                  if (data.settings) setSettingsRaw({ ...EMPTY_SETTINGS, ...data.settings });
-                  setSharedMode(true);
-                  setOnboarding(false);
-                  setView("team");
-                  idbSave({ race: data.race, segments: data.segments, settings: { ...EMPTY_SETTINGS, ...data.settings } });
-                } catch { alert("Lien invalide — assure-toi de coller l'URL complète."); }
-              }}>🔗 J'ai un lien de stratégie</Btn>
+              <Btn variant="soft" onClick={() => { setOnboarding(false); setView("team"); }}>🔗 J'ai un lien de stratégie</Btn>
               <Btn variant="ghost" onClick={() => { setOnboarding(false); setView("parametres"); }}>⚙️ Configurer d'abord</Btn>
             </div>
           </div>
