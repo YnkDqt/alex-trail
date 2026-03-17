@@ -1928,7 +1928,7 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
 }
 
 // ─── VUE PARAMÈTRES ──────────────────────────────────────────────────────────
-function ParamètresView({ settings, setSettings, race, setRace, segments }) {
+function ParamètresView({ settings, setSettings, race, setRace, segments, isMobile }) {
   const upd = (k, v) => setSettings(s => ({ ...s, [k]: v }));
   const [newItem, setNewItem] = useState("");
   const [newCat, setNewCat]   = useState("Équipement");
@@ -1953,7 +1953,7 @@ function ParamètresView({ settings, setSettings, race, setRace, segments }) {
   return (
     <div className="anim">
       <PageTitle sub="Profil, équipement et calibration">Paramètres du coureur</PageTitle>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
 
         {/* Colonne gauche : profil + dark mode */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -3656,7 +3656,7 @@ export default function App() {
             idbSave({ race: data.race, segments: data.segments, settings: { ...EMPTY_SETTINGS, ...data.settings } });
           }} />}
           {view === "courses"     && <MesCoursesView courses={courses} onLoad={loadCourse} onDelete={deleteCourse} onSaveCurrent={() => { saveCourse(); alert("✅ Stratégie sauvegardée dans Mes courses !"); }} race={race} segments={segments} settings={settings} />}
-          {view === "parametres"  && <ParamètresView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} />}
+          {view === "parametres"  && <ParamètresView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} isMobile={isMobile} />}
         </main>
       </div>
     </>
