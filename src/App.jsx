@@ -2640,34 +2640,32 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
   };
 
   // SOS géoloc
-  const openSmsLink = (url) => {
-    const a = document.createElement("a");
-    a.href = url;
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => document.body.removeChild(a), 500);
-  };
-
   const handleSOS = () => {
     setSosActive(true);
-    const phone = settings.emergencyPhone ? settings.emergencyPhone.replace(/\s/g, "") : "";
-    const smsTarget = phone ? `sms:${phone}` : "sms:";
-    const separator = /iPhone|iPad|iPod/i.test(navigator.userAgent) ? "&" : "?";
+    const share = (msg) => {
+      if (navigator.share) {
+        navigator.share({ title: "🆘 SOS Alex", text: msg }).catch(() => {});
+      } else {
+        navigator.clipboard?.writeText(msg)
+          .then(() => alert("Message SOS copié — colle-le dans ton appli de messagerie."))
+          .catch(() => alert(msg));
+      }
+      setTimeout(() => setSosActive(false), 3000);
+    };
+
     navigator.geolocation?.getCurrentPosition(
       pos => {
         const { latitude, longitude, accuracy } = pos.coords;
         setGpsCoords({ lat: latitude, lon: longitude, acc: Math.round(accuracy) });
-        const msg = `🆘 ALEX SOS — ${settings.name || "Coureur"} a besoin d'aide\nPosition GPS : ${latitude.toFixed(6)}, ${longitude.toFixed(6)} (±${Math.round(accuracy)}m)\nCourse : ${settings.raceName || race.name || "?"}\nhttps://maps.google.com/?q=${latitude},${longitude}`;
-        openSmsLink(`${smsTarget}${separator}body=${encodeURIComponent(msg)}`);
+        const msg = `🆘 SOS — Position de ${settings.name || "coureur"} via l'appli Alex.\n\nJe suis localisé à cet endroit :\nhttps://maps.google.com/?q=${latitude},${longitude}\n(±${Math.round(accuracy)}m)\n\nCourse : ${settings.raceName || race.name || "?"}`;
+        share(msg);
       },
       () => {
-        const msg = `🆘 ALEX SOS — ${settings.name || "Coureur"} a besoin d'aide\nCourse : ${settings.raceName || race.name || "?"}\nPosition GPS non disponible`;
-        openSmsLink(`${smsTarget}${separator}body=${encodeURIComponent(msg)}`);
+        const msg = `🆘 SOS — ${settings.name || "Coureur"} a besoin d'aide.\n\nCourse : ${settings.raceName || race.name || "?"}\nPosition GPS non disponible.`;
+        share(msg);
       },
       { timeout: 8000, enableHighAccuracy: true }
     );
-    setTimeout(() => setSosActive(false), 3000);
   };
 
   const copyAddress = addr => {
