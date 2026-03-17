@@ -2550,13 +2550,11 @@ function NutritionView({ segments, settings, setSettings, race, setRace, isMobil
 
 
 // ─── VUE TEAM ────────────────────────────────────────────────────────────────
-// Ouvre directement l'app Maps installée — geo: sur Android, maps: sur iOS, fallback https
-function mapsUrl(query) {
-  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const isAndroid = /Android/i.test(navigator.userAgent);
-  if (isIOS) return `maps:?q=${encodeURIComponent(query)}`;
-  if (isAndroid) return `geo:0,0?q=${encodeURIComponent(query)}`;
-  return `https://maps.google.com/?q=${encodeURIComponent(query)}`;
+function googleMapsUrl(query) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+function wazeUrl(query) {
+  return `https://waze.com/ul?q=${encodeURIComponent(query)}&navigate=yes`;
 }
 
 function TeamView({ race, setRace, segments, setSegments, settings, setSettings, sharedMode, installPrompt, onInstall, onLoadStrategy, isMobile }) {
@@ -2862,8 +2860,10 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
             <div style={{ padding: "12px 16px", background: "var(--surface-2)", borderRadius: 12, borderLeft: `3px solid ${C.green}` }}>
               <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: C.green, marginBottom: 4 }}>Départ</div>
               <div style={{ fontSize: 13, fontWeight: 500 }}>{race.startAddress}</div>
-              <a href={mapsUrl(race.startAddress)} target="_blank" rel="noreferrer"
-                style={{ fontSize: 11, color: C.blue, marginTop: 4, display: "inline-block" }}>📍 Ouvrir dans Maps</a>
+              <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                <a href={googleMapsUrl(race.startAddress)} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "#fff", background: "#4285F4", borderRadius: 8, padding: "3px 8px", textDecoration: "none", fontWeight: 600 }}>📍 Maps</a>
+                <a href={wazeUrl(race.startAddress)} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "#fff", background: "#05C8F7", borderRadius: 8, padding: "3px 8px", textDecoration: "none", fontWeight: 600 }}>🚗 Waze</a>
+              </div>
             </div>
           )}
           {(race.endAddress || race.sameAddress) && (
@@ -2871,8 +2871,10 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
               <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: C.primary, marginBottom: 4 }}>Arrivée</div>
               <div style={{ fontSize: 13, fontWeight: 500 }}>{race.sameAddress ? race.startAddress : race.endAddress}</div>
               {race.sameAddress && <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>Même lieu que le départ</div>}
-              <a href={mapsUrl(race.sameAddress ? race.startAddress : race.endAddress)} target="_blank" rel="noreferrer"
-                style={{ fontSize: 11, color: C.blue, marginTop: 4, display: "inline-block" }}>📍 Ouvrir dans Maps</a>
+              <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                <a href={googleMapsUrl(race.sameAddress ? race.startAddress : race.endAddress)} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "#fff", background: "#4285F4", borderRadius: 8, padding: "3px 8px", textDecoration: "none", fontWeight: 600 }}>📍 Maps</a>
+                <a href={wazeUrl(race.sameAddress ? race.startAddress : race.endAddress)} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "#fff", background: "#05C8F7", borderRadius: 8, padding: "3px 8px", textDecoration: "none", fontWeight: 600 }}>🚗 Waze</a>
+              </div>
             </div>
           )}
         </div>
@@ -2986,9 +2988,13 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
                             <button onClick={() => copyAddress(rv.address)} style={{ background: "none", border: `1px solid var(--border-c)`, borderRadius: 8, padding: "4px 10px", fontSize: 12, cursor: "pointer", color: "var(--text-c)" }}>
                               📋 Copier
                             </button>
-                            <a href={mapsUrl(rv.address)} target="_blank" rel="noreferrer"
-                              style={{ background: C.primary, color: C.white, border: "none", borderRadius: 8, padding: "4px 10px", fontSize: 12, cursor: "pointer", textDecoration: "none" }}>
-                              🗺️ Maps
+                            <a href={googleMapsUrl(rv.address)} target="_blank" rel="noreferrer"
+                              style={{ background: "#4285F4", color: "#fff", border: "none", borderRadius: 8, padding: "4px 10px", fontSize: 12, cursor: "pointer", textDecoration: "none", fontWeight: 600 }}>
+                              📍 Maps
+                            </a>
+                            <a href={wazeUrl(rv.address)} target="_blank" rel="noreferrer"
+                              style={{ background: "#05C8F7", color: "#fff", border: "none", borderRadius: 8, padding: "4px 10px", fontSize: 12, cursor: "pointer", textDecoration: "none", fontWeight: 600 }}>
+                              🚗 Waze
                             </a>
                           </div>
                         </div>
