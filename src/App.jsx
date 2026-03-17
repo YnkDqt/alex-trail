@@ -960,7 +960,7 @@ function calcPassingTimes(segments, startTime) {
 }
 
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
-function ProfilView({ race, setRace, segments, setSegments, settings, onOpenRepos }) {
+function ProfilView({ race, setRace, segments, setSegments, settings, setSettings, onOpenRepos }) {
   const [gpxError, setGpxError]       = useState(null);
   const [dragging, setDragging]       = useState(false);
   const [hoveredSeg, setHoveredSeg]   = useState(null);
@@ -1237,6 +1237,105 @@ function ProfilView({ race, setRace, segments, setSegments, settings, onOpenRepo
               <span style={{ marginLeft: "auto", fontSize: 12, color: C.primary }}>Modifier dans Stratégie →</span>
             </div>
           )}
+
+          {/* ── BLOCS CONFIGURATION COURSE ── */}
+          {(() => {
+            const updS = (k, v) => setSettings(s => ({ ...s, [k]: v }));
+            const EFFORT_OPTIONS_P = [
+              { key: "comfort", label: "Finisher",   desc: "Terminer sans se cramer — vitesses -12%", color: C.green },
+              { key: "normal",  label: "Chrono",     desc: "Objectif temps réaliste — vitesses normales", color: C.primary },
+              { key: "perf",    label: "Performance", desc: "Repousser les limites — vitesses +8%", color: C.red },
+            ];
+            const PACE_LABELS_P = ["Très positif", "Positif", "Régulier", "Négatif", "Très négatif"];
+            const paceIdx_P = (settings.paceStrategy || 0) + 2;
+            const ravitoCount_P = race.ravitos?.length || 0;
+            const totalRavitoSec_P = ravitoCount_P * (settings.ravitoTimeMin || 3) * 60;
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
+                {/* Course + Météo */}
+                <Card>
+                  <div style={{ fontWeight: 600, marginBottom: 14 }}>Course</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <Field label="Nom de la course">
+                      <input value={settings.raceName || race.name || ""} onChange={e => updS("raceName", e.target.value)} placeholder="Ex : UTMB, TDS..." />
+                    </Field>
+                    <Field label="Heure de départ">
+                      <input type="time" value={settings.startTime || "07:00"} onChange={e => updS("startTime", e.target.value)} />
+                    </Field>
+                    <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12, marginTop: 2 }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Météo</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        <SliderField label="Température" value={settings.tempC} min={-10} max={45} unit="°C" onChange={v => updS("tempC", v)} />
+                        <Toggle label="Pluie" checked={settings.rain} onChange={v => updS("rain", v)} />
+                        <Toggle label="Vent fort" checked={settings.wind} onChange={v => updS("wind", v)} />
+                        <Toggle label="Forte chaleur (> 25°C)" checked={settings.heat} onChange={v => updS("heat", v)} />
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+                {/* Objectif */}
+                <Card>
+                  <div style={{ fontWeight: 600, marginBottom: 14 }}>Objectif</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {EFFORT_OPTIONS_P.map(opt => (
+                      <div key={opt.key} onClick={() => updS("effortTarget", opt.key)} style={{
+                        padding: "12px 14px", borderRadius: 12, cursor: "pointer",
+                        border: `2px solid ${settings.effortTarget === opt.key ? opt.color : "var(--border-c)"}`,
+                        background: settings.effortTarget === opt.key ? opt.color + "18" : "var(--surface-2)",
+                        transition: "all 0.15s",
+                      }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: settings.effortTarget === opt.key ? opt.color : "var(--text-c)" }}>{opt.label}</div>
+                        <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 3 }}>{opt.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+                {/* Gestion effort */}
+                <Card>
+                  <div style={{ fontWeight: 600, marginBottom: 14 }}>Gestion de l'effort</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>Répartition du rythme</span>
+                        <span style={{ fontSize: 12, color: C.primary, fontWeight: 600 }}>{PACE_LABELS_P[paceIdx_P]}</span>
+                      </div>
+                      <input type="range" min={-2} max={2} step={1} value={settings.paceStrategy || 0} onChange={e => updS("paceStrategy", Number(e.target.value))} style={{ width: "100%" }} />
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>
+                        <span>Partir vite</span><span>Partir lentement</span>
+                      </div>
+                      <div style={{ marginTop: 8, padding: "8px 12px", background: "var(--surface-2)", borderRadius: 9, fontSize: 12, color: "var(--muted-c)", lineHeight: 1.5 }}>
+                        {(settings.paceStrategy || 0) < 0 && "Vitesses plus élevées au départ, tu ralentis progressivement."}
+                        {(settings.paceStrategy || 0) === 0 && "Allure régulière tout au long de la course."}
+                        {(settings.paceStrategy || 0) > 0 && "Tu pars conservateur et tu accélères sur la fin — split négatif."}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600 }}>Temps aux ravitos</span>
+                        <span style={{ fontSize: 12, color: C.primary, fontWeight: 600 }}>{settings.ravitoTimeMin || 3} min</span>
+                      </div>
+                      <input type="range" min={1} max={20} step={1} value={settings.ravitoTimeMin || 3} onChange={e => {
+                        const val = Number(e.target.value);
+                        updS("ravitoTimeMin", val);
+                        setSegments(s => s.map(seg =>
+                          seg.type === "ravito" && !(race.ravitos||[]).find(rv => rv.id === seg.ravitoId && rv.dureeMin)
+                            ? { ...seg, dureeMin: val } : seg
+                        ));
+                      }} style={{ width: "100%" }} />
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>
+                        <span>1 min</span><span>20 min</span>
+                      </div>
+                      {ravitoCount_P > 0 && (
+                        <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-c)" }}>
+                          {ravitoCount_P} ravito{ravitoCount_P > 1 ? "s" : ""} × {settings.ravitoTimeMin || 3} min = <strong style={{ color: "var(--text-c)" }}>{fmtTime(totalRavitoSec_P)}</strong> ajoutées
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            );
+          })()}
 
           {/* Ravitos + Segments */}
           <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 20, marginBottom: 24, alignItems: "start" }}>
@@ -1530,105 +1629,8 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
         Stratégie de course
       </PageTitle>
 
-      {!race.gpxPoints?.length && (
-        <div style={{ background: C.yellowPale, border: `1px solid ${C.yellow}40`, borderRadius: 12, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: C.yellow }}>
-          Charge d'abord un fichier GPX dans l'onglet Profil pour le découpage automatique.
-        </div>
-      )}
-
-      {/* ── BLOCS STRATÉGIE ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 28 }}>
-
-        {/* Course + Météo */}
-        <Card>
-          <div style={{ fontWeight: 600, marginBottom: 14 }}>Course</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <Field label="Nom de la course">
-              <input value={settings.raceName || race.name || ""} onChange={e => updS("raceName", e.target.value)} placeholder="Ex : UTMB, TDS..." />
-            </Field>
-            <Field label="Heure de départ">
-              <input type="time" value={settings.startTime || "07:00"} onChange={e => updS("startTime", e.target.value)} />
-            </Field>
-            <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12, marginTop: 2 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>Météo</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <SliderField label="Température" value={settings.tempC} min={-10} max={45} unit="°C" onChange={v => updS("tempC", v)} />
-                <Toggle label="Pluie" checked={settings.rain} onChange={v => updS("rain", v)} />
-                <Toggle label="Vent fort" checked={settings.wind} onChange={v => updS("wind", v)} />
-                <Toggle label="Forte chaleur (> 25°C)" checked={settings.heat} onChange={v => updS("heat", v)} />
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* Objectif */}
-        <Card>
-          <div style={{ fontWeight: 600, marginBottom: 14 }}>Objectif</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {EFFORT_OPTIONS.map(opt => (
-              <div key={opt.key} onClick={() => updS("effortTarget", opt.key)} style={{
-                padding: "12px 14px", borderRadius: 12, cursor: "pointer",
-                border: `2px solid ${settings.effortTarget === opt.key ? opt.color : "var(--border-c)"}`,
-                background: settings.effortTarget === opt.key ? opt.color + "18" : "var(--surface-2)",
-                transition: "all 0.15s",
-              }}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: settings.effortTarget === opt.key ? opt.color : "var(--text-c)" }}>
-                  {opt.label}
-                </div>
-                <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 3 }}>{opt.desc}</div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        {/* Gestion effort */}
-        <Card>
-          <div style={{ fontWeight: 600, marginBottom: 14 }}>Gestion de l'effort</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>Répartition du rythme</span>
-                <span style={{ fontSize: 12, color: C.primary, fontWeight: 600 }}>{PACE_LABELS[paceIdx]}</span>
-              </div>
-              <input type="range" min={-2} max={2} step={1} value={settings.paceStrategy || 0} onChange={e => updS("paceStrategy", Number(e.target.value))} style={{ width: "100%" }} />
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>
-                <span>Partir vite</span><span>Partir lentement</span>
-              </div>
-              <div style={{ marginTop: 8, padding: "8px 12px", background: "var(--surface-2)", borderRadius: 9, fontSize: 12, color: "var(--muted-c)", lineHeight: 1.5 }}>
-                {(settings.paceStrategy || 0) < 0 && "Vitesses plus élevées au départ, tu ralentis progressivement."}
-                {(settings.paceStrategy || 0) === 0 && "Allure régulière tout au long de la course."}
-                {(settings.paceStrategy || 0) > 0 && "Tu pars conservateur et tu accélères sur la fin — split négatif."}
-              </div>
-            </div>
-
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>Temps aux ravitos</span>
-                <span style={{ fontSize: 12, color: C.primary, fontWeight: 600 }}>{settings.ravitoTimeMin || 3} min</span>
-              </div>
-              <input type="range" min={1} max={20} step={1} value={settings.ravitoTimeMin || 3} onChange={e => {
-                const val = Number(e.target.value);
-                updS("ravitoTimeMin", val);
-                // Mettre à jour les segments ravito qui n'ont pas de durée personnalisée
-                setSegments(s => s.map(seg =>
-                  seg.type === "ravito" && !(race.ravitos||[]).find(rv => rv.id === seg.ravitoId && rv.dureeMin)
-                    ? { ...seg, dureeMin: val }
-                    : seg
-                ));
-              }} style={{ width: "100%" }} />
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>
-                <span>1 min</span><span>20 min</span>
-              </div>
-              {ravitoCount > 0 && (
-                <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-c)" }}>
-                  {ravitoCount} ravito{ravitoCount > 1 ? "s" : ""} × {settings.ravitoTimeMin || 3} min = <strong style={{ color: "var(--text-c)" }}>{fmtTime(totalRavitoSec)}</strong> ajoutées
-                </div>
-              )}
-            </div>
-
-          </div>
-        </Card>
+      <div style={{ background: C.primaryPale, border: `1px solid ${C.primary}40`, borderRadius: 12, padding: "10px 16px", marginBottom: 20, fontSize: 13, color: C.primaryDeep }}>
+        Configure ta course dans <strong>Profil de course</strong> — retrouve ici les heures de passage et les segments.
       </div>
 
       {/* ── RÉSULTATS ── */}
@@ -3525,7 +3527,7 @@ export default function App() {
           flex: 1, overflowY: "auto",
           padding: isMobile ? "76px 16px 32px" : "44px 52px",
         }}>
-          {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} onOpenRepos={() => setReposModal(true)} />}
+          {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} />}
           {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} />}
           {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} />}
           {view === "team"        && <TeamView race={race} setRace={setRace} segments={segments} settings={settings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} />}
