@@ -3511,8 +3511,9 @@ export default function App() {
         <label style={{ display: "block" }}>
           <div style={{
             background: "var(--surface-2)", border: "1px solid var(--border-c)",
-            borderRadius: 12, padding: "9px 14px", cursor: "pointer", fontSize: 13,
-            fontWeight: 500, textAlign: "center", color: "var(--text-c)",
+            borderRadius: 12, padding: "10px 14px", cursor: "pointer", fontSize: 13,
+            fontWeight: 500, color: "var(--text-c)",
+            display: "flex", alignItems: "center", gap: 8,
           }}>📂 Charger une stratégie</div>
           <input type="file" accept=".json" style={{ display: "none" }} onChange={e => { if (e.target.files[0]) loadData(e.target.files[0]); }} />
         </label>
@@ -3537,8 +3538,9 @@ export default function App() {
           idbSave({ race: {}, segments: [], settings: newSettings });
         }} style={{
           background: "none", border: `1px solid var(--border-c)`, borderRadius: 12,
-          padding: "9px 14px", cursor: "pointer", fontSize: 13, width: "100%",
-          fontWeight: 500, textAlign: "center", color: "var(--muted-c)",
+          padding: "10px 14px", cursor: "pointer", fontSize: 13, width: "100%",
+          fontWeight: 500, color: "var(--muted-c)",
+          display: "flex", alignItems: "center", gap: 8,
           fontFamily: "'DM Sans', sans-serif", transition: "color 0.2s",
         }}>
           🔄 Nouvelle course
