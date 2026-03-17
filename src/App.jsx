@@ -1120,7 +1120,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
             <KPI label="Distance" value={`${race.totalDistance?.toFixed(1)} km`} icon="📏" />
             <KPI label="D+" value={`${Math.round(race.totalElevPos)} m`} color={C.red} icon="⛰️" />
             <KPI label="D−" value={`${Math.round(race.totalElevNeg)} m`} color={C.blue} icon="🏔️" />
-            <KPI label="Segments" value={segments.length} icon="✂️" />
+            <KPI label="Segments" value={segments.filter(s => s.type !== "ravito" && s.type !== "repos").length} icon="✂️" />
             <KPI label="Temps estimé" value={fmtTime(totalTime + totalRavitoSec + totalReposSec)} color={C.secondary} icon="⏱️" sub="ravitos inclus" />
           </div>
 
@@ -1719,7 +1719,7 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
 
   return (
     <div className="anim">
-      <PageTitle sub={segments.length ? `${segments.length} segments — ${fmtTime(totalWithRavitos)} avec ravitos` : "Définis ta stratégie et génère tes segments"}>
+      <PageTitle sub={segments.length ? `${segments.filter(s => s.type !== "ravito" && s.type !== "repos").length} segments · ${ravitoCount} ravito${ravitoCount>1?"s":""} — ${fmtTime(totalWithRavitos)}` : "Définis ta stratégie et génère tes segments"}>
         Stratégie de course
       </PageTitle>
 
@@ -1767,15 +1767,17 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
                 <thead><tr>
                   <th>#</th><th>De</th><th>À</th><th>Dist.</th><th>Pente</th><th>Terrain</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th>Heure</th><th>Nutrition/h</th><th></th>
                 </tr></thead>
-                <tbody>{segments.map((seg, i) => {
+                <tbody>{(() => {
+                  let segNum = 0;
+                  return segments.map((seg, i) => {
                   // ── Segment ravitaillement ──
                   if (seg.type === "ravito") {
                     const t = passingTimes[i];
                     const night = isNight(t);
                     return (
                       <tr key={seg.id} style={{ background: C.green + "10", cursor: "default" }}>
-                        <td style={{ color: "var(--muted-c)" }}>{i+1}</td>
-                        <td style={{ fontWeight: 600, color: C.green }}>🥤 {seg.label}</td>
+                        <td style={{ color: "var(--muted-c)", fontSize: 16 }}>🥤</td>
+                        <td style={{ fontWeight: 600, color: C.green }}>{seg.label}</td>
                         <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
                         <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>
                           {seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}
@@ -1800,8 +1802,8 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
                     const night = isNight(t);
                     return (
                       <tr key={seg.id} style={{ background: "var(--surface-2)", cursor: "default" }}>
-                        <td style={{ color: "var(--muted-c)" }}>{i+1}</td>
-                        <td style={{ fontWeight: 600, color: C.blue }}>💤 {seg.label}</td>
+                        <td style={{ color: "var(--muted-c)", fontSize: 16 }}>💤</td>
+                        <td style={{ fontWeight: 600, color: C.blue }}>{seg.label}</td>
                         <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
                         <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>
                           {seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}
@@ -1823,6 +1825,7 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
                     );
                   }
                   // ── Segment normal ──
+                  segNum++;
                   const dist = seg.endKm - seg.startKm;
                   const dur  = fmtTime((dist / seg.speedKmh) * 3600);
                   const n    = calcNutrition(seg, settings);
@@ -1832,7 +1835,7 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
                   const night = isNight(t);
                   return (
                     <tr key={seg.id} onClick={() => openEdit(seg)} style={{ cursor: "pointer" }}>
-                      <td style={{ color: "var(--muted-c)" }}>{i+1}</td>
+                      <td style={{ color: "var(--muted-c)" }}>{segNum}</td>
                       <td>{seg.startKm} km</td>
                       <td>{seg.endKm} km</td>
                       <td>{dist.toFixed(1)} km</td>
@@ -1862,7 +1865,8 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
                       </td>
                     </tr>
                   );
-                })}</tbody>
+                  });
+                })()}</tbody>
               </table>
             </div>
           </Card>
@@ -3358,7 +3362,7 @@ export default function App() {
             <div style={{ color: "var(--muted-c)", fontSize: 12 }}>
               {race.totalDistance?.toFixed(1)} km · {Math.round(race.totalElevPos)} m D+
             </div>
-            <div style={{ color: "var(--muted-c)", fontSize: 12 }}>{segments.length} segments</div>
+            <div style={{ color: "var(--muted-c)", fontSize: 12 }}>{segments.filter(s => s.type !== "ravito" && s.type !== "repos").length} segments · {race.ravitos?.length || 0} ravitos</div>
           </div>
         )}
       </nav>
