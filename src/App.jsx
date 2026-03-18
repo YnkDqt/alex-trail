@@ -102,32 +102,100 @@ function fmtPace(speedKmh) {
 function parseGPX(xmlText) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, "text/xml");
-  const trkpts = doc.querySelectorAll("trkpt");
-  const allPts = trkpts.length ? trkpts : doc.querySelectorAll("wpt");
+
+  // ── Nom de la course : <name> ou <n> (variante calculitineraires.fr etc.) ──
+  const nameEl = doc.querySelector("trk > name") || doc.querySelector("trk > n")
+    || doc.querySelector("name") || doc.querySelector("n");
+  const trackName = nameEl?.textContent?.trim() || "";
+
+  // ── Points : fusionner tous les <trkseg> + fallback <wpt> ──────────────────
+  const allTrkpts = Array.from(doc.querySelectorAll("trkseg trkpt"));
+  const allPts = allTrkpts.length ? allTrkpts : Array.from(doc.querySelectorAll("wpt"));
   if (!allPts.length) throw new Error("Aucun point trouvé dans le fichier GPX");
-  const points = [];
+
+  const rawPoints = [];
   allPts.forEach(pt => {
     const lat = parseFloat(pt.getAttribute("lat"));
     const lon = parseFloat(pt.getAttribute("lon"));
+    if (isNaN(lat) || isNaN(lon)) return;
     const eleEl = pt.querySelector("ele");
-    const ele = eleEl ? parseFloat(eleEl.textContent) : 0;
-    if (!isNaN(lat) && !isNaN(lon)) points.push({ lat, lon, ele });
+    const ele = eleEl ? parseFloat(eleEl.textContent) : null;
+    // Filtrer les altitudes aberrantes (> 9000m ou < -500m)
+    const eleClean = (ele !== null && !isNaN(ele) && ele > -500 && ele < 9000) ? ele : null;
+    rawPoints.push({ lat, lon, ele: eleClean });
   });
-  if (points.length < 2) throw new Error("Pas assez de points dans le GPX");
-  let cumDist = 0, totalElevPos = 0, totalElevNeg = 0;
-  const enriched = points.map((pt, i) => {
+
+  if (rawPoints.length < 2) throw new Error("Pas assez de points valides dans le GPX");
+
+  // ── Dédoublonnage : supprimer les points strictement identiques consécutifs ──
+  const deduped = rawPoints.filter((pt, i) => {
+    if (i === 0) return true;
+    const prev = rawPoints[i - 1];
+    return !(pt.lat === prev.lat && pt.lon === prev.lon);
+  });
+
+  // ── Calcul distances cumulées ───────────────────────────────────────────────
+  let cumDist = 0;
+  const withDist = deduped.map((pt, i) => {
     if (i > 0) {
-      const prev = points[i - 1];
+      const prev = deduped[i - 1];
       const dLat = (pt.lat - prev.lat) * Math.PI / 180;
       const dLon = (pt.lon - prev.lon) * Math.PI / 180;
       const a = Math.sin(dLat/2)**2 + Math.cos(prev.lat*Math.PI/180)*Math.cos(pt.lat*Math.PI/180)*Math.sin(dLon/2)**2;
       cumDist += 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      const dEle = pt.ele - prev.ele;
-      if (dEle > 0) totalElevPos += dEle; else totalElevNeg += Math.abs(dEle);
     }
-    return { ...pt, dist: cumDist };
+    return { ...pt, dist: +cumDist.toFixed(4) };
   });
-  return { points: enriched, totalDistance: cumDist, totalElevPos, totalElevNeg };
+
+  // ── Détection GPX sans altitude ─────────────────────────────────────────────
+  const hasEle = withDist.some(pt => pt.ele !== null && pt.ele !== 0);
+  const eleAllZero = !hasEle;
+
+  // ── Calcul dénivelé ─────────────────────────────────────────────────────────
+  let totalElevPos = 0, totalElevNeg = 0;
+  if (!eleAllZero) {
+    withDist.forEach((pt, i) => {
+      if (i === 0) return;
+      const dEle = (pt.ele ?? 0) - (withDist[i-1].ele ?? 0);
+      if (dEle > 0.5) totalElevPos += dEle;
+      else if (dEle < -0.5) totalElevNeg += Math.abs(dEle);
+    });
+  }
+
+  // Remplacer les null par 0 pour les points sans altitude
+  const points = withDist.map(pt => ({ ...pt, ele: pt.ele ?? 0 }));
+
+  return { points, totalDistance: cumDist, totalElevPos, totalElevNeg, trackName, needsElevation: eleAllZero };
+}
+
+// ── Enrichissement altitude via OpenTopoData (SRTM 90m, mondial) ────────────
+async function enrichElevation(points) {
+  const BATCH = 100;
+  const allEles = [];
+
+  for (let i = 0; i < points.length; i += BATCH) {
+    const batch = points.slice(i, i + BATCH);
+    const locs = batch.map(p => `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`).join("|");
+    const res = await fetch(`https://api.opentopodata.org/v1/srtm90m?locations=${locs}`);
+    if (!res.ok) throw new Error(`OpenTopoData HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.status !== "OK") throw new Error("OpenTopoData: " + (data.error || "erreur inconnue"));
+    data.results.forEach(r => allEles.push(r.elevation ?? 0));
+  }
+
+  // Recalculer le dénivelé avec les nouvelles altitudes
+  let totalElevPos = 0, totalElevNeg = 0;
+  const enriched = points.map((pt, i) => {
+    const ele = allEles[i] ?? 0;
+    if (i > 0) {
+      const dEle = ele - (allEles[i-1] ?? 0);
+      if (dEle > 0.5) totalElevPos += dEle;
+      else if (dEle < -0.5) totalElevNeg += Math.abs(dEle);
+    }
+    return { ...pt, ele };
+  });
+
+  return { enriched, totalElevPos, totalElevNeg };
 }
 function buildElevationProfile(points, resolution = 250) {
   if (!points.length) return [];
@@ -915,6 +983,7 @@ function calcPassingTimes(segments, startTime) {
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
 function ProfilView({ race, setRace, segments, setSegments, settings, setSettings, onOpenRepos, isMobile }) {
   const [gpxError, setGpxError]       = useState(null);
+  const [gpxStatus, setGpxStatus]     = useState(null);
   const [dragging, setDragging]       = useState(false);
   const [hoveredSeg, setHoveredSeg]   = useState(null);
   const [ravitoModal, setRavitoModal] = useState(false);
@@ -951,15 +1020,41 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
     }));
   }, [hoveredSeg, profile]);
 
-  const handleGPX = (file) => {
+  const handleGPX = async (file) => {
     if (!file) return;
+    setGpxError(null);
+    setGpxStatus(null);
     const reader = new FileReader();
-    reader.onload = e => {
+    reader.onload = async e => {
       try {
-        const { points, totalDistance, totalElevPos, totalElevNeg } = parseGPX(e.target.result);
+        const parsed = parseGPX(e.target.result);
+        let { points, totalDistance, totalElevPos, totalElevNeg, trackName } = parsed;
+
+        // Mettre à jour le nom de course si trouvé dans le GPX et pas encore défini
+        if (trackName && !settings.raceName) setSettings(s => ({ ...s, raceName: trackName }));
+
+        if (parsed.needsElevation) {
+          setGpxStatus("📡 Altitude non trouvée dans le GPX — récupération via OpenTopoData...");
+          try {
+            const result = await enrichElevation(points);
+            points = result.enriched;
+            totalElevPos = result.totalElevPos;
+            totalElevNeg = result.totalElevNeg;
+            setGpxStatus("✅ Altitude récupérée automatiquement (SRTM 90m)");
+            setTimeout(() => setGpxStatus(null), 4000);
+          } catch (apiErr) {
+            setGpxStatus(null);
+            setGpxError(`⚠️ Ce GPX n'a pas de données d'altitude et la récupération automatique a échoué (${apiErr.message}). Tu peux enrichir ton fichier sur gpx.studio puis le recharger.`);
+            // On continue quand même avec le profil plat
+          }
+        }
+
         setRace(r => ({ ...r, gpxPoints: points, totalDistance, totalElevPos, totalElevNeg }));
         setGpxError(null);
-      } catch(err) { setGpxError(err.message); }
+      } catch(err) {
+        setGpxError(err.message);
+        setGpxStatus(null);
+      }
     };
     reader.readAsText(file);
   };
@@ -1067,6 +1162,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, marginBottom: 8 }}>Glisse ton fichier GPX ici</div>
           <p style={{ color: "var(--muted-c)" }}>ou clique pour sélectionner un fichier .gpx</p>
           {gpxError && <p style={{ color: C.red, marginTop: 12, fontSize: 13 }}>{gpxError}</p>}
+          {gpxStatus && <p style={{ color: gpxStatus.startsWith("✅") ? C.green : C.primary, marginTop: 12, fontSize: 13 }}>{gpxStatus}</p>}
           <input ref={fileRef} type="file" accept=".gpx" style={{ display: "none" }} onChange={e => handleGPX(e.target.files[0])} />
         </div>
       ) : (
@@ -1078,6 +1174,19 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
             <KPI label="Segments" value={segments.filter(s => s.type !== "ravito" && s.type !== "repos").length} icon="✂️" />
             <KPI label="Temps estimé" value={fmtTime(totalTime + totalRavitoSec + totalReposSec)} color={C.secondary} icon="⏱️" sub="ravitos inclus" />
           </div>
+          {gpxStatus && (
+            <div style={{ padding: "8px 14px", borderRadius: 10, marginBottom: 12, fontSize: 13, fontWeight: 500,
+              background: gpxStatus.startsWith("✅") ? C.green + "15" : C.primary + "12",
+              color: gpxStatus.startsWith("✅") ? C.green : C.primaryDeep,
+            }}>
+              {gpxStatus}
+            </div>
+          )}
+          {gpxError && (
+            <div style={{ padding: "8px 14px", borderRadius: 10, marginBottom: 12, fontSize: 13, background: C.red + "12", color: C.red }}>
+              {gpxError}
+            </div>
+          )}
 
           {/* Graphe sticky */}
           <div style={{ position: "sticky", top: 0, zIndex: 10, background: "var(--surface)", paddingBottom: 6, marginBottom: 6 }}>
