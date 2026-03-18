@@ -775,8 +775,12 @@ function exportRecap(race, segments, settings, profile, passingTimes) {
 <div class="page">
   <div class="no-print" style="background:#F0EAE0;border-radius:8px;padding:10px 16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
     <span style="font-size:13px;color:#5A3E2B;font-weight:500;">Récap de course — Alex Trail Strategy</span>
-    <button onclick="window.print()" style="background:#7A5230;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;font-weight:500;">🖨️ Imprimer / PDF</button>
+    <div style="display:flex;gap:8px;">
+      <button onclick="window.print()" style="background:#7A5230;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;font-weight:500;">🖨️ Imprimer / PDF</button>
+      <button id="btn-img" onclick="saveImage()" style="background:#fff;color:#7A5230;border:1px solid #7A5230;border-radius:8px;padding:8px 18px;font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;font-weight:500;">🖼️ Enregistrer image</button>
+    </div>
   </div>
+  <div id="recap-content">
 
   <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:0.5px solid #E0E0E0;margin-bottom:20px;">
     <div>
@@ -836,11 +840,40 @@ function exportRecap(race, segments, settings, profile, passingTimes) {
     </div>
   </div>
 
-  <div class="footer">
+  </div>
+
+  <div class="footer" style="margin-top:0;">
     <span>Généré par Alex — Trail Running Strategy</span>
     <span>alex-trail.vercel.app</span>
   </div>
 </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+function saveImage() {
+  const btn = document.getElementById('btn-img');
+  btn.textContent = '⏳ Génération...';
+  btn.disabled = true;
+  const target = document.getElementById('recap-content');
+  html2canvas(target, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: '#ffffff',
+    logging: false,
+  }).then(canvas => {
+    const a = document.createElement('a');
+    a.download = '${(raceName).replace(/\s+/g, "-").toLowerCase()}-recap.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+    btn.textContent = '🖼️ Enregistrer image';
+    btn.disabled = false;
+  }).catch(() => {
+    btn.textContent = '🖼️ Enregistrer image';
+    btn.disabled = false;
+    alert('Erreur lors de la génération de l\\'image.');
+  });
+}
+</script>
 </body></html>`;
 
   const win = window.open("", "_blank");
