@@ -100,8 +100,14 @@ function fmtPace(speedKmh) {
   return `${m}:${String(s).padStart(2,"0")}`;
 }
 function parseGPX(xmlText) {
+  // Supprimer les namespaces XML qui cassent querySelectorAll
+  // Ex: xmlns="http://www.topografix.com/GPX/1/0" (calculitineraires.fr)
+  const cleaned = xmlText
+    .replace(/ xmlns(:\w+)?="[^"]*"/g, '')
+    .replace(/ xsi:\w+="[^"]*"/g, '');
+
   const parser = new DOMParser();
-  const doc = parser.parseFromString(xmlText, "text/xml");
+  const doc = parser.parseFromString(cleaned, "text/xml");
 
   // ── Nom de la course : <name> ou <n> (variante calculitineraires.fr etc.) ──
   const nameEl = doc.querySelector("trk > name") || doc.querySelector("trk > n")
