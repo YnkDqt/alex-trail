@@ -176,14 +176,29 @@ async function enrichElevation(points) {
   for (let i = 0; i < points.length; i += BATCH) {
     const batch = points.slice(i, i + BATCH);
     const locs = batch.map(p => `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`).join("|");
-    const res = await fetch(`https://api.opentopodata.org/v1/srtm90m?locations=${locs}`);
-    if (!res.ok) throw new Error(`OpenTopoData HTTP ${res.status}`);
-    const data = await res.json();
-    if (data.status !== "OK") throw new Error("OpenTopoData: " + (data.error || "erreur inconnue"));
+
+    // Timeout de 10 secondes par batch
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    let data;
+    try {
+      const res = await fetch(
+        `https://api.opentopodata.org/v1/srtm90m?locations=${locs}`,
+        { signal: controller.signal }
+      );
+      clearTimeout(timeout);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      data = await res.json();
+      if (data.status !== "OK") throw new Error(data.error || "réponse invalide");
+    } catch (err) {
+      clearTimeout(timeout);
+      throw new Error(`OpenTopoData inaccessible — ${err.message}`);
+    }
+
     data.results.forEach(r => allEles.push(r.elevation ?? 0));
   }
 
-  // Recalculer le dénivelé avec les nouvelles altitudes
   let totalElevPos = 0, totalElevNeg = 0;
   const enriched = points.map((pt, i) => {
     const ele = allEles[i] ?? 0;
@@ -1020,41 +1035,42 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
     }));
   }, [hoveredSeg, profile]);
 
-  const handleGPX = async (file) => {
+  const handleGPX = (file) => {
     if (!file) return;
     setGpxError(null);
     setGpxStatus(null);
+
     const reader = new FileReader();
-    reader.onload = async e => {
-      try {
-        const parsed = parseGPX(e.target.result);
-        let { points, totalDistance, totalElevPos, totalElevNeg, trackName } = parsed;
+    reader.onload = e => {
+      const process = async () => {
+        try {
+          const parsed = parseGPX(e.target.result);
+          let { points, totalDistance, totalElevPos, totalElevNeg, trackName } = parsed;
 
-        // Mettre à jour le nom de course si trouvé dans le GPX et pas encore défini
-        if (trackName && !settings.raceName) setSettings(s => ({ ...s, raceName: trackName }));
+          if (trackName && !settings.raceName) setSettings(s => ({ ...s, raceName: trackName }));
 
-        if (parsed.needsElevation) {
-          setGpxStatus("📡 Altitude non trouvée dans le GPX — récupération via OpenTopoData...");
-          try {
-            const result = await enrichElevation(points);
-            points = result.enriched;
-            totalElevPos = result.totalElevPos;
-            totalElevNeg = result.totalElevNeg;
-            setGpxStatus("✅ Altitude récupérée automatiquement (SRTM 90m)");
-            setTimeout(() => setGpxStatus(null), 4000);
-          } catch (apiErr) {
-            setGpxStatus(null);
-            setGpxError(`⚠️ Ce GPX n'a pas de données d'altitude et la récupération automatique a échoué (${apiErr.message}). Tu peux enrichir ton fichier sur gpx.studio puis le recharger.`);
-            // On continue quand même avec le profil plat
+          if (parsed.needsElevation) {
+            setGpxStatus("📡 Altitude absente — récupération en cours...");
+            try {
+              const result = await enrichElevation(points);
+              points = result.enriched;
+              totalElevPos = result.totalElevPos;
+              totalElevNeg = result.totalElevNeg;
+              setGpxStatus("✅ Altitude récupérée (SRTM 90m)");
+              setTimeout(() => setGpxStatus(null), 4000);
+            } catch (apiErr) {
+              setGpxStatus(null);
+              setGpxError(`⚠️ GPX sans altitude — récupération impossible (${apiErr.message}). Enrichis ton fichier sur gpx.studio puis recharge-le.`);
+            }
           }
-        }
 
-        setRace(r => ({ ...r, gpxPoints: points, totalDistance, totalElevPos, totalElevNeg }));
-        setGpxError(null);
-      } catch(err) {
-        setGpxError(err.message);
-        setGpxStatus(null);
-      }
+          setRace(r => ({ ...r, gpxPoints: points, totalDistance, totalElevPos, totalElevNeg }));
+        } catch (err) {
+          setGpxError(err.message);
+          setGpxStatus(null);
+        }
+      };
+      process();
     };
     reader.readAsText(file);
   };
