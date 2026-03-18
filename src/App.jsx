@@ -176,33 +176,55 @@ function parseGPX(xmlText) {
 
 // ── Enrichissement altitude via OpenTopoData (SRTM 90m, mondial) ────────────
 async function enrichElevation(points) {
-  const BATCH = 100;
+  const BATCH = 200;
   const allEles = [];
 
   for (let i = 0; i < points.length; i += BATCH) {
     const batch = points.slice(i, i + BATCH);
-    const locs = batch.map(p => `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`).join("|");
 
-    // Timeout de 10 secondes par batch
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-
-    let data;
+    // API 1 : elevation.racemap.com — CORS activé, conçue pour navigateurs
     try {
-      const res = await fetch(
-        `https://api.opentopodata.org/v1/srtm90m?locations=${locs}`,
-        { signal: controller.signal }
-      );
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      const res = await fetch('https://elevation.racemap.com/api/elevation/v1', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(batch.map(p => [p.lat, p.lon])),
+        signal: controller.signal,
+      });
       clearTimeout(timeout);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      data = await res.json();
-      if (data.status !== "OK") throw new Error(data.error || "réponse invalide");
-    } catch (err) {
-      clearTimeout(timeout);
-      throw new Error(`OpenTopoData inaccessible — ${err.message}`);
-    }
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length === batch.length) {
+          data.forEach(ele => allEles.push(typeof ele === 'number' ? ele : 0));
+          continue;
+        }
+      }
+    } catch {}
 
-    data.results.forEach(r => allEles.push(r.elevation ?? 0));
+    // API 2 : open-elevation.com — fallback
+    try {
+      const controller2 = new AbortController();
+      const timeout2 = setTimeout(() => controller2.abort(), 12000);
+      const body = { locations: batch.map(p => ({ latitude: p.lat, longitude: p.lon })) };
+      const res2 = await fetch('https://api.open-elevation.com/api/v1/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller2.signal,
+      });
+      clearTimeout(timeout2);
+      if (res2.ok) {
+        const data2 = await res2.json();
+        if (data2.results?.length === batch.length) {
+          data2.results.forEach(r => allEles.push(r.elevation ?? 0));
+          continue;
+        }
+      }
+    } catch {}
+
+    // Les deux APIs ont échoué
+    throw new Error("APIs d'élévation inaccessibles depuis ce réseau");
   }
 
   let totalElevPos = 0, totalElevNeg = 0;
