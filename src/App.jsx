@@ -1253,6 +1253,16 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
             const fetchMeteo = async () => {
               const pt = race.gpxPoints?.[0];
               if (!pt) { alert("Charge d'abord un fichier GPX pour obtenir la météo automatique."); return; }
+
+              // Vérifier la distance en jours
+              if (settings.raceDate) {
+                const daysAway = Math.round((new Date(settings.raceDate) - new Date()) / 86400000);
+                if (daysAway > 14) {
+                  alert(`Ta course est dans ${daysAway} jours.\n\nLes prévisions météo ne sont pas disponibles au-delà de 14 jours. Reviens à J-14 pour obtenir une météo indicative, ou à J-7 pour une météo fiable.`);
+                  return;
+                }
+              }
+
               updS("meteoLoading", true);
               try {
                 // Calcul de la fenêtre horaire : date de course + heure de départ + durée estimée
@@ -1357,16 +1367,52 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                       {settings.meteoLoading ? "⏳ Chargement..." : "⛅ Météo auto"}
                     </button>
                   </div>
-                  {settings.meteoFetched && settings.meteoInfo && (
-                    <div style={{ fontSize: 11, color: C.green, marginBottom: 12, padding: "6px 10px", background: C.green + "12", borderRadius: 8 }}>
-                      ✓ {settings.meteoInfo}
-                    </div>
-                  )}
-                  {!settings.meteoFetched && (
-                    <div style={{ fontSize: 12, color: "var(--muted-c)", marginBottom: 12, lineHeight: 1.5 }}>
-                      Configure la date et l'heure de départ, puis clique sur "Météo auto" pour récupérer les prévisions sur ton parcours.
-                    </div>
-                  )}
+                  {settings.meteoFetched && settings.meteoInfo && (() => {
+                    const daysAway = settings.raceDate
+                      ? Math.round((new Date(settings.raceDate) - new Date()) / 86400000)
+                      : null;
+                    const isUnreliable = daysAway !== null && daysAway > 7;
+                    return (
+                      <>
+                        <div style={{ fontSize: 11, color: isUnreliable ? C.yellow : C.green, marginBottom: 8, padding: "6px 10px", background: (isUnreliable ? C.yellow : C.green) + "12", borderRadius: 8 }}>
+                          {isUnreliable ? "⚠️" : "✓"} {settings.meteoInfo}
+                        </div>
+                        {isUnreliable && (
+                          <div style={{ fontSize: 11, color: C.yellow, marginBottom: 12, padding: "6px 10px", background: C.yellow + "12", borderRadius: 8, lineHeight: 1.5 }}>
+                            Ta course est dans <strong>{daysAway} jours</strong>. Les prévisions entre J-7 et J-14 sont indicatives — reviens à J-7 pour une météo fiable.
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                  {!settings.meteoFetched && (() => {
+                    const daysAway = settings.raceDate
+                      ? Math.round((new Date(settings.raceDate) - new Date()) / 86400000)
+                      : null;
+                    const zone = daysAway === null ? "nodate"
+                      : daysAway > 14 ? "tooFar"
+                      : daysAway > 7  ? "indicative"
+                      : "reliable";
+                    return (
+                      <div style={{ fontSize: 12, color: "var(--muted-c)", marginBottom: 12, lineHeight: 1.6 }}>
+                        {zone === "nodate" && `Configure la date et l'heure de départ, puis clique sur "Météo auto" pour récupérer les prévisions sur ton parcours.`}
+                        {zone === "tooFar" && (
+                          <span style={{ color: C.red }}>
+                            ⛔ Ta course est dans <strong>{daysAway} jours</strong> — la météo auto n'est pas disponible au-delà de J-14. Reviens plus proche de la date.
+                          </span>
+                        )}
+                        {zone === "indicative" && (
+                          <>
+                            Clique sur "Météo auto" pour obtenir des prévisions indicatives.
+                            <span style={{ display: "block", marginTop: 6, color: C.yellow, fontSize: 11 }}>
+                              ⚠️ Ta course est dans <strong>{daysAway} jours</strong> — les prévisions seront fiables à partir de J-7.
+                            </span>
+                          </>
+                        )}
+                        {zone === "reliable" && `Clique sur "Météo auto" pour récupérer les prévisions sur ton parcours.`}
+                      </div>
+                    );
+                  })()}
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     <SliderField label="Température" value={settings.tempC} min={-30} max={45} unit="°C" onChange={v => updS("tempC", v)} />
                     <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
