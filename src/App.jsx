@@ -100,11 +100,14 @@ function fmtPace(speedKmh) {
   return `${m}:${String(s).padStart(2,"0")}`;
 }
 function parseGPX(xmlText) {
-  // Supprimer les namespaces XML qui cassent querySelectorAll
-  // Ex: xmlns="http://www.topografix.com/GPX/1/0" (calculitineraires.fr)
+  // Supprimer TOUS les namespaces XML — ils cassent querySelectorAll
+  // Cas 1: xmlns="url" ou xmlns="" sur n'importe quel élément (togpx, OS Maps...)
+  // Cas 2: xmlns:prefix="url" (namespaces préfixés)
+  // Cas 3: xsi:schemaLocation et autres attributs xsi:*
   const cleaned = xmlText
-    .replace(/ xmlns(:\w+)?="[^"]*"/g, '')
-    .replace(/ xsi:\w+="[^"]*"/g, '');
+    .replace(/ xmlns(:\w+)?="[^"]*"/g, '')  // xmlns="url" et xmlns:prefix="url"
+    .replace(/ xmlns=""/g, '')               // xmlns="" (valeur vide sur sous-éléments)
+    .replace(/ xsi:\w+(?::\w+)?="[^"]*"/g, ''); // xsi:* attributs
 
   const parser = new DOMParser();
   const doc = parser.parseFromString(cleaned, "text/xml");
