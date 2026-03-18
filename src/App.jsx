@@ -1055,6 +1055,121 @@ function isNight(sec) {
   const h = Math.floor(((sec % 86400) + 86400) % 86400 / 3600);
   return h >= 21 || h < 6;
 }
+// ─── EXPORT GPX MONTRE ───────────────────────────────────────────────────────
+function exportGPXMontre(race, segments, settings, passingTimes) {
+  const raceName = settings.raceName || race.name || "Ma Course";
+  const points   = race.gpxPoints || [];
+  const ravitos  = [...(race.ravitos || [])].sort((a, b) => a.km - b.km);
+
+  const fmtH = sec => {
+    if (!sec) return "--:--";
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+    return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+  };
+
+  // ── Tracé GPS ──────────────────────────────────────────────────────────────
+  const trkpts = points.map(p =>
+    `    <trkpt lat="${p.lat.toFixed(6)}" lon="${p.lon.toFixed(6)}"><ele>${p.ele.toFixed(1)}</ele></trkpt>`
+  ).join("\n");
+
+  // ── Waypoints : départ, ravitos (avec détail nutrition), arrivée ───────────
+  const wpts = [];
+
+  // Départ
+  if (points.length > 0) {
+    const p0 = points[0];
+    const startHM = settings.startTime || "07:00";
+    wpts.push(`<wpt lat="${p0.lat.toFixed(6)}" lon="${p0.lon.toFixed(6)}">
+  <name>Départ</name>
+  <desc>Départ : ${startHM} — ${raceName}</desc>
+  <sym>Flag, Blue</sym>
+  <type>user</type>
+</wpt>`);
+  }
+
+  // Ravitos
+  ravitos.forEach(rv => {
+    // Trouver le point GPX le plus proche du km du ravito
+    const targetKm = rv.km;
+    let closest = points[0];
+    let minDiff = Infinity;
+    for (const p of points) {
+      const diff = Math.abs(p.dist - targetKm);
+      if (diff < minDiff) { minDiff = diff; closest = p; }
+    }
+
+    // Heure de passage
+    const ravitoSeg = segments.find(s => s.type === "ravito" && s.ravitoId === rv.id);
+    const segIdx = ravitoSeg ? segments.indexOf(ravitoSeg) : -1;
+    const passingTime = segIdx >= 0 ? passingTimes[segIdx] : null;
+    const heureStr = passingTime ? fmtH(passingTime) : "--:--";
+    const duree = rv.dureeMin || settings.ravitoTimeMin || 3;
+
+    // Produits nutrition
+    const produits = settings.produits || [];
+    const plan = (settings.planNutrition || {})[rv.id] || {};
+    const nutrition = Object.entries(plan)
+      .filter(([, q]) => q > 0)
+      .map(([id, q]) => {
+        const p = produits.find(p => String(p.id) === String(id));
+        return p ? `${p.nom} x${q}` : null;
+      }).filter(Boolean).join(", ");
+
+    const desc = [
+      `Arrivée : ${heureStr}`,
+      `Arrêt : ${duree} min`,
+      nutrition ? `Nutrition : ${nutrition}` : null,
+      rv.address ? `Lieu : ${rv.address}` : null,
+    ].filter(Boolean).join(" | ");
+
+    wpts.push(`<wpt lat="${closest.lat.toFixed(6)}" lon="${closest.lon.toFixed(6)}">
+  <name>${rv.name} — km ${rv.km}</name>
+  <desc>${desc}</desc>
+  <sym>Food</sym>
+  <type>user</type>
+</wpt>`);
+  });
+
+  // Arrivée
+  if (points.length > 0) {
+    const pEnd = points[points.length - 1];
+    const lastTime = passingTimes[passingTimes.length - 1];
+    wpts.push(`<wpt lat="${pEnd.lat.toFixed(6)}" lon="${pEnd.lon.toFixed(6)}">
+  <name>Arrivée</name>
+  <desc>Arrivée estimée : ${fmtH(lastTime)} — ${raceName}</desc>
+  <sym>Flag, Green</sym>
+  <type>user</type>
+</wpt>`);
+  }
+
+  // ── GPX final ──────────────────────────────────────────────────────────────
+  const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Alex — Trail Running Strategy"
+  xmlns="http://www.topografix.com/GPX/1/1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>${raceName}</name>
+    <desc>Stratégie exportée depuis Alex — Trail Running Strategy</desc>
+  </metadata>
+${wpts.join("\n")}
+  <trk>
+    <name>${raceName}</name>
+    <trkseg>
+${trkpts}
+    </trkseg>
+  </trk>
+</gpx>`;
+
+  const blob = new Blob([gpx], { type: "application/gpx+xml;charset=utf-8" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.download = `${raceName.replace(/\s+/g, "-").toLowerCase()}-strategie.gpx`;
+  a.href = url;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function calcPassingTimes(segments, startTime) {
   const parts = (startTime || "07:00").split(":").map(Number);
   const startSec = parts[0] * 3600 + (parts[1] || 0) * 60;
@@ -1235,6 +1350,15 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
               const { times: passingTimes } = calcPassingTimes(segments, settings.startTime);
               exportRecap(race, segments, settings, profile, passingTimes);
             }}>📄 Récap course</Btn>
+            <Btn size="sm" variant="soft" onClick={() => {
+              const { times: passingTimes } = calcPassingTimes(segments, settings.startTime);
+              exportGPXMontre(race, segments, settings, passingTimes);
+            }}>📡 Export montre</Btn>
+            <Btn size="sm" variant="soft" style={{ opacity: 0.5, cursor: "default", position: "relative" }}
+              title="Disponible prochainement — export optimisé pour Garmin avec alertes de pace"
+              onClick={() => alert("🏅 Fonctionnalité Premium\n\nL'export Garmin FIT avec alertes de pace par segment arrive prochainement.\n\nL'export GPX universel est déjà disponible avec le bouton « Export montre ».")}>
+              🎯 Garmin FIT <span style={{ fontSize: 9, background: C.primary, color: "#fff", borderRadius: 4, padding: "1px 5px", marginLeft: 4, verticalAlign: "middle" }}>Premium</span>
+            </Btn>
           </div>
         )}
       </div>
