@@ -133,6 +133,30 @@ function parseGPX(xmlText) {
 
   if (rawPoints.length < 2) throw new Error("Pas assez de points valides dans le GPX");
 
+  // ── Interpolation des altitudes manquantes (null) ──────────────────────────
+  // Cherche le voisin avant et après avec altitude connue, interpole linéairement
+  for (let i = 0; i < rawPoints.length; i++) {
+    if (rawPoints[i].ele !== null) continue;
+    // Trouver le précédent avec altitude
+    let prevIdx = i - 1;
+    while (prevIdx >= 0 && rawPoints[prevIdx].ele === null) prevIdx--;
+    // Trouver le suivant avec altitude
+    let nextIdx = i + 1;
+    while (nextIdx < rawPoints.length && rawPoints[nextIdx].ele === null) nextIdx++;
+
+    if (prevIdx >= 0 && nextIdx < rawPoints.length) {
+      // Interpolation linéaire
+      const ratio = (i - prevIdx) / (nextIdx - prevIdx);
+      rawPoints[i].ele = rawPoints[prevIdx].ele + ratio * (rawPoints[nextIdx].ele - rawPoints[prevIdx].ele);
+    } else if (prevIdx >= 0) {
+      rawPoints[i].ele = rawPoints[prevIdx].ele;
+    } else if (nextIdx < rawPoints.length) {
+      rawPoints[i].ele = rawPoints[nextIdx].ele;
+    } else {
+      rawPoints[i].ele = 0;
+    }
+  }
+
   // ── Dédoublonnage : supprimer les points strictement identiques consécutifs ──
   const deduped = rawPoints.filter((pt, i) => {
     if (i === 0) return true;
