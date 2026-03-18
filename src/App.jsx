@@ -182,18 +182,29 @@ function parseGPX(xmlText) {
   const eleAllZero = !hasEle;
 
   // ── Calcul dénivelé ─────────────────────────────────────────────────────────
+  // Lissage par moyenne mobile (fenêtre 5) pour réduire le bruit GPS natif
+  const SMOOTH = 5;
+  const eles = withDist.map(pt => pt.ele ?? 0);
+  const smoothedEles = eles.map((_, i) => {
+    const half = Math.floor(SMOOTH / 2);
+    const start = Math.max(0, i - half);
+    const end = Math.min(eles.length - 1, i + half);
+    const sl = eles.slice(start, end + 1);
+    return sl.reduce((a, b) => a + b, 0) / sl.length;
+  });
+
   let totalElevPos = 0, totalElevNeg = 0;
   if (!eleAllZero) {
-    withDist.forEach((pt, i) => {
+    smoothedEles.forEach((ele, i) => {
       if (i === 0) return;
-      const dEle = (pt.ele ?? 0) - (withDist[i-1].ele ?? 0);
+      const dEle = ele - smoothedEles[i-1];
       if (dEle > 0.5) totalElevPos += dEle;
       else if (dEle < -0.5) totalElevNeg += Math.abs(dEle);
     });
   }
 
-  // Remplacer les null par 0 pour les points sans altitude
-  const points = withDist.map(pt => ({ ...pt, ele: pt.ele ?? 0 }));
+  // Appliquer les altitudes lissées aux points
+  const points = withDist.map((pt, i) => ({ ...pt, ele: smoothedEles[i] }));
 
   return { points, totalDistance: cumDist, totalElevPos, totalElevNeg, trackName, needsElevation: eleAllZero };
 }
@@ -251,11 +262,22 @@ async function enrichElevation(points) {
     throw new Error("APIs d'élévation inaccessibles depuis ce réseau");
   }
 
+  // Lissage par moyenne mobile (fenêtre de 5) pour réduire le bruit SRTM 90m
+  // Sans lissage, les micro-variations s'accumulent et gonflent le D+
+  const SMOOTH = 5;
+  const smoothed = allEles.map((_, i) => {
+    const half = Math.floor(SMOOTH / 2);
+    const start = Math.max(0, i - half);
+    const end = Math.min(allEles.length - 1, i + half);
+    const slice = allEles.slice(start, end + 1);
+    return slice.reduce((a, b) => a + b, 0) / slice.length;
+  });
+
   let totalElevPos = 0, totalElevNeg = 0;
   const enriched = points.map((pt, i) => {
-    const ele = allEles[i] ?? 0;
+    const ele = smoothed[i] ?? 0;
     if (i > 0) {
-      const dEle = ele - (allEles[i-1] ?? 0);
+      const dEle = ele - (smoothed[i-1] ?? 0);
       if (dEle > 0.5) totalElevPos += dEle;
       else if (dEle < -0.5) totalElevNeg += Math.abs(dEle);
     }
