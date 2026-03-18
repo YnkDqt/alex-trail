@@ -629,314 +629,227 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 // ─── EXPORT FOND D'ÉCRAN (1080×1920) ─────────────────────────────────────────
-function exportWallpaper(race, segments, settings, profile) {
-  const W = 1080, H = 1920;
-  const canvas = document.createElement("canvas");
-  canvas.width = W; canvas.height = H;
-  const ctx = canvas.getContext("2d");
+function exportRecap(race, segments, settings, profile, passingTimes) {
+  const raceName    = settings.raceName || race.name || "Ma Course";
+  const raceDate    = settings.raceDate || "";
+  const startTime   = settings.startTime || "07:00";
+  const segsNormaux = segments.filter(s => s.type !== "ravito" && s.type !== "repos");
+  const ravitos     = [...(race.ravitos || [])].sort((a, b) => a.km - b.km);
+  const totalSec    = segsNormaux.reduce((s, seg) => s + (seg.speedKmh > 0 ? (seg.endKm - seg.startKm) / seg.speedKmh * 3600 : 0), 0);
+  const ravitoSec   = ravitos.reduce((s, rv) => s + ((rv.dureeMin || settings.ravitoTimeMin || 3) * 60), 0);
+  const totalWithRavitos = totalSec + ravitoSec;
+  const nutriTotals = segsNormaux.reduce((acc, seg) => {
+    const n = calcNutrition(seg, settings);
+    const dH = seg.speedKmh > 0 ? (seg.endKm - seg.startKm) / seg.speedKmh : 0;
+    return { kcal: acc.kcal + n.kcal, eau: acc.eau + Math.round(n.eauH * dH), glucides: acc.glucides + Math.round(n.glucidesH * dH), sel: acc.sel + Math.round(n.selH * dH) };
+  }, { kcal: 0, eau: 0, glucides: 0, sel: 0 });
 
-  // Fond dégradé sombre trail
-  const bg = ctx.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0,   "#0E0B08");
-  bg.addColorStop(0.5, "#1A1108");
-  bg.addColorStop(1,   "#0A0806");
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-
-  // Texture grain subtile
-  for (let i = 0; i < 4000; i++) {
-    ctx.fillStyle = `rgba(255,220,160,${Math.random() * 0.025})`;
-    ctx.fillRect(Math.random() * W, Math.random() * H, 1, 1);
-  }
-
-  // Ligne déco haut
-  ctx.strokeStyle = C.primary + "60"; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(60, 80); ctx.lineTo(W - 60, 80); ctx.stroke();
-
-  // Titre course
-  const raceName = settings.raceName || race.name || "MA COURSE";
-  ctx.fillStyle = C.primaryLight;
-  ctx.font = "bold 68px 'Georgia', serif";
-  ctx.textAlign = "center";
-  ctx.letterSpacing = "4px";
-  ctx.fillText(raceName.toUpperCase(), W / 2, 140);
-
-  // Sous-titre
-  ctx.fillStyle = "#9A8870";
-  ctx.font = "28px 'Georgia', serif";
-  ctx.fillText(`${race.totalDistance?.toFixed(0)} km · ${Math.round(race.totalElevPos)} m D+`, W / 2, 190);
-
-  // Ligne déco
-  ctx.strokeStyle = C.primary + "40"; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(60, 215); ctx.lineTo(W - 60, 215); ctx.stroke();
-
-  // ── Profil altimétrique ──
-  if (profile.length > 1) {
-    const chartX = 60, chartY = 240, chartW = W - 120, chartH = 260;
+  // ─── Profil altimétrique SVG ─────────────────────────────────────────────
+  const svgProfile = (() => {
+    if (!profile.length) return "<p style=\"color:#888;font-size:12px;\">Profil non disponible</p>";
+    const W = 700, H = 100;
     const minE = Math.min(...profile.map(p => p.ele));
     const maxE = Math.max(...profile.map(p => p.ele));
-    const totalDist = profile[profile.length - 1].dist;
-    const px = d => chartX + (d / totalDist) * chartW;
-    const py = e => chartY + chartH - ((e - minE) / (maxE - minE || 1)) * chartH;
+    const maxD = profile[profile.length - 1].dist;
+    const px = d => (d / maxD) * W;
+    const py = e => H - ((e - minE) / (maxE - minE + 1)) * (H - 10) - 4;
+    const pts = profile.map(p => `${px(p.dist).toFixed(1)},${py(p.ele).toFixed(1)}`).join(" ");
+    const fill = profile.map(p => `${px(p.dist).toFixed(1)},${py(p.ele).toFixed(1)}`).join(" ")
+      + ` ${px(maxD).toFixed(1)},${H} 0,${H}`;
 
-    // Remplissage dégradé sous la courbe
-    const grad = ctx.createLinearGradient(0, chartY, 0, chartY + chartH);
-    grad.addColorStop(0, C.primary + "70");
-    grad.addColorStop(1, C.primary + "00");
-    ctx.beginPath();
-    ctx.moveTo(px(profile[0].dist), chartY + chartH);
-    profile.forEach(p => ctx.lineTo(px(p.dist), py(p.ele)));
-    ctx.lineTo(px(profile[profile.length - 1].dist), chartY + chartH);
-    ctx.closePath();
-    ctx.fillStyle = grad; ctx.fill();
+    const ravitoLines = ravitos.map(rv => {
+      const x = px(rv.km).toFixed(1);
+      return `<line x1="${x}" y1="2" x2="${x}" y2="${H}" stroke="#2D7A4F" stroke-width="1" stroke-dasharray="3,2"/>
+              <text x="${(+x + 3).toFixed(1)}" y="12" font-size="9" fill="#2D7A4F" font-family="sans-serif">${rv.name.charAt(0)}</text>`;
+    }).join("");
 
-    // Courbe principale
-    ctx.beginPath();
-    profile.forEach((p, i) => i === 0 ? ctx.moveTo(px(p.dist), py(p.ele)) : ctx.lineTo(px(p.dist), py(p.ele)));
-    ctx.strokeStyle = C.primaryLight; ctx.lineWidth = 3; ctx.stroke();
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block;margin:8px 0;">
+      <polygon points="${fill}" fill="#9A6B4B22"/>
+      <polyline points="${pts}" fill="none" stroke="#9A6B4B" stroke-width="2"/>
+      ${ravitoLines}
+    </svg>`;
+  })();
 
-    // Points ravitos
-    (race.ravitos || []).forEach(rv => {
-      const x = px(rv.km);
-      ctx.beginPath(); ctx.arc(x, py(profile.find(p => Math.abs(p.dist - rv.km) < 0.5)?.ele || minE), 7, 0, Math.PI * 2);
-      ctx.fillStyle = C.green; ctx.fill();
-      ctx.fillStyle = "#fff"; ctx.font = "bold 18px sans-serif"; ctx.textAlign = "center";
-      ctx.fillText("R", x, py(profile.find(p => Math.abs(p.dist - rv.km) < 0.5)?.ele || minE) + 6);
-    });
+  // ─── Lignes du tableau segments ──────────────────────────────────────────
+  const ravitoSegs = segments.map((seg, i) => ({ seg, i })).filter(({ seg }) => seg.type === "ravito");
+  const getTheoSec = ravitoId => {
+    const e = ravitoSegs.find(({ seg }) => seg.ravitoId === ravitoId);
+    return e ? passingTimes[e.i] : null;
+  };
+  const fmtH = sec => {
+    if (!sec) return "--:--";
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+    return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+  };
 
-    // Altitudes min/max
-    ctx.fillStyle = "#9A8870"; ctx.font = "22px sans-serif"; ctx.textAlign = "left";
-    ctx.fillText(`${Math.round(minE)} m`, chartX, chartY + chartH + 28);
-    ctx.textAlign = "right";
-    ctx.fillText(`${Math.round(maxE)} m`, chartX + chartW, chartY + chartH + 28);
-  }
-
-  // ── Segments ──
-  const segY0 = 600;
-  const maxSegs = Math.min(segments.length, 12);
-  const segH = 82;
-
-  ctx.fillStyle = "#9A8870"; ctx.font = "bold 20px sans-serif"; ctx.textAlign = "left"; ctx.letterSpacing = "3px";
-  ctx.fillText("SEGMENTS DE COURSE", 60, segY0 - 16);
-  ctx.letterSpacing = "0px";
-
-  segments.slice(0, maxSegs).forEach((seg, i) => {
-    const y = segY0 + i * segH;
-    const isWalk = seg.slopePct > 10;
-    const dist = seg.endKm - seg.startKm;
-    const dur = fmtTime((dist / seg.speedKmh) * 3600);
-
-    // Fond alternance subtile
-    if (i % 2 === 0) {
-      ctx.fillStyle = "rgba(255,200,120,0.04)";
-      ctx.beginPath(); ctx.roundRect(48, y, W - 96, segH - 4, 8); ctx.fill();
+  let segNum = 0;
+  const tableRows = segments.map((seg, i) => {
+    const t = passingTimes[i];
+    if (seg.type === "ravito") {
+      const produits = settings.produits || [];
+      const plan = (settings.planNutrition || {})[seg.ravitoId] || {};
+      const prodLines = Object.entries(plan)
+        .filter(([, q]) => q > 0)
+        .map(([id, q]) => {
+          const p = produits.find(p => String(p.id) === String(id));
+          if (!p) return "";
+          const kcal = p.par100g ? Math.round(p.kcal * p.poids * q / 100) : Math.round(p.kcal * q);
+          return `<span style="margin-right:16px;font-size:11px;color:#555;">${p.nom} <strong>×${q}</strong> — ${kcal} kcal</span>`;
+        }).filter(Boolean).join("");
+      return `
+        <tr style="background:#F1F8F4;">
+          <td style="padding:8px;font-size:16px;text-align:center;">🥤</td>
+          <td colspan="4" style="padding:8px;font-weight:600;color:#2D7A4F;">${seg.label} · km ${seg.startKm}</td>
+          <td style="padding:8px;text-align:right;font-weight:600;color:#2D7A4F;">${fmtH(t)}</td>
+        </tr>
+        ${prodLines ? `<tr style="background:#F9FBF9;"><td></td><td colspan="5" style="padding:4px 8px 8px 16px;">${prodLines}</td></tr>` : ""}`;
     }
-
-    // Barre vitesse (largeur proportionnelle)
-    const barW = Math.round((seg.speedKmh / 15) * 220);
-    const barColor = isWalk ? C.yellow : (seg.slopePct > 4 ? C.red : C.green);
-    ctx.fillStyle = barColor + "40";
-    ctx.beginPath(); ctx.roundRect(W - 290, y + 20, barW, 18, 4); ctx.fill();
-    ctx.fillStyle = barColor;
-    ctx.beginPath(); ctx.roundRect(W - 290, y + 20, barW, 18, 4); ctx.strokeStyle = barColor; ctx.lineWidth = 1; ctx.stroke();
-
-    // Numéro segment
-    ctx.fillStyle = C.primaryLight; ctx.font = "bold 28px 'Georgia', serif"; ctx.textAlign = "left";
-    ctx.fillText(`${i + 1}`, 60, y + 44);
-
-    // km de → à
-    ctx.fillStyle = "#F0EAE0"; ctx.font = "24px sans-serif";
-    ctx.fillText(`${seg.startKm} → ${seg.endKm} km`, 100, y + 44);
-
-    // Pente
-    ctx.fillStyle = isWalk ? C.yellow : "#9A8870"; ctx.font = "20px sans-serif";
-    ctx.fillText(`${seg.slopePct > 0 ? "+" : ""}${seg.slopePct}%${isWalk ? " ✦ marche" : ""}`, 340, y + 44);
-
-    // Vitesse + durée
-    ctx.fillStyle = "#F0EAE0"; ctx.font = "bold 22px sans-serif"; ctx.textAlign = "right";
-    ctx.fillText(`${seg.speedKmh} km/h`, W - 60, y + 34);
-    ctx.fillStyle = "#9A8870"; ctx.font = "19px sans-serif";
-    ctx.fillText(dur, W - 60, y + 58);
-  });
-
-  if (segments.length > maxSegs) {
-    ctx.fillStyle = "#9A8870"; ctx.font = "italic 20px sans-serif"; ctx.textAlign = "center";
-    ctx.fillText(`+ ${segments.length - maxSegs} segments supplémentaires`, W / 2, segY0 + maxSegs * segH + 20);
-  }
-
-  // ── Bande nutrition / récap bas ──
-  const botY = H - 320;
-  const botGrad = ctx.createLinearGradient(0, botY - 40, 0, H);
-  botGrad.addColorStop(0, "rgba(0,0,0,0)");
-  botGrad.addColorStop(0.2, "rgba(20,14,6,0.95)");
-  botGrad.addColorStop(1, "#14100C");
-  ctx.fillStyle = botGrad; ctx.fillRect(0, botY - 40, W, H - botY + 40);
-
-  ctx.strokeStyle = C.primary + "50"; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(60, botY); ctx.lineTo(W - 60, botY); ctx.stroke();
-
-  const totalTime = segments.reduce((s, seg) => (seg.type === "repos" || seg.type === "ravito") ? s + (seg.dureeMin||0)*60 : s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
-  const ravitoSec = (race.ravitos?.length || 0) * (settings.ravitoTimeMin || 3) * 60;
-
-  const stats = [
-    { label: "TEMPS TOTAL", val: fmtTime(totalTime + ravitoSec) },
-    { label: "DÉPART", val: settings.startTime || "07:00" },
-    { label: "RAVITOS", val: String(race.ravitos?.length || 0) },
-    { label: "MÉTÉO", val: `${settings.tempC}°C${settings.rain ? " 🌧" : ""}${settings.snow ? " ❄️" : ""}${settings.wind ? " 💨" : ""}` },
-  ];
-  const colW = (W - 120) / stats.length;
-  stats.forEach((s, i) => {
-    const cx = 60 + i * colW + colW / 2;
-    ctx.fillStyle = "#9A8870"; ctx.font = "18px sans-serif"; ctx.textAlign = "center"; ctx.letterSpacing = "2px";
-    ctx.fillText(s.label, cx, botY + 44);
-    ctx.fillStyle = C.primaryLight; ctx.font = "bold 36px 'Georgia', serif"; ctx.letterSpacing = "0px";
-    ctx.fillText(s.val, cx, botY + 88);
-  });
-
-  // Ligne déco bas
-  ctx.strokeStyle = C.primary + "60"; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(60, H - 80); ctx.lineTo(W - 60, H - 80); ctx.stroke();
-  ctx.fillStyle = "#9A8870"; ctx.font = "italic 22px 'Georgia', serif"; ctx.textAlign = "center"; ctx.letterSpacing = "0px";
-  ctx.fillText("Alex · Trail Running Strategy", W / 2, H - 44);
-
-  const link = document.createElement("a");
-  link.download = `${(settings.raceName || race.name || "course").replace(/\s+/g, "-").toLowerCase()}-wallpaper.png`;
-  link.href = canvas.toDataURL("image/png");
-  link.click();
-}
-
-// ─── EXPORT EMAIL HTML ────────────────────────────────────────────────────────
-function exportEmail(race, segments, settings, nutriTotals, totalTime, totalRavitoSec) {
-  const raceName = settings.raceName || race.name || "Ma Course";
-  const totalWithRavitos = fmtTime(totalTime + totalRavitoSec);
-  const totalDist = race.totalDistance?.toFixed(1) || "?";
-  const elevPos = Math.round(race.totalElevPos) || 0;
-
-  const segRows = segments.map((seg, i) => {
-    const dist = (seg.endKm - seg.startKm).toFixed(1);
-    const dur = fmtTime(((seg.endKm - seg.startKm) / seg.speedKmh) * 3600);
-    const isWalk = seg.slopePct > 10;
-    const color = isWalk ? "#D4820A" : seg.slopePct > 4 ? "#C0392B" : "#2E7D52";
-    return `
-      <tr style="border-bottom:1px solid #2A2010;">
-        <td style="padding:10px 12px;color:#9A8870;font-weight:700;font-size:15px;">${i + 1}</td>
-        <td style="padding:10px 12px;color:#F0EAE0;">${seg.startKm} → ${seg.endKm} km</td>
-        <td style="padding:10px 12px;color:#F0EAE0;">${dist} km</td>
-        <td style="padding:10px 12px;">
-          <span style="background:${color}22;color:${color};padding:3px 8px;border-radius:6px;font-size:13px;font-weight:600;">
-            ${seg.slopePct > 0 ? "+" : ""}${seg.slopePct}%${isWalk ? " · marche" : ""}
-          </span>
-        </td>
-        <td style="padding:10px 12px;color:#F0EAE0;font-weight:600;">${seg.speedKmh} km/h</td>
-        <td style="padding:10px 12px;color:#9A8870;">${fmtPace(seg.speedKmh)}/km</td>
-        <td style="padding:10px 12px;color:#F0EAE0;">${dur}</td>
+    if (seg.type === "repos") {
+      return `<tr style="background:#F5F5F5;">
+        <td style="padding:8px;font-size:16px;text-align:center;">💤</td>
+        <td colspan="4" style="padding:8px;color:#666;">${seg.label} — ${seg.dureeMin} min</td>
+        <td style="padding:8px;text-align:right;color:#666;">${fmtH(t)}</td>
       </tr>`;
+    }
+    segNum++;
+    const dist = (seg.endKm - seg.startKm).toFixed(1);
+    const dur = (() => { const s = (seg.endKm - seg.startKm) / seg.speedKmh * 3600; const h = Math.floor(s/3600), m = Math.floor((s%3600)/60); return `${h > 0 ? h+"h" : ""}${String(m).padStart(2,"0")}min`; })();
+    const slopeColor = seg.slopePct > 9 ? "#C0392B" : seg.slopePct < -10 ? "#1565C0" : "#2E7D52";
+    const slopeBg = seg.slopePct > 9 ? "#FDEDEC" : seg.slopePct < -10 ? "#E3F2FD" : "#E8F5E9";
+    return `<tr style="border-bottom:0.5px solid #E0E0E0;">
+      <td style="padding:7px 8px;color:#888;">${segNum}</td>
+      <td style="padding:7px 8px;">${seg.startKm} → ${seg.endKm} km</td>
+      <td style="padding:7px 8px;">${dist} km</td>
+      <td style="padding:7px 8px;"><span style="background:${slopeBg};color:${slopeColor};border-radius:4px;padding:1px 6px;font-size:11px;">${seg.slopePct > 0 ? "+" : ""}${seg.slopePct}%</span>${seg.slopePct > 10 ? ' <span style="font-size:10px;color:#888;">marche</span>' : ""}</td>
+      <td style="padding:7px 8px;font-weight:600;">${seg.speedKmh} km/h</td>
+      <td style="padding:7px 8px;text-align:right;font-weight:600;color:#7A5230;">${fmtH(t)}</td>
+    </tr>`;
   }).join("");
 
-  const ravitoRows = [...(race.ravitos || [])].sort((a, b) => a.km - b.km).map(rv =>
-    `<li style="margin:4px 0;color:#F0EAE0;">${rv.name} <span style="color:#2E7D52;font-weight:600;">km ${rv.km}</span></li>`
-  ).join("") || "<li style='color:#9A8870;'>Aucun ravitaillement défini</li>";
-
-  const meteo = [
+  // ─── Météo ───────────────────────────────────────────────────────────────
+  const meteoStr = [
     `${settings.tempC}°C`,
     settings.rain ? "Pluie" : null,
     settings.snow ? "Neige" : null,
     settings.wind ? "Vent fort" : null,
-    settings.heat ? "Forte chaleur" : null,
   ].filter(Boolean).join(" · ");
 
-  const html = `<!DOCTYPE html>
-<html lang="fr">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Stratégie ${raceName}</title></head>
-<body style="margin:0;padding:0;background:#1A1108;font-family:'Georgia',serif;">
-<div style="max-width:680px;margin:0 auto;background:#1A1108;color:#F0EAE0;">
+  const objectifLabels = { comfort: "Finisher", normal: "Chrono", perf: "Performance" };
 
-  <!-- Header -->
-  <div style="background:linear-gradient(135deg,#1A1108 0%,#2A1F0E 100%);padding:48px 40px 32px;border-bottom:2px solid ${C.primary}40;">
-    <div style="font-size:11px;letter-spacing:4px;color:#9A8870;text-transform:uppercase;margin-bottom:12px;">Stratégie de course · Alex</div>
-    <h1 style="margin:0;font-size:42px;color:${C.primaryLight};letter-spacing:1px;">${raceName}</h1>
-    <div style="margin-top:12px;font-size:16px;color:#9A8870;">${totalDist} km · ${elevPos} m D+ · Départ ${settings.startTime || "07:00"}</div>
+  // ─── HTML ────────────────────────────────────────────────────────────────
+  const html = `<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${raceName} — Récap Alex</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; color: #1A1A1A; background: #fff; font-size: 13px; }
+  .page { max-width: 780px; margin: 0 auto; padding: 32px 40px; }
+  h1 { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 700; color: #3D2B1F; }
+  .sub { color: #666; font-size: 12px; margin-top: 4px; }
+  .section-label { font-size: 10px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: #888; margin-bottom: 8px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 20px 0; }
+  .kpi { background: #F7F5F2; border-radius: 8px; padding: 10px 12px; text-align: center; }
+  .kpi-label { font-size: 10px; color: #888; margin-bottom: 3px; }
+  .kpi-val { font-size: 15px; font-weight: 500; }
+  .profile-box { border: 0.5px solid #E0E0E0; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #888; padding: 6px 8px; border-bottom: 0.5px solid #E0E0E0; text-align: left; }
+  thead th:last-child { text-align: right; }
+  .nutri-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: #F7F5F2; border-radius: 8px; padding: 14px 16px; margin: 20px 0; }
+  .nutri-item { text-align: center; }
+  .nutri-label { font-size: 10px; color: #888; margin-bottom: 2px; }
+  .nutri-val { font-size: 16px; font-weight: 500; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .info-box { background: #F7F5F2; border-radius: 8px; padding: 12px 16px; }
+  .footer { border-top: 0.5px solid #E0E0E0; padding-top: 12px; margin-top: 24px; display: flex; justify-content: space-between; font-size: 10px; color: #aaa; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none; }
+    .page { padding: 20px; }
+    @page { margin: 1cm; size: A4; }
+  }
+</style>
+</head><body>
+<div class="page">
+  <div class="no-print" style="background:#F0EAE0;border-radius:8px;padding:10px 16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-size:13px;color:#5A3E2B;font-weight:500;">Récap de course — Alex Trail Strategy</span>
+    <button onclick="window.print()" style="background:#7A5230;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;font-weight:500;">🖨️ Imprimer / PDF</button>
   </div>
 
-  <!-- Stats -->
-  <div style="display:flex;background:#0E0B08;border-bottom:1px solid #2A2010;">
-    ${[
-      ["⏱", "Temps total", totalWithRavitos],
-      ["📏", "Distance", `${totalDist} km`],
-      ["⛰", "D+", `${elevPos} m`],
-      ["✂", "Segments", String(segments.length)],
-    ].map(([ic, lb, vl]) => `
-    <div style="flex:1;padding:20px 16px;text-align:center;border-right:1px solid #2A2010;">
-      <div style="font-size:22px;margin-bottom:6px;">${ic}</div>
-      <div style="font-size:11px;letter-spacing:2px;color:#9A8870;text-transform:uppercase;">${lb}</div>
-      <div style="font-size:22px;font-weight:700;color:${C.primaryLight};margin-top:4px;">${vl}</div>
-    </div>`).join("")}
-  </div>
-
-  <!-- Météo -->
-  <div style="padding:14px 40px;background:#130F0A;border-bottom:1px solid #2A2010;font-size:13px;color:#9A8870;">
-    Météo prévue : <strong style="color:#F0EAE0;">${meteo}</strong>
-    &nbsp;·&nbsp; Temps aux ravitos : <strong style="color:#F0EAE0;">${settings.ravitoTimeMin || 3} min</strong>
-  </div>
-
-  <!-- Segments -->
-  <div style="padding:32px 40px 24px;">
-    <h2 style="margin:0 0 20px;font-size:18px;letter-spacing:2px;text-transform:uppercase;color:#9A8870;border-bottom:1px solid #2A2010;padding-bottom:12px;">Segments</h2>
-    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;">
-      <thead>
-        <tr style="border-bottom:2px solid ${C.primary}60;">
-          <th style="padding:8px 12px;text-align:left;color:#9A8870;font-size:11px;letter-spacing:2px;font-weight:600;text-transform:uppercase;">#</th>
-          <th style="padding:8px 12px;text-align:left;color:#9A8870;font-size:11px;letter-spacing:2px;font-weight:600;text-transform:uppercase;">Tronçon</th>
-          <th style="padding:8px 12px;text-align:left;color:#9A8870;font-size:11px;letter-spacing:2px;font-weight:600;text-transform:uppercase;">Dist.</th>
-          <th style="padding:8px 12px;text-align:left;color:#9A8870;font-size:11px;letter-spacing:2px;font-weight:600;text-transform:uppercase;">Pente</th>
-          <th style="padding:8px 12px;text-align:left;color:#9A8870;font-size:11px;letter-spacing:2px;font-weight:600;text-transform:uppercase;">Vitesse</th>
-          <th style="padding:8px 12px;text-align:left;color:#9A8870;font-size:11px;letter-spacing:2px;font-weight:600;text-transform:uppercase;">Allure</th>
-          <th style="padding:8px 12px;text-align:left;color:#9A8870;font-size:11px;letter-spacing:2px;font-weight:600;text-transform:uppercase;">Durée</th>
-        </tr>
-      </thead>
-      <tbody>${segRows}</tbody>
-    </table>
-  </div>
-
-  <!-- Ravitos -->
-  <div style="padding:0 40px 32px;">
-    <h2 style="margin:0 0 16px;font-size:18px;letter-spacing:2px;text-transform:uppercase;color:#9A8870;border-bottom:1px solid #2A2010;padding-bottom:12px;">Ravitaillements</h2>
-    <ul style="margin:0;padding:0 0 0 18px;">${ravitoRows}</ul>
-  </div>
-
-  <!-- Nutrition -->
-  <div style="background:#0E0B08;padding:24px 40px;border-top:1px solid #2A2010;border-bottom:1px solid #2A2010;">
-    <h2 style="margin:0 0 16px;font-size:18px;letter-spacing:2px;text-transform:uppercase;color:#9A8870;">Nutrition estimée</h2>
-    <div style="display:flex;gap:0;">
-      ${[
-        ["🔥", `${nutriTotals.kcal} kcal`, "Calories"],
-        ["💧", `${(nutriTotals.eau/1000).toFixed(1)} L`, "Eau"],
-        ["🍌", `${nutriTotals.glucides} g`, "Glucides"],
-        ["🧂", `${nutriTotals.sel} mg`, "Sel"],
-      ].map(([ic, vl, lb]) => `
-      <div style="flex:1;text-align:center;padding:12px 8px;border-right:1px solid #2A2010;">
-        <div style="font-size:20px;">${ic}</div>
-        <div style="font-size:20px;font-weight:700;color:${C.primaryLight};margin:6px 0 4px;">${vl}</div>
-        <div style="font-size:11px;color:#9A8870;letter-spacing:1px;text-transform:uppercase;">${lb}</div>
-      </div>`).join("")}
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;border-bottom:0.5px solid #E0E0E0;margin-bottom:20px;">
+    <div>
+      <div class="section-label">Stratégie de course · Alex</div>
+      <h1>${raceName}</h1>
+      <div class="sub">${raceDate ? new Date(raceDate + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : ""} ${raceDate && startTime ? "·" : ""} Départ ${startTime}${race.startAddress ? " · " + race.startAddress : ""}</div>
+    </div>
+    <div style="text-align:right;flex-shrink:0;margin-left:20px;">
+      <div style="font-size:10px;color:#888;margin-bottom:2px;">Arrivée estimée</div>
+      <div style="font-family:'Playfair Display',serif;font-size:26px;font-weight:700;color:#7A5230;">${fmtH(passingTimes[passingTimes.length - 1] || 0)}</div>
     </div>
   </div>
 
-  <!-- Footer -->
-  <div style="padding:24px 40px;text-align:center;color:#9A8870;font-size:13px;font-style:italic;">
-    Généré par Alex · Trail Running Strategy
+  <div class="kpi-grid">
+    <div class="kpi"><div class="kpi-label">Distance</div><div class="kpi-val">${race.totalDistance?.toFixed(1) || "?"} km</div></div>
+    <div class="kpi"><div class="kpi-label">D+</div><div class="kpi-val" style="color:#B84A3A;">${Math.round(race.totalElevPos || 0)} m</div></div>
+    <div class="kpi"><div class="kpi-label">Temps total</div><div class="kpi-val">${fmtTime(totalWithRavitos)}</div></div>
+    <div class="kpi"><div class="kpi-label">Segments</div><div class="kpi-val">${segsNormaux.length}</div></div>
+    <div class="kpi"><div class="kpi-label">Ravitos</div><div class="kpi-val">${ravitos.length}</div></div>
+  </div>
+
+  <div class="profile-box">
+    <div class="section-label">Profil altimétrique</div>
+    ${svgProfile}
+  </div>
+
+  <div class="section-label" style="margin-bottom:10px;">Segments & ravitaillements</div>
+  <table style="margin-bottom:20px;">
+    <thead><tr>
+      <th style="width:32px;">#</th>
+      <th>Tronçon</th>
+      <th>Dist.</th>
+      <th>Pente</th>
+      <th>Vitesse</th>
+      <th style="text-align:right;">Heure</th>
+    </tr></thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+
+  <div class="section-label">Bilan nutrition</div>
+  <div class="nutri-grid">
+    <div class="nutri-item"><div class="nutri-label">Calories</div><div class="nutri-val" style="color:#B84A3A;">${nutriTotals.kcal} kcal</div></div>
+    <div class="nutri-item"><div class="nutri-label">Glucides</div><div class="nutri-val" style="color:#8B6914;">${nutriTotals.glucides} g</div></div>
+    <div class="nutri-item"><div class="nutri-label">Sodium</div><div class="nutri-val">${nutriTotals.sel} mg</div></div>
+    <div class="nutri-item"><div class="nutri-label">Eau estimée</div><div class="nutri-val" style="color:#1565C0;">${(nutriTotals.eau / 1000).toFixed(1)} L</div></div>
+  </div>
+
+  <div class="info-grid">
+    <div class="info-box">
+      <div class="section-label">Météo prévue</div>
+      <div style="font-size:16px;font-weight:500;margin-top:4px;">${meteoStr || "Non définie"}</div>
+    </div>
+    <div class="info-box">
+      <div class="section-label">Objectif & rythme</div>
+      <div style="font-size:15px;font-weight:500;margin-top:4px;">${objectifLabels[settings.effortTarget] || "Chrono"}</div>
+      <div style="font-size:11px;color:#666;margin-top:2px;">Niveau ${(settings.runnerLevel || "intermediaire")} · Garmin ×${settings.garminCoeff || 1}</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Généré par Alex — Trail Running Strategy</span>
+    <span>alex-trail.vercel.app</span>
   </div>
 </div>
 </body></html>`;
 
-  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.download = `${(raceName).replace(/\s+/g, "-").toLowerCase()}-recap.html`;
-  link.href = url;
-  link.click();
-  URL.revokeObjectURL(url);
+  const win = window.open("", "_blank");
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+  }
 }
+
 
 // ─── HELPERS HEURES ──────────────────────────────────────────────────────────
 function fmtHeure(sec) {
@@ -1097,8 +1010,10 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
         </PageTitle>
         {race.gpxPoints?.length > 0 && segments.length > 0 && (
           <div style={{ display: "flex", gap: 8, marginTop: 4, flexShrink: 0 }}>
-            <Btn size="sm" variant="soft" onClick={() => exportWallpaper(race, segments, settings, profile)}>🗺️ Mémo de course</Btn>
-            <Btn size="sm" variant="soft" onClick={() => exportEmail(race, segments, settings, nutriTotals, totalTime, totalRavitoSec)}>✉️ Récap mail</Btn>
+            <Btn size="sm" variant="soft" onClick={() => {
+              const { times: passingTimes } = calcPassingTimes(segments, settings.startTime);
+              exportRecap(race, segments, settings, profile, passingTimes);
+            }}>📄 Récap course</Btn>
           </div>
         )}
       </div>
