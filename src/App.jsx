@@ -1248,7 +1248,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
   const [dragging, setDragging]       = useState(false);
   const [hoveredSeg, setHoveredSeg]   = useState(null);
   const [ravitoModal, setRavitoModal] = useState(false);
-  const [ravitoForm, setRavitoForm]   = useState({ km: "", name: "", address: "", notes: "", dureeMin: "" });
+  const [ravitoForm, setRavitoForm]   = useState({ km: "", name: "", address: "", notes: "", dureeMin: "", assistancePresente: true });
   const [editRavitoId, setEditRavitoId] = useState(null);
   const [confirmId, setConfirmId]     = useState(null);
   const [segModal, setSegModal]       = useState(false);
@@ -1348,9 +1348,9 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
         speedKmh: 0, slopePct: 0, terrain: "normal", notes: "",
       }].sort((a, b) => (a.startKm ?? 0) - (b.startKm ?? 0)));
     }
-    setRavitoModal(false); setRavitoForm({ km: "", name: "", address: "", notes: "", dureeMin: "" }); setEditRavitoId(null);
+    setRavitoModal(false); setRavitoForm({ km: "", name: "", address: "", notes: "", dureeMin: "", assistancePresente: true }); setEditRavitoId(null);
   };
-  const openEditRavito = rv => { setEditRavitoId(rv.id); setRavitoForm({ km: rv.km, name: rv.name, address: rv.address || "", notes: rv.notes || "", dureeMin: rv.dureeMin || "" }); setRavitoModal(true); };
+  const openEditRavito = rv => { setEditRavitoId(rv.id); setRavitoForm({ km: rv.km, name: rv.name, address: rv.address || "", notes: rv.notes || "", dureeMin: rv.dureeMin || "", assistancePresente: rv.assistancePresente !== false }); setRavitoModal(true); };
   const deleteRavito = id => {
     setRace(r => ({ ...r, ravitos: (r.ravitos||[]).filter(rv => rv.id !== id) }));
     setSegments(s => s.filter(seg => !(seg.type === "ravito" && seg.ravitoId === id)));
@@ -2061,6 +2061,38 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
           <Field label="Notes pour l'assistance" full>
             <textarea value={ravitoForm.notes || ""} onChange={e => setRavitoForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Ex : Parking en contrebas, préparer les bâtons, changer les chaussettes" />
           </Field>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "12px 14px", borderRadius: 12,
+              background: ravitoForm.assistancePresente ? C.secondaryPale : "var(--surface-2)",
+              border: `1px solid ${ravitoForm.assistancePresente ? C.secondary + "50" : "var(--border-c)"}`,
+              cursor: "pointer", transition: "all 0.15s",
+            }} onClick={() => setRavitoForm(f => ({ ...f, assistancePresente: !f.assistancePresente }))}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 13, color: ravitoForm.assistancePresente ? C.secondaryDark : "var(--muted-c)" }}>
+                  {ravitoForm.assistancePresente ? "Assistance équipe présente" : "Ravito autonome"}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 2 }}>
+                  {ravitoForm.assistancePresente
+                    ? "Produits planifiables dans Nutrition · visible dans Team"
+                    : "Tu emportes tout depuis le point précédent · invisible dans Team"}
+                </div>
+              </div>
+              <div style={{
+                width: 40, height: 22, borderRadius: 11, flexShrink: 0,
+                background: ravitoForm.assistancePresente ? C.secondary : "var(--border-c)",
+                position: "relative", transition: "background 0.2s",
+              }}>
+                <div style={{
+                  position: "absolute", top: 3,
+                  left: ravitoForm.assistancePresente ? 21 : 3,
+                  width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                  transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                }} />
+              </div>
+            </div>
+          </div>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
           <Btn variant="ghost" onClick={() => setRavitoModal(false)}>Annuler</Btn>
@@ -2769,9 +2801,7 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
 function NutritionView({ segments, settings, setSettings, race, setRace, isMobile, onNavigate }) {
   const produits = settings.produits || [];
   const planNutrition = race.planNutrition || {};
-  const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km);
-
-  const updProduits = v => setSettings(s => ({ ...s, produits: v }));
+  const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km).filter(rv => rv.assistancePresente !== false);
   const updPlan = v => setRace(r => ({ ...r, planNutrition: v }));
 
   // ── État modaux ──
@@ -3205,7 +3235,7 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
   const [gpsCoords, setGpsCoords] = useState(null);
 
 
-  const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km);
+  const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km).filter(rv => rv.assistancePresente !== false);
   const { times: passingTimes } = calcPassingTimes(segments, settings.startTime);
 
   // Map segIndex → ravito pour retrouver les heures théoriques
@@ -3638,7 +3668,7 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
             const night    = theoSec ? isNight(adjSec || theoSec) : false;
 
             return (
-              <Card key={rv.id} style={{ borderLeft: `4px solid ${rv.assistancePresente === false ? C.muted : (isOpen ? C.primary : C.green)}`, opacity: rv.assistancePresente === false ? 0.7 : 1 }}>
+              <Card key={rv.id} style={{ borderLeft: `4px solid ${isOpen ? C.primary : C.green}` }}>
                 {/* En-tête ravito */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setActiveRavito(isOpen ? null : rv.id)}>
@@ -3648,9 +3678,6 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
                       </span>
                       <span className="badge badge-sage" style={{ fontSize: 12 }}>km {rv.km}</span>
                       {night && <span style={{ fontSize: 12 }}>🌙</span>}
-                      {rv.assistancePresente === false && (
-                        <span style={{ fontSize: 11, background: "var(--surface-2)", color: "var(--muted-c)", padding: "2px 8px", borderRadius: 6, fontWeight: 600 }}>Autonome</span>
-                      )}
                     </div>
                     <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--muted-c)", flexWrap: "wrap" }}>
                       <span>Théo. <strong style={{ color: "var(--text-c)" }}>{theoSec ? fmtHeure(theoSec) : "--:--"}</strong></span>
@@ -3664,21 +3691,6 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 2, flexShrink: 0 }}>
-                    {/* Toggle assistance */}
-                    {!sharedMode && (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 11, color: "var(--muted-c)" }}>Assistance</span>
-                        <div onClick={e => {
-                          e.stopPropagation();
-                          setRace(r => ({ ...r, ravitos: r.ravitos.map(x => x.id === rv.id ? { ...x, assistancePresente: x.assistancePresente === false ? true : false } : x) }));
-                        }} style={{
-                          width: 36, height: 20, borderRadius: 10, cursor: "pointer", transition: "background 0.2s", position: "relative",
-                          background: rv.assistancePresente === false ? "var(--border-c)" : C.green,
-                        }}>
-                          <div style={{ position: "absolute", top: 2, left: rv.assistancePresente === false ? 2 : 18, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
-                        </div>
-                      </div>
-                    )}
                     <span style={{ fontSize: 18, color: "var(--muted-c)", cursor: "pointer" }} onClick={() => setActiveRavito(isOpen ? null : rv.id)}>{isOpen ? "▲" : "▼"}</span>
                   </div>
                 </div>
@@ -3931,7 +3943,7 @@ function MesCoursesView({ courses, onLoad, onDelete, onUpdate, onOverwrite, onSa
 // ─── VUE ANALYSE ─────────────────────────────────────────────────────────────
 function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
   const segsNormaux = segments.filter(s => s.type !== "ravito" && s.type !== "repos");
-  const ravitos = [...(race.ravitos||[])].sort((a,b) => a.km - b.km);
+  const ravitos = [...(race.ravitos||[])].sort((a,b) => a.km - b.km).filter(rv => rv.assistancePresente !== false);
   const totalDistKm = race.totalDistance || segsNormaux.reduce((s,g) => s+g.endKm-g.startKm, 0);
   const totalDplus  = race.totalElevPos  || 0;
   const totalTime   = segsNormaux.reduce((s,seg) => s + (seg.endKm-seg.startKm)/seg.speedKmh*3600, 0);
