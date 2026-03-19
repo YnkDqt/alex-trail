@@ -65,6 +65,7 @@ const EMPTY_SETTINGS = {
   tempC: 15, rain: false, wind: false, heat: false, snow: false,
   darkMode: false,
   garminCoeff: 1, garminStats: null, kcalSource: "minetti",
+  glucidesTargetGh: null,
   runnerLevel: "intermediaire",
   effortTarget: "normal",
   paceStrategy: 0,
@@ -567,11 +568,10 @@ function parseGarminCSV(text) {
 
 // ─── NUTRITION ───────────────────────────────────────────────────────────────
 function calcNutrition(seg, settings) {
-  if (seg.type === "repos") return { kcal: 0, kcalH: 0, glucidesH: 0, proteinesH: 0, eauH: 0, selH: 0, cafeineH: 0, durationH: 0 };
-  const { weight = 70, kcalPerKm = 65, kcalPerKmUphill = 90, tempC = 15, rain = false, wind = false, heat = false, snow = false, kcalSource = "minetti", garminStats = null } = settings;
+  if (seg.type === "repos") return { kcal: 0, kcalH: 0, glucidesH: 0, lipidesH: 0, proteinesH: 0, eauH: 0, selH: 0, cafeineH: 0, durationH: 0 };
+  const { weight = 70, kcalPerKm = 65, kcalPerKmUphill = 90, tempC = 15, rain = false, wind = false, heat = false, snow = false, kcalSource = "minetti", garminStats = null, glucidesTargetGh = null } = settings;
   const distKm = seg.endKm - seg.startKm;
   const durationH = seg.speedKmh > 0 ? distKm / seg.speedKmh : 0;
-  // Calcul des taux selon la source sélectionnée
   let flatRate, uphillRate;
   if (kcalSource === "garmin" && garminStats?.kcalPerKmFlat) {
     flatRate   = garminStats.kcalPerKmFlat;
@@ -580,7 +580,6 @@ function calcNutrition(seg, settings) {
     flatRate   = kcalPerKm;
     uphillRate = kcalPerKmUphill;
   } else {
-    // minetti — recalculé depuis le poids courant
     flatRate   = Math.round(3.6 * weight * 1000 / 4184);
     const i10  = 0.10;
     const cr10 = 155.4*i10**5 - 30.4*i10**4 - 43.3*i10**3 + 46.3*i10**2 + 19.5*i10 + 3.6;
@@ -591,14 +590,17 @@ function calcNutrition(seg, settings) {
   const kcalH = durationH > 0 ? Math.round(kcal / durationH) : 0;
   const isHot = heat || tempC > 25;
   const isCold = tempC < 0 || snow;
-  const glucidesH = Math.round(kcalH * 0.55 / 4);
+  // Glucides : cible manuelle si définie, sinon 55% des kcal (règle empirique)
+  const glucidesH = glucidesTargetGh != null ? Math.round(glucidesTargetGh) : Math.round(kcalH * 0.55 / 4);
   const proteinesH = Math.round(kcalH * 0.10 / 4);
+  // Lipides : résidu énergétique après glucides et protéines (1g lipides = 9 kcal)
+  const lipidesH = Math.max(0, Math.round((kcalH - glucidesH * 4 - proteinesH * 4) / 9));
   const waterBase = isHot ? 750 : isCold ? 350 : 500;
   const eauH = Math.round(waterBase + (wind ? 100 : 0));
   const selH = Math.round(isHot ? 800 : snow ? 700 : 500);
   const cumDurationH = seg.speedKmh > 0 ? (seg.startKm || 0) / seg.speedKmh : 0;
   const cafeineH = cumDurationH >= 2 ? Math.round(30 + Math.min(seg.slopePct * 2, 40)) : 0;
-  return { kcal, kcalH, glucidesH, proteinesH, eauH, selH, cafeineH, durationH };
+  return { kcal, kcalH, glucidesH, lipidesH, proteinesH, eauH, selH, cafeineH, durationH };
 }
 
 // ─── STYLES GLOBAUX ──────────────────────────────────────────────────────────
@@ -2592,6 +2594,79 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
                   </div>
                 );
               })()}
+
+              {/* Glucides & substrats */}
+              {(() => {
+                const [tooltipGlu, setTooltipGlu] = useState(false);
+                const target = settings.glucidesTargetGh;
+                // Répartition estimée pour affichage
+                const kcalH = 400; // référence indicative à effort modéré
+                const glucidesH = target != null ? target : Math.round(kcalH * 0.55 / 4);
+                const proteinesH = Math.round(kcalH * 0.10 / 4);
+                const lipidesH = Math.max(0, Math.round((kcalH - glucidesH * 4 - proteinesH * 4) / 9));
+                const totalCalc = glucidesH * 4 + lipidesH * 9 + proteinesH * 4;
+                const pctGlu  = totalCalc > 0 ? Math.round(glucidesH * 4 / totalCalc * 100) : 55;
+                const pctLip  = totalCalc > 0 ? Math.round(lipidesH * 9 / totalCalc * 100) : 35;
+                const pctPro  = 100 - pctGlu - pctLip;
+                return (
+                  <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 14, marginTop: 4 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                      <span style={{ fontSize: 12, color: "var(--muted-c)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Glucides & substrats</span>
+                      <span onClick={() => setTooltipGlu(t => !t)} style={{ cursor: "pointer", fontSize: 13, color: C.primary, lineHeight: 1, userSelect: "none" }}>ⓘ</span>
+                    </div>
+                    {tooltipGlu && (
+                      <div style={{ background: "var(--surface-2)", border: `1px solid var(--border-c)`, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "var(--text-c)", marginBottom: 10, lineHeight: 1.8 }}>
+                        <strong>Jeukendrup (2004)</strong> — <em>Nutrition</em><br/>
+                        Absorption intestinale plafonnée à ~60 g/h (glucose seul) ou ~90 g/h (glucose + fructose, transporteurs multiples).<br/><br/>
+                        <strong>Jeukendrup (2011)</strong> — <em>Sports Medicine</em><br/>
+                        Le "gut training" permet d'atteindre 90–120 g/h chez les athlètes entraînés sur effort long.<br/><br/>
+                        <strong>Brooks & Mercier (1994)</strong> — <em>Journal of Applied Physiology</em><br/>
+                        Concept du "crossover" : en dessous de ~65% VO₂max, les lipides dominent. Au-delà, les glucides deviennent le substrat principal. Sur trail, l'intensité variable justifie un mix.<br/><br/>
+                        <span style={{ color: "var(--muted-c)", fontSize: 11 }}>La répartition protéines (10%) est une règle empirique, sans étude spécifique trail.</span>
+                      </div>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 4 }}>Glucides visés (g/h)</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <input type="number" min={20} max={150} placeholder="Auto"
+                            value={target ?? ""}
+                            onChange={e => upd("glucidesTargetGh", e.target.value === "" ? null : +e.target.value)}
+                            onBlur={e => { if (e.target.value !== "") upd("glucidesTargetGh", Math.max(20, Math.min(150, +e.target.value))); }}
+                            style={{ width: 90 }} />
+                          {target != null && (
+                            <button onClick={() => upd("glucidesTargetGh", null)}
+                              style={{ fontSize: 11, padding: "3px 10px", borderRadius: 8, border: `1px solid var(--border-c)`, background: "var(--surface-2)", color: "var(--muted-c)", cursor: "pointer" }}>
+                              Auto
+                            </button>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>
+                          {target == null ? "Calculé automatiquement (55% des kcal)" : (
+                            target <= 60 ? "Débutant / effort long faible intensité" :
+                            target <= 90 ? "Entraîné — profil standard" :
+                            "Gut training — athlète expérimenté"
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {/* Répartition estimée */}
+                    <div style={{ padding: "10px 12px", background: "var(--surface-2)", borderRadius: 9, fontSize: 12 }}>
+                      <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 8 }}>Répartition estimée à effort modéré (~400 kcal/h)</div>
+                      <div style={{ display: "flex", gap: 0, height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 8 }}>
+                        <div style={{ width: `${pctGlu}%`, background: C.yellow, transition: "width 0.3s" }} />
+                        <div style={{ width: `${pctLip}%`, background: C.primary, transition: "width 0.3s" }} />
+                        <div style={{ width: `${pctPro}%`, background: C.secondary, transition: "width 0.3s" }} />
+                      </div>
+                      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+                        <span style={{ color: C.yellow, fontWeight: 600 }}>Glucides {pctGlu}% <span style={{ fontWeight: 400, color: "var(--muted-c)" }}>({glucidesH} g/h)</span></span>
+                        <span style={{ color: C.primary, fontWeight: 600 }}>Lipides {pctLip}% <span style={{ fontWeight: 400, color: "var(--muted-c)" }}>({lipidesH} g/h)</span></span>
+                        <span style={{ color: C.secondary, fontWeight: 600 }}>Protéines {pctPro}% <span style={{ fontWeight: 400, color: "var(--muted-c)" }}>({proteinesH} g/h)</span></span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
               <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12, marginTop: 4, display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Contact d'urgence SOS</div>
                 <Field label="Nom du contact">
@@ -2741,7 +2816,7 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
 
 
 // ─── VUE NUTRITION ───────────────────────────────────────────────────────────
-function NutritionView({ segments, settings, setSettings, race, setRace, isMobile }) {
+function NutritionView({ segments, settings, setSettings, race, setRace, isMobile, onNavigate }) {
   const produits = settings.produits || [];
   const planNutrition = race.planNutrition || {};
   const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km);
@@ -2856,7 +2931,37 @@ function NutritionView({ segments, settings, setSettings, race, setRace, isMobil
     <div className="anim">
       <PageTitle sub="Besoins, bibliothèque et plan de ravitaillement">Nutrition</PageTitle>
 
-      {/* KPIs besoins */}
+      {/* Bandeau profil nutritionnel actif */}
+      {(() => {
+        const w = settings.weight || 70;
+        const src = settings.kcalSource || "minetti";
+        const gs = settings.garminStats;
+        let flatRate;
+        if (src === "garmin" && gs?.kcalPerKmFlat) flatRate = gs.kcalPerKmFlat;
+        else if (src === "manual") flatRate = settings.kcalPerKm || 65;
+        else flatRate = Math.round(3.6 * w * 1000 / 4184);
+        const target = settings.glucidesTargetGh;
+        const glucLabel = target != null ? `${target} g/h glucides` : "glucides auto";
+        const srcLabel = src === "garmin" ? "Garmin perso" : src === "manual" ? "Manuel" : "Minetti";
+        return (
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8,
+            padding: "10px 16px", background: C.primaryPale, borderRadius: 12, marginBottom: 20,
+            border: `1px solid ${C.primary}30`, fontSize: 13,
+          }}>
+            <span style={{ color: C.primaryDeep }}>
+              Profil actif : <strong>{flatRate} kcal/km</strong> ({srcLabel}) · <strong>{glucLabel}</strong>
+            </span>
+            <button onClick={() => onNavigate("parametres")} style={{
+              background: "none", border: `1px solid ${C.primary}50`, borderRadius: 8,
+              padding: "4px 12px", fontSize: 12, color: C.primary, cursor: "pointer",
+              fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
+            }}>
+              ⚙️ Modifier
+            </button>
+          </div>
+        );
+      })()}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 24 }}>
         <KPI label="Calories estimées" value={`${nutriTotals.kcal} kcal`} icon="🔥" color={C.red} sub={`${Math.round(nutriTotals.kcal / (totalDist||1))} kcal/km`} />
         <KPI label="Eau estimée" value={`${(nutriTotals.eau/1000).toFixed(1)} L`} icon="💧" color={C.blue} sub={`${waterPerHour} mL/h visé`} />
@@ -4482,7 +4587,7 @@ export default function App() {
         }}>
           {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} isMobile={isMobile} />}
           {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} isMobile={isMobile} />}
-          {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} isMobile={isMobile} />}
+          {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} isMobile={isMobile} onNavigate={navigate} />}
           {view === "team"        && <TeamView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} isMobile={isMobile} onLoadStrategy={data => {
             if (data.race)     setRaceRaw(data.race);
             if (data.segments) setSegmentsRaw(data.segments);
