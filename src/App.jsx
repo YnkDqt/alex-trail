@@ -2141,6 +2141,9 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
   const [editId, setEditId] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
   const [computing, setComputing] = useState(false);
+  const [subView, setSubView] = useState("global");
+  const [aiSynthese, setAiSynthese] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
   const emptyForm = { startKm: "", endKm: "", slopePct: 0, speedKmh: 9.5, terrain: "normal", notes: "" };
   const [form, setForm] = useState(emptyForm);
 
@@ -2249,256 +2252,416 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
         <Empty icon="✂️" title="Aucun segment défini" sub="Génère les segments depuis ta stratégie, ou ajoute-en un manuellement." action={<Btn onClick={openNew}>+ Ajouter un segment</Btn>} />
       ) : (
         <>
+          {/* KPIs toujours visibles */}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(180px, 1fr))", gap: isMobile ? 8 : 14, marginBottom: 20 }}>
             <KPI label="Temps course" value={fmtTime(totalTime)} color={C.secondary} icon="⏱️" sub="hors ravitos" />
             <KPI label="Temps total" value={fmtTime(totalWithRavitos)} icon="🏁" sub={`+${ravitoCount} ravito${ravitoCount>1?"s":""}`} />
-            {segments.length > 0 && <KPI label="Arrivée estimée" value={fmtHeure(arrivalTime)} icon={isNight(arrivalTime) ? "🌙" : "☀️"} color={isNight(arrivalTime) ? C.blue : C.yellow} sub={`départ ${settings.startTime || "07:00"}`} />}
+            <KPI label="Arrivée estimée" value={fmtHeure(arrivalTime)} icon={isNight(arrivalTime) ? "🌙" : "☀️"} color={isNight(arrivalTime) ? C.blue : C.yellow} sub={`départ ${settings.startTime || "07:00"}`} />
           </div>
 
-          <Card noPad style={{ marginBottom: 20 }}>
-            <div style={{ padding: "14px 20px 0", fontWeight: 600 }}>Vitesses par segment</div>
-            <ResponsiveContainer width="100%" height={140}>
-              <BarChart data={barData} margin={{ top: 8, right: 20, bottom: 4, left: 10 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: C.muted }} />
-                <YAxis tick={{ fontSize: 11, fill: C.muted }} />
-                <RTooltip content={<CustomTooltip />} />
-                <Bar dataKey="vitesse" name="km/h" radius={[4,4,0,0]}>
-                  {barData.map((d, i) => (
-                    <Cell key={i} fill={d.pente > 9 ? C.red : d.pente < -12 ? C.blue : d.pente > 4 ? C.yellow : C.green} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
+          {/* Onglets internes */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: `1px solid var(--border-c)`, paddingBottom: 0 }}>
+            {[
+              { id: "global",   label: "Vue globale" },
+              { id: "segments", label: "Segments" },
+              { id: "analyse",  label: "Analyse" },
+            ].map(tab => (
+              <button key={tab.id} onClick={() => setSubView(tab.id)} style={{
+                padding: "8px 18px", fontSize: 13, fontWeight: subView === tab.id ? 600 : 400,
+                background: "none", border: "none", cursor: "pointer",
+                color: subView === tab.id ? C.primary : "var(--muted-c)",
+                borderBottom: `2px solid ${subView === tab.id ? C.primary : "transparent"}`,
+                marginBottom: -1, transition: "all 0.15s",
+                fontFamily: "'DM Sans', sans-serif",
+              }}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-          <Card noPad>
-            <div style={{ padding: "14px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: 600 }}>Segments</span>
-              <div style={{ display: "flex", gap: 8 }}>
-                <Btn size="sm" variant="ghost" onClick={onOpenRepos}>💤 Repos</Btn>
-                <Btn size="sm" onClick={openNew}>+ Segment</Btn>
-              </div>
-            </div>
-            <div className="tbl-wrap">
-              <table style={{ fontSize: isMobile ? 11 : undefined }}>
-                <thead><tr>
-                  <th>#</th><th>De</th><th>À</th><th>Dist.</th><th>Pente</th><th>Terrain</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th>Heure</th><th>Nutrition/h</th><th></th>
-                </tr></thead>
-                <tbody>{(() => {
-                  let segNum = 0;
-                  return segments.map((seg, i) => {
-                  // ── Segment ravitaillement ──
-                  if (seg.type === "ravito") {
-                    const t = passingTimes[i];
-                    const night = isNight(t);
-                    return (
-                      <tr key={seg.id} style={{ background: C.green + "10", cursor: "default" }}>
-                        <td style={{ color: "var(--muted-c)", fontSize: 16 }}>🥤</td>
-                        <td style={{ fontWeight: 600, color: C.green }}>{seg.label}</td>
-                        <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
-                        <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>
-                          {seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}
-                        </td>
-                        <td colSpan={4} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>
-                          Arrêt ravitaillement · pas de distance
-                        </td>
-                        <td>
-                          <span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>
-                            {fmtHeure(t)}
-                          </span>
-                          {night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}
-                        </td>
-                        <td></td>
-                        <td><span style={{ fontSize: 11, color: "var(--muted-c)" }}>auto</span></td>
-                      </tr>
-                    );
-                  }
-                  // ── Segment de repos ──
-                  if (seg.type === "repos") {
-                    const t = passingTimes[i];
-                    const night = isNight(t);
-                    return (
-                      <tr key={seg.id} style={{ background: "var(--surface-2)", cursor: "default" }}>
-                        <td style={{ color: "var(--muted-c)", fontSize: 16 }}>💤</td>
-                        <td style={{ fontWeight: 600, color: C.blue }}>{seg.label}</td>
-                        <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
-                        <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>
-                          {seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}
-                        </td>
-                        <td colSpan={4} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>
-                          Pas de distance · temps ajouté au total
-                        </td>
-                        <td>
-                          <span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>
-                            {fmtHeure(t)}
-                          </span>
-                          {night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}
-                        </td>
-                        <td></td>
-                        <td onClick={e => e.stopPropagation()}>
-                          <Btn size="sm" variant="danger" onClick={() => setConfirmId(seg.id)}>✕</Btn>
-                        </td>
-                      </tr>
-                    );
-                  }
-                  // ── Segment normal ──
-                  segNum++;
-                  const dist = seg.endKm - seg.startKm;
-                  const dur  = fmtTime((dist / seg.speedKmh) * 3600);
-                  const n    = calcNutrition(seg, settings);
-                  const terrainLabel = TERRAIN_TYPES.find(t => t.key === (seg.terrain || "normal"))?.label || "Normal";
-                  const terrainKey   = seg.terrain || "normal";
-                  const t    = passingTimes[i];
-                  const night = isNight(t);
-                  return (
-                    <tr key={seg.id} onClick={() => openEdit(seg)} style={{ cursor: "pointer" }}>
-                      <td style={{ color: "var(--muted-c)" }}>{segNum}</td>
-                      <td>{seg.startKm} km</td>
-                      <td>{seg.endKm} km</td>
-                      <td>{dist.toFixed(1)} km</td>
-                      <td>
-                        <span className={`badge ${seg.slopePct > 9 ? "badge-red" : seg.slopePct < -12 ? "badge-blue" : "badge-sage"}`}>
-                          {seg.slopePct > 0 ? "+" : ""}{seg.slopePct}%
-                        </span>
-                        {seg.slopePct > 10 && <span style={{ marginLeft: 6, fontSize: 11, color: C.yellow }}>marche</span>}
-                      </td>
-                      <td>
-                        {terrainKey !== "normal"
-                          ? <span className="badge badge-yellow" style={{ fontSize: 11 }}>{terrainLabel}</span>
-                          : <span style={{ fontSize: 12, color: "var(--muted-c)" }}>—</span>}
-                      </td>
-                      <td style={{ fontWeight: 600 }}>{seg.speedKmh} km/h</td>
-                      <td style={{ fontFamily: "'Playfair Display', serif" }}>{fmtPace(seg.speedKmh)}/km</td>
-                      <td>{dur}</td>
-                      <td>
-                        <span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>
-                          {fmtHeure(t)}
-                        </span>
-                        {night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}
-                      </td>
-                      <td style={{ fontSize: 12, color: "var(--muted-c)" }}>{n.eauH}mL · {n.glucidesH}g · {n.kcalH}kcal</td>
-                      <td onClick={e => e.stopPropagation()}>
-                        <Btn size="sm" variant="danger" onClick={() => setConfirmId(seg.id)}>✕</Btn>
-                      </td>
-                    </tr>
-                  );
-                  });
-                })()}</tbody>
-              </table>
-            </div>
-          </Card>
-
-          {/* ── PROFIL DE FATIGUE CUMULÉE ── */}
-          {(() => {
-            const [tooltipFatigue, setTooltipFatigue] = useState(false);
+          {/* ── VUE GLOBALE ── */}
+          {subView === "global" && (() => {
             const levelData = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel || "intermediaire")) || RUNNER_LEVELS[1];
-            const paceStrat = settings.paceStrategy || 0;
             const garminCoeff = settings.garminCoeff || 1;
-
-            // ITRA Effort Score : EK = dist + D+/100 + D-/200
-            // Source : Vernillo et al. 2017 + formule officielle ITRA
+            const paceStrat = settings.paceStrategy || 0;
             const totalEK = segsNormaux.reduce((s, seg) => {
               const dist = seg.endKm - seg.startKm;
-              const dplus  = seg.slopePct > 0 ? (seg.slopePct / 100) * dist * 1000 : 0;
-              const dminus = seg.slopePct < 0 ? Math.abs(seg.slopePct / 100) * dist * 1000 : 0;
-              return s + dist + dplus / 100 + dminus / 200;
+              const dp = seg.slopePct > 0 ? (seg.slopePct/100)*dist*1000 : 0;
+              const dm = seg.slopePct < 0 ? Math.abs(seg.slopePct/100)*dist*1000 : 0;
+              return s + dist + dp/100 + dm/200;
             }, 0) || 1;
-
-            let cumEK = 0, segNum = 0;
+            let cumEK = 0, sn = 0;
             const fatigueData = segments.map(seg => {
-              if (seg.type === "ravito") {
-                const duree = seg.dureeMin || settings.ravitoTimeMin || 3;
-                const rec = Math.min(duree * 0.6 * levelData.coeff * garminCoeff, 4);
-                cumEK = Math.max(0, cumEK - rec);
-                return { label: seg.label || "Ravito", type: "ravito", charge: Math.round(cumEK / totalEK * 100), reserve: Math.max(0, Math.round(100 - cumEK / totalEK * 100)) };
-              }
-              if (seg.type === "repos") {
-                const rec = Math.min((seg.dureeMin || 20) * 0.4 * levelData.coeff, 8);
-                cumEK = Math.max(0, cumEK - rec);
-                return { label: seg.label || "Repos", type: "repos", charge: Math.round(cumEK / totalEK * 100), reserve: Math.max(0, Math.round(100 - cumEK / totalEK * 100)) };
-              }
-              segNum++;
-              const dist = seg.endKm - seg.startKm;
-              const dplus  = seg.slopePct > 0 ? (seg.slopePct / 100) * dist * 1000 : 0;
-              const dminus = seg.slopePct < 0 ? Math.abs(seg.slopePct / 100) * dist * 1000 : 0;
-              const ek = dist + dplus / 100 + dminus / 200;
-              const progress = segNum / (segsNormaux.length || 1);
-              const paceFactor = paceStrat < 0 ? (1 + progress * 0.25) : paceStrat > 0 ? (1 - progress * 0.15 + 0.08) : 1;
-              cumEK += ek * paceFactor / (levelData.coeff * garminCoeff);
-              const chargePct = Math.min(100, Math.round(cumEK / totalEK * 100));
-              return { label: `S${segNum}`, fullLabel: `${seg.startKm}→${seg.endKm} km`, type: "seg", charge: chargePct, reserve: Math.max(0, 100 - chargePct) };
+              if (seg.type === "ravito") { const rec = Math.min((seg.dureeMin||3)*0.6*levelData.coeff*garminCoeff,4); cumEK=Math.max(0,cumEK-rec); return { label: seg.label||"Rv", type:"ravito", charge:Math.round(cumEK/totalEK*100), reserve:Math.max(0,Math.round(100-cumEK/totalEK*100)) }; }
+              if (seg.type === "repos")  { const rec = Math.min((seg.dureeMin||20)*0.4*levelData.coeff,8); cumEK=Math.max(0,cumEK-rec); return { label: seg.label||"Repos", type:"repos", charge:Math.round(cumEK/totalEK*100), reserve:Math.max(0,Math.round(100-cumEK/totalEK*100)) }; }
+              sn++;
+              const dist=seg.endKm-seg.startKm, dp=seg.slopePct>0?(seg.slopePct/100)*dist*1000:0, dm=seg.slopePct<0?Math.abs(seg.slopePct/100)*dist*1000:0;
+              const ek=dist+dp/100+dm/200, prog=sn/(segsNormaux.length||1);
+              const pf=paceStrat<0?(1+prog*0.25):paceStrat>0?(1-prog*0.15+0.08):1;
+              cumEK+=ek*pf/(levelData.coeff*garminCoeff);
+              const cp=Math.min(100,Math.round(cumEK/totalEK*100));
+              return { label:`S${sn}`, fullLabel:`${seg.startKm}→${seg.endKm} km`, type:"seg", charge:cp, reserve:Math.max(0,100-cp) };
+            });
+            const SEUIL = 80;
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
+                <Card noPad>
+                  <div style={{ padding: "14px 20px 0", fontWeight: 600, fontSize: 13 }}>Vitesses par segment</div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={barData} margin={{ top: 8, right: 16, bottom: 4, left: 10 }}>
+                      <XAxis dataKey="name" tick={{ fontSize: 10, fill: C.muted }} />
+                      <YAxis tick={{ fontSize: 10, fill: C.muted }} />
+                      <RTooltip content={<CustomTooltip />} />
+                      <Bar dataKey="vitesse" name="km/h" radius={[4,4,0,0]}>
+                        {barData.map((d, i) => <Cell key={i} fill={d.pente > 9 ? C.red : d.pente < -12 ? C.blue : d.pente > 4 ? C.yellow : C.green} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Card>
+                <Card noPad>
+                  <div style={{ padding: "14px 20px 4px", display:"flex", alignItems:"center", gap:8 }}>
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>Fatigue cumulée</span>
+                    {fatigueData.some(d => d.charge >= SEUIL) && <span style={{ fontSize: 10, background: C.redPale, color: C.red, borderRadius: 4, padding: "1px 6px", fontWeight: 600 }}>Zone critique</span>}
+                  </div>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <ComposedChart data={fatigueData} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
+                      <XAxis dataKey="label" tick={{ fontSize: 10, fill: C.muted }} />
+                      <YAxis domain={[0,100]} tick={{ fontSize: 10, fill: C.muted }} tickFormatter={v=>`${v}%`} width={34} />
+                      <RTooltip formatter={(v,n) => [`${v}%`, n==="charge"?"Charge":"Réserve"]} contentStyle={{ fontSize:11, borderRadius:8 }} />
+                      <ReferenceLine y={SEUIL} stroke={C.yellow} strokeDasharray="4 3" strokeWidth={1.5} />
+                      <Bar dataKey="charge" radius={[3,3,0,0]}>
+                        {fatigueData.map((d,i) => <Cell key={i} fill={d.type==="ravito"?C.green+"99":d.type==="repos"?C.blue+"55":d.charge>=SEUIL?C.red+"cc":d.charge>=60?C.yellow+"cc":C.blue+"cc"} />)}
+                      </Bar>
+                      <Line type="monotone" dataKey="reserve" stroke={C.red} strokeWidth={2} dot={{ r:2, fill:C.red }} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </Card>
+              </div>
+            );
+          })()}
+
+          {/* ── VUE SEGMENTS ── */}
+          {subView === "segments" && (
+            <Card noPad>
+              <div style={{ padding: "14px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontWeight: 600 }}>Segments</span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Btn size="sm" variant="ghost" onClick={onOpenRepos}>💤 Repos</Btn>
+                  <Btn size="sm" onClick={openNew}>+ Segment</Btn>
+                </div>
+              </div>
+              <div className="tbl-wrap">
+                <table style={{ fontSize: isMobile ? 11 : undefined }}>
+                  <thead><tr>
+                    <th>#</th><th>De</th><th>À</th><th>Dist.</th><th>Pente</th><th>Terrain</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th>Heure</th><th>Nutrition/h</th><th></th>
+                  </tr></thead>
+                  <tbody>{(() => {
+                    let segNum = 0;
+                    return segments.map((seg, i) => {
+                      if (seg.type === "ravito") {
+                        const t = passingTimes[i]; const night = isNight(t);
+                        return (
+                          <tr key={seg.id} style={{ background: C.green + "10", cursor: "default" }}>
+                            <td style={{ color: "var(--muted-c)", fontSize: 16 }}>🥤</td>
+                            <td style={{ fontWeight: 600, color: C.green }}>{seg.label}</td>
+                            <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
+                            <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>{seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}</td>
+                            <td colSpan={4} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>Arrêt ravitaillement · pas de distance</td>
+                            <td><span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>{fmtHeure(t)}</span>{night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}</td>
+                            <td></td>
+                            <td><span style={{ fontSize: 11, color: "var(--muted-c)" }}>auto</span></td>
+                          </tr>
+                        );
+                      }
+                      if (seg.type === "repos") {
+                        const t = passingTimes[i]; const night = isNight(t);
+                        return (
+                          <tr key={seg.id} style={{ background: "var(--surface-2)", cursor: "default" }}>
+                            <td style={{ color: "var(--muted-c)", fontSize: 16 }}>💤</td>
+                            <td style={{ fontWeight: 600, color: C.blue }}>{seg.label}</td>
+                            <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
+                            <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>{seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}</td>
+                            <td colSpan={4} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>Pas de distance · temps ajouté au total</td>
+                            <td><span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>{fmtHeure(t)}</span>{night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}</td>
+                            <td></td>
+                            <td onClick={e => e.stopPropagation()}><Btn size="sm" variant="danger" onClick={() => setConfirmId(seg.id)}>✕</Btn></td>
+                          </tr>
+                        );
+                      }
+                      segNum++;
+                      const dist = seg.endKm - seg.startKm;
+                      const dur  = fmtTime((dist / seg.speedKmh) * 3600);
+                      const n    = calcNutrition(seg, settings);
+                      const terrainLabel = TERRAIN_TYPES.find(t => t.key === (seg.terrain || "normal"))?.label || "Normal";
+                      const terrainKey   = seg.terrain || "normal";
+                      const t    = passingTimes[i]; const night = isNight(t);
+                      return (
+                        <tr key={seg.id} onClick={() => openEdit(seg)} style={{ cursor: "pointer" }}>
+                          <td style={{ color: "var(--muted-c)" }}>{segNum}</td>
+                          <td>{seg.startKm} km</td><td>{seg.endKm} km</td><td>{dist.toFixed(1)} km</td>
+                          <td>
+                            <span className={`badge ${seg.slopePct > 9 ? "badge-red" : seg.slopePct < -12 ? "badge-blue" : "badge-sage"}`}>{seg.slopePct > 0 ? "+" : ""}{seg.slopePct}%</span>
+                            {seg.slopePct > 10 && <span style={{ marginLeft: 6, fontSize: 11, color: C.yellow }}>marche</span>}
+                          </td>
+                          <td>{terrainKey !== "normal" ? <span className="badge badge-yellow" style={{ fontSize: 11 }}>{terrainLabel}</span> : <span style={{ fontSize: 12, color: "var(--muted-c)" }}>—</span>}</td>
+                          <td style={{ fontWeight: 600 }}>{seg.speedKmh} km/h</td>
+                          <td style={{ fontFamily: "'Playfair Display', serif" }}>{fmtPace(seg.speedKmh)}/km</td>
+                          <td>{dur}</td>
+                          <td><span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>{fmtHeure(t)}</span>{night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}</td>
+                          <td style={{ fontSize: 12, color: "var(--muted-c)" }}>{n.eauH}mL · {n.glucidesH}g · {n.kcalH}kcal</td>
+                          <td onClick={e => e.stopPropagation()}><Btn size="sm" variant="danger" onClick={() => setConfirmId(seg.id)}>✕</Btn></td>
+                        </tr>
+                      );
+                    });
+                  })()}</tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {/* ── VUE ANALYSE ── */}
+          {subView === "analyse" && (() => {
+            const levelData = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel || "intermediaire")) || RUNNER_LEVELS[1];
+            const garminCoeff = settings.garminCoeff || 1;
+            const gs = settings.garminStats;
+            const paceStrat = settings.paceStrategy || 0;
+            const totalDistKm = race.totalDistance || segsNormaux.reduce((s,g) => s+g.endKm-g.startKm, 0);
+            const totalDplus  = race.totalElevPos || 0;
+            const totalDmoins = race.totalElevNeg || 0;
+            const totalTimeH  = totalTime / 3600;
+
+            // ── Calcul des métriques ──────────────────────────────────────────
+            // 1. Allure vs historique Garmin
+            const avgSpeedKmh = segsNormaux.reduce((s,g) => s + g.speedKmh*(g.endKm-g.startKm), 0) / (totalDistKm||1);
+            const garminGapKmh = gs?.avgGapKmh;
+            const allureEcart = garminGapKmh ? Math.round((avgSpeedKmh - garminGapKmh) / garminGapKmh * 100) : null;
+
+            // 2. Densité D+/h
+            const dplusPerH = totalTimeH > 0 ? Math.round(totalDplus / totalTimeH) : 0;
+
+            // 3. Distribution effort : % de charge dans la 2e moitié
+            const mid = totalDistKm / 2;
+            const segsFirstHalf  = segsNormaux.filter(s => s.endKm <= mid);
+            const segsSecondHalf = segsNormaux.filter(s => s.startKm >= mid);
+            const avgSlopeFirst  = segsFirstHalf.length  ? segsFirstHalf.reduce((s,g)  => s+g.slopePct,0)/segsFirstHalf.length  : 0;
+            const avgSlopeSecond = segsSecondHalf.length ? segsSecondHalf.reduce((s,g) => s+g.slopePct,0)/segsSecondHalf.length : 0;
+            const hardSegsSecondHalf = segsSecondHalf.filter(s => s.slopePct >= 12).length;
+
+            // 4. Couverture ravitos
+            const ravitos = [...(race.ravitos||[])].sort((a,b) => a.km-b.km);
+            let maxGapSansRavito = 0, prevKm = 0;
+            ravitos.forEach(rv => { maxGapSansRavito = Math.max(maxGapSansRavito, rv.km - prevKm); prevKm = rv.km; });
+            maxGapSansRavito = Math.max(maxGapSansRavito, totalDistKm - prevKm);
+
+            // 5. ITRA EK total
+            const totalEK = segsNormaux.reduce((s, seg) => {
+              const dist=seg.endKm-seg.startKm, dp=seg.slopePct>0?(seg.slopePct/100)*dist*1000:0, dm=seg.slopePct<0?Math.abs(seg.slopePct/100)*dist*1000:0;
+              return s + dist + dp/100 + dm/200;
+            }, 0);
+
+            // 6. Météo × effort
+            const tempC = settings.tempC || 15;
+            const hasAdverseMeteo = settings.rain || settings.snow || settings.wind || tempC > 28 || tempC < 0;
+
+            // ── Points d'analyse ─────────────────────────────────────────────
+            const points = [];
+
+            // 1. Allure
+            if (allureEcart !== null) {
+              const isOk = allureEcart <= 5;
+              const isWarn = allureEcart > 5 && allureEcart <= 15;
+              points.push({
+                status: isOk ? "ok" : isWarn ? "warn" : "alert",
+                titre: "Allure vs historique Garmin",
+                valeur: `${fmtPace(avgSpeedKmh)}/km moyen · GAP habituel ${fmtPace(garminGapKmh)}/km`,
+                explication: isOk
+                  ? `Ton allure cible est proche de ton niveau habituel (écart ${allureEcart > 0 ? "+" : ""}${allureEcart}%). Stratégie réaliste.`
+                  : isWarn
+                  ? `Allure ${allureEcart}% au-dessus de ton GAP Garmin. Ambitieux mais atteignable si les conditions sont bonnes. Surveille les premiers segments.`
+                  : `Allure ${allureEcart}% au-dessus de ton niveau habituel. Risque élevé de blow-up en 2e moitié. Envisage de réviser les vitesses à la baisse.`,
+              });
+            } else {
+              points.push({
+                status: "info",
+                titre: "Allure vs historique",
+                valeur: "Données Garmin non disponibles",
+                explication: "Charge ton Activities.csv dans Profil de course pour comparer ta stratégie à ton niveau réel.",
+              });
+            }
+
+            // 2. Densité D+/h
+            const dpStatus = dplusPerH > 500 ? "alert" : dplusPerH > 300 ? "warn" : "ok";
+            points.push({
+              status: dpStatus,
+              titre: "Densité de dénivelé",
+              valeur: `${dplusPerH} m D+/h · ${Math.round(totalDplus)} m D+ total`,
+              explication: dpStatus === "ok"
+                ? `Densité de dénivelé modérée (< 300 m/h). Effort gérable sur la durée.`
+                : dpStatus === "warn"
+                ? `${dplusPerH} m D+/h est élevé. Au-delà de 300 m/h sur plusieurs heures, la fatigue musculaire s'accumule rapidement (Millet et al., 2011). Planifie des ravitos fréquents sur ces sections.`
+                : `${dplusPerH} m D+/h est très élevé. Ce niveau d'engagement nécessite une expérience solide en montagne et une gestion de l'effort très conservative au départ.`,
             });
 
-            const SEUIL = 80;
-            const enZoneRouge = fatigueData.some(d => d.charge >= SEUIL);
+            // 3. Distribution effort
+            const distStatus = hardSegsSecondHalf >= 2 ? "warn" : "ok";
+            points.push({
+              status: distStatus,
+              titre: "Distribution de l'effort",
+              valeur: `Pente moy. 1ère moitié : +${avgSlopeFirst.toFixed(1)}% · 2e moitié : +${avgSlopeSecond.toFixed(1)}%`,
+              explication: distStatus === "ok"
+                ? "Les segments les plus difficiles ne sont pas concentrés en fin de course. Bonne distribution de l'effort."
+                : `${hardSegsSecondHalf} segment${hardSegsSecondHalf > 1 ? "s" : ""} à pente ≥ 12% en 2e moitié de course, quand la fatigue est maximale. Prévois une marge de sécurité sur ces segments.`,
+            });
+
+            // 4. Ravitos
+            const ravitoStatus = maxGapSansRavito > 20 ? "alert" : maxGapSansRavito > 15 ? "warn" : "ok";
+            points.push({
+              status: ravitoStatus,
+              titre: "Couverture ravitaillement",
+              valeur: ravitos.length === 0 ? "Aucun ravito défini" : `${ravitos.length} ravito${ravitos.length>1?"s":""} · gap max ${maxGapSansRavito.toFixed(1)} km`,
+              explication: ravitos.length === 0
+                ? "Aucun ravitaillement défini. Ajoute des ravitos dans Profil de course pour planifier ta nutrition et ton assistance."
+                : ravitoStatus === "ok"
+                ? `Bonne couverture : aucun tronçon > 15 km sans ravito.`
+                : ravitoStatus === "warn"
+                ? `Le plus long tronçon sans ravito fait ${maxGapSansRavito.toFixed(1)} km. Acceptable mais assure-toi d'avoir assez d'autonomie hydrique.`
+                : `Un tronçon de ${maxGapSansRavito.toFixed(1)} km sans ravito. Sur un effort intense, c'est long. Envisage un ravito supplémentaire ou augmente ta capacité d'emport.`,
+            });
+
+            // 5. ITRA EK
+            const itraRef = { debutant: 30, intermediaire: 50, confirme: 70, expert: 100 };
+            const maxEK = itraRef[settings.runnerLevel || "intermediaire"] || 50;
+            const eKStatus = totalEK > maxEK * 1.3 ? "alert" : totalEK > maxEK ? "warn" : "ok";
+            points.push({
+              status: eKStatus,
+              titre: "Effort ITRA global",
+              valeur: `${totalEK.toFixed(1)} EK · référence ${levelData.label} : ~${maxEK} EK`,
+              explication: eKStatus === "ok"
+                ? `L'effort total de ${totalEK.toFixed(1)} EK est cohérent avec ton niveau ${levelData.label}. Formule ITRA : EK = distance + D+/100 + D-/200.`
+                : eKStatus === "warn"
+                ? `${totalEK.toFixed(1)} EK dépasse légèrement la référence pour ton niveau. Course ambitieuse — prévoir une stratégie de départ conservatrice.`
+                : `${totalEK.toFixed(1)} EK est significativement au-dessus de la référence pour ton niveau. Réévalue tes objectifs de temps ou considère passer au niveau supérieur dans Paramètres.`,
+            });
+
+            // 6. Météo
+            if (hasAdverseMeteo) {
+              const meteoDetails = [
+                settings.rain ? "pluie" : null, settings.snow ? "neige" : null,
+                settings.wind ? "vent fort" : null, tempC > 28 ? `chaleur ${tempC}°C` : null,
+                tempC < 0 ? `froid ${tempC}°C` : null,
+              ].filter(Boolean).join(", ");
+              points.push({
+                status: "warn",
+                titre: "Impact météo",
+                valeur: meteoDetails.charAt(0).toUpperCase() + meteoDetails.slice(1),
+                explication: tempC > 28
+                  ? "Forte chaleur : augmente l'hydratation de 150-200 mL/h et prévois des électrolytes à chaque ravito. Réduis les vitesses de 5-8% sur les montées exposées."
+                  : settings.snow
+                  ? "Neige ou neige fondue : vitesses réduites de 15-20%, équipement spécifique requis. Révise les temps de parcours en conséquence."
+                  : "Conditions dégradées prévues. Adapte tes vitesses et augmente les marges de temps aux ravitos.",
+              });
+            }
+
+            const statusIcon = { ok: "✅", warn: "⚠️", alert: "🔴", info: "ℹ️" };
+            const statusBg   = { ok: C.greenPale, warn: C.yellowPale, alert: C.redPale, info: C.bluePale };
+            const statusText = { ok: C.green, warn: C.yellow, alert: C.red, info: C.blue };
+
+            // ── Synthèse IA ───────────────────────────────────────────────────
+            const genererSynthese = async () => {
+              setAiLoading(true);
+              setAiSynthese("");
+              const ctx = {
+                course: settings.raceName || race.name || "la course",
+                distance: totalDistKm.toFixed(1), dplus: Math.round(totalDplus),
+                tempsEstime: fmtTime(totalTime),
+                niveau: levelData.label,
+                garminGap: garminGapKmh ? `${fmtPace(garminGapKmh)}/km` : "non disponible",
+                alureStrategie: `${fmtPace(avgSpeedKmh)}/km`,
+                ekTotal: totalEK.toFixed(1), ekRef: maxEK,
+                dplusPerH, maxGapRavito: maxGapSansRavito.toFixed(1),
+                meteo: hasAdverseMeteo ? `conditions difficiles (${[settings.rain?"pluie":null,settings.snow?"neige":null,settings.wind?"vent":null,tempC>28?`${tempC}°C`:null].filter(Boolean).join(", ")})` : "normales",
+                alertes: points.filter(p => p.status !== "ok").map(p => p.titre),
+              };
+              const prompt = `Tu es un coach de trail expérimenté. Voici la stratégie d'un coureur :
+Course : ${ctx.course} · ${ctx.distance} km · ${ctx.dplus} m D+ · Temps visé : ${ctx.tempsEstime}
+Niveau : ${ctx.niveau} · Allure GAP habituelle : ${ctx.garminGap} · Allure stratégie : ${ctx.alureStrategie}
+Effort ITRA : ${ctx.ekTotal} EK (référence niveau : ${ctx.ekRef} EK)
+D+/h : ${ctx.dplusPerH} m/h · Plus long tronçon sans ravito : ${ctx.maxGapRavito} km · Météo : ${ctx.meteo}
+Points d'attention : ${ctx.alertes.length ? ctx.alertes.join(", ") : "aucun"}
+
+En 2-3 phrases max, donne une synthèse directe et concrète de cette stratégie. Dis si elle est réaliste, ce qui est bien, et le principal risque à surveiller. Tutoie le coureur. Sois honnête mais encourageant.`;
+
+              try {
+                const res = await fetch("https://api.anthropic.com/v1/messages", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    model: "claude-sonnet-4-20250514",
+                    max_tokens: 1000,
+                    stream: true,
+                    messages: [{ role: "user", content: prompt }],
+                  }),
+                });
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = "";
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  buffer += decoder.decode(value, { stream: true });
+                  const lines = buffer.split("\n");
+                  buffer = lines.pop();
+                  for (const line of lines) {
+                    if (!line.startsWith("data: ")) continue;
+                    const data = line.slice(6);
+                    if (data === "[DONE]") break;
+                    try {
+                      const parsed = JSON.parse(data);
+                      const delta = parsed?.delta?.text || parsed?.delta?.type === "text_delta" ? parsed.delta.text : "";
+                      if (delta) setAiSynthese(prev => prev + delta);
+                    } catch {}
+                  }
+                }
+              } catch (e) {
+                setAiSynthese("Impossible de générer la synthèse. Vérifie ta connexion.");
+              }
+              setAiLoading(false);
+            };
 
             return (
-              <Card style={{ marginTop: 20 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontWeight: 600, fontSize: 14 }}>Profil de fatigue cumulée</span>
-                    <span onClick={() => setTooltipFatigue(t => !t)} style={{ cursor: "pointer", fontSize: 13, color: C.primary, userSelect: "none" }}>ⓘ</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {points.map((p, i) => (
+                  <div key={i} style={{ padding: "14px 16px", borderRadius: 12, background: statusBg[p.status], border: `1px solid ${statusText[p.status]}30` }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 15 }}>{statusIcon[p.status]}</span>
+                      <span style={{ fontWeight: 600, fontSize: 14, color: "var(--text-c)" }}>{p.titre}</span>
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: statusText[p.status], marginBottom: 6, marginLeft: 24 }}>{p.valeur}</div>
+                    <div style={{ fontSize: 12, color: "var(--muted-c)", lineHeight: 1.6, marginLeft: 24 }}>{p.explication}</div>
                   </div>
-                  {enZoneRouge && (
-                    <span style={{ fontSize: 11, background: C.redPale, color: C.red, borderRadius: 6, padding: "2px 8px", fontWeight: 600 }}>Zone critique atteinte</span>
+                ))}
+
+                {/* Synthèse IA */}
+                <Card style={{ borderLeft: `3px solid ${C.primary}`, background: C.primaryPale }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: C.primaryDeep }}>Synthèse · Alex IA</div>
+                    <Btn size="sm" variant="soft" onClick={genererSynthese} disabled={aiLoading}>
+                      {aiLoading ? "Analyse en cours..." : aiSynthese ? "↻ Régénérer" : "Générer la synthèse"}
+                    </Btn>
+                  </div>
+                  {aiSynthese ? (
+                    <p style={{ fontSize: 13, color: C.primaryDeep, lineHeight: 1.7, margin: 0 }}>{aiSynthese}</p>
+                  ) : (
+                    <p style={{ fontSize: 12, color: "var(--muted-c)", fontStyle: "italic", margin: 0 }}>
+                      Clique sur "Générer la synthèse" pour obtenir une analyse personnalisée de ta stratégie par l'IA.
+                    </p>
                   )}
+                </Card>
+
+                <div style={{ fontSize: 11, color: "var(--muted-c)", lineHeight: 1.5, padding: "0 4px" }}>
+                  Analyse basée sur : ITRA Effort Score · Vernillo et al. (2017) · Millet et al. (2011) · données Garmin personnelles
                 </div>
-                {tooltipFatigue && (
-                  <div style={{ background: "var(--surface-2)", border: `1px solid var(--border-c)`, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "var(--text-c)", marginBottom: 12, lineHeight: 1.8 }}>
-                    <strong>ITRA Effort Score</strong> — formule officielle ITRA / UTMB<br/>
-                    <code style={{ fontSize: 11, background: "var(--surface)", padding: "2px 6px", borderRadius: 4 }}>EK = distance (km) + D+ / 100 + D− / 200</code><br/><br/>
-                    <strong>Vernillo et al. (2017)</strong> — <em>Sports Medicine</em><br/>
-                    Le D+ est un prédicteur de fatigue plus fort que la distance seule. La charge intègre distance, dénivelé positif et négatif.<br/><br/>
-                    <strong>Millet et al. (2011)</strong> — <em>Medicine & Science in Sports & Exercise</em><br/>
-                    Étude UTMB : fatigue neuromusculaire sur ultra-trail. La récupération aux ravitos est ajustée selon la durée et le niveau coureur.<br/><br/>
-                    <span style={{ color: "var(--muted-c)", fontSize: 11 }}>La courbe de réserve est une modélisation comparative — pas une prédiction physiologique exacte.</span>
-                  </div>
-                )}
-                <div style={{ display: "flex", gap: 16, marginBottom: 10, flexWrap: "wrap" }}>
-                  {[
-                    { color: C.blue,   label: "Charge cumulée", line: false },
-                    { color: C.red,    label: "Réserve estimée", line: true },
-                    { color: C.yellow, label: "Seuil critique (80%)", dashed: true },
-                  ].map(({ color, label, line, dashed }) => (
-                    <span key={label} style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}>
-                      {dashed
-                        ? <span style={{ width: 14, borderTop: `2px dashed ${color}`, display: "inline-block" }} />
-                        : line
-                          ? <span style={{ width: 14, borderTop: `2px solid ${color}`, display: "inline-block" }} />
-                          : <span style={{ width: 10, height: 10, borderRadius: 2, background: color, display: "inline-block" }} />
-                      }
-                      <span style={{ color: "var(--muted-c)" }}>{label}</span>
-                    </span>
-                  ))}
-                </div>
-                <ResponsiveContainer width="100%" height={180}>
-                  <ComposedChart data={fatigueData} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
-                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: C.muted }} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: C.muted }} tickFormatter={v => `${v}%`} width={36} />
-                    <RTooltip
-                      formatter={(value, name) => [`${value}%`, name === "charge" ? "Charge cumulée" : "Réserve estimée"]}
-                      labelFormatter={(label, payload) => { const d = payload?.[0]?.payload; return d?.fullLabel ? `${label} — ${d.fullLabel}` : label; }}
-                      contentStyle={{ fontSize: 12, borderRadius: 8, border: `1px solid ${C.border}` }}
-                    />
-                    <ReferenceLine y={SEUIL} stroke={C.yellow} strokeDasharray="5 4" strokeWidth={1.5} />
-                    <Bar dataKey="charge" name="charge" radius={[3,3,0,0]}>
-                      {fatigueData.map((d, i) => (
-                        <Cell key={i} fill={
-                          d.type === "ravito" ? C.green  + "99" :
-                          d.type === "repos"  ? C.blue   + "55" :
-                          d.charge >= SEUIL   ? C.red    + "cc" :
-                          d.charge >= 60      ? C.yellow + "cc" : C.blue + "cc"
-                        } />
-                      ))}
-                    </Bar>
-                    <Line type="monotone" dataKey="reserve" name="reserve" stroke={C.red} strokeWidth={2} dot={{ r: 2, fill: C.red }} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-                <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 8 }}>
-                  ITRA Effort Score · niveau <strong style={{ color: "var(--text-c)" }}>{levelData.label}</strong> · coeff Garmin ×{garminCoeff}
-                  {paceStrat !== 0 && <> · pace {paceStrat < 0 ? "positif" : "négatif"} pris en compte</>}
-                </div>
-              </Card>
+              </div>
             );
           })()}
         </>
