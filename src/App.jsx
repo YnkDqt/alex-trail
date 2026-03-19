@@ -2141,7 +2141,6 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
   const [editId, setEditId] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
   const [computing, setComputing] = useState(false);
-  const [subView, setSubView] = useState("segments");
   const emptyForm = { startKm: "", endKm: "", slopePct: 0, speedKmh: 9.5, terrain: "normal", notes: "" };
   const [form, setForm] = useState(emptyForm);
 
@@ -2250,272 +2249,104 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
         <Empty icon="✂️" title="Aucun segment défini" sub="Génère les segments depuis ta stratégie, ou ajoute-en un manuellement." action={<Btn onClick={openNew}>+ Ajouter un segment</Btn>} />
       ) : (
         <>
-          {/* Onglets internes */}
-          <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: `1px solid var(--border-c)` }}>
-            {[
-              { id: "segments", label: "Segments" },
-              { id: "analyse",  label: "Analyse" },
-            ].map(tab => (
-              <button key={tab.id} onClick={() => setSubView(tab.id)} style={{
-                padding: "8px 18px", fontSize: 13, fontWeight: subView === tab.id ? 600 : 400,
-                background: "none", border: "none", cursor: "pointer",
-                color: subView === tab.id ? C.primary : "var(--muted-c)",
-                borderBottom: `2px solid ${subView === tab.id ? C.primary : "transparent"}`,
-                marginBottom: -1, transition: "all 0.15s",
-                fontFamily: "'DM Sans', sans-serif",
-              }}>
-                {tab.label}
-              </button>
-            ))}
+          {/* KPIs */}
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(180px, 1fr))", gap: isMobile ? 8 : 14, marginBottom: 20 }}>
+            <KPI label="Temps course" value={fmtTime(totalTime)} color={C.secondary} icon="⏱️" sub="hors ravitos" />
+            <KPI label="Temps total" value={fmtTime(totalWithRavitos)} icon="🏁" sub={`+${ravitoCount} ravito${ravitoCount>1?"s":""}`} />
+            <KPI label="Arrivée estimée" value={fmtHeure(arrivalTime)} icon={isNight(arrivalTime) ? "🌙" : "☀️"} color={isNight(arrivalTime) ? C.blue : C.yellow} sub={`départ ${settings.startTime || "07:00"}`} />
           </div>
 
-          {/* ── ONGLET SEGMENTS ── */}
-          {subView === "segments" && (
-            <>
-              {/* KPIs */}
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(180px, 1fr))", gap: isMobile ? 8 : 14, marginBottom: 20 }}>
-                <KPI label="Temps course" value={fmtTime(totalTime)} color={C.secondary} icon="⏱️" sub="hors ravitos" />
-                <KPI label="Temps total" value={fmtTime(totalWithRavitos)} icon="🏁" sub={`+${ravitoCount} ravito${ravitoCount>1?"s":""}`} />
-                <KPI label="Arrivée estimée" value={fmtHeure(arrivalTime)} icon={isNight(arrivalTime) ? "🌙" : "☀️"} color={isNight(arrivalTime) ? C.blue : C.yellow} sub={`départ ${settings.startTime || "07:00"}`} />
+          {/* Graphique vitesses */}
+          <Card noPad style={{ marginBottom: 20 }}>
+            <div style={{ padding: "14px 20px 0", fontWeight: 600 }}>Vitesses par segment</div>
+            <ResponsiveContainer width="100%" height={140}>
+              <BarChart data={barData} margin={{ top: 8, right: 20, bottom: 4, left: 10 }}>
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: C.muted }} />
+                <YAxis tick={{ fontSize: 11, fill: C.muted }} />
+                <RTooltip content={<CustomTooltip />} />
+                <Bar dataKey="vitesse" name="km/h" radius={[4,4,0,0]}>
+                  {barData.map((d, i) => <Cell key={i} fill={d.pente > 9 ? C.red : d.pente < -12 ? C.blue : d.pente > 4 ? C.yellow : C.green} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+
+          {/* Tableau segments */}
+          <Card noPad>
+            <div style={{ padding: "14px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontWeight: 600 }}>Segments</span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn size="sm" variant="ghost" onClick={onOpenRepos}>💤 Repos</Btn>
+                <Btn size="sm" onClick={openNew}>+ Segment</Btn>
               </div>
-
-              {/* Graphique vitesses */}
-              <Card noPad style={{ marginBottom: 20 }}>
-                <div style={{ padding: "14px 20px 0", fontWeight: 600 }}>Vitesses par segment</div>
-                <ResponsiveContainer width="100%" height={140}>
-                  <BarChart data={barData} margin={{ top: 8, right: 20, bottom: 4, left: 10 }}>
-                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: C.muted }} />
-                    <YAxis tick={{ fontSize: 11, fill: C.muted }} />
-                    <RTooltip content={<CustomTooltip />} />
-                    <Bar dataKey="vitesse" name="km/h" radius={[4,4,0,0]}>
-                      {barData.map((d, i) => <Cell key={i} fill={d.pente > 9 ? C.red : d.pente < -12 ? C.blue : d.pente > 4 ? C.yellow : C.green} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </Card>
-
-              {/* Tableau segments */}
-              <Card noPad>
-                <div style={{ padding: "14px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontWeight: 600 }}>Segments</span>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <Btn size="sm" variant="ghost" onClick={onOpenRepos}>💤 Repos</Btn>
-                    <Btn size="sm" onClick={openNew}>+ Segment</Btn>
-                  </div>
-                </div>
-                <div className="tbl-wrap">
-                  <table style={{ fontSize: isMobile ? 11 : undefined }}>
-                    <thead><tr>
-                      <th>#</th><th>De</th><th>À</th><th>Dist.</th><th>Pente</th><th>Terrain</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th>Heure</th><th>Nutrition/h</th><th></th>
-                    </tr></thead>
-                    <tbody>{(() => {
-                      let segNum = 0;
-                      return segments.map((seg, i) => {
-                        if (seg.type === "ravito") {
-                          const t = passingTimes[i]; const night = isNight(t);
-                          return (
-                            <tr key={seg.id} style={{ background: C.green + "10", cursor: "default" }}>
-                              <td style={{ color: "var(--muted-c)", fontSize: 16 }}>🥤</td>
-                              <td style={{ fontWeight: 600, color: C.green }}>{seg.label}</td>
-                              <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
-                              <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>{seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}</td>
-                              <td colSpan={4} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>Arrêt ravitaillement · pas de distance</td>
-                              <td><span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>{fmtHeure(t)}</span>{night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}</td>
-                              <td></td>
-                              <td><span style={{ fontSize: 11, color: "var(--muted-c)" }}>auto</span></td>
-                            </tr>
-                          );
-                        }
-                        if (seg.type === "repos") {
-                          const t = passingTimes[i]; const night = isNight(t);
-                          return (
-                            <tr key={seg.id} style={{ background: "var(--surface-2)", cursor: "default" }}>
-                              <td style={{ color: "var(--muted-c)", fontSize: 16 }}>💤</td>
-                              <td style={{ fontWeight: 600, color: C.blue }}>{seg.label}</td>
-                              <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
-                              <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>{seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}</td>
-                              <td colSpan={4} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>Pas de distance · temps ajouté au total</td>
-                              <td><span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>{fmtHeure(t)}</span>{night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}</td>
-                              <td></td>
-                              <td onClick={e => e.stopPropagation()}><Btn size="sm" variant="danger" onClick={() => setConfirmId(seg.id)}>✕</Btn></td>
-                            </tr>
-                          );
-                        }
-                        segNum++;
-                        const dist = seg.endKm - seg.startKm;
-                        const dur  = fmtTime((dist / seg.speedKmh) * 3600);
-                        const n    = calcNutrition(seg, settings);
-                        const terrainLabel = TERRAIN_TYPES.find(t => t.key === (seg.terrain || "normal"))?.label || "Normal";
-                        const terrainKey   = seg.terrain || "normal";
-                        const t    = passingTimes[i]; const night = isNight(t);
-                        return (
-                          <tr key={seg.id} onClick={() => openEdit(seg)} style={{ cursor: "pointer" }}>
-                            <td style={{ color: "var(--muted-c)" }}>{segNum}</td>
-                            <td>{seg.startKm} km</td><td>{seg.endKm} km</td><td>{dist.toFixed(1)} km</td>
-                            <td>
-                              <span className={`badge ${seg.slopePct > 9 ? "badge-red" : seg.slopePct < -12 ? "badge-blue" : "badge-sage"}`}>{seg.slopePct > 0 ? "+" : ""}{seg.slopePct}%</span>
-                              {seg.slopePct > 10 && <span style={{ marginLeft: 6, fontSize: 11, color: C.yellow }}>marche</span>}
-                            </td>
-                            <td>{terrainKey !== "normal" ? <span className="badge badge-yellow" style={{ fontSize: 11 }}>{terrainLabel}</span> : <span style={{ fontSize: 12, color: "var(--muted-c)" }}>—</span>}</td>
-                            <td style={{ fontWeight: 600 }}>{seg.speedKmh} km/h</td>
-                            <td style={{ fontFamily: "'Playfair Display', serif" }}>{fmtPace(seg.speedKmh)}/km</td>
-                            <td>{dur}</td>
-                            <td><span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>{fmtHeure(t)}</span>{night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}</td>
-                            <td style={{ fontSize: 12, color: "var(--muted-c)" }}>{n.eauH}mL · {n.glucidesH}g · {n.kcalH}kcal</td>
-                            <td onClick={e => e.stopPropagation()}><Btn size="sm" variant="danger" onClick={() => setConfirmId(seg.id)}>✕</Btn></td>
-                          </tr>
-                        );
-                      });
-                    })()}</tbody>
-                  </table>
-                </div>
-              </Card>
-            </>
-          )}
-
-          {/* ── ONGLET ANALYSE ── */}
-          {subView === "analyse" && (() => {
-            const levelData = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel || "intermediaire")) || RUNNER_LEVELS[1];
-            const garminCoeff = settings.garminCoeff || 1;
-            const gs = settings.garminStats;
-            const paceStrat = settings.paceStrategy || 0;
-            const totalDistKm = race.totalDistance || segsNormaux.reduce((s,g) => s+g.endKm-g.startKm, 0);
-            const totalDplus  = race.totalElevPos || 0;
-            const totalTimeH  = totalTime / 3600;
-
-            // ── Fatigue cumulée ───────────────────────────────────────────────
-            const totalEK = segsNormaux.reduce((s, seg) => {
-              const dist=seg.endKm-seg.startKm, dp=seg.slopePct>0?(seg.slopePct/100)*dist*1000:0, dm=seg.slopePct<0?Math.abs(seg.slopePct/100)*dist*1000:0;
-              return s + dist + dp/100 + dm/200;
-            }, 0) || 1;
-            let cumEK = 0, sn = 0;
-            const fatigueData = segments.map(seg => {
-              if (seg.type === "ravito") { const rec=Math.min((seg.dureeMin||3)*0.6*levelData.coeff*garminCoeff,4); cumEK=Math.max(0,cumEK-rec); return { label:seg.label||"Rv", type:"ravito", charge:Math.round(cumEK/totalEK*100), reserve:Math.max(0,Math.round(100-cumEK/totalEK*100)) }; }
-              if (seg.type === "repos")  { const rec=Math.min((seg.dureeMin||20)*0.4*levelData.coeff,8); cumEK=Math.max(0,cumEK-rec); return { label:seg.label||"Repos", type:"repos", charge:Math.round(cumEK/totalEK*100), reserve:Math.max(0,Math.round(100-cumEK/totalEK*100)) }; }
-              sn++;
-              const dist=seg.endKm-seg.startKm, dp=seg.slopePct>0?(seg.slopePct/100)*dist*1000:0, dm=seg.slopePct<0?Math.abs(seg.slopePct/100)*dist*1000:0;
-              const ek=dist+dp/100+dm/200, prog=sn/(segsNormaux.length||1);
-              const pf=paceStrat<0?(1+prog*0.25):paceStrat>0?(1-prog*0.15+0.08):1;
-              cumEK+=ek*pf/(levelData.coeff*garminCoeff);
-              const cp=Math.min(100,Math.round(cumEK/totalEK*100));
-              return { label:`S${sn}`, fullLabel:`${seg.startKm}→${seg.endKm} km`, type:"seg", charge:cp, reserve:Math.max(0,100-cp) };
-            });
-            const SEUIL = 80;
-
-            // ── Points de cohérence ───────────────────────────────────────────
-            const avgSpeedKmh = segsNormaux.reduce((s,g) => s+g.speedKmh*(g.endKm-g.startKm),0) / (totalDistKm||1);
-            const garminGapKmh = gs?.avgGapKmh;
-            const allureEcart = garminGapKmh ? Math.round((avgSpeedKmh-garminGapKmh)/garminGapKmh*100) : null;
-            const dplusPerH = totalTimeH > 0 ? Math.round(totalDplus/totalTimeH) : 0;
-            const mid = totalDistKm/2;
-            const hardSegsSecondHalf = segsNormaux.filter(s => s.startKm >= mid && s.slopePct >= 12).length;
-            const avgSlopeFirst  = segsNormaux.filter(s=>s.endKm<=mid).reduce((s,g)=>s+g.slopePct,0) / (segsNormaux.filter(s=>s.endKm<=mid).length||1);
-            const avgSlopeSecond = segsNormaux.filter(s=>s.startKm>=mid).reduce((s,g)=>s+g.slopePct,0) / (segsNormaux.filter(s=>s.startKm>=mid).length||1);
-            const ravitos = [...(race.ravitos||[])].sort((a,b)=>a.km-b.km);
-            let maxGap=0, prevKm=0;
-            ravitos.forEach(rv => { maxGap=Math.max(maxGap,rv.km-prevKm); prevKm=rv.km; });
-            maxGap = Math.max(maxGap, totalDistKm-prevKm);
-            const itraRef = { debutant:30, intermediaire:50, confirme:70, expert:100 };
-            const maxEK = itraRef[settings.runnerLevel||"intermediaire"]||50;
-            const ekTotal = segsNormaux.reduce((s,seg)=>{ const dist=seg.endKm-seg.startKm,dp=seg.slopePct>0?(seg.slopePct/100)*dist*1000:0,dm=seg.slopePct<0?Math.abs(seg.slopePct/100)*dist*1000:0; return s+dist+dp/100+dm/200; },0);
-            const tempC = settings.tempC||15;
-            const hasAdverseMeteo = settings.rain||settings.snow||settings.wind||tempC>28||tempC<0;
-
-            const points = [];
-            if (allureEcart !== null) {
-              const s = allureEcart<=5?"ok":allureEcart<=15?"warn":"alert";
-              points.push({ status:s, titre:"Allure vs historique Garmin", valeur:`${fmtPace(avgSpeedKmh)}/km moyen · GAP habituel ${fmtPace(garminGapKmh)}/km`,
-                explication: s==="ok" ? `Allure proche de ton niveau habituel (écart ${allureEcart>0?"+":""}${allureEcart}%). Stratégie réaliste.`
-                  : s==="warn" ? `Allure ${allureEcart}% au-dessus de ton GAP Garmin. Ambitieux mais atteignable si les conditions sont bonnes. Surveille les premiers segments.`
-                  : `Allure ${allureEcart}% au-dessus de ton niveau habituel. Risque élevé de blow-up en 2e moitié. Envisage de réviser les vitesses à la baisse.` });
-            } else {
-              points.push({ status:"info", titre:"Allure vs historique", valeur:"Données Garmin non disponibles", explication:"Charge ton Activities.csv dans Profil de course pour comparer ta stratégie à ton niveau réel." });
-            }
-            const dpS = dplusPerH>500?"alert":dplusPerH>300?"warn":"ok";
-            points.push({ status:dpS, titre:"Densité de dénivelé", valeur:`${dplusPerH} m D+/h · ${Math.round(totalDplus)} m D+ total`,
-              explication: dpS==="ok"?"Densité modérée (< 300 m/h). Effort gérable sur la durée."
-                :dpS==="warn"?`${dplusPerH} m D+/h est élevé. Au-delà de 300 m/h sur plusieurs heures, la fatigue musculaire s'accumule rapidement (Millet et al., 2011).`
-                :`${dplusPerH} m D+/h est très élevé. Nécessite une expérience solide en montagne et une gestion très conservative au départ.` });
-            const distS = hardSegsSecondHalf>=2?"warn":"ok";
-            points.push({ status:distS, titre:"Distribution de l'effort", valeur:`Pente moy. 1ère moitié : +${avgSlopeFirst.toFixed(1)}% · 2e moitié : +${avgSlopeSecond.toFixed(1)}%`,
-              explication: distS==="ok"?"Les segments difficiles ne sont pas concentrés en fin de course. Bonne distribution."
-                :`${hardSegsSecondHalf} segment${hardSegsSecondHalf>1?"s":""} à pente ≥ 12% en 2e moitié de course, quand la fatigue est maximale. Prévois une marge de sécurité.` });
-            const rvS = maxGap>20?"alert":maxGap>15?"warn":"ok";
-            points.push({ status:rvS, titre:"Couverture ravitaillement", valeur:ravitos.length===0?"Aucun ravito défini":`${ravitos.length} ravito${ravitos.length>1?"s":""} · gap max ${maxGap.toFixed(1)} km`,
-              explication: ravitos.length===0?"Ajoute des ravitos dans Profil de course pour planifier ta nutrition et ton assistance."
-                :rvS==="ok"?"Bonne couverture : aucun tronçon > 15 km sans ravito."
-                :rvS==="warn"?`Le plus long tronçon sans ravito fait ${maxGap.toFixed(1)} km. Assure-toi d'avoir assez d'autonomie hydrique.`
-                :`Un tronçon de ${maxGap.toFixed(1)} km sans ravito. Envisage un ravito supplémentaire ou augmente ta capacité d'emport.` });
-            const ekS = ekTotal>maxEK*1.3?"alert":ekTotal>maxEK?"warn":"ok";
-            points.push({ status:ekS, titre:"Effort ITRA global", valeur:`${ekTotal.toFixed(1)} EK · référence ${levelData.label} : ~${maxEK} EK`,
-              explication: ekS==="ok"?`Effort cohérent avec ton niveau ${levelData.label}. Formule ITRA : EK = distance + D+/100 + D-/200.`
-                :ekS==="warn"?`${ekTotal.toFixed(1)} EK dépasse légèrement la référence. Course ambitieuse — pars conservateur.`
-                :`${ekTotal.toFixed(1)} EK est significativement au-dessus de la référence pour ton niveau. Réévalue tes objectifs ou passe au niveau supérieur dans Paramètres.` });
-            if (hasAdverseMeteo) {
-              const det=[settings.rain?"pluie":null,settings.snow?"neige":null,settings.wind?"vent fort":null,tempC>28?`chaleur ${tempC}°C`:null,tempC<0?`froid ${tempC}°C`:null].filter(Boolean).join(", ");
-              points.push({ status:"warn", titre:"Impact météo", valeur:det.charAt(0).toUpperCase()+det.slice(1),
-                explication: tempC>28?"Forte chaleur : augmente l'hydratation de 150-200 mL/h et prévois des électrolytes à chaque ravito. Réduis les vitesses de 5-8% sur les montées exposées."
-                  :settings.snow?"Neige : vitesses réduites de 15-20%, équipement spécifique requis."
-                  :"Conditions dégradées. Adapte tes vitesses et augmente les marges de temps aux ravitos." });
-            }
-
-            const statusIcon = { ok:"✅", warn:"⚠️", alert:"🔴", info:"ℹ️" };
-            const statusBg   = { ok:C.greenPale, warn:C.yellowPale, alert:C.redPale, info:C.bluePale };
-            const statusText = { ok:C.green, warn:C.yellow, alert:C.red, info:C.blue };
-
-            return (
-              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                {/* Graphique fatigue */}
-                <Card>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                    <span style={{ fontWeight:600, fontSize:14 }}>Fatigue cumulée</span>
-                    {fatigueData.some(d=>d.charge>=SEUIL) && <span style={{ fontSize:11, background:C.redPale, color:C.red, borderRadius:6, padding:"2px 8px", fontWeight:600 }}>Zone critique atteinte</span>}
-                  </div>
-                  <div style={{ display:"flex", gap:16, marginBottom:10, flexWrap:"wrap" }}>
-                    {[{color:C.blue,label:"Charge cumulée"},{color:C.red,label:"Réserve estimée",line:true},{color:C.yellow,label:"Seuil critique (80%)",dashed:true}].map(({color,label,line,dashed})=>(
-                      <span key={label} style={{fontSize:12,display:"flex",alignItems:"center",gap:5}}>
-                        {dashed?<span style={{width:14,borderTop:`2px dashed ${color}`,display:"inline-block"}}/>:line?<span style={{width:14,borderTop:`2px solid ${color}`,display:"inline-block"}}/>:<span style={{width:10,height:10,borderRadius:2,background:color,display:"inline-block"}}/>}
-                        <span style={{color:"var(--muted-c)"}}>{label}</span>
-                      </span>
-                    ))}
-                  </div>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <ComposedChart data={fatigueData} margin={{top:4,right:16,bottom:4,left:0}}>
-                      <XAxis dataKey="label" tick={{fontSize:10,fill:C.muted}}/>
-                      <YAxis domain={[0,100]} tick={{fontSize:10,fill:C.muted}} tickFormatter={v=>`${v}%`} width={34}/>
-                      <RTooltip formatter={(v,n)=>[`${v}%`,n==="charge"?"Charge cumulée":"Réserve estimée"]} labelFormatter={(label,payload)=>{const d=payload?.[0]?.payload;return d?.fullLabel?`${label} — ${d.fullLabel}`:label;}} contentStyle={{fontSize:12,borderRadius:8,border:`1px solid ${C.border}`}}/>
-                      <ReferenceLine y={SEUIL} stroke={C.yellow} strokeDasharray="5 4" strokeWidth={1.5}/>
-                      <Bar dataKey="charge" radius={[3,3,0,0]}>
-                        {fatigueData.map((d,i)=><Cell key={i} fill={d.type==="ravito"?C.green+"99":d.type==="repos"?C.blue+"55":d.charge>=SEUIL?C.red+"cc":d.charge>=60?C.yellow+"cc":C.blue+"cc"}/>)}
-                      </Bar>
-                      <Line type="monotone" dataKey="reserve" stroke={C.red} strokeWidth={2} dot={{r:2,fill:C.red}}/>
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                  <div style={{fontSize:11,color:"var(--muted-c)",marginTop:6}}>
-                    ITRA Effort Score · niveau <strong style={{color:"var(--text-c)"}}>{levelData.label}</strong> · coeff Garmin ×{garminCoeff}{paceStrat!==0&&<> · pace {paceStrat<0?"positif":"négatif"} pris en compte</>}
-                  </div>
-                </Card>
-
-                {/* Points de cohérence */}
-                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                  <div style={{ fontWeight:600, fontSize:14, marginBottom:2 }}>Analyse de cohérence</div>
-                  {points.map((p,i)=>(
-                    <div key={i} style={{padding:"12px 16px",borderRadius:12,background:statusBg[p.status],border:`1px solid ${statusText[p.status]}30`}}>
-                      <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:3}}>
-                        <span style={{fontSize:14}}>{statusIcon[p.status]}</span>
-                        <span style={{fontWeight:600,fontSize:13,color:"var(--text-c)"}}>{p.titre}</span>
-                      </div>
-                      <div style={{fontSize:12,fontWeight:600,color:statusText[p.status],marginBottom:4,marginLeft:22}}>{p.valeur}</div>
-                      <div style={{fontSize:12,color:"var(--muted-c)",lineHeight:1.6,marginLeft:22}}>{p.explication}</div>
-                    </div>
-                  ))}
-                  <div style={{fontSize:11,color:"var(--muted-c)",marginTop:4}}>
-                    Analyse basée sur : ITRA Effort Score · Vernillo et al. (2017) · Millet et al. (2011) · données Garmin personnelles
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
+            </div>
+            <div className="tbl-wrap">
+              <table style={{ fontSize: isMobile ? 11 : undefined }}>
+                <thead><tr>
+                  <th>#</th><th>De</th><th>À</th><th>Dist.</th><th>Pente</th><th>Terrain</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th>Heure</th><th>Nutrition/h</th><th></th>
+                </tr></thead>
+                <tbody>{(() => {
+                  let segNum = 0;
+                  return segments.map((seg, i) => {
+                    if (seg.type === "ravito") {
+                      const t = passingTimes[i]; const night = isNight(t);
+                      return (
+                        <tr key={seg.id} style={{ background: C.green + "10", cursor: "default" }}>
+                          <td style={{ color: "var(--muted-c)", fontSize: 16 }}>🥤</td>
+                          <td style={{ fontWeight: 600, color: C.green }}>{seg.label}</td>
+                          <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
+                          <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>{seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}</td>
+                          <td colSpan={4} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>Arrêt ravitaillement · pas de distance</td>
+                          <td><span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>{fmtHeure(t)}</span>{night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}</td>
+                          <td></td>
+                          <td><span style={{ fontSize: 11, color: "var(--muted-c)" }}>auto</span></td>
+                        </tr>
+                      );
+                    }
+                    if (seg.type === "repos") {
+                      const t = passingTimes[i]; const night = isNight(t);
+                      return (
+                        <tr key={seg.id} style={{ background: "var(--surface-2)", cursor: "default" }}>
+                          <td style={{ color: "var(--muted-c)", fontSize: 16 }}>💤</td>
+                          <td style={{ fontWeight: 600, color: C.blue }}>{seg.label}</td>
+                          <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
+                          <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>{seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}</td>
+                          <td colSpan={4} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>Pas de distance · temps ajouté au total</td>
+                          <td><span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>{fmtHeure(t)}</span>{night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}</td>
+                          <td></td>
+                          <td onClick={e => e.stopPropagation()}><Btn size="sm" variant="danger" onClick={() => setConfirmId(seg.id)}>✕</Btn></td>
+                        </tr>
+                      );
+                    }
+                    segNum++;
+                    const dist = seg.endKm - seg.startKm;
+                    const dur  = fmtTime((dist / seg.speedKmh) * 3600);
+                    const n    = calcNutrition(seg, settings);
+                    const terrainLabel = TERRAIN_TYPES.find(t => t.key === (seg.terrain || "normal"))?.label || "Normal";
+                    const terrainKey   = seg.terrain || "normal";
+                    const t    = passingTimes[i]; const night = isNight(t);
+                    return (
+                      <tr key={seg.id} onClick={() => openEdit(seg)} style={{ cursor: "pointer" }}>
+                        <td style={{ color: "var(--muted-c)" }}>{segNum}</td>
+                        <td>{seg.startKm} km</td><td>{seg.endKm} km</td><td>{dist.toFixed(1)} km</td>
+                        <td>
+                          <span className={`badge ${seg.slopePct > 9 ? "badge-red" : seg.slopePct < -12 ? "badge-blue" : "badge-sage"}`}>{seg.slopePct > 0 ? "+" : ""}{seg.slopePct}%</span>
+                          {seg.slopePct > 10 && <span style={{ marginLeft: 6, fontSize: 11, color: C.yellow }}>marche</span>}
+                        </td>
+                        <td>{terrainKey !== "normal" ? <span className="badge badge-yellow" style={{ fontSize: 11 }}>{terrainLabel}</span> : <span style={{ fontSize: 12, color: "var(--muted-c)" }}>—</span>}</td>
+                        <td style={{ fontWeight: 600 }}>{seg.speedKmh} km/h</td>
+                        <td style={{ fontFamily: "'Playfair Display', serif" }}>{fmtPace(seg.speedKmh)}/km</td>
+                        <td>{dur}</td>
+                        <td><span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>{fmtHeure(t)}</span>{night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}</td>
+                        <td style={{ fontSize: 12, color: "var(--muted-c)" }}>{n.eauH}mL · {n.glucidesH}g · {n.kcalH}kcal</td>
+                        <td onClick={e => e.stopPropagation()}><Btn size="sm" variant="danger" onClick={() => setConfirmId(seg.id)}>✕</Btn></td>
+                      </tr>
+                    );
+                  });
+                })()}</tbody>
+              </table>
+            </div>
+          </Card>
         </>
       )}
 
@@ -4101,13 +3932,336 @@ function MesCoursesView({ courses, onLoad, onDelete, onUpdate, onOverwrite, onSa
   );
 }
 
+// ─── VUE ANALYSE ─────────────────────────────────────────────────────────────
+function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
+  const segsNormaux = segments.filter(s => s.type !== "ravito" && s.type !== "repos");
+  const ravitos = [...(race.ravitos||[])].sort((a,b) => a.km - b.km);
+  const totalDistKm = race.totalDistance || segsNormaux.reduce((s,g) => s+g.endKm-g.startKm, 0);
+  const totalDplus  = race.totalElevPos  || 0;
+  const totalTime   = segsNormaux.reduce((s,seg) => s + (seg.endKm-seg.startKm)/seg.speedKmh*3600, 0);
+  const totalTimeH  = totalTime / 3600;
+  const levelData   = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel||"intermediaire")) || RUNNER_LEVELS[1];
+  const garminCoeff = settings.garminCoeff || 1;
+  const gs          = settings.garminStats;
+  const paceStrat   = settings.paceStrategy || 0;
+
+  const hasData = segsNormaux.length > 0;
+
+  // ── helpers ──────────────────────────────────────────────────────────────
+  const statusIcon = { ok:"✅", warn:"⚠️", alert:"🔴", info:"ℹ️" };
+  const statusBg   = { ok:C.greenPale, warn:C.yellowPale, alert:C.redPale, info:C.bluePale };
+  const statusText = { ok:C.green, warn:C.yellow, alert:C.red, info:C.blue };
+  const Point = ({ status, titre, valeur, explication }) => (
+    <div style={{padding:"12px 16px",borderRadius:12,background:statusBg[status],border:`1px solid ${statusText[status]}30`}}>
+      <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:3}}>
+        <span style={{fontSize:14}}>{statusIcon[status]}</span>
+        <span style={{fontWeight:600,fontSize:13,color:"var(--text-c)"}}>{titre}</span>
+      </div>
+      <div style={{fontSize:12,fontWeight:600,color:statusText[status],marginBottom:4,marginLeft:22}}>{valeur}</div>
+      <div style={{fontSize:12,color:"var(--muted-c)",lineHeight:1.6,marginLeft:22}}>{explication}</div>
+    </div>
+  );
+  const SectionTitle = ({ children }) => (
+    <div style={{fontWeight:600,fontSize:15,color:"var(--text-c)",marginBottom:12,paddingBottom:8,borderBottom:`1px solid var(--border-c)`}}>{children}</div>
+  );
+
+  if (!hasData) return (
+    <div className="anim">
+      <PageTitle sub="Métriques et recommandations de préparation">Analyse</PageTitle>
+      <Empty icon="📊" title="Aucune donnée à analyser" sub="Définis des segments dans Stratégie de course pour accéder à l'analyse." action={<Btn onClick={() => onNavigate("preparation")}>Aller à la stratégie</Btn>} />
+    </div>
+  );
+
+  // ── 1. FATIGUE + COHÉRENCE STRATÉGIE ─────────────────────────────────────
+  const totalEK = segsNormaux.reduce((s,seg) => {
+    const dist=seg.endKm-seg.startKm, dp=seg.slopePct>0?(seg.slopePct/100)*dist*1000:0, dm=seg.slopePct<0?Math.abs(seg.slopePct/100)*dist*1000:0;
+    return s+dist+dp/100+dm/200;
+  },0)||1;
+  let cumEK=0, sn=0;
+  const fatigueData = segments.map(seg => {
+    if (seg.type==="ravito") { const rec=Math.min((seg.dureeMin||3)*0.6*levelData.coeff*garminCoeff,4); cumEK=Math.max(0,cumEK-rec); return {label:seg.label||"Rv",type:"ravito",charge:Math.round(cumEK/totalEK*100),reserve:Math.max(0,Math.round(100-cumEK/totalEK*100))}; }
+    if (seg.type==="repos")  { const rec=Math.min((seg.dureeMin||20)*0.4*levelData.coeff,8); cumEK=Math.max(0,cumEK-rec); return {label:seg.label||"Repos",type:"repos",charge:Math.round(cumEK/totalEK*100),reserve:Math.max(0,Math.round(100-cumEK/totalEK*100))}; }
+    sn++;
+    const dist=seg.endKm-seg.startKm, dp=seg.slopePct>0?(seg.slopePct/100)*dist*1000:0, dm=seg.slopePct<0?Math.abs(seg.slopePct/100)*dist*1000:0;
+    const ek=dist+dp/100+dm/200, prog=sn/(segsNormaux.length||1);
+    const pf=paceStrat<0?(1+prog*0.25):paceStrat>0?(1-prog*0.15+0.08):1;
+    cumEK+=ek*pf/(levelData.coeff*garminCoeff);
+    const cp=Math.min(100,Math.round(cumEK/totalEK*100));
+    return {label:`S${sn}`,fullLabel:`${seg.startKm}→${seg.endKm} km`,type:"seg",charge:cp,reserve:Math.max(0,100-cp)};
+  });
+  const SEUIL=80;
+
+  const avgSpeedKmh = segsNormaux.reduce((s,g)=>s+g.speedKmh*(g.endKm-g.startKm),0)/(totalDistKm||1);
+  const garminGapKmh = gs?.avgGapKmh;
+  const allureEcart = garminGapKmh ? Math.round((avgSpeedKmh-garminGapKmh)/garminGapKmh*100) : null;
+  const dplusPerH = totalTimeH>0 ? Math.round(totalDplus/totalTimeH) : 0;
+  const mid = totalDistKm/2;
+  const hardSegsSecondHalf = segsNormaux.filter(s=>s.startKm>=mid&&s.slopePct>=12).length;
+  const avgSlopeFirst  = segsNormaux.filter(s=>s.endKm<=mid).reduce((s,g)=>s+g.slopePct,0)/(segsNormaux.filter(s=>s.endKm<=mid).length||1);
+  const avgSlopeSecond = segsNormaux.filter(s=>s.startKm>=mid).reduce((s,g)=>s+g.slopePct,0)/(segsNormaux.filter(s=>s.startKm>=mid).length||1);
+  let maxGap=0, prevKm=0;
+  ravitos.forEach(rv=>{maxGap=Math.max(maxGap,rv.km-prevKm);prevKm=rv.km;});
+  maxGap=Math.max(maxGap,totalDistKm-prevKm);
+  const itraRef={debutant:30,intermediaire:50,confirme:70,expert:100};
+  const maxEK=itraRef[settings.runnerLevel||"intermediaire"]||50;
+  const ekTotal=segsNormaux.reduce((s,seg)=>{const dist=seg.endKm-seg.startKm,dp=seg.slopePct>0?(seg.slopePct/100)*dist*1000:0,dm=seg.slopePct<0?Math.abs(seg.slopePct/100)*dist*1000:0;return s+dist+dp/100+dm/200;},0);
+  const tempC=settings.tempC||15;
+  const hasAdverseMeteo=settings.rain||settings.snow||settings.wind||tempC>28||tempC<0;
+
+  const pointsStrategie = [];
+  if (allureEcart!==null) {
+    const s=allureEcart<=5?"ok":allureEcart<=15?"warn":"alert";
+    pointsStrategie.push({status:s,titre:"Allure vs historique Garmin",valeur:`${fmtPace(avgSpeedKmh)}/km moyen · GAP habituel ${fmtPace(garminGapKmh)}/km`,
+      explication:s==="ok"?`Allure proche de ton niveau habituel (écart ${allureEcart>0?"+":""}${allureEcart}%). Stratégie réaliste.`:s==="warn"?`Allure ${allureEcart}% au-dessus de ton GAP Garmin. Ambitieux mais atteignable. Surveille les premiers segments.`:`Allure ${allureEcart}% au-dessus de ton niveau habituel. Risque élevé de blow-up. Révise les vitesses à la baisse.`});
+  } else {
+    pointsStrategie.push({status:"info",titre:"Allure vs historique",valeur:"Données Garmin non disponibles",explication:"Charge ton Activities.csv dans Profil de course pour comparer ta stratégie à ton niveau réel."});
+  }
+  const dpS=dplusPerH>500?"alert":dplusPerH>300?"warn":"ok";
+  pointsStrategie.push({status:dpS,titre:"Densité de dénivelé",valeur:`${dplusPerH} m D+/h · ${Math.round(totalDplus)} m D+ total`,
+    explication:dpS==="ok"?"Densité modérée (< 300 m/h). Effort gérable sur la durée.":dpS==="warn"?`${dplusPerH} m D+/h est élevé. Au-delà de 300 m/h sur plusieurs heures, la fatigue s'accumule rapidement (Millet et al., 2011).`:`${dplusPerH} m D+/h est très élevé. Nécessite une expérience solide et une gestion très conservative au départ.`});
+  const distS=hardSegsSecondHalf>=2?"warn":"ok";
+  pointsStrategie.push({status:distS,titre:"Distribution de l'effort",valeur:`Pente moy. 1ère moitié : +${avgSlopeFirst.toFixed(1)}% · 2e moitié : +${avgSlopeSecond.toFixed(1)}%`,
+    explication:distS==="ok"?"Les segments difficiles ne sont pas concentrés en fin de course. Bonne distribution.":`${hardSegsSecondHalf} segment${hardSegsSecondHalf>1?"s":""} à pente ≥ 12% en 2e moitié, quand la fatigue est maximale. Prévois une marge de sécurité.`});
+  const rvS=maxGap>20?"alert":maxGap>15?"warn":"ok";
+  pointsStrategie.push({status:rvS,titre:"Couverture ravitaillement",valeur:ravitos.length===0?"Aucun ravito défini":`${ravitos.length} ravito${ravitos.length>1?"s":""} · gap max ${maxGap.toFixed(1)} km`,
+    explication:ravitos.length===0?"Ajoute des ravitos dans Profil de course pour planifier ta nutrition et ton assistance.":rvS==="ok"?"Bonne couverture : aucun tronçon > 15 km sans ravito.":rvS==="warn"?`Le plus long tronçon sans ravito fait ${maxGap.toFixed(1)} km. Assure-toi d'avoir assez d'autonomie hydrique.`:`Un tronçon de ${maxGap.toFixed(1)} km sans ravito. Envisage un ravito supplémentaire.`});
+  const ekS=ekTotal>maxEK*1.3?"alert":ekTotal>maxEK?"warn":"ok";
+  pointsStrategie.push({status:ekS,titre:"Effort ITRA global",valeur:`${ekTotal.toFixed(1)} EK · référence ${levelData.label} : ~${maxEK} EK`,
+    explication:ekS==="ok"?`Effort cohérent avec ton niveau ${levelData.label}. Formule ITRA : EK = distance + D+/100 + D-/200.`:ekS==="warn"?`${ekTotal.toFixed(1)} EK dépasse légèrement la référence. Course ambitieuse — pars conservateur.`:`${ekTotal.toFixed(1)} EK est significativement au-dessus de la référence. Réévalue tes objectifs de temps.`});
+  if (hasAdverseMeteo) {
+    const det=[settings.rain?"pluie":null,settings.snow?"neige":null,settings.wind?"vent fort":null,tempC>28?`chaleur ${tempC}°C`:null,tempC<0?`froid ${tempC}°C`:null].filter(Boolean).join(", ");
+    pointsStrategie.push({status:"warn",titre:"Impact météo",valeur:det.charAt(0).toUpperCase()+det.slice(1),
+      explication:tempC>28?"Forte chaleur : augmente l'hydratation de 150-200 mL/h. Réduis les vitesses de 5-8% sur les montées exposées.":settings.snow?"Neige : vitesses réduites de 15-20%, équipement spécifique requis.":"Conditions dégradées. Adapte tes vitesses et augmente les marges de temps aux ravitos."});
+  }
+
+  // ── 2. COUVERTURE NUTRITIONNELLE ─────────────────────────────────────────
+  const planNutrition = race.planNutrition || {};
+  const produits = settings.produits || [];
+  const nutriTotals = segsNormaux.reduce((acc,seg) => {
+    const n=calcNutrition(seg,settings);
+    const dH=seg.speedKmh>0?(seg.endKm-seg.startKm)/seg.speedKmh:0;
+    return {kcal:acc.kcal+n.kcal, glucides:acc.glucides+Math.round(n.glucidesH*dH), eau:acc.eau+Math.round(n.eauH*dH)};
+  },{kcal:0,glucides:0,eau:0});
+
+  const nutriProduit = (prod,qte) => {
+    const factor=prod.par100g?(prod.poids*qte/100):qte;
+    return {kcal:Math.round(prod.kcal*factor), glucides:Math.round((prod.glucides||0)*factor), eauMl:prod.boisson?Math.round((prod.par100g?prod.volumeMl*qte/100:prod.volumeMl*qte)||0):0};
+  };
+  const totalEmporte = ["depart",...ravitos.map(r=>String(r.id))].reduce((acc,key)=>{
+    const items=planNutrition[key]||[];
+    return items.reduce((a,{produitId,quantite})=>{
+      const p=produits.find(x=>x.id===produitId); if(!p) return a;
+      const n=nutriProduit(p,quantite);
+      return {kcal:a.kcal+n.kcal,glucides:a.glucides+n.glucides,eauMl:a.eauMl+n.eauMl};
+    },acc);
+  },{kcal:0,glucides:0,eauMl:0});
+
+  // Couverture par tronçon
+  const bornes=[0,...ravitos.map(r=>r.km),totalDistKm].filter((v,i,a)=>v!==a[i-1]);
+  const zonesNutri=bornes.slice(0,-1).map((from,i)=>{
+    const to=bornes[i+1];
+    const label=i===0?"Départ":(ravitos[i-1]?.name||`Ravito ${i}`);
+    const toLbl=i===bornes.length-2?"Arrivée":(ravitos[i]?.name||`Ravito ${i+1}`);
+    const pointKey=i===0?"depart":String(ravitos[i-1]?.id);
+    const besoinKcal=segsNormaux.filter(s=>s.startKm<to&&s.endKm>from).reduce((acc,seg)=>{
+      const overlap=Math.min(seg.endKm,to)-Math.max(seg.startKm,from);
+      const ratio=overlap/(seg.endKm-seg.startKm||1);
+      return acc+calcNutrition(seg,settings).kcal*ratio;
+    },0);
+    const items=planNutrition[pointKey]||[];
+    const emporteKcal=items.reduce((a,{produitId,quantite})=>{
+      const p=produits.find(x=>x.id===produitId); if(!p) return a;
+      return a+nutriProduit(p,quantite).kcal;
+    },0);
+    const pct=besoinKcal>0?Math.round(emporteKcal/besoinKcal*100):null;
+    return {label:`${label} → ${toLbl}`,besoinKcal:Math.round(besoinKcal),emporteKcal,pct};
+  });
+
+  const glucidesTarget=settings.glucidesTargetGh;
+  const glucidesActuelH=totalTimeH>0?Math.round(totalEmporte.glucides/totalTimeH):0;
+  const glucidesStatus=glucidesTarget!=null?(glucidesActuelH>=glucidesTarget*0.85?"ok":glucidesActuelH>=glucidesTarget*0.6?"warn":"alert"):(totalEmporte.glucides>nutriTotals.glucides*0.8?"ok":"warn");
+  const kcalStatus=totalEmporte.kcal>=nutriTotals.kcal*0.85?"ok":totalEmporte.kcal>=nutriTotals.kcal*0.6?"warn":"alert";
+  const eauStatus=totalEmporte.eauMl>=nutriTotals.eau*0.8?"ok":totalEmporte.eauMl>0?"warn":"alert";
+
+  // ── 3. PRÉPARATION GLOBALE ────────────────────────────────────────────────
+  const equipment = settings.equipment || [];
+  const activeItems = equipment.filter(i=>i.actif!==false);
+  const checkedCount = activeItems.filter(i=>i.checked).length;
+  const checklistPct = activeItems.length>0?Math.round(checkedCount/activeItems.length*100):0;
+
+  const { times: passingTimes } = calcPassingTimes(segments, settings.startTime);
+  const arrivalSec = passingTimes.length ? passingTimes[passingTimes.length-1] : 0;
+  const isNightArrival = isNight(arrivalSec);
+  const lampeItem = equipment.find(i=>/lampe/i.test(i.label));
+  const lampeActive = lampeItem?.actif!==false;
+  const lampeChecked = lampeItem?.checked;
+  const batonsItem = equipment.find(i=>/b[âa]ton/i.test(i.label));
+  const batonsActive = batonsItem?.actif!==false;
+  const hasTechTerrain = segsNormaux.some(s=>s.terrain==="technique"||s.terrain==="trestech");
+  const meteoVerifiee = settings.meteoFetched;
+  const daysAway = settings.raceDate ? Math.round((new Date(settings.raceDate)-new Date())/86400000) : null;
+  const meteoDispoMais = daysAway!==null&&daysAway<=7&&!meteoVerifiee;
+
+  const pointsPrepa = [];
+  const checklistS=checklistPct===100?"ok":checklistPct>=70?"warn":"alert";
+  pointsPrepa.push({status:checklistS,titre:"Checklist équipement",valeur:`${checkedCount}/${activeItems.length} items cochés (${checklistPct}%)`,
+    explication:checklistS==="ok"?"Tous les items sont préparés. Bonne préparation matérielle.":checklistS==="warn"?`${activeItems.length-checkedCount} item${activeItems.length-checkedCount>1?"s":""} non coché${activeItems.length-checkedCount>1?"s":""}. Passe en revue ta checklist dans Paramètres avant le départ.`:`Plus de 30% des items non préparés. Accorde du temps à ta préparation matérielle.`});
+
+  if (isNightArrival && lampeItem && !lampeActive) {
+    pointsPrepa.push({status:"alert",titre:"Lampe frontale désactivée",valeur:`Arrivée estimée à ${fmtHeure(arrivalSec)} — course de nuit`,explication:"Ton arrivée est prévue après 21h. Active la lampe frontale dans ta checklist (Paramètres) — obligatoire dans la plupart des règlements d'ultra."});
+  } else if (isNightArrival && lampeItem && !lampeChecked) {
+    pointsPrepa.push({status:"warn",titre:"Lampe frontale non cochée",valeur:`Arrivée estimée à ${fmtHeure(arrivalSec)} — course de nuit`,explication:"Course de nuit prévue. Pense à cocher la lampe frontale dans ta checklist avant de partir."});
+  } else if (isNightArrival) {
+    pointsPrepa.push({status:"ok",titre:"Lampe frontale",valeur:`Arrivée estimée à ${fmtHeure(arrivalSec)} — course de nuit`,explication:"Course de nuit : lampe frontale dans la liste. Vérifie les piles."});
+  }
+
+  if (!settings.emergencyPhone) {
+    pointsPrepa.push({status:"alert",titre:"Contact d'urgence non configuré",valeur:"Aucun contact SOS",explication:"Configure un contact d'urgence dans Paramètres. Le bouton SOS envoie ta position GPS à ce contact."});
+  } else {
+    pointsPrepa.push({status:"ok",titre:"Contact d'urgence configuré",valeur:`${settings.emergencyName||settings.emergencyPhone}`,explication:"Le bouton SOS enverra ta position GPS à ce contact."});
+  }
+
+  if (meteoDispoMais) {
+    pointsPrepa.push({status:"warn",titre:"Météo disponible mais non récupérée",valeur:`Course dans ${daysAway} jours — prévisions disponibles`,explication:"Clique sur \"Météo auto\" dans Profil de course pour récupérer les prévisions et adapter ta stratégie si besoin."});
+  } else if (!meteoVerifiee && daysAway===null) {
+    pointsPrepa.push({status:"info",titre:"Météo non vérifiée",valeur:"Date de course non renseignée",explication:"Renseigne la date de course dans Profil de course pour accéder à la météo automatique."});
+  } else if (meteoVerifiee) {
+    pointsPrepa.push({status:"ok",titre:"Météo récupérée",valeur:settings.meteoInfo||"Prévisions chargées",explication:"Les conditions météo sont prises en compte dans les calculs de nutrition et de vitesse."});
+  }
+
+  if (batonsActive && !hasTechTerrain) {
+    pointsPrepa.push({status:"info",titre:"Bâtons prévus · terrain normal partout",valeur:"Aucun segment en terrain technique",explication:"Tous tes segments sont en terrain normal. Les bâtons sont optionnels — utiles sur les forts D+ mais peuvent ralentir en descente."});
+  }
+
+  return (
+    <div className="anim">
+      <PageTitle sub="Métriques et recommandations de préparation">Analyse</PageTitle>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+
+        {/* ── BLOC 1 : STRATÉGIE ── */}
+        <div>
+          <SectionTitle>Stratégie de course</SectionTitle>
+
+          {/* Graphique fatigue */}
+          <Card style={{ marginBottom: 12 }}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <span style={{fontWeight:600,fontSize:13}}>Fatigue cumulée</span>
+              {fatigueData.some(d=>d.charge>=SEUIL)&&<span style={{fontSize:11,background:C.redPale,color:C.red,borderRadius:6,padding:"2px 8px",fontWeight:600}}>Zone critique atteinte</span>}
+            </div>
+            <div style={{display:"flex",gap:16,marginBottom:8,flexWrap:"wrap"}}>
+              {[{color:C.blue,label:"Charge"},{color:C.red,label:"Réserve",line:true},{color:C.yellow,label:"Seuil 80%",dashed:true}].map(({color,label,line,dashed})=>(
+                <span key={label} style={{fontSize:11,display:"flex",alignItems:"center",gap:4}}>
+                  {dashed?<span style={{width:12,borderTop:`2px dashed ${color}`,display:"inline-block"}}/>:line?<span style={{width:12,borderTop:`2px solid ${color}`,display:"inline-block"}}/>:<span style={{width:9,height:9,borderRadius:2,background:color,display:"inline-block"}}/>}
+                  <span style={{color:"var(--muted-c)"}}>{label}</span>
+                </span>
+              ))}
+            </div>
+            <ResponsiveContainer width="100%" height={180}>
+              <ComposedChart data={fatigueData} margin={{top:4,right:12,bottom:4,left:0}}>
+                <XAxis dataKey="label" tick={{fontSize:10,fill:C.muted}}/>
+                <YAxis domain={[0,100]} tick={{fontSize:10,fill:C.muted}} tickFormatter={v=>`${v}%`} width={32}/>
+                <RTooltip formatter={(v,n)=>[`${v}%`,n==="charge"?"Charge":"Réserve"]} labelFormatter={(l,p)=>{const d=p?.[0]?.payload;return d?.fullLabel?`${l} — ${d.fullLabel}`:l;}} contentStyle={{fontSize:11,borderRadius:8,border:`1px solid ${C.border}`}}/>
+                <ReferenceLine y={SEUIL} stroke={C.yellow} strokeDasharray="5 4" strokeWidth={1.5}/>
+                <Bar dataKey="charge" radius={[3,3,0,0]}>{fatigueData.map((d,i)=><Cell key={i} fill={d.type==="ravito"?C.green+"99":d.type==="repos"?C.blue+"55":d.charge>=SEUIL?C.red+"cc":d.charge>=60?C.yellow+"cc":C.blue+"cc"}/>)}</Bar>
+                <Line type="monotone" dataKey="reserve" stroke={C.red} strokeWidth={2} dot={{r:2,fill:C.red}}/>
+              </ComposedChart>
+            </ResponsiveContainer>
+            <div style={{fontSize:11,color:"var(--muted-c)",marginTop:4}}>
+              ITRA Effort Score · niveau <strong style={{color:"var(--text-c)"}}>{levelData.label}</strong> · coeff Garmin ×{garminCoeff}{paceStrat!==0&&<> · pace {paceStrat<0?"positif":"négatif"}</>}
+            </div>
+          </Card>
+
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {pointsStrategie.map((p,i)=><Point key={i} {...p}/>)}
+          </div>
+          <div style={{fontSize:11,color:"var(--muted-c)",marginTop:8}}>
+            Sources : ITRA Effort Score · Vernillo et al. (2017) · Millet et al. (2011) · données Garmin personnelles
+          </div>
+        </div>
+
+        {/* ── BLOC 2 : NUTRITION ── */}
+        <div>
+          <SectionTitle>Couverture nutritionnelle</SectionTitle>
+
+          {/* KPIs nutrition */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:12}}>
+            {[
+              {label:"Calories emportées",val:`${totalEmporte.kcal} kcal`,sub:`besoin ${nutriTotals.kcal} kcal`,status:kcalStatus},
+              {label:"Glucides / heure",val:`${glucidesActuelH} g/h`,sub:glucidesTarget?`cible ${glucidesTarget} g/h`:"55% des kcal",status:glucidesStatus},
+              {label:"Eau (boissons)",val:`${(totalEmporte.eauMl/1000).toFixed(1)} L`,sub:`besoin ${(nutriTotals.eau/1000).toFixed(1)} L`,status:eauStatus},
+            ].map(({label,val,sub,status})=>(
+              <div key={label} style={{background:"var(--surface-2)",borderRadius:10,padding:"10px 12px",borderLeft:`3px solid ${statusText[status]}`}}>
+                <div style={{fontSize:11,color:"var(--muted-c)",marginBottom:3}}>{label}</div>
+                <div style={{fontSize:17,fontWeight:600,fontFamily:"'Playfair Display',serif",color:statusText[status]}}>{val}</div>
+                <div style={{fontSize:11,color:"var(--muted-c)",marginTop:2}}>{sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Couverture par tronçon */}
+          {zonesNutri.length > 0 && produits.length > 0 && (
+            <Card style={{marginBottom:12}}>
+              <div style={{fontWeight:600,fontSize:13,marginBottom:12}}>Couverture calorique par tronçon</div>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {zonesNutri.map((z,i)=>{
+                  const pct=z.pct??0;
+                  const barColor=pct>=85?C.green:pct>=60?C.yellow:C.red;
+                  return (
+                    <div key={i}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:12}}>
+                        <span style={{color:"var(--muted-c)"}}>{z.label}</span>
+                        <span style={{fontWeight:600,color:barColor}}>{z.pct!=null?`${pct}%`:"—"} {pct>=85?"✅":pct>=60?"⚠️":"🔴"}</span>
+                      </div>
+                      <div style={{height:5,background:"var(--surface-2)",borderRadius:3,overflow:"hidden"}}>
+                        <div style={{height:"100%",width:`${Math.min(pct,100)}%`,background:barColor,borderRadius:3,transition:"width 0.4s"}}/>
+                      </div>
+                      {z.pct!=null&&z.pct<85&&(
+                        <div style={{fontSize:11,color:"var(--muted-c)",marginTop:3}}>
+                          {z.besoinKcal} kcal estimés · {z.emporteKcal} emportés · {z.besoinKcal-z.emporteKcal} kcal manquantes
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+
+          {produits.length === 0 && (
+            <div style={{padding:"12px 16px",borderRadius:12,background:C.bluePale,border:`1px solid ${C.blue}30`,fontSize:12,color:C.blue,marginBottom:12}}>
+              ℹ️ Ajoute des produits dans l'onglet Nutrition et planifie tes ravitos pour voir la couverture calorique par tronçon.
+            </div>
+          )}
+
+          {glucidesTarget==null&&(
+            <div style={{padding:"10px 14px",borderRadius:10,background:"var(--surface-2)",fontSize:12,color:"var(--muted-c)"}}>
+              Cible glucides non définie — calcul automatique (55% des kcal). Configure ta cible dans Paramètres pour une analyse plus précise.
+            </div>
+          )}
+        </div>
+
+        {/* ── BLOC 3 : PRÉPARATION GLOBALE ── */}
+        <div>
+          <SectionTitle>Préparation globale</SectionTitle>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {pointsPrepa.map((p,i)=><Point key={i} {...p}/>)}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 const NAVS = [
-  { id: "profil",      label: "Profil de course",    icon: "🗺️" },
-  { id: "preparation", label: "Stratégie de course",  icon: "🎯" },
-  { id: "nutrition",   label: "Nutrition",            icon: "🍌" },
-  { id: "team",        label: "Team",                 icon: "👥" },
-  { id: "courses",     label: "Mes courses",          icon: "📚" },
-  { id: "parametres",  label: "Paramètres du coureur", icon: "⚙️" },
+  { id: "profil",      label: "Profil de course",     icon: "🗺️", group: "Préparation" },
+  { id: "preparation", label: "Stratégie de course",   icon: "🎯", group: "Préparation" },
+  { id: "nutrition",   label: "Nutrition",             icon: "🍌", group: "Préparation" },
+  { id: "parametres",  label: "Paramètres du coureur", icon: "⚙️", group: "Préparation" },
+  { id: "analyse",     label: "Analyse",               icon: "📊", group: "Analyse" },
+  { id: "team",        label: "Team",                  icon: "👥", group: "Équipe" },
+  { id: "courses",     label: "Mes courses",           icon: "📚", group: "Historique" },
 ];
 
 // ─── PARTAGE STRATÉGIE ───────────────────────────────────────────────────────
@@ -4412,12 +4566,20 @@ export default function App() {
 
       {/* Nav — prend tout l'espace disponible */}
       <nav style={{ padding: "0 10px", display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
-        {NAVS.map(n => (
-          <div key={n.id} className={`nav-item${view === n.id ? " active" : ""}`} onClick={() => navigate(n.id)}>
-            <span>{n.icon}</span>
-            <span>{n.label}</span>
-          </div>
-        ))}
+        {(() => {
+          const groups = [...new Set(NAVS.map(n => n.group))];
+          return groups.map(group => (
+            <div key={group}>
+              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.08em", padding: "10px 10px 4px", opacity: 0.7 }}>{group}</div>
+              {NAVS.filter(n => n.group === group).map(n => (
+                <div key={n.id} className={`nav-item${view === n.id ? " active" : ""}`} onClick={() => navigate(n.id)}>
+                  <span>{n.icon}</span>
+                  <span>{n.label}</span>
+                </div>
+              ))}
+            </div>
+          ));
+        })()}
         {hasRace && (
           <div style={{ background: "var(--surface-2)", borderRadius: 12, padding: "12px 14px", fontSize: 13, marginTop: 12 }}>
             <div style={{ fontWeight: 600, marginBottom: 4 }}>{settings.raceName || race.name || "Course sans nom"}</div>
@@ -4717,6 +4879,7 @@ export default function App() {
           {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} isMobile={isMobile} />}
           {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} isMobile={isMobile} />}
           {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} isMobile={isMobile} onNavigate={navigate} />}
+          {view === "analyse"     && <AnalyseView race={race} segments={segments} settings={settings} isMobile={isMobile} onNavigate={navigate} />}
           {view === "team"        && <TeamView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} isMobile={isMobile} onLoadStrategy={data => {
             if (data.race)     setRaceRaw(data.race);
             if (data.segments) setSegmentsRaw(data.segments);
