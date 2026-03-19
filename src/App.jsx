@@ -1244,6 +1244,7 @@ function calcPassingTimes(segments, startTime) {
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
 function ProfilView({ race, setRace, segments, setSegments, settings, setSettings, onOpenRepos, isMobile }) {
   const [gpxError, setGpxError]       = useState(null);
+  const [tooltipGlu, setTooltipGlu]   = useState(false);
   const [gpxStatus, setGpxStatus]     = useState(null);
   const [dragging, setDragging]       = useState(false);
   const [hoveredSeg, setHoveredSeg]   = useState(null);
@@ -1564,60 +1565,40 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
             const fetchMeteo = async () => {
               const pt = race.gpxPoints?.[0];
               if (!pt) { alert("Charge d'abord un fichier GPX pour obtenir la météo automatique."); return; }
-
-              // Vérifier la distance en jours
               if (settings.raceDate) {
                 const daysAway = Math.round((new Date(settings.raceDate) - new Date()) / 86400000);
                 if (daysAway > 14) {
-                  alert(`Ta course est dans ${daysAway} jours.\n\nLes prévisions météo ne sont pas disponibles au-delà de 14 jours. Reviens à J-14 pour obtenir une météo indicative, ou à J-7 pour une météo fiable.`);
+                  alert(`Ta course est dans ${daysAway} jours.\n\nLes prévisions météo ne sont pas disponibles au-delà de 14 jours. Reviens à J-14 pour une météo indicative, ou J-7 pour une météo fiable.`);
                   return;
                 }
               }
-
               updS("meteoLoading", true);
               try {
-                // Calcul de la fenêtre horaire : date de course + heure de départ + durée estimée
                 const dateStr = settings.raceDate || new Date().toISOString().slice(0, 10);
                 const [hh, mm] = (settings.startTime || "07:00").split(":").map(Number);
                 const startDate = new Date(`${dateStr}T${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}:00`);
-                // Durée estimée en heures depuis les segments
                 const totalSecsEst = segments.filter(s => s.type !== "ravito" && s.type !== "repos")
                   .reduce((acc, seg) => acc + (seg.endKm - seg.startKm) / seg.speedKmh * 3600, 0);
                 const durationH = Math.max(2, Math.ceil(totalSecsEst / 3600) + 1);
-
                 const url = `https://api.open-meteo.com/v1/forecast?latitude=${pt.lat.toFixed(4)}&longitude=${pt.lon.toFixed(4)}&hourly=temperature_2m,precipitation,windspeed_10m,snowfall&timezone=auto&forecast_days=7`;
                 const res = await fetch(url);
                 if (!res.ok) throw new Error("API indisponible");
                 const data = await res.json();
-
-                // Trouver l'index de l'heure de départ dans le tableau hourly
                 const times = data.hourly.time;
-                const startIso = startDate.toISOString().slice(0, 13); // "2026-06-07T06"
+                const startIso = startDate.toISOString().slice(0, 13);
                 let startIdx = times.findIndex(t => t.startsWith(startIso));
                 if (startIdx === -1) startIdx = 0;
                 const endIdx = Math.min(startIdx + durationH, times.length);
-
-                // Moyenner sur la durée de course
                 const slice = (arr) => arr.slice(startIdx, endIdx);
                 const avg = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
-
-                const temps = slice(data.hourly.temperature_2m);
-                const precips = slice(data.hourly.precipitation);
-                const winds = slice(data.hourly.windspeed_10m);
-                const snows = slice(data.hourly.snowfall);
-
-                const avgTemp = Math.round(avg(temps));
-                const totalPrecip = precips.reduce((a, b) => a + b, 0);
-                const totalSnow = snows.reduce((a, b) => a + b, 0);
-                const maxWind = Math.max(...winds);
-                const hasRain = totalPrecip > 1;
-                const hasSnow = totalSnow > 0.5;
-                const hasWind = maxWind > 30;
-
+                const avgTemp = Math.round(avg(slice(data.hourly.temperature_2m)));
+                const totalPrecip = slice(data.hourly.precipitation).reduce((a, b) => a + b, 0);
+                const totalSnow = slice(data.hourly.snowfall).reduce((a, b) => a + b, 0);
+                const maxWind = Math.max(...slice(data.hourly.windspeed_10m));
                 updS("tempC", avgTemp);
-                updS("rain", hasRain && !hasSnow);
-                updS("snow", hasSnow);
-                updS("wind", hasWind);
+                updS("rain", totalPrecip > 1 && totalSnow <= 0.5);
+                updS("snow", totalSnow > 0.5);
+                updS("wind", maxWind > 30);
                 updS("meteoLoading", false);
                 updS("meteoFetched", true);
                 updS("meteoInfo", `${dateStr} · ${avgTemp}°C moy · précip ${totalPrecip.toFixed(1)}mm · vent max ${Math.round(maxWind)} km/h`);
@@ -1626,158 +1607,156 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                 alert("Impossible de récupérer la météo. Vérifie ta connexion et réessaie.");
               }
             };
+
+            const handleGarmin = e => {
+              const file = e.target.files[0]; if (!file) return;
+              const reader = new FileReader();
+              reader.onload = ev => {
+                const result = parseGarminCSV(ev.target.result);
+                if (result) { updS("garminCoeff", result.coeff); updS("garminStats", result); if (result.kcalPerKmFlat) updS("kcalSource", "garmin"); }
+                else alert("Fichier CSV Garmin non reconnu. Vérifie le format Activities.csv.");
+              };
+              reader.readAsText(file);
+            };
+
             const EFFORT_OPTIONS_P = [
-              { key: "comfort", label: "Finisher",   desc: "Terminer sans se cramer — vitesses -12%", color: C.green },
-              { key: "normal",  label: "Chrono",     desc: "Objectif temps réaliste — vitesses normales", color: C.primary },
+              { key: "comfort", label: "Finisher",    desc: "Terminer sans se cramer — vitesses −12%", color: C.green },
+              { key: "normal",  label: "Chrono",      desc: "Objectif temps réaliste — vitesses normales", color: C.primary },
               { key: "perf",    label: "Performance", desc: "Repousser les limites — vitesses +8%", color: C.red },
             ];
             const PACE_LABELS_P = ["Très positif", "Positif", "Régulier", "Négatif", "Très négatif"];
             const paceIdx_P = (settings.paceStrategy || 0) + 2;
-            const ravitoCount_P = race.ravitos?.length || 0;
-            const totalRavitoSec_P = ravitoCount_P * (settings.ravitoTimeMin || 3) * 60;
+            const daysAway = settings.raceDate ? Math.round((new Date(settings.raceDate) - new Date()) / 86400000) : null;
+            const meteoAutoDisabled = daysAway !== null && daysAway > 14;
+
+            const SLabel = ({ children }) => (
+              <div style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted-c)", marginBottom: 12 }}>{children}</div>
+            );
+
             return (
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16, marginBottom: 24 }}>
-                {/* Course */}
-                <Card>
-                  <div style={{ fontWeight: 600, marginBottom: 14 }}>Course</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    <Field label="Nom de la course">
-                      <input value={settings.raceName || race.name || ""} onChange={e => updS("raceName", e.target.value)} placeholder="Ex : UTMB, TDS..." />
-                    </Field>
-                    <Field label="Date de la course">
-                      <input type="date" value={settings.raceDate || ""} onChange={e => {
-                        updS("raceDate", e.target.value);
-                        updS("meteoFetched", false);
-                        updS("meteoInfo", "");
-                      }} />
-                    </Field>
-                    <Field label="Heure de départ">
-                      <input type="time" value={settings.startTime || "07:00"} onChange={e => updS("startTime", e.target.value)} />
-                    </Field>
-                    <Field label="Adresse de départ">
-                      <input value={race.startAddress || ""} onChange={e => setRace(r => ({ ...r, startAddress: e.target.value }))} placeholder="Ex : Place du village, 73210 Bourg-Saint-Maurice" />
-                    </Field>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <Field label="Adresse d'arrivée">
-                        <input value={race.endAddress || ""} onChange={e => setRace(r => ({ ...r, endAddress: e.target.value }))} placeholder="Idem si boucle" disabled={race.sameAddress} style={{ opacity: race.sameAddress ? 0.5 : 1 }} />
-                      </Field>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "var(--muted-c)" }}>
-                        <input type="checkbox" checked={!!race.sameAddress} onChange={e => setRace(r => ({ ...r, sameAddress: e.target.checked, endAddress: e.target.checked ? r.startAddress : r.endAddress }))} />
-                        Même adresse que le départ (boucle)
-                      </label>
-                    </div>
-                  </div>
-                </Card>
 
-                {/* Météo */}
+                {/* ── BLOC 1 : COURSE ── */}
                 <Card>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                    <div style={{ fontWeight: 600 }}>Météo</div>
-                    <button onClick={fetchMeteo} disabled={settings.meteoLoading} style={{
-                      background: C.primaryPale, border: `1px solid ${C.primary}50`,
-                      color: C.primaryDeep, borderRadius: 10, padding: "5px 12px",
-                      fontSize: 12, fontWeight: 700, cursor: settings.meteoLoading ? "wait" : "pointer",
-                      fontFamily: "'DM Sans', sans-serif", opacity: settings.meteoLoading ? 0.7 : 1,
-                    }}>
-                      {settings.meteoLoading ? "⏳ Chargement..." : "⛅ Météo auto"}
-                    </button>
-                  </div>
-                  {settings.meteoFetched && settings.meteoInfo && (() => {
-                    const daysAway = settings.raceDate
-                      ? Math.round((new Date(settings.raceDate) - new Date()) / 86400000)
-                      : null;
-                    const isUnreliable = daysAway !== null && daysAway > 7;
-                    return (
-                      <>
-                        <div style={{ fontSize: 11, color: isUnreliable ? C.yellow : C.green, marginBottom: 8, padding: "6px 10px", background: (isUnreliable ? C.yellow : C.green) + "12", borderRadius: 8 }}>
-                          {isUnreliable ? "⚠️" : "✓"} {settings.meteoInfo}
-                        </div>
-                        {isUnreliable && (
-                          <div style={{ fontSize: 11, color: C.yellow, marginBottom: 12, padding: "6px 10px", background: C.yellow + "12", borderRadius: 8, lineHeight: 1.5 }}>
-                            Ta course est dans <strong>{daysAway} jours</strong>. Les prévisions entre J-7 et J-14 sont indicatives — reviens à J-7 pour une météo fiable.
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                  {!settings.meteoFetched && (() => {
-                    const daysAway = settings.raceDate
-                      ? Math.round((new Date(settings.raceDate) - new Date()) / 86400000)
-                      : null;
-                    const zone = daysAway === null ? "nodate"
-                      : daysAway > 14 ? "tooFar"
-                      : daysAway > 7  ? "indicative"
-                      : "reliable";
-                    return (
-                      <div style={{ fontSize: 12, color: "var(--muted-c)", marginBottom: 12, lineHeight: 1.6 }}>
-                        {zone === "nodate" && `Configure la date et l'heure de départ, puis clique sur "Météo auto" pour récupérer les prévisions sur ton parcours.`}
-                        {zone === "tooFar" && (
-                          <span style={{ color: C.red }}>
-                            ⛔ Ta course est dans <strong>{daysAway} jours</strong> — la météo auto n'est pas disponible au-delà de J-14. Reviens plus proche de la date.
-                          </span>
-                        )}
-                        {zone === "indicative" && (
-                          <>
-                            Clique sur "Météo auto" pour obtenir des prévisions indicatives.
-                            <span style={{ display: "block", marginTop: 6, color: C.yellow, fontSize: 11 }}>
-                              ⚠️ Ta course est dans <strong>{daysAway} jours</strong> — les prévisions seront fiables à partir de J-7.
-                            </span>
-                          </>
-                        )}
-                        {zone === "reliable" && `Clique sur "Météo auto" pour récupérer les prévisions sur ton parcours.`}
-                      </div>
-                    );
-                  })()}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                    <SliderField label="Température" value={settings.tempC} min={-30} max={45} unit="°C" onChange={v => updS("tempC", v)} />
-                    <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-                      <Toggle label="🌧️ Pluie" checked={settings.rain} onChange={v => updS("rain", v)} />
-                      <Toggle label="❄️ Neige" checked={settings.snow} onChange={v => updS("snow", v)} />
-                      <Toggle label="💨 Vent fort" checked={settings.wind} onChange={v => updS("wind", v)} />
-                    </div>
-                  </div>
-                </Card>
-
-                {/* Objectif */}
-                <Card>
-                  <div style={{ fontWeight: 600, marginBottom: 14 }}>Objectif</div>
+                  <SLabel>Course</SLabel>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {EFFORT_OPTIONS_P.map(opt => (
-                      <div key={opt.key} onClick={() => updS("effortTarget", opt.key)} style={{
-                        padding: "12px 14px", borderRadius: 12, cursor: "pointer",
-                        border: `2px solid ${settings.effortTarget === opt.key ? opt.color : "var(--border-c)"}`,
-                        background: settings.effortTarget === opt.key ? opt.color + "18" : "var(--surface-2)",
-                        transition: "all 0.15s",
-                      }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: settings.effortTarget === opt.key ? opt.color : "var(--text-c)" }}>{opt.label}</div>
-                        <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 3 }}>{opt.desc}</div>
+                    <Field label="Nom de la course">
+                      <input value={settings.raceName || race.name || ""} onChange={e => updS("raceName", e.target.value)} placeholder="Ex : UTMB, TDS, Var Verdon Trail..." />
+                    </Field>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <Field label="Date">
+                        <input type="date" value={settings.raceDate || ""} onChange={e => { updS("raceDate", e.target.value); updS("meteoFetched", false); updS("meteoInfo", ""); }} />
+                      </Field>
+                      <Field label="Heure de départ">
+                        <input type="time" value={settings.startTime || "07:00"} onChange={e => updS("startTime", e.target.value)} />
+                      </Field>
+                    </div>
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--muted-c)" }}>Météo</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          {daysAway !== null && (
+                            <span style={{ fontSize: 11, color: "var(--muted-c)" }}>
+                              {daysAway > 0 ? `J−${daysAway}` : daysAway === 0 ? "Aujourd'hui" : `J+${Math.abs(daysAway)}`}
+                            </span>
+                          )}
+                          <button onClick={fetchMeteo} disabled={settings.meteoLoading || meteoAutoDisabled} style={{
+                            background: meteoAutoDisabled ? "var(--surface-2)" : C.primaryPale,
+                            border: `1px solid ${meteoAutoDisabled ? "var(--border-c)" : C.primary + "50"}`,
+                            color: meteoAutoDisabled ? "var(--muted-c)" : C.primaryDeep,
+                            borderRadius: 8, padding: "3px 10px", fontSize: 11, fontWeight: 600,
+                            cursor: meteoAutoDisabled ? "not-allowed" : "pointer",
+                            fontFamily: "'DM Sans', sans-serif", opacity: settings.meteoLoading ? 0.7 : 1,
+                          }} title={meteoAutoDisabled ? `Disponible à J−14 (dans ${daysAway - 14} jours)` : "Récupérer la météo automatiquement"}>
+                            {settings.meteoLoading ? "⏳" : "⛅"} Météo auto
+                          </button>
+                        </div>
+                      </div>
+                      {settings.meteoFetched && settings.meteoInfo && (
+                        <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 6, padding: "4px 8px", background: "var(--surface-2)", borderRadius: 6 }}>
+                          {settings.meteoInfo}
+                          {daysAway !== null && daysAway > 7 && <span style={{ color: C.yellow, marginLeft: 6 }}>⚠️ Indicatif</span>}
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                          <input type="number" min={-30} max={45} value={settings.tempC ?? 15} onChange={e => updS("tempC", Number(e.target.value))} style={{ width: 54, fontSize: 13 }} />
+                          <span style={{ fontSize: 12, color: "var(--muted-c)" }}>°C</span>
+                        </div>
+                        {[
+                          { key: "rain", label: "🌧️ Pluie" },
+                          { key: "snow", label: "❄️ Neige" },
+                          { key: "wind", label: "💨 Vent" },
+                          { key: "heat", label: "🌡️ Chaleur" },
+                        ].map(({ key, label }) => (
+                          <label key={key} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: 12, padding: "3px 8px", borderRadius: 6, background: settings[key] ? C.primaryPale : "var(--surface-2)", border: `1px solid ${settings[key] ? C.primary + "40" : "var(--border-c)"}`, transition: "all 0.15s", userSelect: "none" }}>
+                            <input type="checkbox" checked={!!settings[key]} onChange={e => updS(key, e.target.checked)} style={{ width: 13, height: 13 }} />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* ── BLOC 2 : PARCOURS & RAVITAILLEMENTS ── */}
+                <Card>
+                  <SLabel>Parcours & ravitaillements</SLabel>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 4 }}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 20, flexShrink: 0, paddingTop: 2 }}>
+                        <span style={{ fontSize: 14 }}>🏁</span>
+                        <div style={{ width: 1, flex: 1, background: "var(--border-c)", marginTop: 4, minHeight: 12 }} />
+                      </div>
+                      <div style={{ flex: 1, paddingBottom: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Départ</div>
+                        <input value={race.startAddress || ""} onChange={e => setRace(r => ({ ...r, startAddress: e.target.value }))} placeholder="Adresse ou lieu de départ" style={{ fontSize: 12, width: "100%" }} />
+                      </div>
+                    </div>
+                    {[...(race.ravitos||[])].sort((a,b) => a.km - b.km).map(rv => (
+                      <div key={rv.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 4 }}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 20, flexShrink: 0, paddingTop: 2 }}>
+                          <span style={{ fontSize: 13 }}>🥤</span>
+                          <div style={{ width: 1, flex: 1, background: "var(--border-c)", marginTop: 4, minHeight: 12 }} />
+                        </div>
+                        <div style={{ flex: 1, paddingBottom: 8 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontSize: 12, fontWeight: 600 }}>{rv.name}</span>
+                              <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 4, fontWeight: 600,
+                                background: rv.assistancePresente !== false ? C.greenPale : "var(--surface-2)",
+                                color: rv.assistancePresente !== false ? C.green : "var(--muted-c)",
+                              }}>{rv.assistancePresente !== false ? "assistance" : "autonome"}</span>
+                            </div>
+                            <div style={{ display: "flex", gap: 4 }}>
+                              <Btn size="sm" variant="ghost" onClick={() => openEditRavito(rv)}>✏️</Btn>
+                              <Btn size="sm" variant="danger" onClick={() => setConfirmId("rv-" + rv.id)}>✕</Btn>
+                            </div>
+                          </div>
+                          <div style={{ fontSize: 11, color: "var(--muted-c)" }}>km {rv.km} · {rv.dureeMin || settings.ravitoTimeMin || 3} min</div>
+                        </div>
                       </div>
                     ))}
-                  </div>
-                </Card>
-                {/* Gestion effort */}
-                <Card>
-                  <div style={{ fontWeight: 600, marginBottom: 14 }}>Gestion de l'effort</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                    <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600 }}>Répartition du rythme</span>
-                        <span style={{ fontSize: 12, color: C.primary, fontWeight: 600 }}>{PACE_LABELS_P[paceIdx_P]}</span>
+                    <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <div style={{ width: 20, flexShrink: 0, paddingTop: 2, textAlign: "center" }}>
+                        <span style={{ fontSize: 14 }}>🏆</span>
                       </div>
-                      <input type="range" min={-2} max={2} step={1} value={settings.paceStrategy || 0} onChange={e => updS("paceStrategy", Number(e.target.value))} style={{ width: "100%" }} />
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>
-                        <span>Partir vite</span><span>Partir lentement</span>
-                      </div>
-                      <div style={{ marginTop: 8, padding: "8px 12px", background: "var(--surface-2)", borderRadius: 9, fontSize: 12, color: "var(--muted-c)", lineHeight: 1.5 }}>
-                        {(settings.paceStrategy || 0) < 0 && "Vitesses plus élevées au départ, tu ralentis progressivement."}
-                        {(settings.paceStrategy || 0) === 0 && "Allure régulière tout au long de la course."}
-                        {(settings.paceStrategy || 0) > 0 && "Tu pars conservateur et tu accélères sur la fin — split négatif."}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Arrivée</div>
+                        <input value={race.endAddress || ""} onChange={e => setRace(r => ({ ...r, endAddress: e.target.value }))} placeholder="Adresse ou lieu d'arrivée" style={{ fontSize: 12, width: "100%" }} disabled={race.sameAddress} />
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 11, color: "var(--muted-c)", marginTop: 5 }}>
+                          <input type="checkbox" checked={!!race.sameAddress} onChange={e => setRace(r => ({ ...r, sameAddress: e.target.checked, endAddress: e.target.checked ? r.startAddress : r.endAddress }))} />
+                          Même adresse que le départ (boucle)
+                        </label>
                       </div>
                     </div>
-                    <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600 }}>Temps aux ravitos</span>
-                        <span style={{ fontSize: 12, color: C.primary, fontWeight: 600 }}>{settings.ravitoTimeMin || 3} min</span>
+                  </div>
+                  <div style={{ borderTop: "1px solid var(--border-c)", marginTop: 12, paddingTop: 12, display: "flex", alignItems: "center", gap: 10 }}>
+                    <Btn size="sm" onClick={() => { setEditRavitoId(null); setRavitoForm({ km: "", name: "", address: "", notes: "", dureeMin: "", assistancePresente: true }); setRavitoModal(true); }}>+ Ravito</Btn>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <span style={{ fontSize: 11, color: "var(--muted-c)" }}>Durée par défaut aux ravitos</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: C.primary }}>{settings.ravitoTimeMin || 3} min</span>
                       </div>
                       <input type="range" min={1} max={20} step={1} value={settings.ravitoTimeMin || 3} onChange={e => {
                         const val = Number(e.target.value);
@@ -1787,134 +1766,215 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                             ? { ...seg, dureeMin: val } : seg
                         ));
                       }} style={{ width: "100%" }} />
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>
-                        <span>1 min</span><span>20 min</span>
-                      </div>
-                      {ravitoCount_P > 0 && (
-                        <div style={{ marginTop: 8, fontSize: 12, color: "var(--muted-c)" }}>
-                          {ravitoCount_P} ravito{ravitoCount_P > 1 ? "s" : ""} × {settings.ravitoTimeMin || 3} min = <strong style={{ color: "var(--text-c)" }}>{fmtTime(totalRavitoSec_P)}</strong> ajoutées
-                        </div>
-                      )}
                     </div>
                   </div>
                 </Card>
-              </div>
-            );
-          })()}
 
-          {/* ── PROFIL COUREUR + GARMIN ── */}
-          {(() => {
-            const updS = (k, v) => setSettings(s => ({ ...s, [k]: v }));
-            const handleGarmin2 = e => {
-              const file = e.target.files[0];
-              if (!file) return;
-              const reader = new FileReader();
-              reader.onload = ev => {
-                const result = parseGarminCSV(ev.target.result);
-                if (result) {
-                  updS("garminCoeff", result.coeff);
-                  updS("garminStats", result);
-                  if (result.kcalPerKmFlat) updS("kcalSource", "garmin");
-                }
-                else alert("Fichier CSV Garmin non reconnu. Vérifie le format Activities.csv.");
-              };
-              reader.readAsText(file);
-            };
-            return (
-              <Card style={{ marginBottom: 24 }}>
-                <div style={{ fontWeight: 600, marginBottom: 16, borderBottom: "1px solid var(--border-c)", paddingBottom: 12 }}>
-                  Profil du coureur & algo
-                  <span style={{ fontSize: 12, color: "var(--muted-c)", fontWeight: 400, marginLeft: 8 }}>Influence directement les vitesses calculées</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  {/* Niveau coureur — 4 boutons sur une ligne */}
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Niveau coureur</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-                      {RUNNER_LEVELS.map(lvl => {
-                        const isActive = (settings.runnerLevel || "intermediaire") === lvl.key;
-                        return (
-                          <div key={lvl.key} onClick={() => updS("runnerLevel", lvl.key)} style={{
-                            padding: isMobile ? "8px 6px" : "10px 12px", borderRadius: 10, cursor: "pointer",
-                            border: `2px solid ${isActive ? C.primary : "var(--border-c)"}`,
-                            background: isActive ? C.primaryPale : "var(--surface-2)",
-                            transition: "all 0.15s", textAlign: "center",
+                {/* ── BLOC 3 : PERFORMANCE & OBJECTIF ── */}
+                <Card>
+                  <SLabel>Performance & objectif</SLabel>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 6 }}>Niveau coureur</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 }}>
+                        {RUNNER_LEVELS.map(lvl => {
+                          const isActive = (settings.runnerLevel || "intermediaire") === lvl.key;
+                          return (
+                            <div key={lvl.key} onClick={() => updS("runnerLevel", lvl.key)} style={{
+                              padding: "8px 6px", borderRadius: 9, cursor: "pointer", textAlign: "center",
+                              border: `2px solid ${isActive ? C.primary : "var(--border-c)"}`,
+                              background: isActive ? C.primaryPale : "var(--surface-2)", transition: "all 0.15s",
+                            }}>
+                              <div style={{ fontWeight: 600, fontSize: 12, color: isActive ? C.primaryDeep : "var(--text-c)" }}>{lvl.label}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {(() => { const lvl = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel || "intermediaire")); return <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>{lvl?.desc} — coeff ×{lvl?.coeff}</div>; })()}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 6 }}>Objectif</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {EFFORT_OPTIONS_P.map(opt => (
+                          <div key={opt.key} onClick={() => updS("effortTarget", opt.key)} style={{
+                            padding: "9px 12px", borderRadius: 9, cursor: "pointer",
+                            border: `2px solid ${settings.effortTarget === opt.key ? opt.color : "var(--border-c)"}`,
+                            background: settings.effortTarget === opt.key ? opt.color + "18" : "var(--surface-2)", transition: "all 0.15s",
                           }}>
-                            <div style={{ fontWeight: 600, fontSize: isMobile ? 12 : 13, color: isActive ? C.primaryDeep : "var(--text-c)" }}>{lvl.label}</div>
-                            {!isMobile && <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>{lvl.desc}</div>}
+                            <div style={{ fontWeight: 600, fontSize: 13, color: settings.effortTarget === opt.key ? opt.color : "var(--text-c)" }}>{opt.label}</div>
+                            <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 2 }}>{opt.desc}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <span style={{ fontSize: 11, color: "var(--muted-c)" }}>Répartition du rythme</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: C.primary }}>{PACE_LABELS_P[paceIdx_P]}</span>
+                      </div>
+                      <input type="range" min={-2} max={2} step={1} value={settings.paceStrategy || 0} onChange={e => updS("paceStrategy", Number(e.target.value))} style={{ width: "100%" }} />
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted-c)", marginTop: 2 }}>
+                        <span>Partir vite</span><span>Partir lentement</span>
+                      </div>
+                    </div>
+                    <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12 }}>
+                      <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 6 }}>Calibration Garmin <span style={{ fontSize: 10 }}>(vitesses auto)</span></div>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+                        <Btn variant="soft" size="sm" onClick={() => document.getElementById("garmin-input-profil").click()}>Charger Activities.csv</Btn>
+                        <input id="garmin-input-profil" type="file" accept=".csv" style={{ display: "none" }} onChange={handleGarmin} />
+                        <span style={{ color: "var(--muted-c)", fontSize: 12 }}>Coeff. <strong>{settings.garminCoeff}</strong>{settings.garminStats && ` · ${settings.garminStats.count} sorties`}</span>
+                      </div>
+                      {settings.garminStats && (
+                        <div style={{ padding: "6px 10px", background: "var(--surface-2)", borderRadius: 8, fontSize: 11, display: "flex", gap: 12, flexWrap: "wrap", color: "var(--muted-c)" }}>
+                          <span>{settings.garminStats.count} activités</span>
+                          <span>GAP moy. {settings.garminStats.avgGapKmh} km/h</span>
+                          <span style={{ color: C.primary, fontWeight: 600 }}>×{settings.garminStats.coeff}</span>
+                        </div>
+                      )}
+                      {settings.garminCoeff !== 1 && (
+                        <Btn variant="ghost" size="sm" style={{ marginTop: 6 }} onClick={() => { updS("garminCoeff", 1); updS("garminStats", null); updS("kcalSource", "minetti"); }}>Réinitialiser (coeff = 1)</Btn>
+                      )}
+                    </div>
+                    <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12 }}>
+                      <Field label="Poids (kg)">
+                        <input type="number" min={40} max={150} value={settings.weight || 70}
+                          onChange={e => updS("weight", e.target.value === "" ? "" : +e.target.value)}
+                          onBlur={e => updS("weight", Math.max(40, Math.min(150, +e.target.value || 70)))} style={{ width: 80 }} />
+                      </Field>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* ── BLOC 4 : CALIBRATION ÉNERGÉTIQUE ── */}
+                <Card>
+                  <SLabel>Calibration énergétique</SLabel>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {(() => {
+                      const w = settings.weight || 70;
+                      const minettiFlatKcal = Math.round(3.6 * w * 1000 / 4184);
+                      const i10 = 0.10;
+                      const cr10 = 155.4*i10**5 - 30.4*i10**4 - 43.3*i10**3 + 46.3*i10**2 + 19.5*i10 + 3.6;
+                      const minettiUpKcal = Math.round(cr10 * w * 1000 / 4184);
+                      const gs = settings.garminStats;
+                      const src = settings.kcalSource || "minetti";
+                      const SourceCard = ({ id, label, sub, flatVal, upVal, unavailable }) => {
+                        const active = src === id;
+                        return (
+                          <div onClick={() => !unavailable && updS("kcalSource", id)} style={{
+                            flex: 1, minWidth: 0, borderRadius: 9, padding: "9px 10px", cursor: unavailable ? "default" : "pointer",
+                            border: `2px solid ${active ? C.primary : "var(--border-c)"}`,
+                            background: active ? C.primaryPale : "var(--surface-2)",
+                            opacity: unavailable ? 0.45 : 1, transition: "all 0.15s",
+                          }}>
+                            <div style={{ fontSize: 10, fontWeight: 600, color: active ? C.primaryDeep : "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>{label}</div>
+                            <div style={{ fontSize: 10, color: "var(--muted-c)", marginBottom: 4 }}>{sub}</div>
+                            {!unavailable ? (
+                              <div style={{ fontSize: 12, fontWeight: 700, color: active ? C.primaryDeep : "var(--text-c)", fontFamily: "'Playfair Display', serif" }}>
+                                {flatVal} <span style={{ fontSize: 10, fontWeight: 400, color: "var(--muted-c)" }}>kcal/km</span>
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: 10, color: "var(--muted-c)", fontStyle: "italic" }}>Import requis</div>
+                            )}
+                            {active && !unavailable && <div style={{ fontSize: 10, color: C.primary, fontWeight: 600, marginTop: 2 }}>✓ Actif</div>}
                           </div>
                         );
-                      })}
-                    </div>
+                      };
+                      return (
+                        <div>
+                          <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 6 }}>Source dépense kcal</div>
+                          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                            <SourceCard id="minetti" label="Minetti" sub="Formule scientifique" flatVal={minettiFlatKcal} upVal={minettiUpKcal} />
+                            <SourceCard id="garmin" label="Garmin perso" sub={gs?.kcalActivityCount ? `${gs.kcalActivityCount} sorties` : "Import requis"} flatVal={gs?.kcalPerKmFlat} upVal={gs?.kcalPerKmUphill} unavailable={!gs?.kcalPerKmFlat} />
+                            <SourceCard id="manual" label="Manuel" sub="Personnalisé" flatVal={settings.kcalPerKm} upVal={settings.kcalPerKmUphill} />
+                          </div>
+                          {src === "manual" && (
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "9px 10px", background: "var(--surface-2)", borderRadius: 8, border: `1px solid var(--border-c)`, marginBottom: 8 }}>
+                              <div>
+                                <div style={{ fontSize: 10, color: "var(--muted-c)", marginBottom: 3 }}>Plat (kcal/km)</div>
+                                <input type="number" min={40} max={150} value={settings.kcalPerKm}
+                                  onChange={e => updS("kcalPerKm", e.target.value === "" ? "" : +e.target.value)}
+                                  onBlur={e => updS("kcalPerKm", Math.max(40, Math.min(150, +e.target.value || 65)))} style={{ width: "100%" }} />
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 10, color: "var(--muted-c)", marginBottom: 3 }}>Montée ≥5% (kcal/km)</div>
+                                <input type="number" min={40} max={200} value={settings.kcalPerKmUphill}
+                                  onChange={e => updS("kcalPerKmUphill", e.target.value === "" ? "" : +e.target.value)}
+                                  onBlur={e => updS("kcalPerKmUphill", Math.max(40, Math.min(200, +e.target.value || 90)))} style={{ width: "100%" }} />
+                              </div>
+                            </div>
+                          )}
+                          {gs?.kcalPerKmFlat && (
+                            <div style={{ padding: "7px 10px", background: C.secondaryPale, borderRadius: 8, fontSize: 11, color: "var(--text-c)" }}>
+                              Historique : <strong>{gs.kcalPerKmFlat} kcal/km</strong> plat{gs.kcalPerKmUphill ? <> · <strong>{gs.kcalPerKmUphill}</strong> montée</> : null}
+                              <span style={{ color: "var(--muted-c)", marginLeft: 6 }}>({gs.kcalActivityCount} sorties FC)</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {(() => {
-                      const lvl = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel || "intermediaire"));
-                      return <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted-c)" }}>
-                        {isMobile && <span style={{ marginRight: 6 }}>{lvl?.desc} — </span>}
-                        Coefficient : <strong style={{ color: "var(--text-c)" }}>×{lvl?.coeff}</strong>
-                      </div>;
+                      const target = settings.glucidesTargetGh;
+                      const kcalH = 400;
+                      const glucidesH = target != null ? target : Math.round(kcalH * 0.55 / 4);
+                      const proteinesH = Math.round(kcalH * 0.10 / 4);
+                      const lipidesH = Math.max(0, Math.round((kcalH - glucidesH * 4 - proteinesH * 4) / 9));
+                      const totalCalc = glucidesH * 4 + lipidesH * 9 + proteinesH * 4;
+                      const pctGlu = totalCalc > 0 ? Math.round(glucidesH * 4 / totalCalc * 100) : 55;
+                      const pctLip = totalCalc > 0 ? Math.round(lipidesH * 9 / totalCalc * 100) : 35;
+                      const pctPro = 100 - pctGlu - pctLip;
+                      return (
+                        <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                            <span style={{ fontSize: 11, color: "var(--muted-c)" }}>Glucides & substrats</span>
+                            <span onClick={() => setTooltipGlu(t => !t)} style={{ cursor: "pointer", fontSize: 13, color: C.primary, lineHeight: 1, userSelect: "none" }}>ⓘ</span>
+                          </div>
+                          {tooltipGlu && (
+                            <div style={{ background: "var(--surface-2)", border: `1px solid var(--border-c)`, borderRadius: 9, padding: "9px 12px", fontSize: 11, color: "var(--text-c)", marginBottom: 8, lineHeight: 1.7 }}>
+                              <strong>Jeukendrup (2004, 2011)</strong> — absorption plafonnée à 60–90 g/h selon entraînement intestinal.<br/>
+                              <strong>Brooks & Mercier (1994)</strong> — crossover : en dessous de ~65% VO₂max, les lipides dominent.
+                            </div>
+                          )}
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                            <div>
+                              <div style={{ fontSize: 10, color: "var(--muted-c)", marginBottom: 3 }}>Glucides visés (g/h)</div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <input type="number" min={20} max={150} placeholder="Auto"
+                                  value={target ?? ""}
+                                  onChange={e => updS("glucidesTargetGh", e.target.value === "" ? null : +e.target.value)}
+                                  onBlur={e => { if (e.target.value !== "") updS("glucidesTargetGh", Math.max(20, Math.min(150, +e.target.value))); }}
+                                  style={{ width: 70 }} />
+                                {target != null && (
+                                  <button onClick={() => updS("glucidesTargetGh", null)} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, border: `1px solid var(--border-c)`, background: "var(--surface-2)", color: "var(--muted-c)", cursor: "pointer" }}>Auto</button>
+                                )}
+                                <span style={{ fontSize: 11, color: "var(--muted-c)" }}>{target == null ? "55% des kcal" : target <= 60 ? "Débutant" : target <= 90 ? "Entraîné" : "Gut training"}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ padding: "8px 10px", background: "var(--surface-2)", borderRadius: 8, fontSize: 11 }}>
+                            <div style={{ display: "flex", gap: 0, height: 6, borderRadius: 3, overflow: "hidden", marginBottom: 6 }}>
+                              <div style={{ width: `${pctGlu}%`, background: C.yellow, transition: "width 0.3s" }} />
+                              <div style={{ width: `${pctLip}%`, background: C.primary, transition: "width 0.3s" }} />
+                              <div style={{ width: `${pctPro}%`, background: C.secondary, transition: "width 0.3s" }} />
+                            </div>
+                            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                              <span style={{ color: C.yellow, fontWeight: 600 }}>G {pctGlu}% <span style={{ fontWeight: 400, color: "var(--muted-c)" }}>({glucidesH} g/h)</span></span>
+                              <span style={{ color: C.primary, fontWeight: 600 }}>L {pctLip}% <span style={{ fontWeight: 400, color: "var(--muted-c)" }}>({lipidesH} g/h)</span></span>
+                              <span style={{ color: C.secondary, fontWeight: 600 }}>P {pctPro}% <span style={{ fontWeight: 400, color: "var(--muted-c)" }}>({proteinesH} g/h)</span></span>
+                            </div>
+                          </div>
+                        </div>
+                      );
                     })()}
                   </div>
-                  {/* Calibration Garmin — pleine largeur en dessous */}
-                  <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 14 }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Calibration Garmin</div>
-                    <p style={{ color: "var(--muted-c)", fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}>
-                      Importe ton Activities.csv depuis Garmin Connect pour calibrer les vitesses à ton niveau réel.
-                    </p>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
-                      <Btn variant="soft" size="sm" onClick={() => document.getElementById("garmin-input-profil").click()}>
-                        Charger Activities.csv
-                      </Btn>
-                      <input id="garmin-input-profil" type="file" accept=".csv" style={{ display: "none" }} onChange={handleGarmin2} />
-                      <span style={{ color: "var(--muted-c)", fontSize: 12 }}>
-                        Coeff. : <strong>{settings.garminCoeff}</strong>
-                        {settings.garminStats && ` (${settings.garminStats.count} sorties)`}
-                      </span>
-                    </div>
-                    {settings.garminStats && (
-                      <div style={{ padding: "8px 12px", background: "var(--surface-2)", borderRadius: 9, fontSize: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
-                        <span>{settings.garminStats.count} activités</span>
-                        <span>GAP moy. {settings.garminStats.avgGapKmh} km/h</span>
-                        <span style={{ color: C.primary, fontWeight: 600 }}>×{settings.garminStats.coeff}</span>
-                      </div>
-                    )}
-                    {settings.garminCoeff !== 1 && (
-                      <Btn variant="ghost" size="sm" style={{ marginTop: 8 }} onClick={() => { updS("garminCoeff", 1); updS("garminStats", null); updS("kcalSource", "minetti"); }}>
-                        Réinitialiser (coeff = 1)
-                      </Btn>
-                    )}
-                  </div>
-                </div>
-              </Card>
+                </Card>
+
+              </div>
             );
           })()}
 
-          {/* Ravitos + Segments */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "260px 1fr", gap: 20, marginBottom: 24, alignItems: "start" }}>
-            {/* Ravitos */}
-            <Card>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                <div style={{ fontWeight: 600 }}>Ravitaillements</div>
-                <Btn size="sm" onClick={() => { setEditRavitoId(null); setRavitoForm({ km: "", name: "", address: "", notes: "", dureeMin: "" }); setRavitoModal(true); }}>+ Ravito</Btn>
-              </div>
-              {!(race.ravitos?.length) ? (
-                <p style={{ color: "var(--muted-c)", fontSize: 13 }}>Aucun ravitaillement défini</p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {[...(race.ravitos||[])].sort((a,b) => a.km - b.km).map(rv => (
-                    <div key={rv.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "7px 10px", background: "var(--surface-2)", borderRadius: 9, gap: 8 }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, wordBreak: "break-word", lineHeight: 1.3 }}>{rv.name}</div>
-                        <div style={{ color: "var(--muted-c)", fontSize: 12, marginTop: 2 }}>{rv.km} km</div>
-                      </div>
-                      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                        <Btn size="sm" variant="ghost" onClick={() => openEditRavito(rv)}>✏️</Btn>
-                        <Btn size="sm" variant="danger" onClick={() => setConfirmId("rv-" + rv.id)}>✕</Btn>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
+          {/* Segments */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 20, marginBottom: 24, alignItems: "start" }}>
+
 
             {/* Segments */}
             <Card noPad>
@@ -2487,185 +2547,9 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
                   style={{ width: 90 }} />
               </Field>
 
-              {/* Dépense énergétique — 3 sources */}
-              {(() => {
-                const w = settings.weight || 70;
-                const minettiFlatKcal = Math.round(3.6 * w * 1000 / 4184);
-                const i10 = 0.10;
-                const cr10 = 155.4*i10**5 - 30.4*i10**4 - 43.3*i10**3 + 46.3*i10**2 + 19.5*i10 + 3.6;
-                const minettiUpKcal = Math.round(cr10 * w * 1000 / 4184);
-                const gs = settings.garminStats;
-                const src = settings.kcalSource || "minetti";
-                const [tooltip, setTooltip] = useState(false);
-
-                const SourceCard = ({ id, label, sub, flatVal, upVal, unavailable }) => {
-                  const active = src === id;
-                  return (
-                    <div onClick={() => !unavailable && upd("kcalSource", id)} style={{
-                      flex: 1, minWidth: 0, borderRadius: 10, padding: "10px 12px", cursor: unavailable ? "default" : "pointer",
-                      border: `2px solid ${active ? C.primary : "var(--border-c)"}`,
-                      background: active ? C.primaryPale : "var(--surface-2)",
-                      opacity: unavailable ? 0.45 : 1, transition: "all 0.15s",
-                      display: "flex", flexDirection: "column", gap: 4,
-                    }}>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: active ? C.primaryDeep : "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
-                      <div style={{ fontSize: 11, color: "var(--muted-c)", lineHeight: 1.4 }}>{sub}</div>
-                      {unavailable ? (
-                        <div style={{ fontSize: 11, color: "var(--muted-c)", fontStyle: "italic", marginTop: 2 }}>Non disponible</div>
-                      ) : (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 4 }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: active ? C.primaryDeep : "var(--text-c)", fontFamily: "'Playfair Display', serif" }}>
-                            {flatVal} <span style={{ fontSize: 11, fontWeight: 400, color: "var(--muted-c)" }}>kcal/km plat</span>
-                          </div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: active ? C.primaryDeep : "var(--text-c)", fontFamily: "'Playfair Display', serif" }}>
-                            {upVal ?? "—"} <span style={{ fontSize: 11, fontWeight: 400, color: "var(--muted-c)" }}>kcal/km montée</span>
-                          </div>
-                        </div>
-                      )}
-                      {active && !unavailable && (
-                        <div style={{ marginTop: 4, fontSize: 10, color: C.primary, fontWeight: 600 }}>✓ Sélectionné</div>
-                      )}
-                    </div>
-                  );
-                };
-
-                return (
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                      <span style={{ fontSize: 12, color: "var(--muted-c)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Dépense énergétique</span>
-                      <span onClick={() => setTooltip(t => !t)} style={{ cursor: "pointer", fontSize: 13, color: C.primary, lineHeight: 1, userSelect: "none" }} title="Voir la formule">ⓘ</span>
-                    </div>
-                    {tooltip && (
-                      <div style={{ background: "var(--surface-2)", border: `1px solid var(--border-c)`, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "var(--text-c)", marginBottom: 10, lineHeight: 1.7 }}>
-                        <strong>Formule Minetti et al. (2002)</strong> — <em>Journal of Applied Physiology</em><br/>
-                        <code style={{ fontSize: 11, background: "var(--surface)", padding: "2px 6px", borderRadius: 4 }}>Cr = (155.4i⁵ − 30.4i⁴ − 43.3i³ + 46.3i² + 19.5i + 3.6) × poids</code><br/><br/>
-                        Pour {w} kg : plat ~{minettiFlatKcal} kcal/km · montée +10% ~{minettiUpKcal} kcal/km
-                      </div>
-                    )}
-                    <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                      <SourceCard
-                        id="minetti" label="Minetti" sub="Formule scientifique"
-                        flatVal={minettiFlatKcal} upVal={minettiUpKcal}
-                      />
-                      <SourceCard
-                        id="garmin" label="Garmin perso" sub={gs?.kcalActivityCount ? `${gs.kcalActivityCount} sorties` : "Import requis"}
-                        flatVal={gs?.kcalPerKmFlat} upVal={gs?.kcalPerKmUphill}
-                        unavailable={!gs?.kcalPerKmFlat}
-                      />
-                      <SourceCard
-                        id="manual" label="Manuel" sub="Valeur personnalisée"
-                        flatVal={settings.kcalPerKm} upVal={settings.kcalPerKmUphill}
-                      />
-                    </div>
-                    {src === "manual" && (
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, padding: "10px 12px", background: "var(--surface-2)", borderRadius: 9, border: `1px solid var(--border-c)` }}>
-                        <div>
-                          <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 4 }}>Plat (kcal/km)</div>
-                          <input type="number" min={40} max={150} value={settings.kcalPerKm}
-                            onChange={e => upd("kcalPerKm", e.target.value === "" ? "" : +e.target.value)}
-                            onBlur={e => upd("kcalPerKm", Math.max(40, Math.min(150, +e.target.value || 65)))}
-                            style={{ width: "100%" }} />
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 4 }}>Montée ≥5% (kcal/km)</div>
-                          <input type="number" min={40} max={200} value={settings.kcalPerKmUphill}
-                            onChange={e => upd("kcalPerKmUphill", e.target.value === "" ? "" : +e.target.value)}
-                            onBlur={e => upd("kcalPerKmUphill", Math.max(40, Math.min(200, +e.target.value || 90)))}
-                            style={{ width: "100%" }} />
-                        </div>
-                      </div>
-                    )}
-                    {gs?.kcalPerKmFlat && (() => {
-                      const diffFlat = gs.kcalPerKmFlat - minettiFlatKcal;
-                      const diffSign = diffFlat >= 0 ? "+" : "";
-                      return (
-                        <div style={{ padding: "10px 12px", background: C.secondaryPale, borderRadius: 9, fontSize: 12, lineHeight: 1.6, color: "var(--text-c)", marginTop: 8 }}>
-                          Ton historique suggère <strong>{gs.kcalPerKmFlat} kcal/km</strong> sur plat
-                          {gs.kcalPerKmUphill ? <> et <strong>{gs.kcalPerKmUphill} kcal/km</strong> en montée</> : null}
-                          {" "}— {diffFlat === 0 ? "identique aux" : <>{diffSign}{diffFlat} kcal/km par rapport aux</>} valeurs Minetti ({minettiFlatKcal}/{minettiUpKcal}).
-                          {" "}<span style={{ color: "var(--muted-c)" }}>Calculé sur {gs.kcalActivityCount} sorties avec données FC.</span>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                );
-              })()}
-
-              {/* Glucides & substrats */}
-              {(() => {
-                const [tooltipGlu, setTooltipGlu] = useState(false);
-                const target = settings.glucidesTargetGh;
-                // Répartition estimée pour affichage
-                const kcalH = 400; // référence indicative à effort modéré
-                const glucidesH = target != null ? target : Math.round(kcalH * 0.55 / 4);
-                const proteinesH = Math.round(kcalH * 0.10 / 4);
-                const lipidesH = Math.max(0, Math.round((kcalH - glucidesH * 4 - proteinesH * 4) / 9));
-                const totalCalc = glucidesH * 4 + lipidesH * 9 + proteinesH * 4;
-                const pctGlu  = totalCalc > 0 ? Math.round(glucidesH * 4 / totalCalc * 100) : 55;
-                const pctLip  = totalCalc > 0 ? Math.round(lipidesH * 9 / totalCalc * 100) : 35;
-                const pctPro  = 100 - pctGlu - pctLip;
-                return (
-                  <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 14, marginTop: 4 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                      <span style={{ fontSize: 12, color: "var(--muted-c)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Glucides & substrats</span>
-                      <span onClick={() => setTooltipGlu(t => !t)} style={{ cursor: "pointer", fontSize: 13, color: C.primary, lineHeight: 1, userSelect: "none" }}>ⓘ</span>
-                    </div>
-                    {tooltipGlu && (
-                      <div style={{ background: "var(--surface-2)", border: `1px solid var(--border-c)`, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "var(--text-c)", marginBottom: 10, lineHeight: 1.8 }}>
-                        <strong>Jeukendrup (2004)</strong> — <em>Nutrition</em><br/>
-                        Absorption intestinale plafonnée à ~60 g/h (glucose seul) ou ~90 g/h (glucose + fructose, transporteurs multiples).<br/><br/>
-                        <strong>Jeukendrup (2011)</strong> — <em>Sports Medicine</em><br/>
-                        Le "gut training" permet d'atteindre 90–120 g/h chez les athlètes entraînés sur effort long.<br/><br/>
-                        <strong>Brooks & Mercier (1994)</strong> — <em>Journal of Applied Physiology</em><br/>
-                        Concept du "crossover" : en dessous de ~65% VO₂max, les lipides dominent. Au-delà, les glucides deviennent le substrat principal. Sur trail, l'intensité variable justifie un mix.<br/><br/>
-                        <span style={{ color: "var(--muted-c)", fontSize: 11 }}>La répartition protéines (10%) est une règle empirique, sans étude spécifique trail.</span>
-                      </div>
-                    )}
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 4 }}>Glucides visés (g/h)</div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <input type="number" min={20} max={150} placeholder="Auto"
-                            value={target ?? ""}
-                            onChange={e => upd("glucidesTargetGh", e.target.value === "" ? null : +e.target.value)}
-                            onBlur={e => { if (e.target.value !== "") upd("glucidesTargetGh", Math.max(20, Math.min(150, +e.target.value))); }}
-                            style={{ width: 90 }} />
-                          {target != null && (
-                            <button onClick={() => upd("glucidesTargetGh", null)}
-                              style={{ fontSize: 11, padding: "3px 10px", borderRadius: 8, border: `1px solid var(--border-c)`, background: "var(--surface-2)", color: "var(--muted-c)", cursor: "pointer" }}>
-                              Auto
-                            </button>
-                          )}
-                        </div>
-                        <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>
-                          {target == null ? "Calculé automatiquement (55% des kcal)" : (
-                            target <= 60 ? "Débutant / effort long faible intensité" :
-                            target <= 90 ? "Entraîné — profil standard" :
-                            "Gut training — athlète expérimenté"
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    {/* Répartition estimée */}
-                    <div style={{ padding: "10px 12px", background: "var(--surface-2)", borderRadius: 9, fontSize: 12 }}>
-                      <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 8 }}>Répartition estimée à effort modéré (~400 kcal/h)</div>
-                      <div style={{ display: "flex", gap: 0, height: 8, borderRadius: 4, overflow: "hidden", marginBottom: 8 }}>
-                        <div style={{ width: `${pctGlu}%`, background: C.yellow, transition: "width 0.3s" }} />
-                        <div style={{ width: `${pctLip}%`, background: C.primary, transition: "width 0.3s" }} />
-                        <div style={{ width: `${pctPro}%`, background: C.secondary, transition: "width 0.3s" }} />
-                      </div>
-                      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-                        <span style={{ color: C.yellow, fontWeight: 600 }}>Glucides {pctGlu}% <span style={{ fontWeight: 400, color: "var(--muted-c)" }}>({glucidesH} g/h)</span></span>
-                        <span style={{ color: C.primary, fontWeight: 600 }}>Lipides {pctLip}% <span style={{ fontWeight: 400, color: "var(--muted-c)" }}>({lipidesH} g/h)</span></span>
-                        <span style={{ color: C.secondary, fontWeight: 600 }}>Protéines {pctPro}% <span style={{ fontWeight: 400, color: "var(--muted-c)" }}>({proteinesH} g/h)</span></span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
             </div>
             <div style={{ marginTop: 16, padding: "10px 14px", background: C.primaryPale, borderRadius: 10, fontSize: 12, color: C.primaryDeep, borderLeft: `3px solid ${C.primary}` }}>
-              Niveau coureur et calibration Garmin → <strong>Profil de course</strong>
+              Niveau coureur, calibration Garmin, dépense kcal et glucides → <strong>Profil de course</strong>
             </div>
           </Card>
 
