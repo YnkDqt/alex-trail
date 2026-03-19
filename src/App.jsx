@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis,
+  AreaChart, Area, BarChart, Bar, ComposedChart, Line, XAxis, YAxis,
   Tooltip as RTooltip, ResponsiveContainer, ReferenceLine, Cell
 } from "recharts";
 
@@ -2387,6 +2387,120 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
               </table>
             </div>
           </Card>
+
+          {/* ── PROFIL DE FATIGUE CUMULÉE ── */}
+          {(() => {
+            const [tooltipFatigue, setTooltipFatigue] = useState(false);
+            const levelData = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel || "intermediaire")) || RUNNER_LEVELS[1];
+            const paceStrat = settings.paceStrategy || 0;
+            const garminCoeff = settings.garminCoeff || 1;
+
+            // ITRA Effort Score : EK = dist + D+/100 + D-/200
+            // Source : Vernillo et al. 2017 + formule officielle ITRA
+            const totalEK = segsNormaux.reduce((s, seg) => {
+              const dist = seg.endKm - seg.startKm;
+              const dplus  = seg.slopePct > 0 ? (seg.slopePct / 100) * dist * 1000 : 0;
+              const dminus = seg.slopePct < 0 ? Math.abs(seg.slopePct / 100) * dist * 1000 : 0;
+              return s + dist + dplus / 100 + dminus / 200;
+            }, 0) || 1;
+
+            let cumEK = 0, segNum = 0;
+            const fatigueData = segments.map(seg => {
+              if (seg.type === "ravito") {
+                const duree = seg.dureeMin || settings.ravitoTimeMin || 3;
+                const rec = Math.min(duree * 0.6 * levelData.coeff * garminCoeff, 4);
+                cumEK = Math.max(0, cumEK - rec);
+                return { label: seg.label || "Ravito", type: "ravito", charge: Math.round(cumEK / totalEK * 100), reserve: Math.max(0, Math.round(100 - cumEK / totalEK * 100)) };
+              }
+              if (seg.type === "repos") {
+                const rec = Math.min((seg.dureeMin || 20) * 0.4 * levelData.coeff, 8);
+                cumEK = Math.max(0, cumEK - rec);
+                return { label: seg.label || "Repos", type: "repos", charge: Math.round(cumEK / totalEK * 100), reserve: Math.max(0, Math.round(100 - cumEK / totalEK * 100)) };
+              }
+              segNum++;
+              const dist = seg.endKm - seg.startKm;
+              const dplus  = seg.slopePct > 0 ? (seg.slopePct / 100) * dist * 1000 : 0;
+              const dminus = seg.slopePct < 0 ? Math.abs(seg.slopePct / 100) * dist * 1000 : 0;
+              const ek = dist + dplus / 100 + dminus / 200;
+              const progress = segNum / (segsNormaux.length || 1);
+              const paceFactor = paceStrat < 0 ? (1 + progress * 0.25) : paceStrat > 0 ? (1 - progress * 0.15 + 0.08) : 1;
+              cumEK += ek * paceFactor / (levelData.coeff * garminCoeff);
+              const chargePct = Math.min(100, Math.round(cumEK / totalEK * 100));
+              return { label: `S${segNum}`, fullLabel: `${seg.startKm}→${seg.endKm} km`, type: "seg", charge: chargePct, reserve: Math.max(0, 100 - chargePct) };
+            });
+
+            const SEUIL = 80;
+            const enZoneRouge = fatigueData.some(d => d.charge >= SEUIL);
+
+            return (
+              <Card style={{ marginTop: 20 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontWeight: 600, fontSize: 14 }}>Profil de fatigue cumulée</span>
+                    <span onClick={() => setTooltipFatigue(t => !t)} style={{ cursor: "pointer", fontSize: 13, color: C.primary, userSelect: "none" }}>ⓘ</span>
+                  </div>
+                  {enZoneRouge && (
+                    <span style={{ fontSize: 11, background: C.redPale, color: C.red, borderRadius: 6, padding: "2px 8px", fontWeight: 600 }}>Zone critique atteinte</span>
+                  )}
+                </div>
+                {tooltipFatigue && (
+                  <div style={{ background: "var(--surface-2)", border: `1px solid var(--border-c)`, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "var(--text-c)", marginBottom: 12, lineHeight: 1.8 }}>
+                    <strong>ITRA Effort Score</strong> — formule officielle ITRA / UTMB<br/>
+                    <code style={{ fontSize: 11, background: "var(--surface)", padding: "2px 6px", borderRadius: 4 }}>EK = distance (km) + D+ / 100 + D− / 200</code><br/><br/>
+                    <strong>Vernillo et al. (2017)</strong> — <em>Sports Medicine</em><br/>
+                    Le D+ est un prédicteur de fatigue plus fort que la distance seule. La charge intègre distance, dénivelé positif et négatif.<br/><br/>
+                    <strong>Millet et al. (2011)</strong> — <em>Medicine & Science in Sports & Exercise</em><br/>
+                    Étude UTMB : fatigue neuromusculaire sur ultra-trail. La récupération aux ravitos est ajustée selon la durée et le niveau coureur.<br/><br/>
+                    <span style={{ color: "var(--muted-c)", fontSize: 11 }}>La courbe de réserve est une modélisation comparative — pas une prédiction physiologique exacte.</span>
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 16, marginBottom: 10, flexWrap: "wrap" }}>
+                  {[
+                    { color: C.blue,   label: "Charge cumulée", line: false },
+                    { color: C.red,    label: "Réserve estimée", line: true },
+                    { color: C.yellow, label: "Seuil critique (80%)", dashed: true },
+                  ].map(({ color, label, line, dashed }) => (
+                    <span key={label} style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}>
+                      {dashed
+                        ? <span style={{ width: 14, borderTop: `2px dashed ${color}`, display: "inline-block" }} />
+                        : line
+                          ? <span style={{ width: 14, borderTop: `2px solid ${color}`, display: "inline-block" }} />
+                          : <span style={{ width: 10, height: 10, borderRadius: 2, background: color, display: "inline-block" }} />
+                      }
+                      <span style={{ color: "var(--muted-c)" }}>{label}</span>
+                    </span>
+                  ))}
+                </div>
+                <ResponsiveContainer width="100%" height={180}>
+                  <ComposedChart data={fatigueData} margin={{ top: 4, right: 16, bottom: 4, left: 0 }}>
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: C.muted }} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: C.muted }} tickFormatter={v => `${v}%`} width={36} />
+                    <RTooltip
+                      formatter={(value, name) => [`${value}%`, name === "charge" ? "Charge cumulée" : "Réserve estimée"]}
+                      labelFormatter={(label, payload) => { const d = payload?.[0]?.payload; return d?.fullLabel ? `${label} — ${d.fullLabel}` : label; }}
+                      contentStyle={{ fontSize: 12, borderRadius: 8, border: `1px solid ${C.border}` }}
+                    />
+                    <ReferenceLine y={SEUIL} stroke={C.yellow} strokeDasharray="5 4" strokeWidth={1.5} />
+                    <Bar dataKey="charge" name="charge" radius={[3,3,0,0]}>
+                      {fatigueData.map((d, i) => (
+                        <Cell key={i} fill={
+                          d.type === "ravito" ? C.green  + "99" :
+                          d.type === "repos"  ? C.blue   + "55" :
+                          d.charge >= SEUIL   ? C.red    + "cc" :
+                          d.charge >= 60      ? C.yellow + "cc" : C.blue + "cc"
+                        } />
+                      ))}
+                    </Bar>
+                    <Line type="monotone" dataKey="reserve" name="reserve" stroke={C.red} strokeWidth={2} dot={{ r: 2, fill: C.red }} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+                <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 8 }}>
+                  ITRA Effort Score · niveau <strong style={{ color: "var(--text-c)" }}>{levelData.label}</strong> · coeff Garmin ×{garminCoeff}
+                  {paceStrat !== 0 && <> · pace {paceStrat < 0 ? "positif" : "négatif"} pris en compte</>}
+                </div>
+              </Card>
+            );
+          })()}
         </>
       )}
 
