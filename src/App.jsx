@@ -1350,15 +1350,6 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
               const { times: passingTimes } = calcPassingTimes(segments, settings.startTime);
               exportRecap(race, segments, settings, profile, passingTimes);
             }}>📄 Récap course</Btn>
-            <Btn size="sm" variant="soft" onClick={() => {
-              const { times: passingTimes } = calcPassingTimes(segments, settings.startTime);
-              exportGPXMontre(race, segments, settings, passingTimes);
-            }}>📡 Export montre</Btn>
-            <Btn size="sm" variant="soft" style={{ opacity: 0.5, cursor: "default", position: "relative" }}
-              title="Disponible prochainement — export optimisé pour Garmin avec alertes de pace"
-              onClick={() => alert("🏅 Fonctionnalité Premium\n\nL'export Garmin FIT avec alertes de pace par segment arrive prochainement.\n\nL'export GPX universel est déjà disponible avec le bouton « Export montre ».")}>
-              🎯 Garmin FIT <span style={{ fontSize: 9, background: C.primary, color: "#fff", borderRadius: 4, padding: "1px 5px", marginLeft: 4, verticalAlign: "middle" }}>Premium</span>
-            </Btn>
           </div>
         )}
       </div>
@@ -2169,6 +2160,21 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
       <PageTitle sub={segments.length ? `${segments.filter(s => s.type !== "ravito" && s.type !== "repos").length} segments · ${ravitoCount} ravito${ravitoCount>1?"s":""} — ${fmtTime(totalWithRavitos)}` : "Définis ta stratégie et génère tes segments"}>
         Stratégie de course
       </PageTitle>
+
+      {segments.length > 0 && race.gpxPoints?.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+          <Btn size="sm" variant="soft" onClick={() => {
+            const profile = race.gpxPoints?.length ? buildElevationProfile(race.gpxPoints, 300) : [];
+            exportRecap(race, segments, settings, profile, passingTimes);
+          }}>📄 Récap course</Btn>
+          <Btn size="sm" variant="soft" onClick={() => exportGPXMontre(race, segments, settings, passingTimes)}>📡 Export montre</Btn>
+          <Btn size="sm" variant="soft" style={{ opacity: 0.55, cursor: "default" }}
+            title="Export Garmin FIT avec alertes de pace — bientôt disponible"
+            onClick={() => alert("🏅 Fonctionnalité Premium\n\nL'export Garmin FIT avec alertes de pace par segment arrive prochainement.\n\nUtilise « Export montre » pour un GPX compatible toutes montres.")}>
+            🎯 Garmin FIT <span style={{ fontSize: 9, background: C.primary, color: "#fff", borderRadius: 4, padding: "1px 5px", marginLeft: 4, verticalAlign: "middle" }}>Premium</span>
+          </Btn>
+        </div>
+      )}
 
       <div style={{ background: C.primaryPale, border: `1px solid ${C.primary}40`, borderRadius: 12, padding: "10px 16px", marginBottom: 20, fontSize: 13, color: C.primaryDeep }}>
         Configure ta course dans <strong>Profil de course</strong> — retrouve ici les heures de passage et les segments.
