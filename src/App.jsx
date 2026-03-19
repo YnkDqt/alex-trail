@@ -3762,8 +3762,9 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
 }
 
 // ─── VUE MES COURSES ─────────────────────────────────────────────────────────
-function MesCoursesView({ courses, onLoad, onDelete, onSaveCurrent, race, segments, settings }) {
+function MesCoursesView({ courses, onLoad, onDelete, onUpdate, onOverwrite, onSaveCurrent, race, segments, settings }) {
   const [confirmId, setConfirmId] = useState(null);
+  const [confirmOverwriteId, setConfirmOverwriteId] = useState(null);
   const hasCurrentRace = race.gpxPoints?.length > 0 || segments.length > 0;
 
   return (
@@ -3789,6 +3790,7 @@ function MesCoursesView({ courses, onLoad, onDelete, onSaveCurrent, race, segmen
           {courses.map(c => {
             const date = new Date(c.savedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
             const time = new Date(c.savedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+            const updatedAt = c.updatedAt ? new Date(c.updatedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : null;
             return (
               <Card key={c.id} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 {/* Nom + date */}
@@ -3796,7 +3798,10 @@ function MesCoursesView({ courses, onLoad, onDelete, onSaveCurrent, race, segmen
                   <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
                     {c.name}
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--muted-c)" }}>Sauvegardée le {date} à {time}</div>
+                  <div style={{ fontSize: 12, color: "var(--muted-c)" }}>
+                    Sauvegardée le {date} à {time}
+                    {updatedAt && <span style={{ marginLeft: 6, color: C.primary }}>· màj {updatedAt}</span>}
+                  </div>
                 </div>
 
                 {/* Stats */}
@@ -3816,11 +3821,27 @@ function MesCoursesView({ courses, onLoad, onDelete, onSaveCurrent, race, segmen
                   ))}
                 </div>
 
+                {/* Commentaire */}
+                <div>
+                  <textarea
+                    value={c.comment || ""}
+                    onChange={e => onUpdate(c.id, { comment: e.target.value })}
+                    placeholder="Commentaire : stratégie ambitieuse, V1, sans glucides..."
+                    rows={2}
+                    style={{ fontSize: 12, resize: "none", lineHeight: 1.5 }}
+                  />
+                </div>
+
                 {/* Actions */}
                 <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
                   <Btn onClick={() => onLoad(c)} style={{ flex: 1, justifyContent: "center" }}>
                     Charger
                   </Btn>
+                  {hasCurrentRace && (
+                    <Btn variant="soft" size="sm" onClick={() => setConfirmOverwriteId(c.id)} title="Écraser avec la version actuelle">
+                      ↻
+                    </Btn>
+                  )}
                   <Btn variant="danger" size="sm" onClick={() => setConfirmId(c.id)}>✕</Btn>
                 </div>
               </Card>
@@ -3834,6 +3855,12 @@ function MesCoursesView({ courses, onLoad, onDelete, onSaveCurrent, race, segmen
         message="Supprimer cette stratégie définitivement ?"
         onConfirm={() => { onDelete(confirmId); setConfirmId(null); }}
         onCancel={() => setConfirmId(null)}
+      />
+      <ConfirmDialog
+        open={!!confirmOverwriteId}
+        message="Écraser cette stratégie avec la version en cours ? L'ancienne sera perdue."
+        onConfirm={() => { onOverwrite(confirmOverwriteId); setConfirmOverwriteId(null); }}
+        onCancel={() => setConfirmOverwriteId(null)}
       />
     </div>
   );
@@ -4105,6 +4132,37 @@ export default function App() {
   const deleteCourse = id => {
     idbDeleteCourse(id);
     setCourses(prev => prev.filter(c => c.id !== id));
+  };
+
+  const updateCourse = (id, patch) => {
+    setCourses(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const updated = { ...c, ...patch };
+      idbSaveCourse(id, updated);
+      return updated;
+    }));
+  };
+
+  const overwriteCourse = id => {
+    const totalTime = segments
+      .filter(s => s.type !== "ravito" && s.type !== "repos")
+      .reduce((s, seg) => s + (seg.endKm - seg.startKm) / seg.speedKmh * 3600, 0);
+    setCourses(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const updated = {
+        ...c,
+        name: settings.raceName || race.name || c.name,
+        distance: race.totalDistance || 0,
+        elevPos: race.totalElevPos || 0,
+        segCount: segments.filter(s => s.type !== "ravito" && s.type !== "repos").length,
+        startTime: settings.startTime || "07:00",
+        totalTime,
+        race, segments, settings,
+        updatedAt: Date.now(),
+      };
+      idbSaveCourse(id, updated);
+      return updated;
+    }));
   };
   const hasRace = !!race.gpxPoints?.length;
 
@@ -4430,7 +4488,7 @@ export default function App() {
             if (data.settings) setSettingsRaw({ ...EMPTY_SETTINGS, ...data.settings });
             idbSave({ race: data.race, segments: data.segments, settings: { ...EMPTY_SETTINGS, ...data.settings } });
           }} />}
-          {view === "courses"     && <MesCoursesView courses={courses} onLoad={loadCourse} onDelete={deleteCourse} onSaveCurrent={() => { saveCourse(); alert("✅ Stratégie sauvegardée dans Mes courses !"); }} race={race} segments={segments} settings={settings} />}
+          {view === "courses"     && <MesCoursesView courses={courses} onLoad={loadCourse} onDelete={deleteCourse} onUpdate={updateCourse} onOverwrite={overwriteCourse} onSaveCurrent={() => { saveCourse(); alert("✅ Stratégie sauvegardée dans Mes courses !"); }} race={race} segments={segments} settings={settings} />}
           {view === "parametres"  && <ParamètresView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} isMobile={isMobile} />}
         </main>
       </div>
