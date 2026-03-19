@@ -64,7 +64,7 @@ const EMPTY_SETTINGS = {
   meteoLoading: false, meteoFetched: false, meteoInfo: "",
   tempC: 15, rain: false, wind: false, heat: false, snow: false,
   darkMode: false,
-  garminCoeff: 1, garminStats: null,
+  garminCoeff: 1, garminStats: null, kcalSource: "minetti",
   runnerLevel: "intermediaire",
   effortTarget: "normal",
   paceStrategy: 0,
@@ -498,9 +498,11 @@ function parseGarminCSV(text) {
   };
   const header = splitCSV(lines[0]);
   const idx = {
-    type: header.findIndex(h => /type.*activit/i.test(h)),
-    gap:  header.findIndex(h => /^gap/i.test(h)),
+    type:     header.findIndex(h => /type.*activit/i.test(h)),
+    gap:      header.findIndex(h => /^gap/i.test(h)),
     distance: header.findIndex(h => /^distance$/i.test(h)),
+    kcal:     header.findIndex(h => /^calories$/i.test(h)),
+    ascent:   header.findIndex(h => /ascension/i.test(h)),
   };
   if (idx.gap === -1) return null;
   const TRAIL_TYPES = /trail|course à pied|running|run/i;
@@ -521,22 +523,58 @@ function parseGarminCSV(text) {
     if (!dist || dist < 2) continue;
     const gap = parsePace(cells[idx.gap]);
     if (!gap) continue;
-    rows.push({ gap, dist });
+    const kcal = idx.kcal >= 0 ? parseFloat((cells[idx.kcal] || "").replace(",",".")) : NaN;
+    const ascent = idx.ascent >= 0 ? parseFloat((cells[idx.ascent] || "").replace(",",".")) : NaN;
+    rows.push({ gap, dist, kcal: isNaN(kcal) || kcal < 10 ? null : kcal, ascent: isNaN(ascent) ? 0 : ascent });
   }
   if (!rows.length) return null;
   const totalDist = rows.reduce((s,r) => s+r.dist, 0);
   const avgGapKmh = rows.reduce((s,r) => s+r.gap*r.dist, 0) / totalDist;
-  return { count: rows.length, avgGapKmh: +avgGapKmh.toFixed(2), coeff: +(avgGapKmh/DEFAULT_FLAT_SPEED).toFixed(3), lastDate: new Date().toLocaleDateString("fr-FR") };
+
+  // Calcul kcal/km depuis l'historique Garmin (FC-based → fiable)
+  let kcalPerKmFlat = null, kcalPerKmUphill = null, kcalActivityCount = 0;
+  const kcalRows = rows.filter(r => r.kcal !== null);
+  if (kcalRows.length >= 3) {
+    kcalActivityCount = kcalRows.length;
+    // Régression linéaire : kcal/km = a + b * (D+/km)
+    // On isole le coût de base (plat) et le surcoût par m de D+
+    const pts = kcalRows.map(r => ({ x: r.ascent / r.dist, y: r.kcal / r.dist }));
+    const n = pts.length;
+    const sumX  = pts.reduce((s,p) => s+p.x, 0);
+    const sumY  = pts.reduce((s,p) => s+p.y, 0);
+    const sumXY = pts.reduce((s,p) => s+p.x*p.y, 0);
+    const sumX2 = pts.reduce((s,p) => s+p.x*p.x, 0);
+    const denom = n*sumX2 - sumX*sumX;
+    if (Math.abs(denom) > 0.001) {
+      const b = (n*sumXY - sumX*sumY) / denom; // kcal/km par m de D+/km
+      const a = (sumY - b*sumX) / n;            // kcal/km plat
+      // kcal/km uphill = coût à +10% de pente (100m D+ / km)
+      kcalPerKmFlat    = Math.round(Math.max(40, Math.min(120, a)));
+      kcalPerKmUphill  = Math.round(Math.max(50, Math.min(180, a + b * 100)));
+    } else {
+      // Pas assez de variance en D+ : moyenne simple pour le plat
+      kcalPerKmFlat = Math.round(sumY / n);
+    }
+  }
+
+  return {
+    count: rows.length, avgGapKmh: +avgGapKmh.toFixed(2),
+    coeff: +(avgGapKmh/DEFAULT_FLAT_SPEED).toFixed(3),
+    lastDate: new Date().toLocaleDateString("fr-FR"),
+    kcalPerKmFlat, kcalPerKmUphill, kcalActivityCount,
+  };
 }
 
 // ─── NUTRITION ───────────────────────────────────────────────────────────────
 function calcNutrition(seg, settings) {
   if (seg.type === "repos") return { kcal: 0, kcalH: 0, glucidesH: 0, proteinesH: 0, eauH: 0, selH: 0, cafeineH: 0, durationH: 0 };
-  const { weight = 70, kcalPerKm = 65, kcalPerKmUphill = 90, tempC = 15, rain = false, wind = false, heat = false, snow = false } = settings;
+  const { weight = 70, kcalPerKm = 65, kcalPerKmUphill = 90, tempC = 15, rain = false, wind = false, heat = false, snow = false, kcalSource = "minetti", garminStats = null } = settings;
   const distKm = seg.endKm - seg.startKm;
   const durationH = seg.speedKmh > 0 ? distKm / seg.speedKmh : 0;
-  // Utilise le taux montée si pente > 5%, sinon taux plat
-  const kcalRate = (seg.slopePct || 0) >= 5 ? kcalPerKmUphill : kcalPerKm;
+  // Source kcal : Garmin perso si disponible et sélectionné, sinon valeurs manuelles (Minetti)
+  const flatRate   = (kcalSource === "garmin" && garminStats?.kcalPerKmFlat)   ? garminStats.kcalPerKmFlat   : kcalPerKm;
+  const uphillRate = (kcalSource === "garmin" && garminStats?.kcalPerKmUphill) ? garminStats.kcalPerKmUphill : kcalPerKmUphill;
+  const kcalRate = (seg.slopePct || 0) >= 5 ? uphillRate : flatRate;
   const kcal = Math.round(distKm * kcalRate * (weight / 70));
   const kcalH = durationH > 0 ? Math.round(kcal / durationH) : 0;
   const isHot = heat || tempC > 25;
@@ -1756,7 +1794,11 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
               const reader = new FileReader();
               reader.onload = ev => {
                 const result = parseGarminCSV(ev.target.result);
-                if (result) { updS("garminCoeff", result.coeff); updS("garminStats", result); }
+                if (result) {
+                  updS("garminCoeff", result.coeff);
+                  updS("garminStats", result);
+                  if (result.kcalPerKmFlat) updS("kcalSource", "garmin");
+                }
                 else alert("Fichier CSV Garmin non reconnu. Vérifie le format Activities.csv.");
               };
               reader.readAsText(file);
@@ -1811,15 +1853,56 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                         {settings.garminStats && ` (${settings.garminStats.count} sorties)`}
                       </span>
                     </div>
-                    {settings.garminStats && (
-                      <div style={{ padding: "8px 12px", background: "var(--surface-2)", borderRadius: 9, fontSize: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
-                        <span>{settings.garminStats.count} activités</span>
-                        <span>GAP moy. {settings.garminStats.avgGapKmh} km/h</span>
-                        <span style={{ color: C.primary, fontWeight: 600 }}>×{settings.garminStats.coeff}</span>
-                      </div>
-                    )}
+                    {settings.garminStats && (() => {
+                      const gs = settings.garminStats;
+                      const src = settings.kcalSource || "minetti";
+                      // Valeurs Minetti pour comparaison
+                      const w = settings.weight || 70;
+                      const minFlat = Math.round((3.6 * w * 1000) / 4184);
+                      const i10 = 0.10;
+                      const cr10 = 155.4*i10**5 - 30.4*i10**4 - 43.3*i10**3 + 46.3*i10**2 + 19.5*i10 + 3.6;
+                      const minUp = Math.round(cr10 * w * 1000 / 4184);
+                      const diffFlat = gs.kcalPerKmFlat ? gs.kcalPerKmFlat - minFlat : 0;
+                      const diffSign = diffFlat >= 0 ? "+" : "";
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {/* Résumé vitesse */}
+                          <div style={{ padding: "8px 12px", background: "var(--surface-2)", borderRadius: 9, fontSize: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                            <span>{gs.count} activités</span>
+                            <span>GAP moy. {gs.avgGapKmh} km/h</span>
+                            <span style={{ color: C.primary, fontWeight: 600 }}>×{gs.coeff}</span>
+                          </div>
+                          {/* Note nutrition */}
+                          {gs.kcalPerKmFlat && (
+                            <div style={{ padding: "10px 12px", background: C.secondaryPale, borderRadius: 9, fontSize: 12, lineHeight: 1.6, color: "var(--text-c)" }}>
+                              Ton historique suggère <strong>{gs.kcalPerKmFlat} kcal/km</strong> sur plat
+                              {gs.kcalPerKmUphill ? <> et <strong>{gs.kcalPerKmUphill} kcal/km</strong> en montée</> : null}
+                              {" "}— {diffFlat === 0 ? "identique aux" : <>{diffSign}{diffFlat} kcal/km par rapport aux</>} valeurs Minetti ({minFlat}/{minUp}).
+                              {" "}<span style={{ color: "var(--muted-c)" }}>Calculé sur {gs.kcalActivityCount} sorties avec données FC.</span>
+                            </div>
+                          )}
+                          {/* Toggle source */}
+                          {gs.kcalPerKmFlat && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontSize: 11, color: "var(--muted-c)", marginRight: 2 }}>Valeurs utilisées :</span>
+                              {["minetti", "garmin"].map(s => (
+                                <button key={s} onClick={() => updS("kcalSource", s)} style={{
+                                  fontSize: 11, padding: "4px 12px", borderRadius: 20, cursor: "pointer",
+                                  border: `1.5px solid ${src === s ? C.primary : "var(--border-c)"}`,
+                                  background: src === s ? C.primaryPale : "var(--surface-2)",
+                                  color: src === s ? C.primaryDeep : "var(--muted-c)",
+                                  fontWeight: src === s ? 600 : 400, transition: "all 0.15s",
+                                }}>
+                                  {s === "minetti" ? `Minetti (${minFlat}/${minUp})` : `Garmin perso (${gs.kcalPerKmFlat}/${gs.kcalPerKmUphill ?? "—"})`}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {settings.garminCoeff !== 1 && (
-                      <Btn variant="ghost" size="sm" style={{ marginTop: 8 }} onClick={() => { updS("garminCoeff", 1); updS("garminStats", null); }}>
+                      <Btn variant="ghost" size="sm" style={{ marginTop: 8 }} onClick={() => { updS("garminCoeff", 1); updS("garminStats", null); updS("kcalSource", "minetti"); }}>
                         Réinitialiser (coeff = 1)
                       </Btn>
                     )}
@@ -2420,82 +2503,92 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
                   style={{ width: 90 }} />
               </Field>
 
-              {/* Kcal/km avec formule Minetti */}
+              {/* Dépense énergétique — 3 sources */}
               {(() => {
                 const w = settings.weight || 70;
-                // Minetti et al. 2002 — coût sur plat (pente = 0)
-                const minettiFlatJ = 3.6; // J/kg/m sur plat
-                const minettiFlatKcal = Math.round(minettiFlatJ * w * 1000 / 4184);
-                // Montée typique +10%
+                const minettiFlatKcal = Math.round(3.6 * w * 1000 / 4184);
                 const i10 = 0.10;
                 const cr10 = 155.4*i10**5 - 30.4*i10**4 - 43.3*i10**3 + 46.3*i10**2 + 19.5*i10 + 3.6;
                 const minettiUpKcal = Math.round(cr10 * w * 1000 / 4184);
+                const gs = settings.garminStats;
+                const src = settings.kcalSource || "minetti";
                 const [tooltip, setTooltip] = useState(false);
+
+                const SourceCard = ({ id, label, sub, flatVal, upVal, unavailable }) => {
+                  const active = src === id;
+                  return (
+                    <div onClick={() => !unavailable && upd("kcalSource", id)} style={{
+                      flex: 1, minWidth: 0, borderRadius: 10, padding: "10px 12px", cursor: unavailable ? "default" : "pointer",
+                      border: `2px solid ${active ? C.primary : "var(--border-c)"}`,
+                      background: active ? C.primaryPale : unavailable ? "var(--surface-2)" : "var(--surface-2)",
+                      opacity: unavailable ? 0.45 : 1, transition: "all 0.15s",
+                      display: "flex", flexDirection: "column", gap: 4,
+                    }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: active ? C.primaryDeep : "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted-c)", lineHeight: 1.4 }}>{sub}</div>
+                      {unavailable ? (
+                        <div style={{ fontSize: 11, color: "var(--muted-c)", fontStyle: "italic", marginTop: 2 }}>Non disponible</div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 4 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: active ? C.primaryDeep : "var(--text-c)", fontFamily: "'Playfair Display', serif" }}>
+                            {flatVal} <span style={{ fontSize: 11, fontWeight: 400, color: "var(--muted-c)" }}>kcal/km plat</span>
+                          </div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: active ? C.primaryDeep : "var(--text-c)", fontFamily: "'Playfair Display', serif" }}>
+                            {upVal ?? "—"} <span style={{ fontSize: 11, fontWeight: 400, color: "var(--muted-c)" }}>kcal/km montée</span>
+                          </div>
+                        </div>
+                      )}
+                      {active && !unavailable && (
+                        <div style={{ marginTop: 4, fontSize: 10, color: C.primary, fontWeight: 600 }}>✓ Sélectionné</div>
+                      )}
+                    </div>
+                  );
+                };
+
                 return (
                   <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                      <span style={{ fontSize: 12, color: "var(--muted-c)", fontWeight: 500 }}>Kcal brûlées par km</span>
-                      <span
-                        onClick={() => setTooltip(t => !t)}
-                        style={{ cursor: "pointer", fontSize: 13, color: C.primary, lineHeight: 1, userSelect: "none" }}
-                        title="Voir la formule scientifique">ⓘ</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                      <span style={{ fontSize: 12, color: "var(--muted-c)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Dépense énergétique</span>
+                      <span onClick={() => setTooltip(t => !t)} style={{ cursor: "pointer", fontSize: 13, color: C.primary, lineHeight: 1, userSelect: "none" }} title="Voir la formule">ⓘ</span>
                     </div>
                     {tooltip && (
                       <div style={{ background: "var(--surface-2)", border: `1px solid var(--border-c)`, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "var(--text-c)", marginBottom: 10, lineHeight: 1.7 }}>
-                        <strong>Formule Minetti et al. (2002)</strong><br/>
-                        <em>Journal of Applied Physiology</em> — référence en biomécanique du trail<br/><br/>
-                        <code style={{ fontSize: 11, background: "var(--surface)", padding: "2px 6px", borderRadius: 4 }}>
-                          Cr = (155.4i⁵ − 30.4i⁴ − 43.3i³ + 46.3i² + 19.5i + 3.6) × poids
-                        </code><br/><br/>
-                        Pour {w} kg :<br/>
-                        · Plat : ~{minettiFlatKcal} kcal/km<br/>
-                        · Montée +10% : ~{minettiUpKcal} kcal/km<br/><br/>
-                        <span style={{ color: C.muted, fontSize: 11 }}>Ajuste si tu connais ta dépense réelle (montre, test terrain).</span>
+                        <strong>Formule Minetti et al. (2002)</strong> — <em>Journal of Applied Physiology</em><br/>
+                        <code style={{ fontSize: 11, background: "var(--surface)", padding: "2px 6px", borderRadius: 4 }}>Cr = (155.4i⁵ − 30.4i⁴ − 43.3i³ + 46.3i² + 19.5i + 3.6) × poids</code><br/><br/>
+                        Pour {w} kg : plat ~{minettiFlatKcal} kcal/km · montée +10% ~{minettiUpKcal} kcal/km
                       </div>
                     )}
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <input type="number" min={40} max={150} value={settings.kcalPerKm}
-                        onChange={e => upd("kcalPerKm", Math.max(40, Math.min(150, +e.target.value || 65)))}
-                        style={{ width: 90 }} />
-                      <span style={{ fontSize: 12, color: C.muted }}>kcal/km</span>
-                      <button onClick={() => upd("kcalPerKm", minettiFlatKcal)}
-                        style={{ fontSize: 11, padding: "3px 10px", borderRadius: 8, border: `1px solid ${C.primary}40`, background: C.primaryPale, color: C.primaryDeep, cursor: "pointer" }}>
-                        Recalculer ({minettiFlatKcal})
-                      </button>
+                    <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                      <SourceCard
+                        id="minetti" label="Minetti" sub="Formule scientifique"
+                        flatVal={minettiFlatKcal} upVal={minettiUpKcal}
+                      />
+                      <SourceCard
+                        id="garmin" label="Garmin perso" sub={gs?.kcalActivityCount ? `${gs.kcalActivityCount} sorties` : "Import requis"}
+                        flatVal={gs?.kcalPerKmFlat} upVal={gs?.kcalPerKmUphill}
+                        unavailable={!gs?.kcalPerKmFlat}
+                      />
+                      <SourceCard
+                        id="manual" label="Manuel" sub="Valeur personnalisée"
+                        flatVal={settings.kcalPerKm} upVal={settings.kcalPerKmUphill}
+                      />
                     </div>
-                    <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>
-                      Formule Minetti recommande <strong>{minettiFlatKcal} kcal/km</strong> sur plat pour {w} kg
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Kcal/km en montée */}
-              {(() => {
-                const w = settings.weight || 70;
-                const i10 = 0.10;
-                const cr10 = 155.4*i10**5 - 30.4*i10**4 - 43.3*i10**3 + 46.3*i10**2 + 19.5*i10 + 3.6;
-                const minettiUpKcal = Math.round(cr10 * w * 1000 / 4184);
-                return (
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, color: "var(--muted-c)", fontWeight: 500, marginBottom: 6 }}>Kcal brûlées par km (montée ≥ 5%)</div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {src === "manual" && (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, padding: "10px 12px", background: "var(--surface-2)", borderRadius: 9, border: `1px solid var(--border-c)` }}>
+                        <div>
+                          <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 4 }}>Plat (kcal/km)</div>
+                          <input type="number" min={40} max={150} value={settings.kcalPerKm}
+                            onChange={e => upd("kcalPerKm", Math.max(40, Math.min(150, +e.target.value || 65)))}
+                            style={{ width: "100%" }} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 4 }}>Montée ≥5% (kcal/km)</div>
                           <input type="number" min={40} max={200} value={settings.kcalPerKmUphill}
                             onChange={e => upd("kcalPerKmUphill", Math.max(40, Math.min(200, +e.target.value || 90)))}
-                            style={{ width: 90 }} />
-                          <span style={{ fontSize: 12, color: C.muted }}>kcal/km</span>
-                          <button onClick={() => upd("kcalPerKmUphill", minettiUpKcal)}
-                            style={{ fontSize: 11, padding: "3px 10px", borderRadius: 8, border: `1px solid ${C.primary}40`, background: C.primaryPale, color: C.primaryDeep, cursor: "pointer" }}>
-                            Recalculer ({minettiUpKcal})
-                          </button>
-                        </div>
-                        <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>
-                          Minetti recommande <strong>{minettiUpKcal} kcal/km</strong> à +10% pour {w} kg
+                            style={{ width: "100%" }} />
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })()}
