@@ -3790,7 +3790,6 @@ function MesCoursesView({ courses, onLoad, onDelete, onUpdate, onOverwrite, onSa
           {courses.map(c => {
             const date = new Date(c.savedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
             const time = new Date(c.savedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-            const updatedAt = c.updatedAt ? new Date(c.updatedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : null;
             return (
               <Card key={c.id} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 {/* Nom + date */}
@@ -3799,8 +3798,10 @@ function MesCoursesView({ courses, onLoad, onDelete, onUpdate, onOverwrite, onSa
                     {c.name}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--muted-c)" }}>
-                    Sauvegardée le {date} à {time}
-                    {updatedAt && <span style={{ marginLeft: 6, color: C.primary }}>· màj {updatedAt}</span>}
+                    {c.updatedAt
+                      ? `Mis à jour le ${new Date(c.updatedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} à ${new Date(c.updatedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`
+                      : `Sauvegardée le ${date} à ${time}`
+                    }
                   </div>
                 </div>
 
