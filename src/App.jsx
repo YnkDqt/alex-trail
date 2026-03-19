@@ -1344,14 +1344,6 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
         <PageTitle sub={race.gpxPoints?.length ? `${race.totalDistance?.toFixed(1)} km chargés` : "Importe ton tracé GPX pour commencer"}>
           {settings.raceName || race.name || "Profil de course"}
         </PageTitle>
-        {race.gpxPoints?.length > 0 && segments.length > 0 && (
-          <div style={{ display: "flex", gap: 8, marginTop: 4, flexShrink: 0 }}>
-            <Btn size="sm" variant="soft" onClick={() => {
-              const { times: passingTimes } = calcPassingTimes(segments, settings.startTime);
-              exportRecap(race, segments, settings, profile, passingTimes);
-            }}>📄 Récap course</Btn>
-          </div>
-        )}
       </div>
 
       {!race.gpxPoints?.length ? (
