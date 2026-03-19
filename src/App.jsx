@@ -581,11 +581,10 @@ function calcNutrition(seg, settings) {
     uphillRate = kcalPerKmUphill;
   } else {
     // minetti — recalculé depuis le poids courant
-    const w = weight;
-    flatRate   = Math.round(3.6 * w * 1000 / 4184);
+    flatRate   = Math.round(3.6 * weight * 1000 / 4184);
     const i10  = 0.10;
     const cr10 = 155.4*i10**5 - 30.4*i10**4 - 43.3*i10**3 + 46.3*i10**2 + 19.5*i10 + 3.6;
-    uphillRate = Math.round(cr10 * w * 1000 / 4184);
+    uphillRate = Math.round(cr10 * weight * 1000 / 4184);
   }
   const kcalRate = (seg.slopePct || 0) >= 5 ? uphillRate : flatRate;
   const kcal = Math.round(distKm * kcalRate * (weight / 70));
@@ -1800,7 +1799,6 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
           {/* ── PROFIL COUREUR + GARMIN ── */}
           {(() => {
             const updS = (k, v) => setSettings(s => ({ ...s, [k]: v }));
-            const garminRef2 = { current: null };
             const handleGarmin2 = e => {
               const file = e.target.files[0];
               if (!file) return;
@@ -2508,7 +2506,7 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
                     <div onClick={() => !unavailable && upd("kcalSource", id)} style={{
                       flex: 1, minWidth: 0, borderRadius: 10, padding: "10px 12px", cursor: unavailable ? "default" : "pointer",
                       border: `2px solid ${active ? C.primary : "var(--border-c)"}`,
-                      background: active ? C.primaryPale : unavailable ? "var(--surface-2)" : "var(--surface-2)",
+                      background: active ? C.primaryPale : "var(--surface-2)",
                       opacity: unavailable ? 0.45 : 1, transition: "all 0.15s",
                       display: "flex", flexDirection: "column", gap: 4,
                     }}>
@@ -3886,7 +3884,7 @@ export default function App() {
   const [installDone, setInstallDone] = useState(false);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [sharedMode, setSharedMode] = useState(false);
-  const [courses, setCourses] = useState([]); // galerie des stratégies sauvegardées // true = ouvert via lien partagé
+  const [courses, setCourses] = useState([]); // galerie des stratégies sauvegardées
   const [reposModal, setReposModal] = useState(false);
   const [reposForm, setReposForm]   = useState({ label: "", startKm: "", dureeMin: 20 });
   const addRepos = () => {
