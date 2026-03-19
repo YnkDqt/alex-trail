@@ -1853,54 +1853,13 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                         {settings.garminStats && ` (${settings.garminStats.count} sorties)`}
                       </span>
                     </div>
-                    {settings.garminStats && (() => {
-                      const gs = settings.garminStats;
-                      const src = settings.kcalSource || "minetti";
-                      // Valeurs Minetti pour comparaison
-                      const w = settings.weight || 70;
-                      const minFlat = Math.round((3.6 * w * 1000) / 4184);
-                      const i10 = 0.10;
-                      const cr10 = 155.4*i10**5 - 30.4*i10**4 - 43.3*i10**3 + 46.3*i10**2 + 19.5*i10 + 3.6;
-                      const minUp = Math.round(cr10 * w * 1000 / 4184);
-                      const diffFlat = gs.kcalPerKmFlat ? gs.kcalPerKmFlat - minFlat : 0;
-                      const diffSign = diffFlat >= 0 ? "+" : "";
-                      return (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          {/* Résumé vitesse */}
-                          <div style={{ padding: "8px 12px", background: "var(--surface-2)", borderRadius: 9, fontSize: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
-                            <span>{gs.count} activités</span>
-                            <span>GAP moy. {gs.avgGapKmh} km/h</span>
-                            <span style={{ color: C.primary, fontWeight: 600 }}>×{gs.coeff}</span>
-                          </div>
-                          {/* Note nutrition */}
-                          {gs.kcalPerKmFlat && (
-                            <div style={{ padding: "10px 12px", background: C.secondaryPale, borderRadius: 9, fontSize: 12, lineHeight: 1.6, color: "var(--text-c)" }}>
-                              Ton historique suggère <strong>{gs.kcalPerKmFlat} kcal/km</strong> sur plat
-                              {gs.kcalPerKmUphill ? <> et <strong>{gs.kcalPerKmUphill} kcal/km</strong> en montée</> : null}
-                              {" "}— {diffFlat === 0 ? "identique aux" : <>{diffSign}{diffFlat} kcal/km par rapport aux</>} valeurs Minetti ({minFlat}/{minUp}).
-                              {" "}<span style={{ color: "var(--muted-c)" }}>Calculé sur {gs.kcalActivityCount} sorties avec données FC.</span>
-                            </div>
-                          )}
-                          {/* Toggle source */}
-                          {gs.kcalPerKmFlat && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                              <span style={{ fontSize: 11, color: "var(--muted-c)", marginRight: 2 }}>Valeurs utilisées :</span>
-                              {["minetti", "garmin"].map(s => (
-                                <button key={s} onClick={() => updS("kcalSource", s)} style={{
-                                  fontSize: 11, padding: "4px 12px", borderRadius: 20, cursor: "pointer",
-                                  border: `1.5px solid ${src === s ? C.primary : "var(--border-c)"}`,
-                                  background: src === s ? C.primaryPale : "var(--surface-2)",
-                                  color: src === s ? C.primaryDeep : "var(--muted-c)",
-                                  fontWeight: src === s ? 600 : 400, transition: "all 0.15s",
-                                }}>
-                                  {s === "minetti" ? `Minetti (${minFlat}/${minUp})` : `Garmin perso (${gs.kcalPerKmFlat}/${gs.kcalPerKmUphill ?? "—"})`}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
+                    {settings.garminStats && (
+                      <div style={{ padding: "8px 12px", background: "var(--surface-2)", borderRadius: 9, fontSize: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                        <span>{settings.garminStats.count} activités</span>
+                        <span>GAP moy. {settings.garminStats.avgGapKmh} km/h</span>
+                        <span style={{ color: C.primary, fontWeight: 600 }}>×{settings.garminStats.coeff}</span>
+                      </div>
+                    )}
                     {settings.garminCoeff !== 1 && (
                       <Btn variant="ghost" size="sm" style={{ marginTop: 8 }} onClick={() => { updS("garminCoeff", 1); updS("garminStats", null); updS("kcalSource", "minetti"); }}>
                         Réinitialiser (coeff = 1)
@@ -2589,6 +2548,18 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
                         </div>
                       </div>
                     )}
+                    {gs?.kcalPerKmFlat && (() => {
+                      const diffFlat = gs.kcalPerKmFlat - minettiFlatKcal;
+                      const diffSign = diffFlat >= 0 ? "+" : "";
+                      return (
+                        <div style={{ padding: "10px 12px", background: C.secondaryPale, borderRadius: 9, fontSize: 12, lineHeight: 1.6, color: "var(--text-c)", marginTop: 8 }}>
+                          Ton historique suggère <strong>{gs.kcalPerKmFlat} kcal/km</strong> sur plat
+                          {gs.kcalPerKmUphill ? <> et <strong>{gs.kcalPerKmUphill} kcal/km</strong> en montée</> : null}
+                          {" "}— {diffFlat === 0 ? "identique aux" : <>{diffSign}{diffFlat} kcal/km par rapport aux</>} valeurs Minetti ({minettiFlatKcal}/{minettiUpKcal}).
+                          {" "}<span style={{ color: "var(--muted-c)" }}>Calculé sur {gs.kcalActivityCount} sorties avec données FC.</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })()}
