@@ -4123,13 +4123,10 @@ function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
       const totalBesoin = z.besoinKcal + carryBesoin;
 
       if (z.autonome) {
-        // Ce tronçon se termine à un ravito autonome — on accumule pour le suivant
+        // Ce tronçon se termine à un ravito autonome — on accumule pour le suivant sans afficher
         carryStock = totalStock;
         carryBesoin = totalBesoin;
         if (!carryLabel) carryLabel = z.label;
-        // On affiche quand même ce tronçon avec son stock accumulé
-        const pct = totalBesoin > 0 ? Math.round(totalStock / totalBesoin * 100) : null;
-        merged.push({ ...z, label: carryLabel ? `${carryLabel} → ${z.toLbl}` : `${z.label} → ${z.toLbl}`, emporteKcal: totalStock, besoinKcal: Math.round(totalBesoin), pct, autonomeBlock: true });
       } else {
         // Tronçon normal — on intègre le carry éventuel
         const finalStock = totalStock;
