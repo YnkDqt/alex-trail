@@ -571,9 +571,22 @@ function calcNutrition(seg, settings) {
   const { weight = 70, kcalPerKm = 65, kcalPerKmUphill = 90, tempC = 15, rain = false, wind = false, heat = false, snow = false, kcalSource = "minetti", garminStats = null } = settings;
   const distKm = seg.endKm - seg.startKm;
   const durationH = seg.speedKmh > 0 ? distKm / seg.speedKmh : 0;
-  // Source kcal : Garmin perso si disponible et sélectionné, sinon valeurs manuelles (Minetti)
-  const flatRate   = (kcalSource === "garmin" && garminStats?.kcalPerKmFlat)   ? garminStats.kcalPerKmFlat   : kcalPerKm;
-  const uphillRate = (kcalSource === "garmin" && garminStats?.kcalPerKmUphill) ? garminStats.kcalPerKmUphill : kcalPerKmUphill;
+  // Calcul des taux selon la source sélectionnée
+  let flatRate, uphillRate;
+  if (kcalSource === "garmin" && garminStats?.kcalPerKmFlat) {
+    flatRate   = garminStats.kcalPerKmFlat;
+    uphillRate = garminStats.kcalPerKmUphill ?? garminStats.kcalPerKmFlat;
+  } else if (kcalSource === "manual") {
+    flatRate   = kcalPerKm;
+    uphillRate = kcalPerKmUphill;
+  } else {
+    // minetti — recalculé depuis le poids courant
+    const w = weight;
+    flatRate   = Math.round(3.6 * w * 1000 / 4184);
+    const i10  = 0.10;
+    const cr10 = 155.4*i10**5 - 30.4*i10**4 - 43.3*i10**3 + 46.3*i10**2 + 19.5*i10 + 3.6;
+    uphillRate = Math.round(cr10 * w * 1000 / 4184);
+  }
   const kcalRate = (seg.slopePct || 0) >= 5 ? uphillRate : flatRate;
   const kcal = Math.round(distKm * kcalRate * (weight / 70));
   const kcalH = durationH > 0 ? Math.round(kcal / durationH) : 0;
@@ -2198,7 +2211,7 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
       </PageTitle>
 
       {segments.length > 0 && race.gpxPoints?.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16, justifyContent: "flex-end" }}>
           <Btn size="sm" variant="soft" onClick={() => {
             const profile = race.gpxPoints?.length ? buildElevationProfile(race.gpxPoints, 300) : [];
             exportRecap(race, segments, settings, profile, passingTimes);
