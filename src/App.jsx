@@ -2250,7 +2250,7 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
       ) : (
         <>
           {/* KPIs */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(180px, 1fr))", gap: isMobile ? 8 : 14, marginBottom: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "1fr 1fr", gap: isMobile ? 8 : 14, marginBottom: 20 }}>
             <KPI label="Temps course" value={fmtTime(totalTime)} color={C.secondary} icon="⏱️" sub="hors ravitos" />
             <KPI label="Temps total" value={fmtTime(totalWithRavitos)} icon="🏁" sub={`+${ravitoCount} ravito${ravitoCount>1?"s":""}`} />
             <KPI label="Arrivée estimée" value={fmtHeure(arrivalTime)} icon={isNight(arrivalTime) ? "🌙" : "☀️"} color={isNight(arrivalTime) ? C.blue : C.yellow} sub={`départ ${settings.startTime || "07:00"}`} />
@@ -2627,20 +2627,6 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
                   </div>
                 );
               })()}
-              <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12, marginTop: 4, display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Contact d'urgence SOS</div>
-                <Field label="Nom du contact">
-                  <input value={settings.emergencyName} onChange={e => upd("emergencyName", e.target.value)} placeholder="Ex : Morgane, Coach, Accompagnatrice..." />
-                </Field>
-                <Field label="Numéro de téléphone">
-                  <input value={settings.emergencyPhone} onChange={e => upd("emergencyPhone", e.target.value)} placeholder="Ex : +33612345678" type="tel" />
-                </Field>
-                {settings.emergencyPhone && (
-                  <div style={{ fontSize: 12, color: C.green, display: "flex", alignItems: "center", gap: 6 }}>
-                    ✓ Le bouton SOS enverra directement à {settings.emergencyName || settings.emergencyPhone}
-                  </div>
-                )}
-              </div>
             </div>
             <div style={{ marginTop: 16, padding: "10px 14px", background: C.primaryPale, borderRadius: 10, fontSize: 12, color: C.primaryDeep, borderLeft: `3px solid ${C.primary}` }}>
               Niveau coureur et calibration Garmin → <strong>Profil de course</strong>
@@ -2858,6 +2844,9 @@ function NutritionView({ segments, settings, setSettings, race, setRace, isMobil
     const label = i === 0 ? "Départ" : (ravitos[i-1]?.name || `Ravito ${i}`);
     const toLbl = i === bornes.length - 2 ? "Arrivée" : (ravitos[i]?.name || `Ravito ${i+1}`);
     const pointKey = i === 0 ? "depart" : String(ravitos[i-1]?.id);
+    // Autonome si le ravito suivant (destination de ce tronçon) est sans assistance
+    const nextRavito = ravitos[i];
+    const autonome = nextRavito?.assistancePresente === false;
     const segsZ = segments.filter(s => s.type !== "ravito" && s.type !== "repos" && s.startKm < to && s.endKm > from);
     const besoin = segsZ.reduce((acc, seg) => {
       const overlap = Math.min(seg.endKm, to) - Math.max(seg.startKm, from);
@@ -2866,7 +2855,7 @@ function NutritionView({ segments, settings, setSettings, race, setRace, isMobil
       const dH = (seg.endKm - seg.startKm) / seg.speedKmh * ratio;
       return { kcal: acc.kcal + Math.round(n.kcalH * dH), eau: acc.eau + Math.round(n.eauH * dH), glucides: acc.glucides + Math.round(n.glucidesH * dH) };
     }, { kcal: 0, eau: 0, glucides: 0 });
-    return { label, toLbl, from, to, pointKey, besoin };
+    return { label, toLbl, from, to, pointKey, besoin, autonome };
   });
 
   const barData = segments.filter(s => s.type !== "ravito" && s.type !== "repos").map((s, i) => {
@@ -3025,16 +3014,19 @@ function NutritionView({ segments, settings, setSettings, race, setRace, isMobil
               const gapKcal = ptTotal.kcal - zone.besoin.kcal;
               const gapGlu  = ptTotal.glucides - zone.besoin.glucides;
               return (
-                <Card key={zone.pointKey} style={{ borderLeft: `4px solid ${zone.pointKey === "depart" ? C.primary : C.green}` }}>
+                <Card key={zone.pointKey} style={{ borderLeft: `4px solid ${zone.autonome ? C.muted : zone.pointKey === "depart" ? C.primary : C.green}` }}>
                   {/* En-tête zone */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: 15 }}>
                         {zone.pointKey === "depart" ? "🏁" : "🥤"} {zone.label}
                         <span style={{ fontSize: 12, color: "var(--muted-c)", fontWeight: 400, marginLeft: 8 }}>→ {zone.toLbl} · {(zone.to - zone.from).toFixed(1)} km</span>
+                        {zone.autonome && <span style={{ fontSize: 11, background: "var(--surface-2)", color: "var(--muted-c)", padding: "1px 7px", borderRadius: 6, fontWeight: 600, marginLeft: 8 }}>Autonome</span>}
                       </div>
                       <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 3 }}>
-                        Besoin : {zone.besoin.kcal} kcal · {zone.besoin.glucides} g glucides · {zone.besoin.eau >= 1000 ? `${(zone.besoin.eau/1000).toFixed(1)} L` : `${zone.besoin.eau} mL`} eau
+                        {zone.autonome
+                          ? "Tronçon sans assistance — ce que tu emportes depuis ce point"
+                          : `Besoin : ${zone.besoin.kcal} kcal · ${zone.besoin.glucides} g glucides · ${zone.besoin.eau >= 1000 ? `${(zone.besoin.eau/1000).toFixed(1)} L` : `${zone.besoin.eau} mL`} eau`}
                       </div>
                     </div>
                     {ptTotal.kcal > 0 && (
@@ -4113,12 +4105,6 @@ function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
     pointsPrepa.push({status:"warn",titre:"Lampe frontale non cochée",valeur:`Arrivée estimée à ${fmtHeure(arrivalSec)} — course de nuit`,explication:"Course de nuit prévue. Pense à cocher la lampe frontale dans ta checklist avant de partir."});
   } else if (isNightArrival) {
     pointsPrepa.push({status:"ok",titre:"Lampe frontale",valeur:`Arrivée estimée à ${fmtHeure(arrivalSec)} — course de nuit`,explication:"Course de nuit : lampe frontale dans la liste. Vérifie les piles."});
-  }
-
-  if (!settings.emergencyPhone) {
-    pointsPrepa.push({status:"alert",titre:"Contact d'urgence non configuré",valeur:"Aucun contact SOS",explication:"Configure un contact d'urgence dans Paramètres. Le bouton SOS envoie ta position GPS à ce contact."});
-  } else {
-    pointsPrepa.push({status:"ok",titre:"Contact d'urgence configuré",valeur:`${settings.emergencyName||settings.emergencyPhone}`,explication:"Le bouton SOS enverra ta position GPS à ce contact."});
   }
 
   if (meteoDispoMais) {
