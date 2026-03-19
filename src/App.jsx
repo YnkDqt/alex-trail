@@ -1645,7 +1645,11 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                       <input value={settings.raceName || race.name || ""} onChange={e => updS("raceName", e.target.value)} placeholder="Ex : UTMB, TDS..." />
                     </Field>
                     <Field label="Date de la course">
-                      <input type="date" value={settings.raceDate || ""} onChange={e => updS("raceDate", e.target.value)} />
+                      <input type="date" value={settings.raceDate || ""} onChange={e => {
+                        updS("raceDate", e.target.value);
+                        updS("meteoFetched", false);
+                        updS("meteoInfo", "");
+                      }} />
                     </Field>
                     <Field label="Heure de départ">
                       <input type="time" value={settings.startTime || "07:00"} onChange={e => updS("startTime", e.target.value)} />
