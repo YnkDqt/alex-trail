@@ -3987,9 +3987,27 @@ function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
   });
   const SEUIL=80;
 
-  const avgSpeedKmh = segsNormaux.reduce((s,g)=>s+g.speedKmh*(g.endKm-g.startKm),0)/(totalDistKm||1);
+  // GAP normalisé de la stratégie — convertit chaque segment en vitesse équivalente plat
+  // via Minetti : Cr(pente) / Cr(0) donne le facteur de coût, donc vitesse_GAP = vitesse * Cr(i) / Cr(0)
+  const gapEquivStrategie = (() => {
+    const Cr0 = 3.6; // J/kg/m sur plat (Minetti 2002)
+    const CrAt = (slopePct) => {
+      const i = slopePct / 100;
+      return 155.4*i**5 - 30.4*i**4 - 43.3*i**3 + 46.3*i**2 + 19.5*i + 3.6;
+    };
+    let totalDist = 0, totalGAPDist = 0;
+    segsNormaux.forEach(seg => {
+      const dist = seg.endKm - seg.startKm;
+      const cr = CrAt(seg.slopePct);
+      const gapSpeed = seg.speedKmh * (cr / Cr0); // vitesse équivalente plat
+      totalDist += dist;
+      totalGAPDist += gapSpeed * dist;
+    });
+    return totalDist > 0 ? totalGAPDist / totalDist : 0;
+  })();
+
   const garminGapKmh = gs?.avgGapKmh;
-  const allureEcart = garminGapKmh ? Math.round((avgSpeedKmh-garminGapKmh)/garminGapKmh*100) : null;
+  const allureEcart = garminGapKmh ? Math.round((gapEquivStrategie - garminGapKmh) / garminGapKmh * 100) : null;
   const dplusPerH = totalTimeH>0 ? Math.round(totalDplus/totalTimeH) : 0;
   const mid = totalDistKm/2;
   const hardSegsSecondHalf = segsNormaux.filter(s=>s.startKm>=mid&&s.slopePct>=12).length;
@@ -4007,10 +4025,21 @@ function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
   const pointsStrategie = [];
   if (allureEcart!==null) {
     const s=allureEcart<=5?"ok":allureEcart<=15?"warn":"alert";
-    pointsStrategie.push({status:s,titre:"Allure vs historique Garmin",valeur:`${fmtPace(avgSpeedKmh)}/km moyen · GAP habituel ${fmtPace(garminGapKmh)}/km`,
-      explication:s==="ok"?`Allure proche de ton niveau habituel (écart ${allureEcart>0?"+":""}${allureEcart}%). Stratégie réaliste.`:s==="warn"?`Allure ${allureEcart}% au-dessus de ton GAP Garmin. Ambitieux mais atteignable. Surveille les premiers segments.`:`Allure ${allureEcart}% au-dessus de ton niveau habituel. Risque élevé de blow-up. Révise les vitesses à la baisse.`});
+    pointsStrategie.push({status:s,
+      titre:"Allure vs historique Garmin (normalisée en dénivelé)",
+      valeur:`GAP stratégie estimé : ${fmtPace(gapEquivStrategie)}/km · GAP habituel Garmin : ${fmtPace(garminGapKmh)}/km · écart ${allureEcart>0?"+":""}${allureEcart}%`,
+      explication: s==="ok"
+        ? `L'allure de ta stratégie, convertie en équivalent plat (formule Minetti), est proche de ton GAP Garmin habituel. Stratégie cohérente avec ton niveau.`
+        : s==="warn"
+        ? `Ton GAP stratégie est ${allureEcart}% au-dessus de ton GAP habituel. Ambitieux — surveille les premiers segments pour ne pas partir trop vite.`
+        : `Ton GAP stratégie est ${allureEcart}% au-dessus de ton niveau habituel. Risque de blow-up en 2e moitié. Envisage de réviser les vitesses à la baisse.`
+    });
   } else {
-    pointsStrategie.push({status:"info",titre:"Allure vs historique",valeur:"Données Garmin non disponibles",explication:"Charge ton Activities.csv dans Profil de course pour comparer ta stratégie à ton niveau réel."});
+    pointsStrategie.push({status:"info",
+      titre:"Allure vs historique (normalisée en dénivelé)",
+      valeur:"Données Garmin non disponibles",
+      explication:"Charge ton Activities.csv dans Profil de course pour comparer ton allure GAP stratégie à ton niveau réel. La comparaison est normalisée en dénivelé via la formule Minetti."
+    });
   }
   const dpS=dplusPerH>500?"alert":dplusPerH>300?"warn":"ok";
   pointsStrategie.push({status:dpS,titre:"Densité de dénivelé",valeur:`${dplusPerH} m D+/h · ${Math.round(totalDplus)} m D+ total`,
@@ -4052,26 +4081,69 @@ function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
     },acc);
   },{kcal:0,glucides:0,eauMl:0});
 
-  // Couverture par tronçon
+  // Couverture par tronçon — logique ravito autonome :
+  // Si le ravito de départ d'un tronçon est autonome, ses produits planifiés
+  // sont emportés dans le sac, pas reçus sur place.
+  // On regroupe les tronçons consécutifs en autonomie en un seul "bloc autonome"
+  // et on compare la somme des calories emportées à la somme des besoins.
   const bornes=[0,...ravitos.map(r=>r.km),totalDistKm].filter((v,i,a)=>v!==a[i-1]);
-  const zonesNutri=bornes.slice(0,-1).map((from,i)=>{
-    const to=bornes[i+1];
-    const label=i===0?"Départ":(ravitos[i-1]?.name||`Ravito ${i}`);
-    const toLbl=i===bornes.length-2?"Arrivée":(ravitos[i]?.name||`Ravito ${i+1}`);
-    const pointKey=i===0?"depart":String(ravitos[i-1]?.id);
-    const besoinKcal=segsNormaux.filter(s=>s.startKm<to&&s.endKm>from).reduce((acc,seg)=>{
-      const overlap=Math.min(seg.endKm,to)-Math.max(seg.startKm,from);
-      const ratio=overlap/(seg.endKm-seg.startKm||1);
-      return acc+calcNutrition(seg,settings).kcal*ratio;
-    },0);
-    const items=planNutrition[pointKey]||[];
-    const emporteKcal=items.reduce((a,{produitId,quantite})=>{
-      const p=produits.find(x=>x.id===produitId); if(!p) return a;
-      return a+nutriProduit(p,quantite).kcal;
-    },0);
-    const pct=besoinKcal>0?Math.round(emporteKcal/besoinKcal*100):null;
-    return {label:`${label} → ${toLbl}`,besoinKcal:Math.round(besoinKcal),emporteKcal,pct};
-  });
+  const zonesNutri=(() => {
+    const raw = bornes.slice(0,-1).map((from,i) => {
+      const to=bornes[i+1];
+      const debutRavito = i===0 ? null : ravitos[i-1];
+      const finRavito   = ravitos[i]; // ravito qui clôt ce tronçon
+      const label=i===0?"Départ":(debutRavito?.name||`Ravito ${i}`);
+      const toLbl=i===bornes.length-2?"Arrivée":(finRavito?.name||`Ravito ${i+1}`);
+      const pointKey=i===0?"depart":String(debutRavito?.id);
+      // Ce tronçon est "en autonomie" si le ravito qui le clôt n'a pas d'assistance
+      const autonome = finRavito?.assistancePresente === false;
+      const besoinKcal=segsNormaux.filter(s=>s.startKm<to&&s.endKm>from).reduce((acc,seg)=>{
+        const overlap=Math.min(seg.endKm,to)-Math.max(seg.startKm,from);
+        const ratio=overlap/(seg.endKm-seg.startKm||1);
+        return acc+calcNutrition(seg,settings).kcal*ratio;
+      },0);
+      // Calories emportées depuis ce point (produits planifiés à ce ravito/départ)
+      const items=planNutrition[pointKey]||[];
+      const emporteKcal=items.reduce((a,{produitId,quantite})=>{
+        const p=produits.find(x=>x.id===produitId); if(!p) return a;
+        return a+nutriProduit(p,quantite).kcal;
+      },0);
+      return {label,toLbl,from,to,pointKey,besoinKcal:Math.round(besoinKcal),emporteKcal,autonome};
+    });
+
+    // Fusion des blocs autonomes consécutifs avec leur tronçon précédent
+    // Logique : le stock d'un ravito autonome est emporté depuis le point précédent
+    const merged = [];
+    let carryStock = 0; // stock accumulé des ravitos autonomes précédents
+    let carryBesoin = 0;
+    let carryLabel = null;
+
+    raw.forEach((z, i) => {
+      const totalStock = z.emporteKcal + carryStock;
+      const totalBesoin = z.besoinKcal + carryBesoin;
+
+      if (z.autonome) {
+        // Ce tronçon se termine à un ravito autonome — on accumule pour le suivant
+        carryStock = totalStock;
+        carryBesoin = totalBesoin;
+        if (!carryLabel) carryLabel = z.label;
+        // On affiche quand même ce tronçon avec son stock accumulé
+        const pct = totalBesoin > 0 ? Math.round(totalStock / totalBesoin * 100) : null;
+        merged.push({ ...z, label: carryLabel ? `${carryLabel} → ${z.toLbl}` : `${z.label} → ${z.toLbl}`, emporteKcal: totalStock, besoinKcal: Math.round(totalBesoin), pct, autonomeBlock: true });
+      } else {
+        // Tronçon normal — on intègre le carry éventuel
+        const finalStock = totalStock;
+        const finalBesoin = totalBesoin;
+        const pct = finalBesoin > 0 ? Math.round(finalStock / finalBesoin * 100) : null;
+        const displayLabel = carryLabel ? `${carryLabel} → ${z.toLbl}` : `${z.label} → ${z.toLbl}`;
+        merged.push({ ...z, label: displayLabel, emporteKcal: finalStock, besoinKcal: Math.round(finalBesoin), pct });
+        carryStock = 0;
+        carryBesoin = 0;
+        carryLabel = null;
+      }
+    });
+    return merged;
+  })();
 
   const glucidesTarget=settings.glucidesTargetGh;
   const glucidesActuelH=totalTimeH>0?Math.round(totalEmporte.glucides/totalTimeH):0;
