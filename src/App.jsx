@@ -58,7 +58,7 @@ const DEFAULT_EQUIPMENT = [
 ];
 
 const EMPTY_SETTINGS = {
-  name: "", weight: 70, kcalPerKm: 65,
+  name: "", weight: 70, kcalPerKm: 65, kcalPerKmUphill: 90,
   emergencyName: "", emergencyPhone: "",
   raceName: "", startTime: "07:00", raceDate: "",
   meteoLoading: false, meteoFetched: false, meteoInfo: "",
@@ -532,10 +532,12 @@ function parseGarminCSV(text) {
 // ─── NUTRITION ───────────────────────────────────────────────────────────────
 function calcNutrition(seg, settings) {
   if (seg.type === "repos") return { kcal: 0, kcalH: 0, glucidesH: 0, proteinesH: 0, eauH: 0, selH: 0, cafeineH: 0, durationH: 0 };
-  const { weight = 70, kcalPerKm = 65, tempC = 15, rain = false, wind = false, heat = false, snow = false } = settings;
+  const { weight = 70, kcalPerKm = 65, kcalPerKmUphill = 90, tempC = 15, rain = false, wind = false, heat = false, snow = false } = settings;
   const distKm = seg.endKm - seg.startKm;
   const durationH = seg.speedKmh > 0 ? distKm / seg.speedKmh : 0;
-  const kcal = Math.round(distKm * kcalPerKm * (weight / 70));
+  // Utilise le taux montée si pente > 5%, sinon taux plat
+  const kcalRate = (seg.slopePct || 0) >= 5 ? kcalPerKmUphill : kcalPerKm;
+  const kcal = Math.round(distKm * kcalRate * (weight / 70));
   const kcalH = durationH > 0 ? Math.round(kcal / durationH) : 0;
   const isHot = heat || tempC > 25;
   const isCold = tempC < 0 || snow;
@@ -2410,8 +2412,93 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
             <div style={{ fontWeight: 600, marginBottom: 8 }}>Profil coureur</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <Field label="Nom"><input value={settings.name} onChange={e => upd("name", e.target.value)} placeholder="Ton prénom" /></Field>
-              <SliderField label="Poids" value={settings.weight} min={40} max={120} unit=" kg" onChange={v => upd("weight", v)} />
-              <SliderField label="Kcal brûlées par km" value={settings.kcalPerKm} min={40} max={100} unit=" kcal/km" onChange={v => upd("kcalPerKm", v)} />
+
+              {/* Poids */}
+              <Field label="Poids (kg)">
+                <input type="number" min={40} max={150} value={settings.weight}
+                  onChange={e => upd("weight", Math.max(40, Math.min(150, +e.target.value || 70)))}
+                  style={{ width: 90 }} />
+              </Field>
+
+              {/* Kcal/km avec formule Minetti */}
+              {(() => {
+                const w = settings.weight || 70;
+                // Minetti et al. 2002 — coût sur plat (pente = 0)
+                const minettiFlatJ = 3.6; // J/kg/m sur plat
+                const minettiFlatKcal = Math.round(minettiFlatJ * w * 1000 / 4184);
+                // Montée typique +10%
+                const i10 = 0.10;
+                const cr10 = 155.4*i10**5 - 30.4*i10**4 - 43.3*i10**3 + 46.3*i10**2 + 19.5*i10 + 3.6;
+                const minettiUpKcal = Math.round(cr10 * w * 1000 / 4184);
+                const [tooltip, setTooltip] = useState(false);
+                return (
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                      <span style={{ fontSize: 12, color: "var(--muted-c)", fontWeight: 500 }}>Kcal brûlées par km</span>
+                      <span
+                        onClick={() => setTooltip(t => !t)}
+                        style={{ cursor: "pointer", fontSize: 13, color: C.primary, lineHeight: 1, userSelect: "none" }}
+                        title="Voir la formule scientifique">ⓘ</span>
+                    </div>
+                    {tooltip && (
+                      <div style={{ background: "var(--surface-2)", border: `1px solid var(--border-c)`, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "var(--text-c)", marginBottom: 10, lineHeight: 1.7 }}>
+                        <strong>Formule Minetti et al. (2002)</strong><br/>
+                        <em>Journal of Applied Physiology</em> — référence en biomécanique du trail<br/><br/>
+                        <code style={{ fontSize: 11, background: "var(--surface)", padding: "2px 6px", borderRadius: 4 }}>
+                          Cr = (155.4i⁵ − 30.4i⁴ − 43.3i³ + 46.3i² + 19.5i + 3.6) × poids
+                        </code><br/><br/>
+                        Pour {w} kg :<br/>
+                        · Plat : ~{minettiFlatKcal} kcal/km<br/>
+                        · Montée +10% : ~{minettiUpKcal} kcal/km<br/><br/>
+                        <span style={{ color: C.muted, fontSize: 11 }}>Ajuste si tu connais ta dépense réelle (montre, test terrain).</span>
+                      </div>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <input type="number" min={40} max={150} value={settings.kcalPerKm}
+                        onChange={e => upd("kcalPerKm", Math.max(40, Math.min(150, +e.target.value || 65)))}
+                        style={{ width: 90 }} />
+                      <span style={{ fontSize: 12, color: C.muted }}>kcal/km</span>
+                      <button onClick={() => upd("kcalPerKm", minettiFlatKcal)}
+                        style={{ fontSize: 11, padding: "3px 10px", borderRadius: 8, border: `1px solid ${C.primary}40`, background: C.primaryPale, color: C.primaryDeep, cursor: "pointer" }}>
+                        Recalculer ({minettiFlatKcal})
+                      </button>
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>
+                      Formule Minetti recommande <strong>{minettiFlatKcal} kcal/km</strong> sur plat pour {w} kg
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Kcal/km en montée */}
+              {(() => {
+                const w = settings.weight || 70;
+                const i10 = 0.10;
+                const cr10 = 155.4*i10**5 - 30.4*i10**4 - 43.3*i10**3 + 46.3*i10**2 + 19.5*i10 + 3.6;
+                const minettiUpKcal = Math.round(cr10 * w * 1000 / 4184);
+                return (
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, color: "var(--muted-c)", fontWeight: 500, marginBottom: 6 }}>Kcal brûlées par km (montée ≥ 5%)</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <input type="number" min={40} max={200} value={settings.kcalPerKmUphill}
+                            onChange={e => upd("kcalPerKmUphill", Math.max(40, Math.min(200, +e.target.value || 90)))}
+                            style={{ width: 90 }} />
+                          <span style={{ fontSize: 12, color: C.muted }}>kcal/km</span>
+                          <button onClick={() => upd("kcalPerKmUphill", minettiUpKcal)}
+                            style={{ fontSize: 11, padding: "3px 10px", borderRadius: 8, border: `1px solid ${C.primary}40`, background: C.primaryPale, color: C.primaryDeep, cursor: "pointer" }}>
+                            Recalculer ({minettiUpKcal})
+                          </button>
+                        </div>
+                        <div style={{ fontSize: 11, color: C.muted, marginTop: 5 }}>
+                          Minetti recommande <strong>{minettiUpKcal} kcal/km</strong> à +10% pour {w} kg
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
               <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12, marginTop: 4, display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Contact d'urgence SOS</div>
                 <Field label="Nom du contact">
