@@ -2458,7 +2458,8 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
               {/* Poids */}
               <Field label="Poids (kg)">
                 <input type="number" min={40} max={150} value={settings.weight}
-                  onChange={e => upd("weight", Math.max(40, Math.min(150, +e.target.value || 70)))}
+                  onChange={e => upd("weight", e.target.value === "" ? "" : +e.target.value)}
+                  onBlur={e => upd("weight", Math.max(40, Math.min(150, +e.target.value || 70)))}
                   style={{ width: 90 }} />
               </Field>
 
@@ -2537,13 +2538,15 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
                         <div>
                           <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 4 }}>Plat (kcal/km)</div>
                           <input type="number" min={40} max={150} value={settings.kcalPerKm}
-                            onChange={e => upd("kcalPerKm", Math.max(40, Math.min(150, +e.target.value || 65)))}
+                            onChange={e => upd("kcalPerKm", e.target.value === "" ? "" : +e.target.value)}
+                            onBlur={e => upd("kcalPerKm", Math.max(40, Math.min(150, +e.target.value || 65)))}
                             style={{ width: "100%" }} />
                         </div>
                         <div>
                           <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 4 }}>Montée ≥5% (kcal/km)</div>
                           <input type="number" min={40} max={200} value={settings.kcalPerKmUphill}
-                            onChange={e => upd("kcalPerKmUphill", Math.max(40, Math.min(200, +e.target.value || 90)))}
+                            onChange={e => upd("kcalPerKmUphill", e.target.value === "" ? "" : +e.target.value)}
+                            onBlur={e => upd("kcalPerKmUphill", Math.max(40, Math.min(200, +e.target.value || 90)))}
                             style={{ width: "100%" }} />
                         </div>
                       </div>
