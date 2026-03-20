@@ -4573,10 +4573,12 @@ export default function App() {
 
   const saveCourse = () => {
     const id = Date.now();
-    const totalTime = segments.reduce((s, seg) => {
-      if (seg.type === "ravito" || seg.type === "repos") return s + (seg.dureeMin || 0) * 60;
-      return s + (seg.speedKmh > 0 ? (seg.endKm - seg.startKm) / seg.speedKmh * 3600 : 0);
-    }, 0);
+    const segsNormaux   = segments.filter(s => s.type !== "ravito" && s.type !== "repos");
+    const segsRepos     = segments.filter(s => s.type === "repos");
+    const totalCourse   = segsNormaux.reduce((s, seg) => s + (seg.speedKmh > 0 ? (seg.endKm - seg.startKm) / seg.speedKmh * 3600 : 0), 0);
+    const totalReposSec = segsRepos.reduce((s, seg) => s + (seg.dureeMin || 0) * 60, 0);
+    const totalRavitoSec = (race.ravitos?.length || 0) * (settings.ravitoTimeMin || 3) * 60;
+    const totalTime = totalCourse + totalReposSec + totalRavitoSec;
     const entry = {
       id,
       savedAt: id,
