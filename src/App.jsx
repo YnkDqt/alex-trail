@@ -64,8 +64,31 @@ const DEFAULT_EQUIPMENT = [
   { id: 30, cat: "Préparation",    label: "Collants de compression",  checked: false, actif: false, emporte: false, poidsG: 150 },
 ];
 
-const EMPTY_SETTINGS = {
-  name: "", weight: 70, kcalPerKm: 65, kcalPerKmUphill: 90,
+const PREP_TIMELINE = [
+  { id: "j14_chaussures",  phase: "J−14", cat: "Équipement",  label: "Vérifier les chaussures (semelles > 2mm, couture OK)" },
+  { id: "j14_sac",         phase: "J−14", cat: "Équipement",  label: "Tester le sac / gilet chargé sur une sortie" },
+  { id: "j14_gels",        phase: "J−14", cat: "Nutrition",   label: "Commander gels et produits manquants" },
+  { id: "j14_logement",    phase: "J−14", cat: "Logistique",  label: "Réserver logement à proximité du départ" },
+  { id: "j14_transport",   phase: "J−14", cat: "Logistique",  label: "Organiser transport aller-retour" },
+  { id: "j7_gps",          phase: "J−7",  cat: "Équipement",  label: "Charger GPS et batteries externes, tester la montre" },
+  { id: "j7_meteo",        phase: "J−7",  cat: "Logistique",  label: "Vérifier la météo, adapter l'équipement" },
+  { id: "j7_drop",         phase: "J−7",  cat: "Logistique",  label: "Préparer les drop-bags si ultra long" },
+  { id: "j7_inscrip",      phase: "J−7",  cat: "Logistique",  label: "Confirmer inscription, récupération du dossard" },
+  { id: "h48_flasques",    phase: "H−48", cat: "Équipement",  label: "Test remplissage flasques, vérifier étanchéité" },
+  { id: "h48_nutrition",   phase: "H−48", cat: "Nutrition",   label: "Préparer et peser la nutrition complète" },
+  { id: "h48_drop2",       phase: "H−48", cat: "Logistique",  label: "Finaliser drop-bags, étiqueter clairement" },
+  { id: "h48_route",       phase: "H−48", cat: "Logistique",  label: "Planifier itinéraire et horaire pour le départ" },
+  { id: "h24_piles",       phase: "H−24", cat: "Équipement",  label: "Piles lampe frontale 100%, charger téléphone" },
+  { id: "h24_dossard",     phase: "H−24", cat: "Équipement",  label: "Épingler le dossard, vérifier le règlement" },
+  { id: "h24_recup",       phase: "H−24", cat: "Logistique",  label: "Récupérer le dossard si retrait en avance" },
+  { id: "h24_sommeil",     phase: "H−24", cat: "Logistique",  label: "Se coucher tôt, éviter les repas lourds" },
+  { id: "h1_creme",        phase: "H−1",  cat: "Préparation", label: "Crème anti-frottements, vaseline, strapping pieds" },
+  { id: "h1_check",        phase: "H−1",  cat: "Équipement",  label: "Check final sac : eau, nutrition, lampe, veste" },
+  { id: "h1_solaire",      phase: "H−1",  cat: "Préparation", label: "Crème solaire si course ensoleillée" },
+  { id: "h1_ravitos",      phase: "H−1",  cat: "Logistique",  label: "Confirmer plan ravitos avec l'équipe d'assistance" },
+];
+
+const EMPTY_SETTINGS = { kcalPerKm: 65, kcalPerKmUphill: 90,
   emergencyName: "", emergencyPhone: "",
   raceName: "", startTime: "07:00", raceDate: "",
   meteoLoading: false, meteoFetched: false, meteoInfo: "",
@@ -79,6 +102,7 @@ const EMPTY_SETTINGS = {
   ravitoTimeMin: 3,
   equipment: DEFAULT_EQUIPMENT,
   produits: [],   // bibliothèque permanente de produits nutritionnels
+  prepChecks: {}, // checklist chronologique : { "id": true/false }
 };
 
 // ─── ALGOS TRAIL ─────────────────────────────────────────────────────────────
@@ -2542,6 +2566,15 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
   const activeItems  = equipment.filter(i => i.actif !== false); // items sélectionnés pour la course
   const checkedCount = activeItems.filter(i => i.checked).length;
 
+  const prepChecks = settings.prepChecks || {};
+  const togglePrep = id => {
+    const next = { ...prepChecks, [id]: !prepChecks[id] };
+    upd("prepChecks", next);
+  };
+  const resetPrep  = () => upd("prepChecks", {});
+  const [collapsedPhases, setCollapsedPhases] = useState({});
+  const togglePhase = phase => setCollapsedPhases(p => ({ ...p, [phase]: !p[phase] }));
+
   return (
     <div className="anim">
       <PageTitle sub="Checklist et équipement de course">Équipement</PageTitle>
@@ -2651,6 +2684,89 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
             ))}
           </>
           )}
+        </Card>
+
+        {/* ── CHECKLIST CHRONOLOGIQUE ── */}
+        <Card style={{ marginTop: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div>
+              <div style={{ fontWeight: 600 }}>Préparation chronologique</div>
+              <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 2 }}>
+                {Object.values(prepChecks).filter(Boolean).length}/{PREP_TIMELINE.length} tâches accomplies
+              </div>
+            </div>
+            <Btn size="sm" variant="ghost" onClick={resetPrep}>Tout réinitialiser</Btn>
+          </div>
+
+          {(() => {
+            const phases = [...new Set(PREP_TIMELINE.map(i => i.phase))];
+            const phaseColors = { "J−14": C.blue, "J−7": C.secondary, "H−48": C.yellow, "H−24": C.primary, "H−1": C.red };
+            const catColors = { "Équipement": C.primary, "Nutrition": C.yellow, "Logistique": C.secondary, "Préparation": C.green };
+
+            // Calcul du comptage par phase
+            return phases.map(phase => {
+              const items = PREP_TIMELINE.filter(i => i.phase === phase);
+              const done  = items.filter(i => prepChecks[i.id]).length;
+              const color = phaseColors[phase] || C.primary;
+              const allDone = done === items.length;
+              const isCollapsed = collapsedPhases[phase] !== undefined ? collapsedPhases[phase] : allDone;
+
+              return (
+                <div key={phase} style={{ marginBottom: 20 }}>
+                  {/* En-tête phase — cliquable */}
+                  <div onClick={() => togglePhase(phase)} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: isCollapsed ? 0 : 8, cursor: "pointer", userSelect: "none" }}>
+                    <div style={{
+                      padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                      background: allDone ? C.greenPale : color + "20",
+                      color: allDone ? C.green : color, flexShrink: 0,
+                    }}>{phase}</div>
+                    <div style={{ flex: 1, height: 4, borderRadius: 2, background: "var(--surface-2)", overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${items.length ? done/items.length*100 : 0}%`, background: allDone ? C.green : color, borderRadius: 2, transition: "width 0.3s" }} />
+                    </div>
+                    <span style={{ fontSize: 11, color: "var(--muted-c)", flexShrink: 0 }}>{done}/{items.length}</span>
+                    <span style={{ fontSize: 11, color: "var(--muted-c)", flexShrink: 0, transition: "transform 0.2s", display: "inline-block", transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}>▼</span>
+                  </div>
+
+                  {/* Items — masqués si replié */}
+                  {!isCollapsed && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: isMobile ? 0 : 8 }}>
+                      {items.map(item => {
+                        const checked = !!prepChecks[item.id];
+                        const catColor = catColors[item.cat] || C.muted;
+                        return (
+                          <div key={item.id} onClick={() => togglePrep(item.id)} style={{
+                            display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+                            borderRadius: 8, cursor: "pointer", transition: "background 0.15s",
+                            background: checked ? C.greenPale : "var(--surface-2)",
+                            border: `1px solid ${checked ? C.green + "40" : "var(--border-c)"}`,
+                          }}>
+                            <div style={{
+                              width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                              border: `2px solid ${checked ? C.green : "var(--border-c)"}`,
+                              background: checked ? C.green : "transparent",
+                              display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s",
+                            }}>
+                              {checked && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>}
+                            </div>
+                            <span style={{
+                              fontSize: 13, flex: 1,
+                              color: checked ? "var(--muted-c)" : "var(--text-c)",
+                              textDecoration: checked ? "line-through" : "none",
+                              transition: "all 0.15s",
+                            }}>{item.label}</span>
+                            <span style={{
+                              fontSize: 10, padding: "2px 7px", borderRadius: 5, flexShrink: 0,
+                              background: catColor + "20", color: catColor, fontWeight: 600,
+                            }}>{item.cat}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            });
+          })()}
         </Card>
 
       {/* Modal checklist — configuration */}
