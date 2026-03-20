@@ -2820,7 +2820,7 @@ function NutritionView({ segments, settings, setSettings, race, setRace, isMobil
               padding: "4px 12px", fontSize: 12, color: C.primary, cursor: "pointer",
               fontFamily: "'DM Sans', sans-serif", fontWeight: 600,
             }}>
-              ⚙️ Modifier
+              🎒 Équipement
             </button>
           </div>
         );
@@ -4062,10 +4062,10 @@ function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
   const pointsPrepa = [];
   const checklistS=checklistPct===100?"ok":checklistPct>=70?"warn":"alert";
   pointsPrepa.push({status:checklistS,titre:"Checklist équipement",valeur:`${checkedCount}/${activeItems.length} items cochés (${checklistPct}%)`,
-    explication:checklistS==="ok"?"Tous les items sont préparés. Bonne préparation matérielle.":checklistS==="warn"?`${activeItems.length-checkedCount} item${activeItems.length-checkedCount>1?"s":""} non coché${activeItems.length-checkedCount>1?"s":""}. Passe en revue ta checklist dans Paramètres avant le départ.`:`Plus de 30% des items non préparés. Accorde du temps à ta préparation matérielle.`});
+    explication:checklistS==="ok"?"Tous les items sont préparés. Bonne préparation matérielle.":checklistS==="warn"?`${activeItems.length-checkedCount} item${activeItems.length-checkedCount>1?"s":""} non coché${activeItems.length-checkedCount>1?"s":""}. Passe en revue ta checklist dans Équipement avant le départ.`:`Plus de 30% des items non préparés. Accorde du temps à ta préparation matérielle.`});
 
   if (isNightArrival && lampeItem && !lampeActive) {
-    pointsPrepa.push({status:"alert",titre:"Lampe frontale désactivée",valeur:`Arrivée estimée à ${fmtHeure(arrivalSec)} — course de nuit`,explication:"Ton arrivée est prévue après 21h. Active la lampe frontale dans ta checklist (Paramètres) — obligatoire dans la plupart des règlements d'ultra."});
+    pointsPrepa.push({status:"alert",titre:"Lampe frontale désactivée",valeur:`Arrivée estimée à ${fmtHeure(arrivalSec)} — course de nuit`,explication:"Ton arrivée est prévue après 21h. Active la lampe frontale dans ta checklist (Équipement) — obligatoire dans la plupart des règlements d'ultra."});
   } else if (isNightArrival && lampeItem && !lampeChecked) {
     pointsPrepa.push({status:"warn",titre:"Lampe frontale non cochée",valeur:`Arrivée estimée à ${fmtHeure(arrivalSec)} — course de nuit`,explication:"Course de nuit prévue. Pense à cocher la lampe frontale dans ta checklist avant de partir."});
   } else if (isNightArrival) {
@@ -4187,7 +4187,7 @@ function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
 
           {glucidesTarget==null&&(
             <div style={{padding:"10px 14px",borderRadius:10,background:"var(--surface-2)",fontSize:12,color:"var(--muted-c)"}}>
-              Cible glucides non définie — calcul automatique (55% des kcal). Configure ta cible dans Paramètres pour une analyse plus précise.
+              Cible glucides non définie — calcul automatique (55% des kcal). Configure ta cible dans Profil de course pour une analyse plus précise.
             </div>
           )}
         </div>
