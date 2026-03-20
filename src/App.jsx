@@ -2545,15 +2545,9 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
   return (
     <div className="anim">
       <PageTitle sub="Checklist et équipement de course">Équipement</PageTitle>
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
 
-        {/* Colonne gauche : dark mode + lien */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-
-        </div>
-
-        {/* Colonne droite : checklist cochable */}
-        <Card style={{ alignSelf: "start" }}>
+        {/* Checklist pleine largeur */}
+        <Card>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <div>
               <div style={{ fontWeight: 600 }}>Checklist équipement</div>
@@ -2620,33 +2614,36 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
                         textDecoration: item.checked ? "line-through" : "none",
                         transition: "all 0.15s",
                       }} onClick={() => toggleItem(item.id)}>{item.label}</span>
-                      {/* Toggle emporté */}
-                      <div title={item.emporte !== false ? "Emporté sur la course" : "Pas emporté (drop/post-course)"}
-                        onClick={() => {
-                          const updated = equipment.map(x => x.id === item.id ? { ...x, emporte: !(x.emporte !== false) } : x);
-                          updEquipment(updated);
-                        }}
-                        style={{
-                          fontSize: 13, cursor: "pointer", padding: "1px 5px", borderRadius: 5, userSelect: "none",
-                          background: item.emporte !== false ? C.primaryPale : "var(--surface-2)",
-                          border: `1px solid ${item.emporte !== false ? C.primary + "40" : "var(--border-c)"}`,
-                          color: item.emporte !== false ? C.primaryDeep : "var(--muted-c)",
-                          opacity: 0.85,
-                        }}>
-                        🎽
-                      </div>
-                      {/* Poids */}
-                      <input
-                        type="number" min={0} max={5000} placeholder="g"
-                        value={item.poidsG || ""}
-                        onChange={e => {
-                          const updated = equipment.map(x => x.id === item.id ? { ...x, poidsG: e.target.value === "" ? 0 : +e.target.value } : x);
-                          updEquipment(updated);
-                        }}
-                        style={{ width: 52, fontSize: 11, textAlign: "right", padding: "3px 5px" }}
-                        onClick={e => e.stopPropagation()}
-                      />
-                      <span style={{ fontSize: 10, color: "var(--muted-c)", flexShrink: 0 }}>g</span>
+                      {/* Toggle emporté + poids — masqués pour Ravitaillement */}
+                      {item.cat !== "Ravitaillement" && (
+                        <>
+                          <div title={item.emporte !== false ? "Emporté sur la course" : "Laissé au drop / post-course"}
+                            onClick={() => {
+                              const updated = equipment.map(x => x.id === item.id ? { ...x, emporte: !(x.emporte !== false) } : x);
+                              updEquipment(updated);
+                            }}
+                            style={{
+                              fontSize: 11, cursor: "pointer", padding: "2px 7px", borderRadius: 5, userSelect: "none", flexShrink: 0,
+                              background: item.emporte !== false ? C.primaryPale : "var(--surface-2)",
+                              border: `1px solid ${item.emporte !== false ? C.primary + "40" : "var(--border-c)"}`,
+                              color: item.emporte !== false ? C.primaryDeep : "var(--muted-c)",
+                              fontWeight: 500,
+                            }}>
+                            {item.emporte !== false ? "Course" : "Drop"}
+                          </div>
+                          <input
+                            type="number" min={0} max={5000} placeholder="g"
+                            value={item.poidsG || ""}
+                            onChange={e => {
+                              const updated = equipment.map(x => x.id === item.id ? { ...x, poidsG: e.target.value === "" ? 0 : +e.target.value } : x);
+                              updEquipment(updated);
+                            }}
+                            style={{ width: 52, fontSize: 11, textAlign: "right", padding: "3px 5px" }}
+                            onClick={e => e.stopPropagation()}
+                          />
+                          <span style={{ fontSize: 10, color: "var(--muted-c)", flexShrink: 0 }}>g</span>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -2655,7 +2652,6 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
           </>
           )}
         </Card>
-      </div>
 
       {/* Modal checklist — configuration */}
       <Modal open={checklistModal} onClose={() => setChecklistModal(false)} title="Configurer ma checklist">
@@ -4093,15 +4089,14 @@ function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
   // Poids équipement emporté (items actifs + emporte)
   const poidsEquipG = activeItems.filter(i=>i.emporte!==false).reduce((s,i)=>s+(i.poidsG||0),0);
 
-  // Poids nutrition emportée (total plan tous points)
-  const allPlanKeys = ["depart",...ravitos.map(r=>String(r.id))];
-  const poidsNutriG = allPlanKeys.reduce((acc,key) => {
-    const items = planNutrition[key]||[];
-    return acc + items.reduce((s,{produitId,quantite}) => {
-      const p = produits.find(x=>x.id===produitId); if(!p) return s;
+  // Poids nutrition emportée au départ uniquement (pas les ravitos — reçus sur place)
+  const poidsNutriG = (() => {
+    const items = planNutrition["depart"] || [];
+    return items.reduce((s, {produitId, quantite}) => {
+      const p = produits.find(x => x.id === produitId); if (!p) return s;
       return s + Math.round((p.poids||0) * (p.par100g ? quantite/100 : quantite));
-    },0);
-  },0);
+    }, 0);
+  })();
 
   const poidsTotalG = poidsEquipG + poidsNutriG;
 
