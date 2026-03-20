@@ -2581,6 +2581,7 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
               <span style={{ cursor: "pointer", color: C.primary, textDecoration: "underline" }} onClick={() => setChecklistModal(true)}>Configure ta liste</span>
             </div>
           ) : (
+            <>
             {/* KPI poids emporté */}
             {(() => {
               const poidsEquip = activeItems.filter(i => i.emporte !== false).reduce((s, i) => s + (i.poidsG || 0), 0);
@@ -2651,6 +2652,7 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
                 </div>
               </div>
             ))}
+          </>
           )}
         </Card>
       </div>
