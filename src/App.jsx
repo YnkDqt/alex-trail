@@ -2575,6 +2575,13 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
   const [collapsedPhases, setCollapsedPhases] = useState({});
   const togglePhase = phase => setCollapsedPhases(p => ({ ...p, [phase]: !p[phase] }));
 
+  // Poids dynamique équipement
+  const poidsEquipG = activeItems.filter(i => i.emporte !== false).reduce((s, i) => s + (i.poidsG || 0), 0);
+  const poidsCorporel = settings.weight || 70;
+  const poidsPct = poidsEquipG > 0 ? Math.round(poidsEquipG / (poidsCorporel * 1000) * 100) : 0;
+  const poidsColor = poidsPct >= 15 ? C.red : poidsPct >= 10 ? C.yellow : C.green;
+  const fmtPoidsEquip = g => g >= 1000 ? `${(g/1000).toFixed(1)} kg` : `${g} g`;
+
   return (
     <div className="anim">
       <PageTitle sub="Checklist et équipement de course">Équipement</PageTitle>
@@ -2586,9 +2593,21 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
               <div style={{ fontWeight: 600 }}>Checklist équipement</div>
               <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 2 }}>{checkedCount}/{activeItems.length} préparés</div>
             </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <Btn size="sm" variant="ghost" onClick={resetChecks}>Tout décocher</Btn>
-              <Btn size="sm" variant="soft" onClick={() => setChecklistModal(true)}>⚙️ Configurer</Btn>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {poidsEquipG > 0 && (
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "'Playfair Display', serif", color: poidsColor }}>
+                    {fmtPoidsEquip(poidsEquipG)}
+                  </div>
+                  <div style={{ fontSize: 11, color: poidsColor, fontWeight: 600 }}>
+                    {poidsPct}% poids corporel {poidsPct >= 15 ? "🔴" : poidsPct >= 10 ? "⚠️" : "✅"}
+                  </div>
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 6 }}>
+                <Btn size="sm" variant="ghost" onClick={resetChecks}>Tout décocher</Btn>
+                <Btn size="sm" variant="soft" onClick={() => setChecklistModal(true)}>⚙️ Configurer</Btn>
+              </div>
             </div>
           </div>
 
@@ -4764,7 +4783,12 @@ export default function App() {
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Logo */}
       <div style={{ padding: "24px 20px 16px" }}>
-        <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: C.primary }}>Alex</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: C.primary }}>Alex</div>
+          {typeof window !== "undefined" && window.location.hostname !== "alex-trail.vercel.app" && !window.location.hostname.includes("localhost") && (
+            <span style={{ fontSize: 10, fontWeight: 700, background: C.yellow + "30", color: C.yellow, border: `1px solid ${C.yellow}60`, borderRadius: 5, padding: "2px 7px", letterSpacing: "0.05em" }}>DEV</span>
+          )}
+        </div>
         <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 2 }}>Trail Running Strategy</div>
       </div>
       <Hr />
