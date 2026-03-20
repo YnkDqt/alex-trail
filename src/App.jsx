@@ -52,9 +52,16 @@ const DEFAULT_EQUIPMENT = [
   { id: 18, cat: "Ravitaillement", label: "Sel / électrolytes",       checked: false, actif: false },
   { id: 19, cat: "Divers",         label: "Dossard + épingles",       checked: false, actif: true },
   { id: 20, cat: "Divers",         label: "Téléphone chargé",         checked: false, actif: true },
-  { id: 21, cat: "Divers",         label: "Crème anti-frottements",   checked: false, actif: false },
+  { id: 21, cat: "Divers",         label: "Crème anti-frottements",   checked: false, actif: true },
   { id: 22, cat: "Divers",         label: "Brosse à dents / hygiène", checked: false, actif: false },
   { id: 23, cat: "Divers",         label: "Vêtements post-course",    checked: false, actif: false },
+  { id: 24, cat: "Préparation",    label: "Strapping pieds / genoux", checked: false, actif: false },
+  { id: 25, cat: "Préparation",    label: "Crème solaire",            checked: false, actif: false },
+  { id: 26, cat: "Préparation",    label: "Vaseline / nez crème",     checked: false, actif: false },
+  { id: 27, cat: "Préparation",    label: "Carte d'identité",         checked: false, actif: true },
+  { id: 28, cat: "Préparation",    label: "Certificat médical",       checked: false, actif: false },
+  { id: 29, cat: "Préparation",    label: "Chargeur portable",        checked: false, actif: false },
+  { id: 30, cat: "Préparation",    label: "Collants de compression",  checked: false, actif: false },
 ];
 
 const EMPTY_SETTINGS = {
@@ -62,7 +69,7 @@ const EMPTY_SETTINGS = {
   emergencyName: "", emergencyPhone: "",
   raceName: "", startTime: "07:00", raceDate: "",
   meteoLoading: false, meteoFetched: false, meteoInfo: "",
-  tempC: 15, rain: false, wind: false, heat: false, snow: false,
+  tempC: 15, rain: false, wind: false, snow: false,
   darkMode: false,
   garminCoeff: 1, garminStats: null, kcalSource: "minetti",
   glucidesTargetGh: null,
@@ -569,7 +576,7 @@ function parseGarminCSV(text) {
 // ─── NUTRITION ───────────────────────────────────────────────────────────────
 function calcNutrition(seg, settings) {
   if (seg.type === "repos") return { kcal: 0, kcalH: 0, glucidesH: 0, lipidesH: 0, proteinesH: 0, eauH: 0, selH: 0, cafeineH: 0, durationH: 0 };
-  const { weight = 70, kcalPerKm = 65, kcalPerKmUphill = 90, tempC = 15, rain = false, wind = false, heat = false, snow = false, kcalSource = "minetti", garminStats = null, glucidesTargetGh = null } = settings;
+  const { weight = 70, kcalPerKm = 65, kcalPerKmUphill = 90, tempC = 15, rain = false, wind = false, snow = false, kcalSource = "minetti", garminStats = null, glucidesTargetGh = null } = settings;
   const distKm = seg.endKm - seg.startKm;
   const durationH = seg.speedKmh > 0 ? distKm / seg.speedKmh : 0;
   let flatRate, uphillRate;
@@ -588,7 +595,7 @@ function calcNutrition(seg, settings) {
   const kcalRate = (seg.slopePct || 0) >= 5 ? uphillRate : flatRate;
   const kcal = Math.round(distKm * kcalRate * (weight / 70));
   const kcalH = durationH > 0 ? Math.round(kcal / durationH) : 0;
-  const isHot = heat || tempC > 25;
+  const isHot = tempC > 25;
   const isCold = tempC < 0 || snow;
   // Glucides : cible manuelle si définie, sinon 55% des kcal (règle empirique)
   const glucidesH = glucidesTargetGh != null ? Math.round(glucidesTargetGh) : Math.round(kcalH * 0.55 / 4);
@@ -1521,7 +1528,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                 </div>
                 <div style={{ fontSize: 11, color: "#D08860" }}>
                   Départ {settings.startTime || "07:00"} · {settings.tempC}°C
-                  {settings.rain ? " · Pluie" : ""}{settings.snow ? " · Neige" : ""}{settings.wind ? " · Vent" : ""}{settings.heat ? " · Chaleur" : ""}
+                  {settings.rain ? " · Pluie" : ""}{settings.snow ? " · Neige" : ""}{settings.wind ? " · Vent" : ""}
                   
                 </div>
               </div>
@@ -1553,7 +1560,6 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
               {settings.rain && <span>Pluie</span>}
               {settings.snow && <span>Neige</span>}
               {settings.wind && <span>Vent</span>}
-              {settings.heat && <span>Chaleur</span>}
               <span style={{ marginLeft: "auto", fontSize: 12, color: C.primary }}>Modifier dans Stratégie →</span>
             </div>
           )}
@@ -1687,7 +1693,6 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                           { key: "rain", label: "🌧️ Pluie" },
                           { key: "snow", label: "❄️ Neige" },
                           { key: "wind", label: "💨 Vent" },
-                          { key: "heat", label: "🌡️ Chaleur" },
                         ].map(({ key, label }) => (
                           <label key={key} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: 12, padding: "3px 8px", borderRadius: 6, background: settings[key] ? C.primaryPale : "var(--surface-2)", border: `1px solid ${settings[key] ? C.primary + "40" : "var(--border-c)"}`, transition: "all 0.15s", userSelect: "none" }}>
                             <input type="checkbox" checked={!!settings[key]} onChange={e => updS(key, e.target.checked)} style={{ width: 13, height: 13 }} />
@@ -2037,6 +2042,15 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                         segNum++;
                         const dur = fmtTime(((seg.endKm - seg.startKm) / seg.speedKmh) * 3600);
                         const isH = hoveredSeg?.id === seg.id;
+                        const dist = seg.endKm - seg.startKm;
+                        const prevSeg = segments.slice(0, i).reverse().find(s => s.type !== "ravito" && s.type !== "repos");
+                        const nextSeg = segments.slice(i + 1).find(s => s.type !== "ravito" && s.type !== "repos");
+                        const isSteep = seg.slopePct > 15;
+                        const showBatons = isSteep && (
+                          dist >= 1 ||
+                          (prevSeg && prevSeg.slopePct > 15) ||
+                          (nextSeg && nextSeg.slopePct > 15)
+                        );
                         return (
                           <tr key={seg.id}
                             onMouseEnter={() => setHoveredSeg(seg)}
@@ -2050,7 +2064,7 @@ function ProfilView({ race, setRace, segments, setSegments, settings, setSetting
                               <span className={`badge ${seg.slopePct > 9 ? "badge-red" : seg.slopePct < 0 ? "badge-blue" : "badge-sage"}`}>
                                 {seg.slopePct > 0 ? "+" : ""}{seg.slopePct}%
                               </span>
-                              {seg.slopePct > 15 && <span style={{ marginLeft: 5, fontSize: 10, color: C.red }}>bâtons</span>}
+                              {showBatons && <span style={{ marginLeft: 5, fontSize: 10, color: C.red }}>bâtons</span>}
                               {seg.slopePct > 8 && seg.slopePct <= 15 && <span style={{ marginLeft: 5, fontSize: 10, color: C.yellow }}>marche</span>}
                             </td>
                             <td style={{ fontWeight: isH ? 700 : 600 }}>{seg.speedKmh} km/h</td>
@@ -2529,29 +2543,11 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
 
   return (
     <div className="anim">
-      <PageTitle sub="Profil, équipement et calibration">Paramètres du coureur</PageTitle>
+      <PageTitle sub="Checklist et équipement de course">Équipement</PageTitle>
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
 
-        {/* Colonne gauche : profil + dark mode */}
+        {/* Colonne gauche : dark mode + lien */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <Card>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>Profil coureur</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <Field label="Nom"><input value={settings.name} onChange={e => upd("name", e.target.value)} placeholder="Ton prénom" /></Field>
-
-              {/* Poids */}
-              <Field label="Poids (kg)">
-                <input type="number" min={40} max={150} value={settings.weight}
-                  onChange={e => upd("weight", e.target.value === "" ? "" : +e.target.value)}
-                  onBlur={e => upd("weight", Math.max(40, Math.min(150, +e.target.value || 70)))}
-                  style={{ width: 90 }} />
-              </Field>
-
-            </div>
-            <div style={{ marginTop: 16, padding: "10px 14px", background: C.primaryPale, borderRadius: 10, fontSize: 12, color: C.primaryDeep, borderLeft: `3px solid ${C.primary}` }}>
-              Niveau coureur, calibration Garmin, dépense kcal et glucides → <strong>Profil de course</strong>
-            </div>
-          </Card>
 
         </div>
 
@@ -2752,7 +2748,7 @@ function NutritionView({ segments, settings, setSettings, race, setRace, isMobil
 
   const totalTime = segments.reduce((s, seg) => (seg.type === "repos" || seg.type === "ravito") ? s + (seg.dureeMin||0)*60 : s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
   const totalDist = segments.filter(s => s.type !== "ravito" && s.type !== "repos").reduce((s, seg) => Math.max(s, seg.endKm), 0);
-  const isHot = settings.heat || settings.tempC > 25;
+  const isHot = settings.tempC > 25;
   const waterPerHour = 500 + (settings.wind ? 100 : 0) + (isHot ? 150 : 0);
 
   // Zones tronçons pour le plan
@@ -3274,11 +3270,11 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
       pos => {
         const { latitude, longitude, accuracy } = pos.coords;
         setGpsCoords({ lat: latitude, lon: longitude, acc: Math.round(accuracy) });
-        const msg = `🆘 SOS — Position de ${settings.name || "coureur"} via l'appli Alex.\n\nJe suis localisé à cet endroit :\nhttps://maps.google.com/?q=${latitude},${longitude}\n(±${Math.round(accuracy)}m)\n\nCourse : ${settings.raceName || race.name || "?"}`;
+        const msg = `🆘 SOS — Position via l'appli Alex.\n\nJe suis localisé à cet endroit :\nhttps://maps.google.com/?q=${latitude},${longitude}\n(±${Math.round(accuracy)}m)\n\nCourse : ${settings.raceName || race.name || "?"}`;
         share(msg);
       },
       () => {
-        const msg = `🆘 SOS — ${settings.name || "Coureur"} a besoin d'aide.\n\nCourse : ${settings.raceName || race.name || "?"}\nPosition GPS non disponible.`;
+        const msg = `🆘 SOS — Besoin d'aide.\n\nCourse : ${settings.raceName || race.name || "?"}\nPosition GPS non disponible.`;
         share(msg);
       },
       { timeout: 8000, enableHighAccuracy: true }
@@ -4213,7 +4209,7 @@ const NAVS = [
   { id: "profil",      label: "Profil de course",     icon: "🗺️", group: "Préparation" },
   { id: "preparation", label: "Stratégie de course",   icon: "🎯", group: "Préparation" },
   { id: "nutrition",   label: "Nutrition",             icon: "🍌", group: "Préparation" },
-  { id: "parametres",  label: "Paramètres du coureur", icon: "⚙️", group: "Préparation" },
+  { id: "parametres",  label: "Équipement",          icon: "🎒", group: "Préparation" },
   { id: "analyse",     label: "Analyse",               icon: "📊", group: "Analyse" },
   { id: "team",        label: "Team",                  icon: "👥", group: "Équipe" },
   { id: "courses",     label: "Mes courses",           icon: "📚", group: "Historique" },
