@@ -2353,7 +2353,7 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
       ) : (
         <>
           {/* KPIs */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "1fr 1fr", gap: isMobile ? 8 : 14, marginBottom: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(3, 1fr)", gap: isMobile ? 8 : 14, marginBottom: 20 }}>
             <KPI label="Temps course" value={fmtTime(totalTime)} color={C.secondary} icon="⏱️" sub="hors ravitos" />
             <KPI label="Temps total" value={fmtTime(totalWithRavitos)} icon="🏁" sub={`+${ravitoCount} ravito${ravitoCount>1?"s":""}`} />
             <KPI label="Arrivée estimée" value={fmtHeure(arrivalTime)} icon={isNight(arrivalTime) ? "🌙" : "☀️"} color={isNight(arrivalTime) ? C.blue : C.yellow} sub={`départ ${settings.startTime || "07:00"}`} />
@@ -3435,15 +3435,7 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
           <PageTitle sub="Vue assistance — ravitos, horaires, préparation">Team</PageTitle>
           <label style={{ display: "flex", alignItems: "center", flexShrink: 0, cursor: "pointer", marginTop: 4 }}>
-            <div style={{
-              background: C.primaryPale, border: `1px solid ${C.primary}50`,
-              color: C.primaryDeep, borderRadius: 14, padding: "10px 16px",
-              fontWeight: 700, fontSize: 13,
-              display: "flex", alignItems: "center", gap: 6,
-              fontFamily: "'DM Sans', sans-serif",
-            }}>
-              📋 Charger stratégie
-            </div>
+            <Btn variant="soft">📋 Charger stratégie</Btn>
             <input type="file" accept=".json" style={{ display: "none" }}
               onChange={e => {
                 const file = e.target.files[0];
@@ -3505,15 +3497,7 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
 
           {/* Bouton charger stratégie — file picker JSON, toujours visible */}
           <label style={{ display: "flex", alignItems: "center", flexShrink: 0, cursor: "pointer" }}>
-            <div style={{
-              background: C.primaryPale, border: `1px solid ${C.primary}50`,
-              color: C.primaryDeep, borderRadius: 14, padding: "10px 16px",
-              fontWeight: 700, fontSize: 13, width: isMobile ? "100%" : "auto",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              fontFamily: "'DM Sans', sans-serif",
-            }}>
-              📋 Charger stratégie
-            </div>
+            <Btn variant="soft" style={{ width: isMobile ? "100%" : "auto" }}>📋 Charger stratégie</Btn>
             <input type="file" accept=".json" style={{ display: "none" }}
               onChange={e => {
                 const file = e.target.files[0];
@@ -3574,8 +3558,8 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
               }
             }} style={{
               background: C.green + "18", border: `1px solid ${C.green}50`,
-              color: C.green, borderRadius: 14, padding: "10px 16px",
-              fontWeight: 700, fontSize: 13, cursor: "pointer",
+              color: C.green, borderRadius: 10, padding: "7px 14px",
+              fontWeight: 600, fontSize: 13, cursor: "pointer",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               width: isMobile ? "100%" : "auto",
               fontFamily: "'DM Sans', sans-serif",
@@ -3585,9 +3569,9 @@ function TeamView({ race, setRace, segments, setSegments, settings, setSettings,
           )}
           <button onClick={handleSOS} style={{
             background: sosActive ? C.red + "cc" : C.red,
-            color: "#fff", border: "none", borderRadius: 14, padding: "10px 18px",
-            fontWeight: 700, fontSize: 14, cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            color: "#fff", border: "none", borderRadius: 10, padding: "7px 14px",
+            fontWeight: 600, fontSize: 13, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
             width: isMobile ? "100%" : "auto",
             boxShadow: `0 4px 16px ${C.red}50`, transition: "all 0.2s",
             fontFamily: "'DM Sans', sans-serif",
