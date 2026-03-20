@@ -4573,9 +4573,10 @@ export default function App() {
 
   const saveCourse = () => {
     const id = Date.now();
-    const totalTime = segments
-      .filter(s => s.type !== "ravito" && s.type !== "repos")
-      .reduce((s, seg) => s + (seg.endKm - seg.startKm) / seg.speedKmh * 3600, 0);
+    const totalTime = segments.reduce((s, seg) => {
+      if (seg.type === "ravito" || seg.type === "repos") return s + (seg.dureeMin || 0) * 60;
+      return s + (seg.speedKmh > 0 ? (seg.endKm - seg.startKm) / seg.speedKmh * 3600 : 0);
+    }, 0);
     const entry = {
       id,
       savedAt: id,
