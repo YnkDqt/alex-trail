@@ -32,36 +32,36 @@ const C = {
 // ─── CONSTANTES GLOBALES ─────────────────────────────────────────────────────
 const DEFAULT_FLAT_SPEED = 9.5;
 const DEFAULT_EQUIPMENT = [
-  { id: 1,  cat: "Équipement",     label: "Gilet de trail",           checked: false, actif: true },
-  { id: 2,  cat: "Équipement",     label: "T-shirt course",           checked: false, actif: true },
-  { id: 3,  cat: "Équipement",     label: "T-shirt change × 2",       checked: false, actif: false },
-  { id: 4,  cat: "Équipement",     label: "Short / cuissard",         checked: false, actif: true },
-  { id: 5,  cat: "Équipement",     label: "Chaussettes",              checked: false, actif: true },
-  { id: 6,  cat: "Équipement",     label: "Chaussures de trail",      checked: false, actif: true },
-  { id: 7,  cat: "Équipement",     label: "Bâtons",                   checked: false, actif: false },
-  { id: 8,  cat: "Équipement",     label: "Veste imperméable",        checked: false, actif: true },
-  { id: 9,  cat: "Équipement",     label: "Casquette / buff",         checked: false, actif: true },
-  { id: 10, cat: "Équipement",     label: "Lampe frontale + piles",   checked: false, actif: true },
-  { id: 11, cat: "Équipement",     label: "Couverture de survie",     checked: false, actif: true },
-  { id: 12, cat: "Équipement",     label: "Sifflet",                  checked: false, actif: true },
-  { id: 13, cat: "Ravitaillement", label: "Pâtes de fruits sucrées",  checked: false, actif: false },
-  { id: 14, cat: "Ravitaillement", label: "Pâtes de fruits salées",   checked: false, actif: false },
-  { id: 15, cat: "Ravitaillement", label: "Barres de céréales",       checked: false, actif: false },
-  { id: 16, cat: "Ravitaillement", label: "Gels énergétiques",        checked: false, actif: false },
-  { id: 17, cat: "Ravitaillement", label: "Gourde / flasques",        checked: false, actif: true },
-  { id: 18, cat: "Ravitaillement", label: "Sel / électrolytes",       checked: false, actif: false },
-  { id: 19, cat: "Divers",         label: "Dossard + épingles",       checked: false, actif: true },
-  { id: 20, cat: "Divers",         label: "Téléphone chargé",         checked: false, actif: true },
-  { id: 21, cat: "Divers",         label: "Crème anti-frottements",   checked: false, actif: true },
-  { id: 22, cat: "Divers",         label: "Brosse à dents / hygiène", checked: false, actif: false },
-  { id: 23, cat: "Divers",         label: "Vêtements post-course",    checked: false, actif: false },
-  { id: 24, cat: "Préparation",    label: "Strapping pieds / genoux", checked: false, actif: false },
-  { id: 25, cat: "Préparation",    label: "Crème solaire",            checked: false, actif: false },
-  { id: 26, cat: "Préparation",    label: "Vaseline / nez crème",     checked: false, actif: false },
-  { id: 27, cat: "Préparation",    label: "Carte d'identité",         checked: false, actif: true },
-  { id: 28, cat: "Préparation",    label: "Certificat médical",       checked: false, actif: false },
-  { id: 29, cat: "Préparation",    label: "Chargeur portable",        checked: false, actif: false },
-  { id: 30, cat: "Préparation",    label: "Collants de compression",  checked: false, actif: false },
+  { id: 1,  cat: "Équipement",     label: "Gilet de trail",           checked: false, actif: true,  emporte: true,  poidsG: 400 },
+  { id: 2,  cat: "Équipement",     label: "T-shirt course",           checked: false, actif: true,  emporte: true,  poidsG: 150 },
+  { id: 3,  cat: "Équipement",     label: "T-shirt change × 2",       checked: false, actif: false, emporte: false, poidsG: 300 },
+  { id: 4,  cat: "Équipement",     label: "Short / cuissard",         checked: false, actif: true,  emporte: true,  poidsG: 120 },
+  { id: 5,  cat: "Équipement",     label: "Chaussettes",              checked: false, actif: true,  emporte: true,  poidsG: 60  },
+  { id: 6,  cat: "Équipement",     label: "Chaussures de trail",      checked: false, actif: true,  emporte: true,  poidsG: 600 },
+  { id: 7,  cat: "Équipement",     label: "Bâtons",                   checked: false, actif: false, emporte: true,  poidsG: 400 },
+  { id: 8,  cat: "Équipement",     label: "Veste imperméable",        checked: false, actif: true,  emporte: true,  poidsG: 250 },
+  { id: 9,  cat: "Équipement",     label: "Casquette / buff",         checked: false, actif: true,  emporte: true,  poidsG: 60  },
+  { id: 10, cat: "Équipement",     label: "Lampe frontale + piles",   checked: false, actif: true,  emporte: true,  poidsG: 120 },
+  { id: 11, cat: "Équipement",     label: "Couverture de survie",     checked: false, actif: true,  emporte: true,  poidsG: 80  },
+  { id: 12, cat: "Équipement",     label: "Sifflet",                  checked: false, actif: true,  emporte: true,  poidsG: 20  },
+  { id: 13, cat: "Ravitaillement", label: "Pâtes de fruits sucrées",  checked: false, actif: false, emporte: true,  poidsG: 0   },
+  { id: 14, cat: "Ravitaillement", label: "Pâtes de fruits salées",   checked: false, actif: false, emporte: true,  poidsG: 0   },
+  { id: 15, cat: "Ravitaillement", label: "Barres de céréales",       checked: false, actif: false, emporte: true,  poidsG: 0   },
+  { id: 16, cat: "Ravitaillement", label: "Gels énergétiques",        checked: false, actif: false, emporte: true,  poidsG: 0   },
+  { id: 17, cat: "Ravitaillement", label: "Gourde / flasques",        checked: false, actif: true,  emporte: true,  poidsG: 200 },
+  { id: 18, cat: "Ravitaillement", label: "Sel / électrolytes",       checked: false, actif: false, emporte: true,  poidsG: 50  },
+  { id: 19, cat: "Divers",         label: "Dossard + épingles",       checked: false, actif: true,  emporte: true,  poidsG: 20  },
+  { id: 20, cat: "Divers",         label: "Téléphone chargé",         checked: false, actif: true,  emporte: true,  poidsG: 180 },
+  { id: 21, cat: "Divers",         label: "Crème anti-frottements",   checked: false, actif: true,  emporte: true,  poidsG: 50  },
+  { id: 22, cat: "Divers",         label: "Brosse à dents / hygiène", checked: false, actif: false, emporte: false, poidsG: 0   },
+  { id: 23, cat: "Divers",         label: "Vêtements post-course",    checked: false, actif: false, emporte: false, poidsG: 0   },
+  { id: 24, cat: "Préparation",    label: "Strapping pieds / genoux", checked: false, actif: false, emporte: true,  poidsG: 30  },
+  { id: 25, cat: "Préparation",    label: "Crème solaire",            checked: false, actif: false, emporte: true,  poidsG: 50  },
+  { id: 26, cat: "Préparation",    label: "Vaseline / nez crème",     checked: false, actif: false, emporte: true,  poidsG: 30  },
+  { id: 27, cat: "Préparation",    label: "Carte d'identité",         checked: false, actif: true,  emporte: true,  poidsG: 10  },
+  { id: 28, cat: "Préparation",    label: "Certificat médical",       checked: false, actif: false, emporte: true,  poidsG: 10  },
+  { id: 29, cat: "Préparation",    label: "Chargeur portable",        checked: false, actif: false, emporte: false, poidsG: 200 },
+  { id: 30, cat: "Préparation",    label: "Collants de compression",  checked: false, actif: false, emporte: false, poidsG: 150 },
 ];
 
 const EMPTY_SETTINGS = {
@@ -2530,6 +2530,7 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
 
   const toggleItem   = id => upd("equipment", equipment.map(i => i.id === id ? { ...i, checked: !i.checked } : i));
   const toggleActif  = id => upd("equipment", equipment.map(i => i.id === id ? { ...i, actif: !i.actif, checked: false } : i));
+  const updEquipment = items => upd("equipment", items);
   const deleteItem   = id => upd("equipment", equipment.filter(i => i.id !== id));
   const addItem      = () => {
     if (!newItem.trim()) return;
@@ -2580,35 +2581,76 @@ function ParamètresView({ settings, setSettings, race, setRace, segments, isMob
               <span style={{ cursor: "pointer", color: C.primary, textDecoration: "underline" }} onClick={() => setChecklistModal(true)}>Configure ta liste</span>
             </div>
           ) : (
-            [...new Set(activeItems.map(i => i.cat))].map(cat => (
+            {/* KPI poids emporté */}
+            {(() => {
+              const poidsEquip = activeItems.filter(i => i.emporte !== false).reduce((s, i) => s + (i.poidsG || 0), 0);
+              return poidsEquip > 0 ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: C.secondaryPale, borderRadius: 8, marginBottom: 12, fontSize: 12 }}>
+                  <span style={{ color: "var(--muted-c)" }}>Poids équipement emporté estimé</span>
+                  <span style={{ fontWeight: 700, fontFamily: "'Playfair Display', serif", fontSize: 15, color: C.secondaryDark }}>
+                    {poidsEquip >= 1000 ? `${(poidsEquip/1000).toFixed(1)} kg` : `${poidsEquip} g`}
+                  </span>
+                </div>
+              ) : null;
+            })()}
+            {[...new Set(activeItems.map(i => i.cat))].map(cat => (
               <div key={cat} style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>{cat}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   {activeItems.filter(i => i.cat === cat).map(item => (
                     <div key={item.id} style={{
-                      display: "flex", alignItems: "center", gap: 10, padding: "7px 10px",
+                      display: "flex", alignItems: "center", gap: 8, padding: "7px 10px",
                       borderRadius: 8, background: item.checked ? C.green + "14" : "var(--surface-2)",
-                      transition: "background 0.15s", cursor: "pointer",
-                    }} onClick={() => toggleItem(item.id)}>
+                      transition: "background 0.15s",
+                    }}>
+                      {/* Checkbox coché */}
                       <div style={{
-                        width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                        width: 18, height: 18, borderRadius: 5, flexShrink: 0, cursor: "pointer",
                         border: `2px solid ${item.checked ? C.green : "var(--border-c)"}`,
                         background: item.checked ? C.green : "transparent",
                         display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s",
-                      }}>
+                      }} onClick={() => toggleItem(item.id)}>
                         {item.checked && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>}
                       </div>
+                      {/* Label */}
                       <span style={{
-                        fontSize: 13, flex: 1,
+                        fontSize: 13, flex: 1, cursor: "pointer",
                         color: item.checked ? "var(--muted-c)" : "var(--text-c)",
                         textDecoration: item.checked ? "line-through" : "none",
                         transition: "all 0.15s",
-                      }}>{item.label}</span>
+                      }} onClick={() => toggleItem(item.id)}>{item.label}</span>
+                      {/* Toggle emporté */}
+                      <div title={item.emporte !== false ? "Emporté sur la course" : "Pas emporté (drop/post-course)"}
+                        onClick={() => {
+                          const updated = equipment.map(x => x.id === item.id ? { ...x, emporte: !(x.emporte !== false) } : x);
+                          updEquipment(updated);
+                        }}
+                        style={{
+                          fontSize: 13, cursor: "pointer", padding: "1px 5px", borderRadius: 5, userSelect: "none",
+                          background: item.emporte !== false ? C.primaryPale : "var(--surface-2)",
+                          border: `1px solid ${item.emporte !== false ? C.primary + "40" : "var(--border-c)"}`,
+                          color: item.emporte !== false ? C.primaryDeep : "var(--muted-c)",
+                          opacity: 0.85,
+                        }}>
+                        🎽
+                      </div>
+                      {/* Poids */}
+                      <input
+                        type="number" min={0} max={5000} placeholder="g"
+                        value={item.poidsG || ""}
+                        onChange={e => {
+                          const updated = equipment.map(x => x.id === item.id ? { ...x, poidsG: e.target.value === "" ? 0 : +e.target.value } : x);
+                          updEquipment(updated);
+                        }}
+                        style={{ width: 52, fontSize: 11, textAlign: "right", padding: "3px 5px" }}
+                        onClick={e => e.stopPropagation()}
+                      />
+                      <span style={{ fontSize: 10, color: "var(--muted-c)", flexShrink: 0 }}>g</span>
                     </div>
                   ))}
                 </div>
               </div>
-            ))
+            ))}
           )}
         </Card>
       </div>
@@ -4046,6 +4088,26 @@ function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
   const checkedCount = activeItems.filter(i=>i.checked).length;
   const checklistPct = activeItems.length>0?Math.round(checkedCount/activeItems.length*100):0;
 
+  // Poids équipement emporté (items actifs + emporte)
+  const poidsEquipG = activeItems.filter(i=>i.emporte!==false).reduce((s,i)=>s+(i.poidsG||0),0);
+
+  // Poids nutrition emportée (total plan tous points)
+  const allPlanKeys = ["depart",...ravitos.map(r=>String(r.id))];
+  const poidsNutriG = allPlanKeys.reduce((acc,key) => {
+    const items = planNutrition[key]||[];
+    return acc + items.reduce((s,{produitId,quantite}) => {
+      const p = produits.find(x=>x.id===produitId); if(!p) return s;
+      return s + Math.round((p.poids||0) * (p.par100g ? quantite/100 : quantite));
+    },0);
+  },0);
+
+  const poidsTotalG = poidsEquipG + poidsNutriG;
+
+  // Seuil alerte poids nutrition : 1g par km est raisonnable (50km → 500g ok, 3kg → alerte)
+  const distKm = totalDistKm || 1;
+  const seuilNutriG = Math.max(1500, distKm * 40); // ~40g/km, min 1.5kg
+  const nutriSurcharge = poidsNutriG > seuilNutriG;
+
   const { times: passingTimes } = calcPassingTimes(segments, settings.startTime);
   const arrivalSec = passingTimes.length ? passingTimes[passingTimes.length-1] : 0;
   const isNightArrival = isNight(arrivalSec);
@@ -4063,6 +4125,35 @@ function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
   const checklistS=checklistPct===100?"ok":checklistPct>=70?"warn":"alert";
   pointsPrepa.push({status:checklistS,titre:"Checklist équipement",valeur:`${checkedCount}/${activeItems.length} items cochés (${checklistPct}%)`,
     explication:checklistS==="ok"?"Tous les items sont préparés. Bonne préparation matérielle.":checklistS==="warn"?`${activeItems.length-checkedCount} item${activeItems.length-checkedCount>1?"s":""} non coché${activeItems.length-checkedCount>1?"s":""}. Passe en revue ta checklist dans Équipement avant le départ.`:`Plus de 30% des items non préparés. Accorde du temps à ta préparation matérielle.`});
+
+  // Alerte poids total
+  if (poidsTotalG > 0) {
+    const fmtPoids = g => g >= 1000 ? `${(g/1000).toFixed(1)} kg` : `${g} g`;
+    const poidsTotalStatus = poidsTotalG > 8000 ? "alert" : poidsTotalG > 5000 ? "warn" : "ok";
+    pointsPrepa.push({
+      status: poidsTotalStatus,
+      titre: "Poids total estimé",
+      valeur: `${fmtPoids(poidsTotalG)} · équipement ${fmtPoids(poidsEquipG)} · nutrition ${fmtPoids(poidsNutriG)}`,
+      explication: poidsTotalStatus==="ok"
+        ? `Charge raisonnable pour ${distKm.toFixed(0)} km. Équipement : ${fmtPoids(poidsEquipG)}, nutrition : ${fmtPoids(poidsNutriG)}.`
+        : poidsTotalStatus==="warn"
+        ? `${fmtPoids(poidsTotalG)} est élevé. Au-delà de 5 kg, chaque kilo supplémentaire ralentit l'allure de ~1% et augmente la fatigue musculaire. Passe en revue ta nutrition.`
+        : `${fmtPoids(poidsTotalG)} est très lourd pour une course trail. Réduis la charge au maximum — chaque kilo inutile coûte cher sur la durée.`
+    });
+  }
+
+  // Alerte surcharge nutrition
+  if (nutriSurcharge && poidsNutriG > 0) {
+    const ravitosAvecOrga = ravitos.filter(rv => rv.assistancePresente !== false);
+    pointsPrepa.push({
+      status: "warn",
+      titre: "Nutrition à optimiser",
+      valeur: `${poidsNutriG >= 1000 ? `${(poidsNutriG/1000).toFixed(1)} kg` : `${poidsNutriG} g`} de nourriture pour ${distKm.toFixed(0)} km`,
+      explication: ravitosAvecOrga.length > 0
+        ? `C'est beaucoup à porter. Pense à compléter sur les ravitaillements de l'organisation : tu n'as pas besoin d'emporter toute ta nutrition si des ravitos organisés sont présents sur le parcours.`
+        : `C'est beaucoup à porter. Réduis les quantités ou privilégie des produits plus denses en calories (gels, pâtes de fruits plutôt que barres lourdes).`
+    });
+  }
 
   if (isNightArrival && lampeItem && !lampeActive) {
     pointsPrepa.push({status:"alert",titre:"Lampe frontale désactivée",valeur:`Arrivée estimée à ${fmtHeure(arrivalSec)} — course de nuit`,explication:"Ton arrivée est prévue après 21h. Active la lampe frontale dans ta checklist (Équipement) — obligatoire dans la plupart des règlements d'ultra."});
@@ -4433,7 +4524,16 @@ export default function App() {
           if (d.settings.equipment) {
             const existingIds = new Set(d.settings.equipment.map(i => i.id));
             const newItems = DEFAULT_EQUIPMENT.filter(i => !existingIds.has(i.id));
-            merged.equipment = [...d.settings.equipment, ...newItems];
+            // Fusionner aussi emporte/poidsG sur les items existants qui n'ont pas ces champs
+            const upgraded = d.settings.equipment.map(i => {
+              const def = DEFAULT_EQUIPMENT.find(x => x.id === i.id);
+              return {
+                ...i,
+                emporte: i.emporte !== undefined ? i.emporte : (def?.emporte ?? true),
+                poidsG:  i.poidsG  !== undefined ? i.poidsG  : (def?.poidsG  ?? 0),
+              };
+            });
+            merged.equipment = [...upgraded, ...newItems];
           }
           setSettingsRaw(merged);
         }
