@@ -24,9 +24,6 @@ const C = {
   yellow:       "#B8863A",  yellowPale: "#FBF3E2",
   red:          "#B84A3A",  redPale:    "#FBECEB",
   blue:         "#4A7A9B",  bluePale:   "#E8F2F8",
-  dark:         "#1C1610",
-  darkSurface:  "#2A211A",
-  darkSurface2: "#332820",
 };
 
 // ─── CONSTANTES GLOBALES ─────────────────────────────────────────────────────
@@ -88,8 +85,8 @@ const PREP_TIMELINE = [
   { id: "h1_ravitos",      phase: "H−1",  cat: "Logistique",  label: "Confirmer plan ravitos avec l'équipe d'assistance" },
 ];
 
-const EMPTY_SETTINGS = { kcalPerKm: 65, kcalPerKmUphill: 90,
-  emergencyName: "", emergencyPhone: "",
+const EMPTY_SETTINGS = {
+  weight: 70, kcalPerKm: 65, kcalPerKmUphill: 90,
   raceName: "", startTime: "07:00", raceDate: "",
   meteoLoading: false, meteoFetched: false, meteoInfo: "",
   tempC: 15, rain: false, wind: false, snow: false,
@@ -101,8 +98,8 @@ const EMPTY_SETTINGS = { kcalPerKm: 65, kcalPerKmUphill: 90,
   paceStrategy: 0,
   ravitoTimeMin: 3,
   equipment: DEFAULT_EQUIPMENT,
-  produits: [],   // bibliothèque permanente de produits nutritionnels
-  prepChecks: {}, // checklist chronologique : { "id": true/false }
+  produits: [],
+  prepChecks: {},
 };
 
 // ─── ALGOS TRAIL ─────────────────────────────────────────────────────────────
@@ -835,34 +832,6 @@ function Empty({ icon, title, sub, action }) {
 // ─── UTILITAIRES ─────────────────────────────────────────────────────────────
 function Hr() { return <div style={{ height: 1, background: "var(--border-c)", margin: "20px 0" }} />; }
 
-function SliderField({ label, value, min, max, step = 1, unit, onChange }) {
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-        <label style={{ fontSize: 12, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{label}</label>
-        <span style={{ fontSize: 13, fontWeight: 600, color: C.primary }}>{value}{unit}</span>
-      </div>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(Number(e.target.value))} />
-    </div>
-  );
-}
-function Toggle({ label, checked, onChange }) {
-  return (
-    <label onClick={() => onChange(!checked)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}>
-      <div style={{
-        width: 40, height: 22, borderRadius: 11, background: checked ? C.primary : "var(--border-c)",
-        position: "relative", transition: "background 0.2s", flexShrink: 0,
-      }}>
-        <div style={{
-          position: "absolute", top: 3, left: checked ? 21 : 3, width: 16, height: 16,
-          borderRadius: "50%", background: "#fff", transition: "left 0.2s",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-        }} />
-      </div>
-      <span style={{ fontSize: 13, color: "var(--text-c)" }}>{label}</span>
-    </label>
-  );
-}
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
@@ -2316,7 +2285,7 @@ function StrategieView({ race, segments, setSegments, settings, setSettings, onO
   const segsRepos   = segments.filter(s => s.type === "repos");
 
   // Temps course = segments normaux seulement
-  const totalTime = segsNormaux.reduce((s, seg) => s + ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600, 0);
+  const totalTime = segsNormaux.reduce((s, seg) => s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
   // Temps repos = somme des durées de repos
   const totalReposSec = segsRepos.reduce((s, seg) => s + (seg.dureeMin || 0) * 60, 0);
   const ravitoCount = race.ravitos?.length || 0;
@@ -4001,7 +3970,7 @@ function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
   const ravitos = [...(race.ravitos||[])].sort((a,b) => a.km - b.km).filter(rv => rv.assistancePresente !== false);
   const totalDistKm = race.totalDistance || segsNormaux.reduce((s,g) => s+g.endKm-g.startKm, 0);
   const totalDplus  = race.totalElevPos  || 0;
-  const totalTime   = segsNormaux.reduce((s,seg) => s + (seg.endKm-seg.startKm)/seg.speedKmh*3600, 0);
+  const totalTime   = segsNormaux.reduce((s,seg) => s + (seg.speedKmh > 0 ? (seg.endKm-seg.startKm)/seg.speedKmh*3600 : 0), 0);
   const totalTimeH  = totalTime / 3600;
   const levelData   = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel||"intermediaire")) || RUNNER_LEVELS[1];
   const garminCoeff = settings.garminCoeff || 1;
