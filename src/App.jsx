@@ -4100,11 +4100,6 @@ function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
 
   const poidsTotalG = poidsEquipG + poidsNutriG;
 
-  // Seuil alerte poids nutrition : 1g par km est raisonnable (50km → 500g ok, 3kg → alerte)
-  const distKm = totalDistKm || 1;
-  const seuilNutriG = Math.max(1500, distKm * 40); // ~40g/km, min 1.5kg
-  const nutriSurcharge = poidsNutriG > seuilNutriG;
-
   const { times: passingTimes } = calcPassingTimes(segments, settings.startTime);
   const arrivalSec = passingTimes.length ? passingTimes[passingTimes.length-1] : 0;
   const isNightArrival = isNight(arrivalSec);
@@ -4123,33 +4118,67 @@ function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
   pointsPrepa.push({status:checklistS,titre:"Checklist équipement",valeur:`${checkedCount}/${activeItems.length} items cochés (${checklistPct}%)`,
     explication:checklistS==="ok"?"Tous les items sont préparés. Bonne préparation matérielle.":checklistS==="warn"?`${activeItems.length-checkedCount} item${activeItems.length-checkedCount>1?"s":""} non coché${activeItems.length-checkedCount>1?"s":""}. Passe en revue ta checklist dans Équipement avant le départ.`:`Plus de 30% des items non préparés. Accorde du temps à ta préparation matérielle.`});
 
-  // Alerte poids total
+  const fmtPoids = g => g >= 1000 ? `${(g/1000).toFixed(1)} kg` : `${g} g`;
+
+  // Alerte 1 — Poids au départ
   if (poidsTotalG > 0) {
-    const fmtPoids = g => g >= 1000 ? `${(g/1000).toFixed(1)} kg` : `${g} g`;
-    const poidsTotalStatus = poidsTotalG > 8000 ? "alert" : poidsTotalG > 5000 ? "warn" : "ok";
+    const poidsTotalStatus = poidsTotalG > 8000 ? "alert" : poidsTotalG > 6000 ? "warn" : "ok";
     pointsPrepa.push({
       status: poidsTotalStatus,
-      titre: "Poids total estimé",
+      titre: "Poids estimé au départ",
       valeur: `${fmtPoids(poidsTotalG)} · équipement ${fmtPoids(poidsEquipG)} · nutrition ${fmtPoids(poidsNutriG)}`,
       explication: poidsTotalStatus==="ok"
-        ? `Charge raisonnable pour ${distKm.toFixed(0)} km. Équipement : ${fmtPoids(poidsEquipG)}, nutrition : ${fmtPoids(poidsNutriG)}.`
+        ? `Charge raisonnable au départ. Rappel : le poids de la nutrition diminuera au fil de la course.`
         : poidsTotalStatus==="warn"
-        ? `${fmtPoids(poidsTotalG)} est élevé. Au-delà de 5 kg, chaque kilo supplémentaire ralentit l'allure de ~1% et augmente la fatigue musculaire. Passe en revue ta nutrition.`
-        : `${fmtPoids(poidsTotalG)} est très lourd pour une course trail. Réduis la charge au maximum — chaque kilo inutile coûte cher sur la durée.`
+        ? `${fmtPoids(poidsTotalG)} au départ, c'est élevé. Au-delà de 6 kg, chaque kilo supplémentaire ralentit l'allure et augmente la fatigue. Passe en revue ton équipement.`
+        : `${fmtPoids(poidsTotalG)} au départ est très lourd pour un trail. Réduis la charge au maximum — le poids inutile coûte cher sur la durée.`
     });
   }
 
-  // Alerte surcharge nutrition
-  if (nutriSurcharge && poidsNutriG > 0) {
-    const ravitosAvecOrga = ravitos.filter(rv => rv.assistancePresente !== false);
-    pointsPrepa.push({
-      status: "warn",
-      titre: "Nutrition à optimiser",
-      valeur: `${poidsNutriG >= 1000 ? `${(poidsNutriG/1000).toFixed(1)} kg` : `${poidsNutriG} g`} de nourriture pour ${distKm.toFixed(0)} km`,
-      explication: ravitosAvecOrga.length > 0
-        ? `C'est beaucoup à porter. Pense à compléter sur les ravitaillements de l'organisation : tu n'as pas besoin d'emporter toute ta nutrition si des ravitos organisés sont présents sur le parcours.`
-        : `C'est beaucoup à porter. Réduis les quantités ou privilégie des produits plus denses en calories (gels, pâtes de fruits plutôt que barres lourdes).`
-    });
+  // Alerte 2 — Autonomie jusqu'au premier ravito assisté
+  {
+    // Premier ravito avec assistance (ravitos est déjà filtré assistancePresente !== false)
+    const premierRavitoAssiste = ravitos[0];
+    const kmJusquaRavito = premierRavitoAssiste ? premierRavitoAssiste.km : totalDistKm;
+    const labelCible = premierRavitoAssiste ? premierRavitoAssiste.name : "l'arrivée";
+
+    // Besoin calorique sur ce tronçon
+    const besoinTronconKcal = segsNormaux
+      .filter(s => s.startKm < kmJusquaRavito)
+      .reduce((acc, seg) => {
+        const overlap = Math.min(seg.endKm, kmJusquaRavito) - seg.startKm;
+        const ratio = overlap / (seg.endKm - seg.startKm || 1);
+        return acc + calcNutrition(seg, settings).kcal * ratio;
+      }, 0);
+
+    // Calories emportées au départ
+    const kcalDepart = (planNutrition["depart"] || []).reduce((acc, {produitId, quantite}) => {
+      const p = produits.find(x => x.id === produitId); if (!p) return acc;
+      const factor = p.par100g ? (p.poids * quantite / 100) : quantite;
+      return acc + Math.round(p.kcal * factor);
+    }, 0);
+
+    const dureeH = segsNormaux
+      .filter(s => s.startKm < kmJusquaRavito)
+      .reduce((acc, seg) => {
+        const overlap = Math.min(seg.endKm, kmJusquaRavito) - seg.startKm;
+        return acc + overlap / seg.speedKmh;
+      }, 0);
+
+    if (besoinTronconKcal > 0 && kcalDepart > 0) {
+      const couverturePct = Math.round(kcalDepart / besoinTronconKcal * 100);
+      const autoStatus = couverturePct >= 85 ? "ok" : couverturePct >= 60 ? "warn" : "alert";
+      pointsPrepa.push({
+        status: autoStatus,
+        titre: `Autonomie jusqu'à ${labelCible}`,
+        valeur: `${couverturePct}% des besoins couverts · ${Math.round(dureeH * 60)} min · ${kcalDepart} kcal emportés / ${Math.round(besoinTronconKcal)} kcal estimés`,
+        explication: autoStatus === "ok"
+          ? `Bonne autonomie jusqu'à ${labelCible}. Les calories emportées couvrent ${couverturePct}% du besoin estimé.`
+          : autoStatus === "warn"
+          ? `Les calories emportées ne couvrent que ${couverturePct}% du besoin jusqu'à ${labelCible}. Ajoute quelques produits supplémentaires dans ton plan de départ.`
+          : `Déficit important jusqu'à ${labelCible} — seulement ${couverturePct}% des besoins couverts. Revois ton plan nutrition au départ.`
+      });
+    }
   }
 
   if (isNightArrival && lampeItem && !lampeActive) {
