@@ -4427,7 +4427,16 @@ export default function App() {
         const d = JSON.parse(e.target.result);
         if (d.race) setRaceRaw(d.race);
         if (d.segments) setSegmentsRaw(d.segments);
-        if (d.settings) setSettingsRaw({ ...EMPTY_SETTINGS, ...d.settings });
+        if (d.settings) {
+          const merged = { ...EMPTY_SETTINGS, ...d.settings };
+          // Fusion équipement : on ajoute les items manquants (nouveaux ids) sans écraser les existants
+          if (d.settings.equipment) {
+            const existingIds = new Set(d.settings.equipment.map(i => i.id));
+            const newItems = DEFAULT_EQUIPMENT.filter(i => !existingIds.has(i.id));
+            merged.equipment = [...d.settings.equipment, ...newItems];
+          }
+          setSettingsRaw(merged);
+        }
         setHasUnsaved(false); setOnboarding(false);
       } catch { alert("Fichier JSON invalide"); }
     };
