@@ -334,6 +334,57 @@ export default function App() {
   };
   const hasRace = !!race.gpxPoints?.length;
 
+  // ── Features toggles (localStorage) ─────────────────────────────────────────
+  const FEATURES_DEFAULT = {
+    nutrition: true,
+    equipement: true,
+    analyse: true,
+    team: true,
+    courses: true,
+    profilDetail: true,
+  };
+  const [features, setFeatures] = useState(() => {
+    try {
+      const saved = localStorage.getItem("alex-features");
+      return saved ? { ...FEATURES_DEFAULT, ...JSON.parse(saved) } : FEATURES_DEFAULT;
+    } catch { return FEATURES_DEFAULT; }
+  });
+  const [featuresModal, setFeaturesModal] = useState(false);
+
+  const toggleFeature = key => {
+    setFeatures(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      try { localStorage.setItem("alex-features", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
+  const FEATURE_LABELS = [
+    { key: "profilDetail", label: "Profil détaillé",   icon: "🗺️", desc: "Répartition rythme, calibration Garmin, FC, calibration énergétique" },
+    { key: "nutrition",    label: "Nutrition",         icon: "🍌", desc: "Plan nutritionnel par ravito, bibliothèque de produits" },
+    { key: "equipement",   label: "Équipement",        icon: "🎒", desc: "Checklist équipement, poids, préparation chronologique" },
+    { key: "analyse",      label: "Analyse",           icon: "📊", desc: "Cohérence stratégie, poids, autonomie nutritionnelle" },
+    { key: "team",         label: "Team",              icon: "👥", desc: "Partage avec l'équipe d'assistance, suivi en direct" },
+    { key: "courses",      label: "Mes courses",       icon: "📚", desc: "Historique et sauvegarde de tes stratégies" },
+  ];
+
+  // Nav filtrée selon features actives
+  const NAVS_ACTIVE = NAVS.filter(n => {
+    if (n.id === "nutrition")  return features.nutrition;
+    if (n.id === "parametres") return features.equipement;
+    if (n.id === "analyse")    return features.analyse;
+    if (n.id === "team")       return features.team;
+    if (n.id === "courses")    return features.courses;
+    return true;
+  });
+
+  // Rediriger si la vue active est désactivée
+  useEffect(() => {
+    const featureMap = { nutrition: "nutrition", parametres: "equipement", analyse: "analyse", team: "team", courses: "courses" };
+    const featureKey = featureMap[view];
+    if (featureKey && !features[featureKey]) setView("profil");
+  }, [features]);
+
   const SidebarContent = () => (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Logo */}
@@ -351,11 +402,11 @@ export default function App() {
       {/* Nav — prend tout l'espace disponible */}
       <nav style={{ padding: "0 10px", display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
         {(() => {
-          const groups = [...new Set(NAVS.map(n => n.group))];
+          const groups = [...new Set(NAVS_ACTIVE.map(n => n.group))];
           return groups.map(group => (
             <div key={group}>
               <div style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.08em", padding: "10px 10px 4px", opacity: 0.7 }}>{group}</div>
-              {NAVS.filter(n => n.group === group).map(n => (
+              {NAVS_ACTIVE.filter(n => n.group === group).map(n => (
                 <div key={n.id} className={`nav-item${view === n.id ? " active" : ""}`} onClick={() => navigate(n.id)}>
                   <span>{n.icon}</span>
                   <span>{n.label}</span>
@@ -373,6 +424,15 @@ export default function App() {
             <div style={{ color: "var(--muted-c)", fontSize: 12 }}>{segments.filter(s => s.type !== "ravito" && s.type !== "repos").length} segments · {race.ravitos?.length || 0} ravitos</div>
           </div>
         )}
+
+        {/* Bouton Mon expérience */}
+        <div onClick={() => setFeaturesModal(true)} className="nav-item" style={{ marginTop: 8, borderTop: "1px solid var(--border-c)", paddingTop: 12 }}>
+          <span>⚙️</span>
+          <span>Mon expérience</span>
+          <span style={{ marginLeft: "auto", fontSize: 10, background: C.primaryPale, color: C.primaryDeep, borderRadius: 4, padding: "1px 6px", fontWeight: 600 }}>
+            {Object.values(features).filter(Boolean).length}/{Object.keys(features).length}
+          </span>
+        </div>
       </nav>
 
       {/* Bas de sidebar — dark mode + boutons données */}
@@ -634,7 +694,7 @@ export default function App() {
             display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px",
           }}>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, fontWeight: 700, color: C.primary }}>Alex</div>
-            <div style={{ fontSize: 13, color: "var(--muted-c)" }}>{NAVS.find(n => n.id === view)?.label}</div>
+            <div style={{ fontSize: 13, color: "var(--muted-c)" }}>{NAVS_ACTIVE.find(n => n.id === view)?.label}</div>
             <button onClick={() => setDrawerOpen(true)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--text-c)" }}>☰</button>
           </div>
         )}
@@ -660,7 +720,7 @@ export default function App() {
           flex: 1, overflowY: "auto",
           padding: isMobile ? "76px 16px 32px" : "44px 52px",
         }}>
-          {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} isMobile={isMobile} />}
+          {view === "profil"      && <ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} isMobile={isMobile} profilDetail={features.profilDetail} />}
           {view === "preparation" && <StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={() => setReposModal(true)} isMobile={isMobile} />}
           {view === "nutrition"   && <NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} isMobile={isMobile} onNavigate={navigate} />}
           {view === "analyse"     && <AnalyseView race={race} segments={segments} settings={settings} isMobile={isMobile} onNavigate={navigate} />}
@@ -674,6 +734,49 @@ export default function App() {
           {view === "parametres"  && <EquipementView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} isMobile={isMobile} />}
         </main>
       </div>
+
+      {/* ── MODAL MON EXPÉRIENCE ── */}
+      <Modal open={featuresModal} onClose={() => setFeaturesModal(false)} title="Mon expérience">
+        <p style={{ fontSize: 13, color: "var(--muted-c)", marginBottom: 20, lineHeight: 1.6 }}>
+          Active uniquement les fonctionnalités dont tu as besoin. Les onglets désactivés disparaissent de la navigation. Tu peux changer d'avis à tout moment.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {FEATURE_LABELS.map(({ key, label, icon, desc }) => {
+            const active = features[key];
+            return (
+              <div key={key} onClick={() => toggleFeature(key)} style={{
+                display: "flex", alignItems: "center", gap: 14, padding: "14px 16px",
+                borderRadius: 12, cursor: "pointer", transition: "all 0.15s",
+                border: `2px solid ${active ? C.primary + "60" : "var(--border-c)"}`,
+                background: active ? C.primaryPale : "var(--surface-2)",
+              }}>
+                <span style={{ fontSize: 22, flexShrink: 0 }}>{icon}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: active ? C.primaryDeep : "var(--text-c)" }}>{label}</div>
+                  <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 2 }}>{desc}</div>
+                </div>
+                <div style={{
+                  width: 40, height: 22, borderRadius: 11, flexShrink: 0,
+                  background: active ? C.primary : "var(--border-c)",
+                  position: "relative", transition: "background 0.2s",
+                }}>
+                  <div style={{
+                    position: "absolute", top: 3, left: active ? 21 : 3,
+                    width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                    transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                  }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ marginTop: 20, padding: "10px 14px", background: "var(--surface-2)", borderRadius: 10, fontSize: 12, color: "var(--muted-c)" }}>
+          💡 Les onglets Profil de course et Stratégie sont toujours visibles — ils constituent le cœur d'Alex.
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+          <Btn onClick={() => setFeaturesModal(false)}>Fermer</Btn>
+        </div>
+      </Modal>
     </>
   );
 }

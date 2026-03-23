@@ -5,7 +5,7 @@ import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, e
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
-export default function ProfilView({ race, setRace, segments, setSegments, settings, setSettings, onOpenRepos, isMobile }) {
+export default function ProfilView({ race, setRace, segments, setSegments, settings, setSettings, onOpenRepos, isMobile, profilDetail = true }) {
   const [gpxError, setGpxError]       = useState(null);
   const [tooltipGlu, setTooltipGlu]   = useState(false);
   const [gpxStatus, setGpxStatus]     = useState(null);
@@ -413,7 +413,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                         <input type="time" value={settings.startTime || "07:00"} onChange={e => updS("startTime", e.target.value)} />
                       </Field>
                     </div>
-                    <div>
+                    {profilDetail && <div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                         <span style={{ fontSize: 12, fontWeight: 600, color: "var(--muted-c)" }}>Météo</span>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -456,7 +456,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                           </label>
                         ))}
                       </div>
-                    </div>
+                    </div>}
                   </div>
                 </Card>
 
@@ -532,7 +532,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                 </Card>
 
                 {/* ── BLOC 3 : PERFORMANCE & OBJECTIF ── */}
-                <Card>
+                <Card style={!profilDetail ? { gridColumn: "1 / -1" } : {}}>
                   <SLabel>Performance & objectif</SLabel>
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     <div>
@@ -568,7 +568,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                         ))}
                       </div>
                     </div>
-                    <div>
+                    {profilDetail && <div>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                         <span style={{ fontSize: 11, color: "var(--muted-c)" }}>Répartition du rythme</span>
                         <span style={{ fontSize: 11, fontWeight: 600, color: C.primary }}>{PACE_LABELS_P[paceIdx_P]}</span>
@@ -577,8 +577,8 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted-c)", marginTop: 2 }}>
                         <span>Partir vite</span><span>Partir lentement</span>
                       </div>
-                    </div>
-                    <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12 }}>
+                    </div>}
+                    {profilDetail && <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12 }}>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
 
                         {/* Colonne gauche : Poids + FC */}
@@ -671,12 +671,12 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                         </div>
 
                       </div>
-                    </div>
+                    </div>}
                   </div>
                 </Card>
 
                 {/* ── BLOC 4 : CALIBRATION ÉNERGÉTIQUE ── */}
-                <Card>
+                {profilDetail && <Card>
                   <SLabel>Calibration énergétique</SLabel>
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     {(() => {
@@ -796,7 +796,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                       );
                     })()}
                   </div>
-                </Card>
+                </Card>}
 
               </div>
             );
