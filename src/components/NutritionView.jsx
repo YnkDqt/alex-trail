@@ -63,6 +63,8 @@ export default function NutritionView({ segments, settings, setSettings, race, s
     updPlan({ ...planNutrition, [pointKey]: updated });
   };
 
+  const getQte = (pointKey, produitId) => (planNutrition[pointKey] || []).find(x => x.produitId === produitId)?.quantite || 0;
+
   const updProduits = p => setSettings(s => ({ ...s, produits: p }));
 
   // ── Auto-complétion nutrition ─────────────────────────────────────────────
