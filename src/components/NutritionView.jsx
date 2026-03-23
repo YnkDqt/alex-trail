@@ -133,36 +133,45 @@ export default function NutritionView({ segments, settings, setSettings, race, s
         }
       }
 
-      // Étape 2 — Glucides puis calories (solides)
+      // Étape 2 — Glucides puis calories (solides) — round-robin pour la variété
       const solides = produitsActifs.filter(p => !p.boisson);
+      if (solides.length === 0) { newPlan[pointKey] = items; return; }
+
+      // Initialiser un compteur par produit pour équilibrer la répartition
+      const compteurs = Object.fromEntries(solides.map(p => [p.id, 0]));
+      let roundIdx = 0;
       let iterations = 0;
-      while (iterations < 20) {
+
+      while (iterations < 30) {
         iterations++;
         const apport = apportActuel();
         const manqueGlucides = cibleGlucides - apport.glucides;
         const manqueKcal = cibleKcal - apport.kcal;
-
         if (manqueGlucides <= 5 && manqueKcal <= 50) break;
 
-        // Choisir le meilleur produit selon ce qui manque le plus
-        const prioriteGlucides = manqueGlucides > 10;
-        const candidat = prioriteGlucides
-          ? solides.sort((a, b) => (b.glucides / (b.par100g ? 100 : b.poids || 1)) - (a.glucides / (a.par100g ? 100 : a.poids || 1)))[0]
-          : solides[0];
-
-        if (!candidat) break;
-
-        const idx = items.findIndex(x => x.produitId === candidat.id);
-        const qteActuelle = idx >= 0 ? items[idx].quantite : 0;
-        const qteAjout = candidat.par100g ? 100 : 1;
-
-        // Vérifier qu'on ne dépasse pas le poids max
+        // Vérifier poids max avant d'ajouter quoi que ce soit
         const poidsActuel = items.reduce((s, { produitId, quantite }) => {
           const p = produits.find(x => x.id === produitId);
           if (!p) return s;
           return s + (p.par100g ? p.poids * quantite / 100 : (p.poids || 0) * quantite);
         }, 0);
-        if (poidsActuel > poidsMax * 0.8) break; // marge de 20% pour l'équipement
+        if (poidsActuel > poidsMax * 0.8) break;
+
+        // Choisir le produit suivant en round-robin
+        const candidat = solides[roundIdx % solides.length];
+        roundIdx++;
+
+        // Si le manque est surtout en glucides et ce produit en est pauvre → skipper
+        // (sauf si on a fait le tour complet sans rien ajouter)
+        const glucidesParUnite = candidat.par100g
+          ? candidat.glucides * (candidat.poids || 100) / 100
+          : candidat.glucides;
+        if (manqueGlucides > 20 && glucidesParUnite < 5 && roundIdx % solides.length !== 0) continue;
+
+        const idx = items.findIndex(x => x.produitId === candidat.id);
+        const qteActuelle = idx >= 0 ? items[idx].quantite : 0;
+        const qteAjout = candidat.par100g ? 100 : 1;
+        compteurs[candidat.id] = (compteurs[candidat.id] || 0) + 1;
 
         if (idx >= 0) items[idx] = { ...items[idx], quantite: qteActuelle + qteAjout };
         else items.push({ produitId: candidat.id, quantite: qteAjout });
