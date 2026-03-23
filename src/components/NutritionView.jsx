@@ -63,7 +63,120 @@ export default function NutritionView({ segments, settings, setSettings, race, s
     updPlan({ ...planNutrition, [pointKey]: updated });
   };
 
-  const getQte = (pointKey, produitId) => (planNutrition[pointKey] || []).find(x => x.produitId === produitId)?.quantite || 0;
+  const updProduits = p => setSettings(s => ({ ...s, produits: p }));
+
+  // ── Auto-complétion nutrition ─────────────────────────────────────────────
+  const [autoCompletePreview, setAutoCompletePreview] = useState(null);
+
+  const runAutoComplete = () => {
+    if (!produits.length || !zones.length) return;
+
+    // Trier les produits par priorité : boisson d'abord, puis kcal/g décroissant
+    const produitsActifs = [...produits].sort((a, b) => {
+      if (a.boisson && !b.boisson) return -1;
+      if (!a.boisson && b.boisson) return 1;
+      const kcalGa = a.par100g ? a.kcal / 100 : (a.poids > 0 ? a.kcal / a.poids : 0);
+      const kcalGb = b.par100g ? b.kcal / 100 : (b.poids > 0 ? b.kcal / b.poids : 0);
+      return kcalGb - kcalGa;
+    });
+
+    const poidsMax = (settings.weight || 70) * 1000 * 0.12; // 12% poids corporel
+    const glucidesTarget = settings.glucidesTargetGh; // g/h cible si défini
+
+    const newPlan = {};
+
+    zones.forEach(zone => {
+      const { pointKey, besoin } = zone;
+      const existing = planNutrition[pointKey] || [];
+      const items = [...existing]; // on part de ce qui existe déjà
+
+      // Calcul des apports déjà en place
+      const apportActuel = () => items.reduce((acc, { produitId, quantite }) => {
+        const p = produits.find(x => x.id === produitId);
+        if (!p) return acc;
+        const n = nutriProduit(p, quantite);
+        return { kcal: acc.kcal + n.kcal, glucides: acc.glucides + n.glucides, eauMl: acc.eauMl + n.eauMl };
+      }, { kcal: 0, glucides: 0, eauMl: 0 });
+
+      const dureeH = besoin.kcal > 0 && zone.from !== zone.to
+        ? segments.filter(s => s.type !== "ravito" && s.type !== "repos" && s.startKm < zone.to && s.endKm > zone.from)
+            .reduce((acc, seg) => {
+              const overlap = Math.min(seg.endKm, zone.to) - Math.max(seg.startKm, zone.from);
+              const ratio = overlap / (seg.endKm - seg.startKm || 1);
+              return acc + (seg.endKm - seg.startKm) / seg.speedKmh * ratio;
+            }, 0)
+        : 1;
+
+      // Cibles pour ce tronçon
+      const cibleEauMl = besoin.eau;
+      const cibleGlucides = glucidesTarget != null
+        ? Math.round(glucidesTarget * dureeH)
+        : besoin.glucides;
+      const cibleKcal = besoin.kcal;
+
+      // Étape 1 — Liquides (boissonss)
+      const boissons = produitsActifs.filter(p => p.boisson);
+      if (boissons.length && cibleEauMl > 0) {
+        const apport = apportActuel();
+        const manqueEau = cibleEauMl - apport.eauMl;
+        if (manqueEau > 50) {
+          const b = boissons[0];
+          const eauParUnite = b.par100g ? (b.volumeMl || 0) * b.poids / 100 : (b.volumeMl || 0);
+          if (eauParUnite > 0) {
+            const qte = Math.ceil(manqueEau / eauParUnite);
+            const idx = items.findIndex(x => x.produitId === b.id);
+            if (idx >= 0) items[idx] = { ...items[idx], quantite: Math.max(items[idx].quantite, qte) };
+            else items.push({ produitId: b.id, quantite: qte });
+          }
+        }
+      }
+
+      // Étape 2 — Glucides puis calories (solides)
+      const solides = produitsActifs.filter(p => !p.boisson);
+      let iterations = 0;
+      while (iterations < 20) {
+        iterations++;
+        const apport = apportActuel();
+        const manqueGlucides = cibleGlucides - apport.glucides;
+        const manqueKcal = cibleKcal - apport.kcal;
+
+        if (manqueGlucides <= 5 && manqueKcal <= 50) break;
+
+        // Choisir le meilleur produit selon ce qui manque le plus
+        const prioriteGlucides = manqueGlucides > 10;
+        const candidat = prioriteGlucides
+          ? solides.sort((a, b) => (b.glucides / (b.par100g ? 100 : b.poids || 1)) - (a.glucides / (a.par100g ? 100 : a.poids || 1)))[0]
+          : solides[0];
+
+        if (!candidat) break;
+
+        const idx = items.findIndex(x => x.produitId === candidat.id);
+        const qteActuelle = idx >= 0 ? items[idx].quantite : 0;
+        const qteAjout = candidat.par100g ? 100 : 1;
+
+        // Vérifier qu'on ne dépasse pas le poids max
+        const poidsActuel = items.reduce((s, { produitId, quantite }) => {
+          const p = produits.find(x => x.id === produitId);
+          if (!p) return s;
+          return s + (p.par100g ? p.poids * quantite / 100 : (p.poids || 0) * quantite);
+        }, 0);
+        if (poidsActuel > poidsMax * 0.8) break; // marge de 20% pour l'équipement
+
+        if (idx >= 0) items[idx] = { ...items[idx], quantite: qteActuelle + qteAjout };
+        else items.push({ produitId: candidat.id, quantite: qteAjout });
+      }
+
+      newPlan[pointKey] = items;
+    });
+
+    setAutoCompletePreview(newPlan);
+  };
+
+  const applyAutoComplete = () => {
+    if (!autoCompletePreview) return;
+    updPlan(autoCompletePreview);
+    setAutoCompletePreview(null);
+  };
 
   // ── Besoins calculés ──
   const nutriTotals = segments.reduce((acc, seg) => {
@@ -246,8 +359,53 @@ export default function NutritionView({ segments, settings, setSettings, race, s
       {/* ══ SECTION 2 : PLAN DE RAVITAILLEMENT ════════════════════════════════ */}
       {produits.length > 0 && (
         <>
-          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Plan de ravitaillement</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 4 }}>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700 }}>Plan de ravitaillement</div>
+            <Btn variant="soft" onClick={runAutoComplete} style={{ gap: 6 }}>
+              🪄 Auto-compléter
+            </Btn>
+          </div>
           <div style={{ fontSize: 13, color: "var(--muted-c)", marginBottom: 16 }}>Définis ce que tu emportes à chaque point</div>
+
+          {/* Bandeau prévisualisation auto-complétion */}
+          {autoCompletePreview && (
+            <div style={{ background: C.primaryPale, border: `1px solid ${C.primary}40`, borderRadius: 14, padding: "16px 20px", marginBottom: 20 }}>
+              <div style={{ fontWeight: 700, color: C.primaryDeep, marginBottom: 8, fontSize: 15 }}>
+                🪄 Proposition auto-complétion
+              </div>
+              <div style={{ fontSize: 13, color: C.primaryDeep, marginBottom: 12, lineHeight: 1.6 }}>
+                L'algo a rempli ton plan en priorisant eau → glucides → calories, dans la limite de 12% de ton poids corporel ({Math.round((settings.weight || 70) * 0.12 * 10) / 10} kg).
+                {(() => {
+                  const totalKcal = zones.reduce((acc, z) => {
+                    const items = autoCompletePreview[z.pointKey] || [];
+                    return acc + items.reduce((s, { produitId, quantite }) => {
+                      const p = produits.find(x => x.id === produitId); if (!p) return s;
+                      const n = nutriProduit(p, quantite);
+                      return s + n.kcal;
+                    }, 0);
+                  }, 0);
+                  const totalGlu = zones.reduce((acc, z) => {
+                    const items = autoCompletePreview[z.pointKey] || [];
+                    return acc + items.reduce((s, { produitId, quantite }) => {
+                      const p = produits.find(x => x.id === produitId); if (!p) return s;
+                      const n = nutriProduit(p, quantite);
+                      return s + n.glucides;
+                    }, 0);
+                  }, 0);
+                  const couverture = nutriTotals.kcal > 0 ? Math.round(totalKcal / nutriTotals.kcal * 100) : 0;
+                  return (
+                    <span style={{ display: "block", marginTop: 4, fontWeight: 600 }}>
+                      Résultat : {totalKcal} kcal · {totalGlu} g glucides · couverture {couverture}%
+                    </span>
+                  );
+                })()}
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <Btn onClick={applyAutoComplete}>✅ Valider</Btn>
+                <Btn variant="ghost" onClick={() => setAutoCompletePreview(null)}>Annuler</Btn>
+              </div>
+            </div>
+          )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 24 }}>
             {zones.map(zone => {
