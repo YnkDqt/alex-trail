@@ -250,9 +250,9 @@ export function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, t
   const poidsCoureur = settings.weight || 70;
   const equipment = settings.equipment || [];
 
-  // Poids total des items emportés
+  // Poids total des items emportés (même logique que EquipementView : emporte !== false)
   const poidsEquipementKg = equipment
-    .filter(e => e.emporte)
+    .filter(e => e.emporte !== false)
     .reduce((s, e) => s + (e.poidsG || 0), 0) / 1000;
 
   // Seuil dynamique = 10% poids corporel — au-delà : -3% par kg
@@ -261,11 +261,11 @@ export function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, t
   const weightPenalty = 1 - surplusKg * 0.03;
 
   // Bâtons emportés → +15% sur les montées (slope ≥ 5%)
-  const hasPoles = equipment.some(e => e.label?.toLowerCase().includes("bâton") && e.emporte);
+  const hasPoles = equipment.some(e => e.label?.toLowerCase().includes("bâton") && e.emporte !== false);
   const polesBonus = (hasPoles && slopePct >= 5) ? 1.15 : 1;
 
   // Veste imper emportée + pluie active → -10%
-  const hasRainJacket = equipment.some(e => e.label?.toLowerCase().includes("veste") && e.emporte);
+  const hasRainJacket = equipment.some(e => e.label?.toLowerCase().includes("veste") && e.emporte !== false);
   const rainMalus = (hasRainJacket && settings.rain) ? 0.90 : 1;
 
   return +(base * coeff * levelCoeff * fatigueCoeff
