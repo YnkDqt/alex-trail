@@ -260,9 +260,9 @@ export function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, t
   const surplusKg = Math.max(0, poidsEquipementKg - seuilKg);
   const weightPenalty = 1 - surplusKg * 0.03;
 
-  // Bâtons emportés → +15% sur les montées (slope ≥ 5%)
+  // Bâtons emportés → +8% sur les montées (slope ≥ 5%)
   const hasPoles = equipment.some(e => e.label?.toLowerCase().includes("bâton") && e.emporte !== false);
-  const polesBonus = (hasPoles && slopePct >= 5) ? 1.15 : 1;
+  const polesBonus = (hasPoles && slopePct >= 5) ? 1.08 : 1;
 
   // Veste imper emportée + pluie active → -10%
   const hasRainJacket = equipment.some(e => e.label?.toLowerCase().includes("veste") && e.emporte !== false);
@@ -405,11 +405,8 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
 
   const effortMult = settings.effortTarget === "perf" ? 1.08 : settings.effortTarget === "comfort" ? 0.88 : 1.0;
   const totalSegs = validated.length || 1;
+  // Distance totale pour calcul fatigue
   const totalDistKm = +validated[validated.length - 1]?.end?.toFixed(1) || 0;
-
-  // DEBUG TEMPORAIRE — à supprimer après validation
-  const poidsDebug = (settings.equipment || []).filter(e => e.emporte !== false).reduce((s, e) => s + (e.poidsG || 0), 0) / 1000;
-  console.log("[Alex] autoSegmentGPX — poids équipement:", poidsDebug.toFixed(2), "kg / seuil:", ((settings.weight || 70) * 0.1).toFixed(1), "kg / surplus:", Math.max(0, poidsDebug - (settings.weight || 70) * 0.1).toFixed(2), "kg");
 
   return validated.map((seg, i) => {
     const realSlope = calcSlopeFromGPX(points, seg.start, seg.end);
