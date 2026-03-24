@@ -1087,7 +1087,7 @@ export function exportGPXMontre(race, segments, settings, passingTimes) {
     const pace = seg.speedKmh > 0 ? fmtPace(seg.speedKmh) : "--:--";
 
     wpts.push(`<wpt lat="${closest.lat.toFixed(6)}" lon="${closest.lon.toFixed(6)}">
-  <n>S${i + 1} · ${seg.speedKmh}km/h</n>
+  <n>S${i + 1} · ${pace}/km</n>
   <desc>${typeLabel} | Allure : ${pace}/km (${seg.speedKmh} km/h) | Pente : ${slope > 0 ? "+" : ""}${slope}% | Heure : ${heureStr} | km ${targetKm.toFixed(1)}</desc>
   <sym>${sym}</sym>
   <type>user</type>
