@@ -1063,7 +1063,10 @@ export function exportGPXMontre(race, segments, settings, passingTimes) {
     `    <trkpt lat="${p.lat.toFixed(6)}" lon="${p.lon.toFixed(6)}"><ele>${p.ele.toFixed(1)}</ele></trkpt>`
   ).join("\n");
 
-  // ── Waypoints : segments (changements d'allure) ───────────────────────────
+  // ── Waypoints ──────────────────────────────────────────────────────────────
+  const wpts = [];
+
+  // Segments (changements d'allure)
   const segmentsNormaux = segments.filter(s => s.type !== "ravito" && s.type !== "repos");
   segmentsNormaux.forEach((seg, i) => {
     const targetKm = seg.startKm;
@@ -1074,12 +1077,10 @@ export function exportGPXMontre(race, segments, settings, passingTimes) {
       const diff = Math.abs(p.dist - targetKm);
       if (diff < minDiff) { minDiff = diff; closest = p; }
     }
+    if (!closest) return;
 
-    // Heure estimée au début du segment
     const segIdx = segments.indexOf(seg);
     const heureStr = passingTimes[segIdx - 1] ? fmtH(passingTimes[segIdx - 1]) : "--:--";
-
-    // Icône et label selon pente
     const slope = seg.slopePct || 0;
     const sym = slope >= 10 ? "Summit" : slope >= 4 ? "Trailhead" : slope <= -6 ? "Valley" : "Waypoint";
     const typeLabel = slope >= 10 ? "↑↑ Montée raide" : slope >= 4 ? "↑ Montée" : slope <= -6 ? "↓↓ Descente raide" : slope <= -2 ? "↓ Descente" : "→ Plat";
@@ -1092,7 +1093,6 @@ export function exportGPXMontre(race, segments, settings, passingTimes) {
   <type>user</type>
 </wpt>`);
   });
-  const wpts = [];
 
   // Départ
   if (points.length > 0) {
