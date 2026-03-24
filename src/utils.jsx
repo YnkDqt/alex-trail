@@ -246,7 +246,32 @@ export function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, t
   // Fatigue nulle au départ, maximale à l'arrivée — courbe progressive
   const fatigueCoeff = 1 - progress * fatigueIntensity;
 
+  // ── Impact équipement ───────────────────────────────────────────────────
+  const poidsCoureur = settings.weight || 70;
+  const equipment = settings.equipment || [];
+
+  // Poids total des items emportés
+  const poidsEquipementKg = equipment
+    .filter(e => e.emporte)
+    .reduce((s, e) => s + (e.poidsG || 0), 0) / 1000;
+
+  // Seuil dynamique = 10% poids corporel — au-delà : -3% par kg
+  const seuilKg = poidsCoureur * 0.10;
+  const surplusKg = Math.max(0, poidsEquipementKg - seuilKg);
+  const weightPenalty = 1 - surplusKg * 0.03;
+
+  // Bâtons emportés → +15% sur les montées (slope ≥ 5%)
+  const hasPoles = equipment.some(e => e.label?.toLowerCase().includes("bâton") && e.emporte);
+  const polesBonus = (hasPoles && slopePct >= 5) ? 1.15 : 1;
+
+  // Veste imper emportée + pluie active → -10%
+  const hasRainJacket = equipment.some(e => e.label?.toLowerCase().includes("veste") && e.emporte);
+  const rainMalus = (hasRainJacket && settings.rain) ? 0.90 : 1;
+
   return +(base * coeff * levelCoeff * fatigueCoeff
+    * weightPenalty
+    * polesBonus
+    * rainMalus
     * (settings.snow ? 0.85 : 1)
     * (settings.tempC <= -10 ? 0.95 : 1)
   ).toFixed(1);
