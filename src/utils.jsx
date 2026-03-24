@@ -260,9 +260,9 @@ export function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, t
   const surplusKg = Math.max(0, poidsEquipementKg - seuilKg);
   const weightPenalty = 1 - surplusKg * 0.03;
 
-  // Bâtons emportés → +8% sur les montées (slope ≥ 5%)
+  // Bâtons emportés → +3% sur les montées (slope ≥ 5%)
   const hasPoles = equipment.some(e => e.label?.toLowerCase().includes("bâton") && e.emporte !== false);
-  const polesBonus = (hasPoles && slopePct >= 5) ? 1.08 : 1;
+  const polesBonus = (hasPoles && slopePct >= 5) ? 1.03 : 1;
 
   // Veste imper emportée + pluie active → -10%
   const hasRainJacket = equipment.some(e => e.label?.toLowerCase().includes("veste") && e.emporte !== false);
