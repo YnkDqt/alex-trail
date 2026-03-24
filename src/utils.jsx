@@ -1063,7 +1063,35 @@ export function exportGPXMontre(race, segments, settings, passingTimes) {
     `    <trkpt lat="${p.lat.toFixed(6)}" lon="${p.lon.toFixed(6)}"><ele>${p.ele.toFixed(1)}</ele></trkpt>`
   ).join("\n");
 
-  // ── Waypoints : départ, ravitos (avec détail nutrition), arrivée ───────────
+  // ── Waypoints : segments (changements d'allure) ───────────────────────────
+  const segmentsNormaux = segments.filter(s => s.type !== "ravito" && s.type !== "repos");
+  segmentsNormaux.forEach((seg, i) => {
+    const targetKm = seg.startKm;
+    if (targetKm === 0) return; // départ déjà géré
+    let closest = points[0];
+    let minDiff = Infinity;
+    for (const p of points) {
+      const diff = Math.abs(p.dist - targetKm);
+      if (diff < minDiff) { minDiff = diff; closest = p; }
+    }
+
+    // Heure estimée au début du segment
+    const segIdx = segments.indexOf(seg);
+    const heureStr = passingTimes[segIdx - 1] ? fmtH(passingTimes[segIdx - 1]) : "--:--";
+
+    // Icône et label selon pente
+    const slope = seg.slopePct || 0;
+    const sym = slope >= 10 ? "Summit" : slope >= 4 ? "Trailhead" : slope <= -6 ? "Valley" : "Waypoint";
+    const typeLabel = slope >= 10 ? "↑↑ Montée raide" : slope >= 4 ? "↑ Montée" : slope <= -6 ? "↓↓ Descente raide" : slope <= -2 ? "↓ Descente" : "→ Plat";
+    const pace = seg.speedKmh > 0 ? fmtPace(seg.speedKmh) : "--:--";
+
+    wpts.push(`<wpt lat="${closest.lat.toFixed(6)}" lon="${closest.lon.toFixed(6)}">
+  <n>S${i + 1} · ${seg.speedKmh}km/h</n>
+  <desc>${typeLabel} | Allure : ${pace}/km (${seg.speedKmh} km/h) | Pente : ${slope > 0 ? "+" : ""}${slope}% | Heure : ${heureStr} | km ${targetKm.toFixed(1)}</desc>
+  <sym>${sym}</sym>
+  <type>user</type>
+</wpt>`);
+  });
   const wpts = [];
 
   // Départ
@@ -1098,12 +1126,12 @@ export function exportGPXMontre(race, segments, settings, passingTimes) {
 
     // Produits nutrition
     const produits = settings.produits || [];
-    const plan = (settings.planNutrition || {})[rv.id] || {};
-    const nutrition = Object.entries(plan)
-      .filter(([, q]) => q > 0)
-      .map(([id, q]) => {
-        const p = produits.find(p => String(p.id) === String(id));
-        return p ? `${p.nom} x${q}` : null;
+    const plan = (race.planNutrition || {})[String(rv.id)] || [];
+    const nutrition = plan
+      .filter(({ quantite }) => quantite > 0)
+      .map(({ produitId, quantite }) => {
+        const p = produits.find(p => p.id === produitId);
+        return p ? `${p.nom} ×${quantite}` : null;
       }).filter(Boolean).join(", ");
 
     const desc = [
