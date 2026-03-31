@@ -56,35 +56,37 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
     reader.onload = e => {
       const process = async () => {
         try {
+          setGpxStatus("🗺️ Lecture du fichier GPX…");
+          await new Promise(r => setTimeout(r, 50));
+
           const parsed = parseGPX(e.target.result);
           let { points, totalDistance, totalElevPos, totalElevNeg, trackName } = parsed;
 
           if (trackName && !settings.raceName) setSettings(s => ({ ...s, raceName: trackName }));
 
           if (parsed.needsElevation) {
-            // Pas d'altitude dans le GPX → on appelle l'API directement
-            setGpxStatus("📡 Altitude absente — récupération en cours...");
+            setGpxStatus("📡 Pas d'altitude dans le fichier — récupération en cours… (quelques secondes)");
             try {
               const result = await enrichElevation(points);
               points = result.enriched;
               totalElevPos = result.totalElevPos;
               totalElevNeg = result.totalElevNeg;
-              setGpxStatus("✅ Altitude récupérée (SRTM 90m)");
-              setTimeout(() => setGpxStatus(null), 4000);
+              setGpxStatus("🧮 Analyse du profil altimétrique…");
+              await new Promise(r => setTimeout(r, 300));
+              setGpxStatus("✅ Tracé prêt !");
+              setTimeout(() => setGpxStatus(null), 3000);
             } catch (apiErr) {
               setGpxStatus(null);
               setGpxError(`⚠️ GPX sans altitude — récupération impossible (${apiErr.message}). Enrichis ton fichier sur gpx.studio puis recharge-le.`);
             }
           } else {
-            // Altitude présente dans le GPX — on compare avec l'API
-            setGpxStatus("📡 Vérification des altitudes...");
+            setGpxStatus("📡 Vérification des altitudes… Alex réfléchit à la meilleure source pour ton tracé.");
             try {
               const result = await enrichElevation(points);
               const dPlusAPI = result.totalElevPos;
               const dPlusGPS = totalElevPos;
               const ecart = Math.abs(dPlusGPS - dPlusAPI) / Math.max(dPlusGPS, dPlusAPI, 1);
               if (ecart > 0.20) {
-                // Conflit détecté — charger d'abord les points GPS, puis proposer le choix
                 setRace(r => ({ ...r, gpxPoints: points, totalDistance, totalElevPos, totalElevNeg }));
                 if (trackName && !settings.raceName) setSettings(s => ({ ...s, raceName: trackName }));
                 setElevConflict({
@@ -96,12 +98,15 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                 setGpxStatus(null);
                 return;
               } else {
-                setGpxStatus("✅ Altitudes GPS validées");
+                setGpxStatus("🧮 Analyse du profil altimétrique…");
+                await new Promise(r => setTimeout(r, 300));
+                setGpxStatus("✅ Tracé prêt !");
                 setTimeout(() => setGpxStatus(null), 3000);
               }
             } catch {
-              // API inaccessible → on garde les altitudes GPS sans alerte
-              setGpxStatus("✅ Altitudes GPS utilisées (API indisponible)");
+              setGpxStatus("🧮 Analyse du profil altimétrique…");
+              await new Promise(r => setTimeout(r, 300));
+              setGpxStatus("✅ Tracé prêt !");
               setTimeout(() => setGpxStatus(null), 3000);
             }
           }
