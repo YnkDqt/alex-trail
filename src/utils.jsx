@@ -460,10 +460,10 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
   // ── PASSE 4 — fusion des segments trop courts ou à vitesse identique ──────
   // Niveau de détail : synthétique (~10 segs), equilibre (~20), detaille (~35)
   const detail = settings.segmentDetail || "equilibre";
-  const minDist  = detail === "synthétique" ? Math.max(3, totalDistKm / 10)
+  const minDist  = detail === "synthétique" ? 3.0
                  : detail === "detaille"    ? 0.8
-                 :                           Math.max(1.5, totalDistKm / 20);
-  const speedTol = detail === "synthétique" ? 1.0
+                 :                           1.5;
+  const speedTol = detail === "synthétique" ? 1.5
                  : detail === "detaille"    ? 0.3
                  :                           0.5;
   const mergeSegs = (segs) => {
