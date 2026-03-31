@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, BarChart, Bar, ComposedChart, Line, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { C, RUNNER_LEVELS, TERRAIN_TYPES, DEFAULT_EQUIPMENT, PREP_TIMELINE, EMPTY_SETTINGS, DEFAULT_FLAT_SPEED } from '../constants.js';
-import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, exportRecap, exportGPXMontre, suggestSpeed, autoSegmentGPX, parseGarminCSV, buildElevationProfile, calcSlopeFromGPX, parseGPX } from '../utils.jsx';
+import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, exportRecap, exportGPXMontre, suggestSpeed, autoSegmentGPX, parseGarminCSV, buildElevationProfile, calcSlopeFromGPX, parseGPX, enrichElevation } from '../utils.jsx';
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
@@ -10,6 +10,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
   const [tooltipGlu, setTooltipGlu]   = useState(false);
   const [gpxStatus, setGpxStatus]     = useState(null);
   const [dragging, setDragging]       = useState(false);
+  const [elevConflict, setElevConflict] = useState(null); // { pointsGPS, dPlusGPS, pointsAPI, dPlusAPI }
   const [hoveredSeg, setHoveredSeg]   = useState(null);
   const [ravitoModal, setRavitoModal] = useState(false);
   const [ravitoForm, setRavitoForm]   = useState({ km: "", name: "", address: "", notes: "", dureeMin: "", assistancePresente: true });
@@ -60,6 +61,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
           if (trackName && !settings.raceName) setSettings(s => ({ ...s, raceName: trackName }));
 
           if (parsed.needsElevation) {
+            // Pas d'altitude dans le GPX → on appelle l'API directement
             setGpxStatus("📡 Altitude absente — récupération en cours...");
             try {
               const result = await enrichElevation(points);
@@ -71,6 +73,35 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
             } catch (apiErr) {
               setGpxStatus(null);
               setGpxError(`⚠️ GPX sans altitude — récupération impossible (${apiErr.message}). Enrichis ton fichier sur gpx.studio puis recharge-le.`);
+            }
+          } else {
+            // Altitude présente dans le GPX — on compare avec l'API
+            setGpxStatus("📡 Vérification des altitudes...");
+            try {
+              const result = await enrichElevation(points);
+              const dPlusAPI = result.totalElevPos;
+              const dPlusGPS = totalElevPos;
+              const ecart = Math.abs(dPlusGPS - dPlusAPI) / Math.max(dPlusGPS, dPlusAPI, 1);
+              if (ecart > 0.20) {
+                // Conflit détecté — charger d'abord les points GPS, puis proposer le choix
+                setRace(r => ({ ...r, gpxPoints: points, totalDistance, totalElevPos, totalElevNeg }));
+                if (trackName && !settings.raceName) setSettings(s => ({ ...s, raceName: trackName }));
+                setElevConflict({
+                  pointsGPS: points, dPlusGPS: Math.round(totalElevPos),
+                  pointsAPI: result.enriched, dPlusAPI: Math.round(dPlusAPI),
+                  dMinusGPS: Math.round(totalElevNeg), dMinusAPI: Math.round(result.totalElevNeg),
+                  distance: totalDistance, trackName,
+                });
+                setGpxStatus(null);
+                return;
+              } else {
+                setGpxStatus("✅ Altitudes GPS validées");
+                setTimeout(() => setGpxStatus(null), 3000);
+              }
+            } catch {
+              // API inaccessible → on garde les altitudes GPS sans alerte
+              setGpxStatus("✅ Altitudes GPS utilisées (API indisponible)");
+              setTimeout(() => setGpxStatus(null), 3000);
             }
           }
 
@@ -203,6 +234,42 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
           {gpxError && (
             <div style={{ padding: "8px 14px", borderRadius: 10, marginBottom: 12, fontSize: 13, background: C.red + "12", color: C.red }}>
               {gpxError}
+            </div>
+          )}
+
+          {/* Bandeau conflit altitudes GPS vs API */}
+          {elevConflict && (
+            <div style={{ padding: "18px 20px", borderRadius: 14, marginBottom: 16, background: C.yellowPale, border: `1px solid ${C.yellow}40` }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: C.yellow, marginBottom: 8 }}>
+                ⚠️ Conflit d'altitudes détecté
+              </div>
+              <p style={{ fontSize: 13, color: C.text, marginBottom: 14, lineHeight: 1.6 }}>
+                Les altitudes GPS de ta montre et le modèle de terrain (SRTM) donnent des dénivelés très différents. Choisis la source la plus fiable pour ta course.
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                <div style={{ padding: "12px 14px", borderRadius: 10, background: C.secondaryPale, border: `2px solid ${C.secondary}` }}>
+                  <div style={{ fontWeight: 700, color: C.secondaryDark, marginBottom: 4 }}>📡 Altimètre GPS / montre</div>
+                  <div style={{ fontSize: 13 }}>D+ <strong>{elevConflict.dPlusGPS} m</strong> · D− {elevConflict.dMinusGPS} m</div>
+                  <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>Recommandé si enregistrement Garmin avec altimètre barométrique</div>
+                </div>
+                <div style={{ padding: "12px 14px", borderRadius: 10, background: C.primaryPale, border: `2px solid ${C.primary}40` }}>
+                  <div style={{ fontWeight: 700, color: C.primaryDeep, marginBottom: 4 }}>🌍 Modèle terrain SRTM</div>
+                  <div style={{ fontSize: 13 }}>D+ <strong>{elevConflict.dPlusAPI} m</strong> · D− {elevConflict.dMinusAPI} m</div>
+                  <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>Recommandé pour les GPX de tracés officiels sans altitude</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <Btn variant="sage" onClick={() => {
+                  setRace(r => ({ ...r, gpxPoints: elevConflict.pointsGPS, totalDistance: elevConflict.distance, totalElevPos: elevConflict.dPlusGPS, totalElevNeg: elevConflict.dMinusGPS }));
+                  if (elevConflict.trackName && !settings.raceName) setSettings(s => ({ ...s, raceName: elevConflict.trackName }));
+                  setElevConflict(null);
+                }}>📡 Utiliser GPS / montre</Btn>
+                <Btn variant="ghost" onClick={() => {
+                  setRace(r => ({ ...r, gpxPoints: elevConflict.pointsAPI, totalDistance: elevConflict.distance, totalElevPos: elevConflict.dPlusAPI, totalElevNeg: elevConflict.dMinusAPI }));
+                  if (elevConflict.trackName && !settings.raceName) setSettings(s => ({ ...s, raceName: elevConflict.trackName }));
+                  setElevConflict(null);
+                }}>🌍 Utiliser SRTM</Btn>
+              </div>
             </div>
           )}
 

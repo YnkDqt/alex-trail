@@ -129,7 +129,7 @@ export function parseGPX(xmlText) {
 }
 
 // ── Enrichissement altitude via OpenTopoData (SRTM 90m, mondial) ────────────
-async function enrichElevation(points) {
+export async function enrichElevation(points) {
   const BATCH = 200;
   const allEles = [];
 
