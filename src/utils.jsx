@@ -457,17 +457,68 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
     };
   });
 
-  // ── PASSE 4 — fusion des segments trop courts ou à vitesse identique ──────
-  // Niveau de détail : synthétique (~10 segs), equilibre (~20), detaille (~35)
+  // ── PASSE 4 — fusion selon le niveau de détail ────────────────────────────
   const detail = settings.segmentDetail || "equilibre";
-  const minDist  = detail === "synthétique" ? 3.0
-                 : detail === "detaille"    ? 0.8
-                 :                           1.5;
-  const speedTol = detail === "synthétique" ? 1.5
-                 : detail === "detaille"    ? 0.3
-                 :                           0.5;
-  const mergeSegs = (segs) => {
+
+  // Mode Synthétique : analyse macro du profil pour détecter grandes tendances
+  // On calcule la tendance altimétrique sur une fenêtre large et on regroupe
+  // par grandes zones montée/descente continues
+  const macroMerge = (segs) => {
     if (segs.length <= 1) return segs;
+
+    // Fenêtre d'analyse = 8% de la distance totale, min 5km
+    const windowKm = Math.max(5, totalDistKm * 0.08);
+
+    // Calculer la tendance macro à chaque km du tracé
+    const macroTrend = (km) => {
+      const start = Math.max(0, km - windowKm / 2);
+      const end = Math.min(totalDistKm, km + windowKm / 2);
+      const pts = points.filter(p => p.dist >= start && p.dist <= end);
+      if (pts.length < 2) return 0;
+      const dEle = pts[pts.length - 1].ele - pts[0].ele;
+      const dDist = (pts[pts.length - 1].dist - pts[0].dist) * 1000;
+      return dDist > 0 ? dEle / dDist * 100 : 0;
+    };
+
+    // Regrouper les segments selon la tendance macro (montée / plat-descente)
+    const FLAT_THRESHOLD = 2; // pente < 2% considérée comme plat → suit la tendance macro
+    const result = [];
+    let group = { ...segs[0] };
+
+    for (let i = 1; i < segs.length; i++) {
+      const seg = segs[i];
+      const midKm = (group.endKm + seg.endKm) / 2;
+      const trend = macroTrend(midKm);
+      const groupTrend = macroTrend((group.startKm + group.endKm) / 2);
+
+      // Même tendance macro → on fusionne
+      const sameSign = (trend >= FLAT_THRESHOLD) === (groupTrend >= FLAT_THRESHOLD)
+                    && (trend <= -FLAT_THRESHOLD) === (groupTrend <= -FLAT_THRESHOLD);
+
+      if (sameSign) {
+        const dist = group.endKm - group.startKm;
+        const segDist = seg.endKm - seg.startKm;
+        const merged = dist + segDist;
+        group = {
+          ...group,
+          endKm: seg.endKm,
+          speedKmh: +((group.speedKmh * dist + seg.speedKmh * segDist) / merged).toFixed(1),
+          slopePct: Math.round((group.slopePct * dist + seg.slopePct * segDist) / merged),
+        };
+      } else {
+        result.push(group);
+        group = { ...seg };
+      }
+    }
+    result.push(group);
+    return result;
+  };
+
+  // Mode standard : fusion par vitesse et distance minimale
+  const standardMerge = (segs) => {
+    if (segs.length <= 1) return segs;
+    const minDist  = detail === "detaille" ? 0.8 : 1.5;
+    const speedTol = detail === "detaille" ? 0.3 : 0.5;
     let out = [...segs];
     let changed = true;
     while (changed) {
@@ -478,9 +529,8 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
         const seg = out[i];
         const dist = seg.endKm - seg.startKm;
         const nextSeg = out[i + 1];
-
-        // Fusion si vitesses proches ET même sens de pente
         const sameDirection = nextSeg && (seg.slopePct >= 0) === (nextSeg.slopePct >= 0);
+
         if (sameDirection && Math.abs(seg.speedKmh - nextSeg.speedKmh) <= speedTol) {
           const mergedDist = nextSeg.endKm - seg.startKm;
           const weightedSpeed = +((seg.speedKmh * dist + nextSeg.speedKmh * (nextSeg.endKm - nextSeg.startKm)) / mergedDist).toFixed(1);
@@ -490,8 +540,7 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
           continue;
         }
 
-        // Fusion si segment trop court ET même sens de pente
-        if (dist < minDist && nextSeg && (seg.slopePct >= 0) === (nextSeg.slopePct >= 0)) {
+        if (dist < minDist && nextSeg && sameDirection) {
           const mergedDist = nextSeg.endKm - seg.startKm;
           const weightedSpeed = +((seg.speedKmh * dist + nextSeg.speedKmh * (nextSeg.endKm - nextSeg.startKm)) / mergedDist).toFixed(1);
           const mergedSlope = Math.round((seg.slopePct * dist + nextSeg.slopePct * (nextSeg.endKm - nextSeg.startKm)) / mergedDist);
@@ -508,7 +557,8 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
     return out;
   };
 
-  return mergeSegs(rawSegs).map((seg, i) => ({ ...seg, id: Date.now() + i }));
+  const merged = detail === "synthétique" ? macroMerge(rawSegs) : standardMerge(rawSegs);
+  return merged.map((seg, i) => ({ ...seg, id: Date.now() + i }));
 }
 export function parseGarminCSV(text) {
   const lines = text.trim().split(/\r?\n/);
