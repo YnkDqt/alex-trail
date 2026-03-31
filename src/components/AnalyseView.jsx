@@ -157,6 +157,27 @@ export default function AnalyseView({ race, segments, settings, isMobile, onNavi
     },acc);
   },{kcal:0,glucides:0,eauMl:0});
 
+  // Micronutriments totaux emportés
+  const microEmporte = ["depart",...ravitos.map(r=>String(r.id))].reduce((acc,key)=>{
+    const items=planNutrition[key]||[];
+    return items.reduce((a,{produitId,quantite})=>{
+      const p=produits.find(x=>x.id===produitId); if(!p) return a;
+      const factor=p.par100g?(p.poids*quantite/100):quantite;
+      return {
+        sodium:    a.sodium    + Math.round((p.sodium    ||0)*factor),
+        potassium: a.potassium + Math.round((p.potassium ||0)*factor),
+        magnesium: a.magnesium + Math.round((p.magnesium ||0)*factor),
+      };
+    },acc);
+  },{sodium:0,potassium:0,magnesium:0});
+
+  // Cibles micronutriments basées sur la durée de course (mg total)
+  const microCibles = {
+    sodium:    { min: 500*totalTimeH,  max: 1000*totalTimeH, label: "Sodium",    unit: "mg", risk_low: "Risque d'hyponatrémie", risk_high: "Soif excessive, rétention" },
+    potassium: { min: 150*totalTimeH,  max: 300*totalTimeH,  label: "Potassium", unit: "mg", risk_low: "Crampes musculaires",   risk_high: "Peu de risque alimentaire" },
+    magnesium: { min: 50*totalTimeH,   max: 100*totalTimeH,  label: "Magnésium", unit: "mg", risk_low: "Crampes, fatigue",      risk_high: "Troubles digestifs possibles" },
+  };
+
   // Couverture par tronçon — logique ravito autonome :
   // Si le ravito de départ d'un tronçon est autonome, ses produits planifiés
   // sont emportés dans le sac, pas reçus sur place.
@@ -410,6 +431,62 @@ export default function AnalyseView({ race, segments, settings, isMobile, onNavi
               </div>
             ))}
           </div>
+
+          {/* Micronutriments */}
+          {produits.length > 0 && totalTimeH > 0 && (
+            <Card style={{marginBottom:12}}>
+              <div style={{fontWeight:600,fontSize:13,marginBottom:4}}>Équilibre micronutriments</div>
+              <div style={{fontSize:11,color:"var(--muted-c)",marginBottom:12}}>Basé sur {Math.round(totalTimeH)}h d'effort estimées · cibles par heure (littérature sportive)</div>
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                {Object.entries(microCibles).map(([key,cible])=>{
+                  const val = microEmporte[key];
+                  const min = Math.round(cible.min);
+                  const max = Math.round(cible.max);
+                  let status, msg, barPct;
+                  if (val < min * 0.8) {
+                    status = "alert";
+                    msg = `⚠️ Insuffisant — ${cible.risk_low}`;
+                    barPct = Math.round(val / min * 100);
+                  } else if (val > max * 1.5) {
+                    status = "warn";
+                    msg = `🟠 Excédent important — ${cible.risk_high}`;
+                    barPct = 100;
+                  } else if (val > max) {
+                    status = "warn";
+                    msg = `À surveiller — légèrement au-dessus de la cible`;
+                    barPct = 100;
+                  } else {
+                    status = "ok";
+                    msg = `✅ Dans la fourchette optimale`;
+                    barPct = Math.round((val - min) / (max - min) * 100 + 80);
+                  }
+                  const color = status === "ok" ? C.green : status === "warn" ? C.yellow : C.red;
+                  const ecart = val - max;
+                  return (
+                    <div key={key}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
+                        <span style={{fontSize:13,fontWeight:600}}>{cible.label}</span>
+                        <div style={{textAlign:"right"}}>
+                          <span style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:700,color}}>{val.toLocaleString()} {cible.unit}</span>
+                          <span style={{fontSize:11,color:"var(--muted-c)",marginLeft:6}}>cible {min.toLocaleString()}–{max.toLocaleString()} {cible.unit}</span>
+                        </div>
+                      </div>
+                      {/* Jauge */}
+                      <div style={{position:"relative",height:6,background:"var(--surface-2)",borderRadius:3,marginBottom:4}}>
+                        {/* Zone optimale */}
+                        <div style={{position:"absolute",left:"40%",width:"40%",height:"100%",background:C.green+"30",borderRadius:3}}/>
+                        {/* Valeur actuelle */}
+                        <div style={{position:"absolute",left:0,width:`${Math.min(barPct,100)}%`,height:"100%",background:color,borderRadius:3,transition:"width 0.4s"}}/>
+                      </div>
+                      <div style={{fontSize:11,color:status==="ok"?C.green:status==="warn"?C.yellow:C.red}}>{msg}</div>
+                      {ecart > 0 && <div style={{fontSize:11,color:"var(--muted-c)",marginTop:1}}>Excédent : +{ecart.toLocaleString()} {cible.unit} au-delà de la cible haute</div>}
+                      {val < min && <div style={{fontSize:11,color:"var(--muted-c)",marginTop:1}}>Manque : {(min-val).toLocaleString()} {cible.unit} sous la cible basse</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
 
           {/* Couverture par tronçon */}
           {zonesNutri.length > 0 && produits.length > 0 && (
