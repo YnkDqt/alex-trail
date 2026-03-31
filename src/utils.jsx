@@ -458,8 +458,14 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
   });
 
   // ── PASSE 4 — fusion des segments trop courts ou à vitesse identique ──────
-  // Règle 1 : segments < 1km fusionnés avec le voisin à vitesse la plus proche
-  // Règle 2 : segments consécutifs à ±0.5 km/h fusionnés (même allure pratique)
+  // Niveau de détail : synthétique (~10 segs), equilibre (~20), detaille (~35)
+  const detail = settings.segmentDetail || "equilibre";
+  const minDist  = detail === "synthétique" ? Math.max(3, totalDistKm / 10)
+                 : detail === "detaille"    ? 0.8
+                 :                           Math.max(1.5, totalDistKm / 20);
+  const speedTol = detail === "synthétique" ? 1.0
+                 : detail === "detaille"    ? 0.3
+                 :                           0.5;
   const mergeSegs = (segs) => {
     if (segs.length <= 1) return segs;
     let out = [...segs];
@@ -473,8 +479,8 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
         const dist = seg.endKm - seg.startKm;
         const nextSeg = out[i + 1];
 
-        // Fusion si vitesses proches (±0.5 km/h)
-        if (nextSeg && Math.abs(seg.speedKmh - nextSeg.speedKmh) <= 0.5) {
+        // Fusion si vitesses proches
+        if (nextSeg && Math.abs(seg.speedKmh - nextSeg.speedKmh) <= speedTol) {
           const mergedDist = nextSeg.endKm - seg.startKm;
           const weightedSpeed = +((seg.speedKmh * dist + nextSeg.speedKmh * (nextSeg.endKm - nextSeg.startKm)) / mergedDist).toFixed(1);
           const mergedSlope = Math.round((seg.slopePct * dist + nextSeg.slopePct * (nextSeg.endKm - nextSeg.startKm)) / mergedDist);
@@ -483,8 +489,8 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
           continue;
         }
 
-        // Fusion si segment < 1km
-        if (dist < 1.0 && nextSeg) {
+        // Fusion si segment trop court
+        if (dist < minDist && nextSeg) {
           const mergedDist = nextSeg.endKm - seg.startKm;
           const weightedSpeed = +((seg.speedKmh * dist + nextSeg.speedKmh * (nextSeg.endKm - nextSeg.startKm)) / mergedDist).toFixed(1);
           const mergedSlope = Math.round((seg.slopePct * dist + nextSeg.slopePct * (nextSeg.endKm - nextSeg.startKm)) / mergedDist);

@@ -92,6 +92,7 @@ export const EMPTY_SETTINGS = {
   effortTarget: "normal",
   paceStrategy: 0,
   ravitoTimeMin: 3,
+  segmentDetail: "equilibre",
   equipment: DEFAULT_EQUIPMENT,
   produits: [],
   prepChecks: {},

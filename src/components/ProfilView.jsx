@@ -24,6 +24,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
   const fileRef = useRef();
 
   const profile = useMemo(() => race.gpxPoints?.length ? buildElevationProfile(race.gpxPoints, 300) : [], [race.gpxPoints]);
+  const updS = (k, v) => setSettings(s => ({ ...s, [k]: v }));
   // Même logique que StrategieView — segments normaux + repos séparément, ravitos depuis race.ravitos
   const segsNormaux  = segments.filter(s => s.type !== "ravito" && s.type !== "repos");
   const segsRepos    = segments.filter(s => s.type === "repos");
@@ -877,11 +878,27 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
             <Card noPad>
               <div style={{ padding: "16px 20px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontWeight: 600 }}>Segments</span>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   {race.gpxPoints?.length > 0 && (
-                    <Btn size="sm" variant="sage" onClick={autoSegment} disabled={computing}>
-                      {computing ? "Calcul…" : "Découpage auto"}
-                    </Btn>
+                    <>
+                      <div style={{ display: "flex", border: `1px solid var(--border-c)`, borderRadius: 8, overflow: "hidden", fontSize: 12 }}>
+                        {[
+                          { key: "synthétique", label: "Synthétique" },
+                          { key: "equilibre",   label: "Équilibré" },
+                          { key: "detaille",    label: "Détaillé" },
+                        ].map(opt => (
+                          <div key={opt.key} onClick={() => updS("segmentDetail", opt.key)} style={{
+                            padding: "4px 10px", cursor: "pointer", transition: "all 0.15s",
+                            background: (settings.segmentDetail || "equilibre") === opt.key ? C.primary : "var(--surface-2)",
+                            color: (settings.segmentDetail || "equilibre") === opt.key ? C.white : "var(--muted-c)",
+                            fontWeight: (settings.segmentDetail || "equilibre") === opt.key ? 600 : 400,
+                          }}>{opt.label}</div>
+                        ))}
+                      </div>
+                      <Btn size="sm" variant="sage" onClick={autoSegment} disabled={computing}>
+                        {computing ? "Calcul…" : "Découpage auto"}
+                      </Btn>
+                    </>
                   )}
                   <Btn size="sm" variant="ghost" onClick={onOpenRepos}>💤 Repos</Btn>
                   <Btn size="sm" onClick={openNewSeg}>+ Segment</Btn>
