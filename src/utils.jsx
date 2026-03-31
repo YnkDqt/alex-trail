@@ -554,7 +554,6 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
   // Mode standard : fusion par vitesse et distance minimale
   const standardMerge = (segs) => {
     if (segs.length <= 1) return segs;
-    const minDist  = detail === "detaille" ? 0.8 : 1.5;
     const minDist  = detail === "detaille" ? 0.8 : Math.max(1.5, totalDistKm / 25);
     const speedTol = detail === "detaille" ? 0.3 : 0.8;
     let out = [...segs];
