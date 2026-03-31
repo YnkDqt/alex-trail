@@ -466,8 +466,8 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
   const macroMerge = (segs) => {
     if (segs.length <= 1) return segs;
 
-    // Fenêtre d'analyse = 15% de la distance totale, min 8km
-    const windowKm = Math.max(8, totalDistKm * 0.15);
+    // Fenêtre d'analyse = 10% de la distance totale, min 6km
+    const windowKm = Math.max(6, totalDistKm * 0.10);
 
     // Calculer la tendance macro à chaque km du tracé
     const macroTrend = (km) => {
