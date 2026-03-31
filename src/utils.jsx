@@ -555,7 +555,8 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
   const standardMerge = (segs) => {
     if (segs.length <= 1) return segs;
     const minDist  = detail === "detaille" ? 0.8 : 1.5;
-    const speedTol = detail === "detaille" ? 0.3 : 0.5;
+    const minDist  = detail === "detaille" ? 0.8 : Math.max(1.5, totalDistKm / 25);
+    const speedTol = detail === "detaille" ? 0.3 : 0.8;
     let out = [...segs];
     let changed = true;
     while (changed) {
@@ -591,7 +592,28 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
       }
       out = next;
     }
-    return out;
+
+    // Passe orphelins adaptative (même logique que Synthétique)
+    const orphanMin = totalDistKm > 80 ? 3.0 : totalDistKm > 40 ? 2.0 : 1.0;
+    const cleaned = [];
+    for (let i = 0; i < out.length; i++) {
+      const seg = out[i];
+      const dist = seg.endKm - seg.startKm;
+      if (dist < orphanMin && out.length > 1) {
+        const prev = cleaned[cleaned.length - 1];
+        const nextSeg = out[i + 1];
+        if (prev && (!nextSeg || Math.abs(seg.speedKmh - prev.speedKmh) <= Math.abs(seg.speedKmh - (nextSeg?.speedKmh || 999)))) {
+          const pd = prev.endKm - prev.startKm;
+          const merged = pd + dist;
+          cleaned[cleaned.length - 1] = { ...prev, endKm: seg.endKm, speedKmh: +((prev.speedKmh * pd + seg.speedKmh * dist) / merged).toFixed(1), slopePct: Math.round((prev.slopePct * pd + seg.slopePct * dist) / merged) };
+        } else if (nextSeg) {
+          const nd = nextSeg.endKm - nextSeg.startKm;
+          const merged = nd + dist;
+          out[i + 1] = { ...nextSeg, startKm: seg.startKm, speedKmh: +((seg.speedKmh * dist + nextSeg.speedKmh * nd) / merged).toFixed(1), slopePct: Math.round((seg.slopePct * dist + nextSeg.slopePct * nd) / merged) };
+        } else cleaned.push(seg);
+      } else cleaned.push(seg);
+    }
+    return cleaned;
   };
 
   const merged = detail === "synthétique" ? macroMerge(rawSegs) : standardMerge(rawSegs);
