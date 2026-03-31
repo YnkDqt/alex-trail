@@ -440,7 +440,8 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
   // Distance totale pour calcul fatigue
   const totalDistKm = +validated[validated.length - 1]?.end?.toFixed(1) || 0;
 
-  return validated.map((seg, i) => {
+  // ── Calcul des vitesses ───────────────────────────────────────────────────
+  const rawSegs = validated.map((seg, i) => {
     const realSlope = calcSlopeFromGPX(points, seg.start, seg.end);
     const coveredDistKm = seg.start;
     const speed = suggestSpeed(realSlope, coeff, settings, i, totalSegs, totalDistKm, coveredDistKm);
@@ -455,6 +456,52 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
       notes: "",
     };
   });
+
+  // ── PASSE 4 — fusion des segments trop courts ou à vitesse identique ──────
+  // Règle 1 : segments < 1km fusionnés avec le voisin à vitesse la plus proche
+  // Règle 2 : segments consécutifs à ±0.5 km/h fusionnés (même allure pratique)
+  const mergeSegs = (segs) => {
+    if (segs.length <= 1) return segs;
+    let out = [...segs];
+    let changed = true;
+    while (changed) {
+      changed = false;
+      const next = [];
+      let i = 0;
+      while (i < out.length) {
+        const seg = out[i];
+        const dist = seg.endKm - seg.startKm;
+        const nextSeg = out[i + 1];
+
+        // Fusion si vitesses proches (±0.5 km/h)
+        if (nextSeg && Math.abs(seg.speedKmh - nextSeg.speedKmh) <= 0.5) {
+          const mergedDist = nextSeg.endKm - seg.startKm;
+          const weightedSpeed = +((seg.speedKmh * dist + nextSeg.speedKmh * (nextSeg.endKm - nextSeg.startKm)) / mergedDist).toFixed(1);
+          const mergedSlope = Math.round((seg.slopePct * dist + nextSeg.slopePct * (nextSeg.endKm - nextSeg.startKm)) / mergedDist);
+          next.push({ ...seg, endKm: nextSeg.endKm, speedKmh: weightedSpeed, slopePct: mergedSlope });
+          i += 2; changed = true;
+          continue;
+        }
+
+        // Fusion si segment < 1km
+        if (dist < 1.0 && nextSeg) {
+          const mergedDist = nextSeg.endKm - seg.startKm;
+          const weightedSpeed = +((seg.speedKmh * dist + nextSeg.speedKmh * (nextSeg.endKm - nextSeg.startKm)) / mergedDist).toFixed(1);
+          const mergedSlope = Math.round((seg.slopePct * dist + nextSeg.slopePct * (nextSeg.endKm - nextSeg.startKm)) / mergedDist);
+          next.push({ ...seg, endKm: nextSeg.endKm, speedKmh: weightedSpeed, slopePct: mergedSlope });
+          i += 2; changed = true;
+          continue;
+        }
+
+        next.push(seg);
+        i++;
+      }
+      out = next;
+    }
+    return out;
+  };
+
+  return mergeSegs(rawSegs).map((seg, i) => ({ ...seg, id: Date.now() + i }));
 }
 export function parseGarminCSV(text) {
   const lines = text.trim().split(/\r?\n/);
