@@ -512,12 +512,14 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
     }
     result.push(group);
 
-    // Passe finale : absorber les segments orphelins < 2km dans le voisin le plus proche en vitesse
+    // Passe finale : absorber les segments orphelins trop courts
+    // Seuil adaptatif selon la distance : ultra (>80km) → 5km, long (>40km) → 3km, sinon 2km
+    const orphanMin = totalDistKm > 80 ? 5.0 : totalDistKm > 40 ? 3.0 : 2.0;
     const cleaned = [];
     for (let i = 0; i < result.length; i++) {
       const seg = result[i];
       const dist = seg.endKm - seg.startKm;
-      if (dist < 2.0 && result.length > 1) {
+      if (dist < orphanMin && result.length > 1) {
         const prev = cleaned[cleaned.length - 1];
         const next = result[i + 1];
         // Fusionner avec le voisin à vitesse la plus proche
