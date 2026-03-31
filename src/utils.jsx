@@ -554,8 +554,9 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
   // Mode standard : fusion par vitesse et distance minimale
   const standardMerge = (segs) => {
     if (segs.length <= 1) return segs;
-    const minDist  = detail === "detaille" ? 0.5 : Math.max(1.5, totalDistKm / 25);
-    const speedTol = detail === "detaille" ? 0.0 : 0.8;
+    const minDist  = detail === "detaille" ? Math.max(0.8, totalDistKm / 40)
+                   :                         Math.max(1.5, totalDistKm / 25);
+    const speedTol = detail === "detaille" ? 0.4 : 0.8;
     let out = [...segs];
     let changed = true;
     while (changed) {
@@ -593,7 +594,9 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
     }
 
     // Passe orphelins adaptative (même logique que Synthétique)
-    const orphanMin = detail === "detaille" ? 0.5 : totalDistKm > 80 ? 3.0 : totalDistKm > 40 ? 2.0 : 1.0;
+    const orphanMin = detail === "detaille"
+      ? Math.max(0.8, totalDistKm / 40)
+      : totalDistKm > 80 ? 3.0 : totalDistKm > 40 ? 2.0 : 1.0;
     const cleaned = [];
     for (let i = 0; i < out.length; i++) {
       const seg = out[i];
