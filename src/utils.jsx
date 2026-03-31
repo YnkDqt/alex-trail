@@ -466,8 +466,8 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
   const macroMerge = (segs) => {
     if (segs.length <= 1) return segs;
 
-    // Fenêtre d'analyse = 8% de la distance totale, min 5km
-    const windowKm = Math.max(5, totalDistKm * 0.08);
+    // Fenêtre d'analyse = 15% de la distance totale, min 8km
+    const windowKm = Math.max(8, totalDistKm * 0.15);
 
     // Calculer la tendance macro à chaque km du tracé
     const macroTrend = (km) => {
@@ -511,7 +511,42 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
       }
     }
     result.push(group);
-    return result;
+
+    // Passe finale : absorber les segments orphelins < 2km dans le voisin le plus proche en vitesse
+    const cleaned = [];
+    for (let i = 0; i < result.length; i++) {
+      const seg = result[i];
+      const dist = seg.endKm - seg.startKm;
+      if (dist < 2.0 && result.length > 1) {
+        const prev = cleaned[cleaned.length - 1];
+        const next = result[i + 1];
+        // Fusionner avec le voisin à vitesse la plus proche
+        if (prev && (!next || Math.abs(seg.speedKmh - prev.speedKmh) <= Math.abs(seg.speedKmh - (next?.speedKmh || 999)))) {
+          const pd = prev.endKm - prev.startKm;
+          const merged = pd + dist;
+          cleaned[cleaned.length - 1] = {
+            ...prev,
+            endKm: seg.endKm,
+            speedKmh: +((prev.speedKmh * pd + seg.speedKmh * dist) / merged).toFixed(1),
+            slopePct: Math.round((prev.slopePct * pd + seg.slopePct * dist) / merged),
+          };
+        } else if (next) {
+          const nd = next.endKm - next.startKm;
+          const merged = nd + dist;
+          result[i + 1] = {
+            ...next,
+            startKm: seg.startKm,
+            speedKmh: +((seg.speedKmh * dist + next.speedKmh * nd) / merged).toFixed(1),
+            slopePct: Math.round((seg.slopePct * dist + next.slopePct * nd) / merged),
+          };
+        } else {
+          cleaned.push(seg);
+        }
+      } else {
+        cleaned.push(seg);
+      }
+    }
+    return cleaned;
   };
 
   // Mode standard : fusion par vitesse et distance minimale
