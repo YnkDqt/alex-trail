@@ -893,13 +893,17 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                 </div>
               ) : (
                 <div className="tbl-wrap" style={{ maxHeight: 520, overflowY: "auto" }}>
+                  {(() => {
+                    const { times: passingTimes, startSec } = calcPassingTimes(segments, settings.startTime);
+                    return (
                   <table>
                     <thead><tr>
-                      <th>#</th><th>Début</th><th>Fin</th><th>Pente moy.</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th></th>
+                      <th>#</th><th>Début</th><th>Fin</th><th>Pente moy.</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th>Cum.</th><th></th>
                     </tr></thead>
                     <tbody>{(() => {
                       let segNum = 0;
                       return segments.map((seg, i) => {
+                        const t = passingTimes[i];
                         // ── Ravito ──
                         if (seg.type === "ravito") {
                           return (
@@ -909,6 +913,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                               <td style={{ fontWeight: 600, color: C.green }} colSpan={3}>{seg.label} — km {seg.startKm}</td>
                               <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 12 }}>{seg.dureeMin} min</td>
                               <td></td>
+                              <td style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: "var(--muted-c)" }}>{t ? fmtTime(t - startSec) : "—"}</td>
                               <td onClick={e => e.stopPropagation()}>
                                 <Btn size="sm" variant="danger" onClick={() => setConfirmId("seg-" + seg.id)}>✕</Btn>
                               </td>
@@ -924,6 +929,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                               <td style={{ fontWeight: 600, color: C.blue }} colSpan={3}>{seg.label} — km {seg.startKm}</td>
                               <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 12 }}>{seg.dureeMin} min</td>
                               <td></td>
+                              <td style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: "var(--muted-c)" }}>{t ? fmtTime(t - startSec) : "—"}</td>
                               <td onClick={e => e.stopPropagation()}>
                                 <Btn size="sm" variant="danger" onClick={() => setConfirmId("seg-" + seg.id)}>✕</Btn>
                               </td>
@@ -962,6 +968,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                             <td style={{ fontWeight: isH ? 700 : 600 }}>{seg.speedKmh} km/h</td>
                             <td style={{ fontFamily: "'Playfair Display', serif", fontWeight: isH ? 700 : 400 }}>{fmtPace(seg.speedKmh)}/km</td>
                             <td style={{ fontWeight: isH ? 700 : 400 }}>{dur}</td>
+                            <td style={{ fontFamily: "'Playfair Display', serif", fontWeight: 600, color: C.secondary }}>{t ? fmtTime(t - startSec) : "—"}</td>
                             <td onClick={e => e.stopPropagation()}>
                               <Btn size="sm" variant="danger" onClick={() => setConfirmId("seg-" + seg.id)}>✕</Btn>
                             </td>
@@ -970,6 +977,8 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                       });
                     })()}</tbody>
                   </table>
+                    );
+                  })()}
                 </div>
               )}
             </Card>

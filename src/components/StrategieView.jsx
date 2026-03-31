@@ -152,7 +152,7 @@ export default function StrategieView({ race, segments, setSegments, settings, s
             <div className="tbl-wrap">
               <table style={{ fontSize: isMobile ? 11 : undefined }}>
                 <thead><tr>
-                  <th>#</th><th>De</th><th>À</th><th>Dist.</th><th>Pente</th><th>Terrain</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th>Heure</th><th>Nutrition/h</th><th></th>
+                  <th>#</th><th>De</th><th>À</th><th>Dist.</th><th>Pente</th><th>Terrain</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th>Cum.</th><th>Heure</th><th>Nutrition/h</th><th></th>
                 </tr></thead>
                 <tbody>{(() => {
                   let segNum = 0;
@@ -166,6 +166,7 @@ export default function StrategieView({ race, segments, setSegments, settings, s
                           <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
                           <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>{seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}</td>
                           <td colSpan={4} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>Arrêt ravitaillement · pas de distance</td>
+                          <td><span style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: "var(--muted-c)" }}>{fmtTime(t - startSec)}</span></td>
                           <td><span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>{fmtHeure(t)}</span>{night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}</td>
                           <td></td>
                           <td><span style={{ fontSize: 11, color: "var(--muted-c)" }}>auto</span></td>
@@ -181,6 +182,7 @@ export default function StrategieView({ race, segments, setSegments, settings, s
                           <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
                           <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>{seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}</td>
                           <td colSpan={4} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>Pas de distance · temps ajouté au total</td>
+                          <td><span style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, color: "var(--muted-c)" }}>{fmtTime(t - startSec)}</span></td>
                           <td><span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>{fmtHeure(t)}</span>{night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}</td>
                           <td></td>
                           <td onClick={e => e.stopPropagation()}><Btn size="sm" variant="danger" onClick={() => setConfirmId(seg.id)}>✕</Btn></td>
@@ -206,6 +208,7 @@ export default function StrategieView({ race, segments, setSegments, settings, s
                         <td style={{ fontWeight: 600 }}>{seg.speedKmh} km/h</td>
                         <td style={{ fontFamily: "'Playfair Display', serif" }}>{fmtPace(seg.speedKmh)}/km</td>
                         <td>{dur}</td>
+                        <td style={{ fontFamily: "'Playfair Display', serif", fontWeight: 600, color: C.secondary }}>{fmtTime(t - startSec)}</td>
                         <td><span style={{ fontWeight: 700, fontSize: 13, color: night ? C.blue : C.primary }}>{fmtHeure(t)}</span>{night && <span style={{ marginLeft: 4, fontSize: 11 }}>🌙</span>}</td>
                         <td style={{ fontSize: 12, color: "var(--muted-c)" }}>{n.eauH}mL · {n.glucidesH}g · {n.kcalH}kcal</td>
                         <td onClick={e => e.stopPropagation()}><Btn size="sm" variant="danger" onClick={() => setConfirmId(seg.id)}>✕</Btn></td>
