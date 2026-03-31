@@ -479,8 +479,9 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
         const dist = seg.endKm - seg.startKm;
         const nextSeg = out[i + 1];
 
-        // Fusion si vitesses proches
-        if (nextSeg && Math.abs(seg.speedKmh - nextSeg.speedKmh) <= speedTol) {
+        // Fusion si vitesses proches ET même sens de pente
+        const sameDirection = (seg.slopePct >= 0) === (nextSeg.slopePct >= 0);
+        if (nextSeg && sameDirection && Math.abs(seg.speedKmh - nextSeg.speedKmh) <= speedTol) {
           const mergedDist = nextSeg.endKm - seg.startKm;
           const weightedSpeed = +((seg.speedKmh * dist + nextSeg.speedKmh * (nextSeg.endKm - nextSeg.startKm)) / mergedDist).toFixed(1);
           const mergedSlope = Math.round((seg.slopePct * dist + nextSeg.slopePct * (nextSeg.endKm - nextSeg.startKm)) / mergedDist);
@@ -489,8 +490,8 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
           continue;
         }
 
-        // Fusion si segment trop court
-        if (dist < minDist && nextSeg) {
+        // Fusion si segment trop court ET même sens de pente
+        if (dist < minDist && nextSeg && (seg.slopePct >= 0) === (nextSeg.slopePct >= 0)) {
           const mergedDist = nextSeg.endKm - seg.startKm;
           const weightedSpeed = +((seg.speedKmh * dist + nextSeg.speedKmh * (nextSeg.endKm - nextSeg.startKm)) / mergedDist).toFixed(1);
           const mergedSlope = Math.round((seg.slopePct * dist + nextSeg.slopePct * (nextSeg.endKm - nextSeg.startKm)) / mergedDist);
