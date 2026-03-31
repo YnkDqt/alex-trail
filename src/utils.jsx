@@ -460,6 +460,15 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
   // ── PASSE 4 — fusion selon le niveau de détail ────────────────────────────
   const detail = settings.segmentDetail || "equilibre";
 
+  // Vitesse d'un segment fusionné = distance totale / temps total
+  // (pondération par temps, pas par distance — évite sous-estimation sur les segments lents)
+  const mergeSpeed = (d1, v1, d2, v2) => {
+    const t1 = v1 > 0 ? d1 / v1 : 0;
+    const t2 = v2 > 0 ? d2 / v2 : 0;
+    const totalTime = t1 + t2;
+    return totalTime > 0 ? +((d1 + d2) / totalTime).toFixed(1) : v1;
+  };
+
   // Mode Synthétique : analyse macro du profil pour détecter grandes tendances
   // On calcule la tendance altimétrique sur une fenêtre large et on regroupe
   // par grandes zones montée/descente continues
@@ -502,7 +511,7 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
         group = {
           ...group,
           endKm: seg.endKm,
-          speedKmh: +((group.speedKmh * dist + seg.speedKmh * segDist) / merged).toFixed(1),
+          speedKmh: mergeSpeed(dist, group.speedKmh, segDist, seg.speedKmh),
           slopePct: Math.round((group.slopePct * dist + seg.slopePct * segDist) / merged),
         };
       } else {
@@ -529,7 +538,7 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
           cleaned[cleaned.length - 1] = {
             ...prev,
             endKm: seg.endKm,
-            speedKmh: +((prev.speedKmh * pd + seg.speedKmh * dist) / merged).toFixed(1),
+            speedKmh: mergeSpeed(pd, prev.speedKmh, dist, seg.speedKmh),
             slopePct: Math.round((prev.slopePct * pd + seg.slopePct * dist) / merged),
           };
         } else if (next) {
@@ -538,7 +547,7 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
           result[i + 1] = {
             ...next,
             startKm: seg.startKm,
-            speedKmh: +((seg.speedKmh * dist + next.speedKmh * nd) / merged).toFixed(1),
+            speedKmh: mergeSpeed(dist, seg.speedKmh, nd, next.speedKmh),
             slopePct: Math.round((seg.slopePct * dist + next.slopePct * nd) / merged),
           };
         } else {
@@ -569,19 +578,19 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
         const sameDirection = nextSeg && (seg.slopePct >= 0) === (nextSeg.slopePct >= 0);
 
         if (sameDirection && Math.abs(seg.speedKmh - nextSeg.speedKmh) <= speedTol) {
+          const nd = nextSeg.endKm - nextSeg.startKm;
           const mergedDist = nextSeg.endKm - seg.startKm;
-          const weightedSpeed = +((seg.speedKmh * dist + nextSeg.speedKmh * (nextSeg.endKm - nextSeg.startKm)) / mergedDist).toFixed(1);
-          const mergedSlope = Math.round((seg.slopePct * dist + nextSeg.slopePct * (nextSeg.endKm - nextSeg.startKm)) / mergedDist);
-          next.push({ ...seg, endKm: nextSeg.endKm, speedKmh: weightedSpeed, slopePct: mergedSlope });
+          const mergedSlope = Math.round((seg.slopePct * dist + nextSeg.slopePct * nd) / mergedDist);
+          next.push({ ...seg, endKm: nextSeg.endKm, speedKmh: mergeSpeed(dist, seg.speedKmh, nd, nextSeg.speedKmh), slopePct: mergedSlope });
           i += 2; changed = true;
           continue;
         }
 
         if (dist < minDist && nextSeg && sameDirection) {
+          const nd = nextSeg.endKm - nextSeg.startKm;
           const mergedDist = nextSeg.endKm - seg.startKm;
-          const weightedSpeed = +((seg.speedKmh * dist + nextSeg.speedKmh * (nextSeg.endKm - nextSeg.startKm)) / mergedDist).toFixed(1);
-          const mergedSlope = Math.round((seg.slopePct * dist + nextSeg.slopePct * (nextSeg.endKm - nextSeg.startKm)) / mergedDist);
-          next.push({ ...seg, endKm: nextSeg.endKm, speedKmh: weightedSpeed, slopePct: mergedSlope });
+          const mergedSlope = Math.round((seg.slopePct * dist + nextSeg.slopePct * nd) / mergedDist);
+          next.push({ ...seg, endKm: nextSeg.endKm, speedKmh: mergeSpeed(dist, seg.speedKmh, nd, nextSeg.speedKmh), slopePct: mergedSlope });
           i += 2; changed = true;
           continue;
         }
@@ -604,12 +613,10 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
         const nextSeg = out[i + 1];
         if (prev && (!nextSeg || Math.abs(seg.speedKmh - prev.speedKmh) <= Math.abs(seg.speedKmh - (nextSeg?.speedKmh || 999)))) {
           const pd = prev.endKm - prev.startKm;
-          const merged = pd + dist;
-          cleaned[cleaned.length - 1] = { ...prev, endKm: seg.endKm, speedKmh: +((prev.speedKmh * pd + seg.speedKmh * dist) / merged).toFixed(1), slopePct: Math.round((prev.slopePct * pd + seg.slopePct * dist) / merged) };
+          cleaned[cleaned.length - 1] = { ...prev, endKm: seg.endKm, speedKmh: mergeSpeed(pd, prev.speedKmh, dist, seg.speedKmh), slopePct: Math.round((prev.slopePct * pd + seg.slopePct * dist) / (pd + dist)) };
         } else if (nextSeg) {
           const nd = nextSeg.endKm - nextSeg.startKm;
-          const merged = nd + dist;
-          out[i + 1] = { ...nextSeg, startKm: seg.startKm, speedKmh: +((seg.speedKmh * dist + nextSeg.speedKmh * nd) / merged).toFixed(1), slopePct: Math.round((seg.slopePct * dist + nextSeg.slopePct * nd) / merged) };
+          out[i + 1] = { ...nextSeg, startKm: seg.startKm, speedKmh: mergeSpeed(dist, seg.speedKmh, nd, nextSeg.speedKmh), slopePct: Math.round((seg.slopePct * dist + nextSeg.slopePct * nd) / (dist + nd)) };
         } else cleaned.push(seg);
       } else cleaned.push(seg);
     }
