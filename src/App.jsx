@@ -5253,35 +5253,6 @@ function TrainLayout({ allTrainProps }) {
   );
 }
 
-  const [view,    setView]    = useState("dashboard");
-  const [subView, setSubView] = useState({entrainement:"programme",forme:"vfc"});
-  const setSubV = (parent,sub) => setSubView(sv=>({...sv,[parent]:sub}));
-
-  const TEAL = "#1D9E75";
-
-  const navBtn = (id,label,active,onClick) => (
-    <button key={id} onClick={onClick}
-      style={{background:active?`${TEAL}18`:"none",border:"none",padding:"6px 14px",
-        cursor:"pointer",fontSize:13,fontWeight:active?500:400,
-        color:active?TEAL:C.muted,borderRadius:8,fontFamily:"inherit"}}>
-      {label}
-    </button>
-  );
-
-  const subNavBtn = (id,label,active,onClick) => (
-    <button key={id} onClick={onClick}
-      style={{padding:"5px 14px",border:`0.5px solid ${active?TEAL:C.border}`,
-        background:active?TEAL:"transparent",color:active?C.white:C.muted,
-        borderRadius:20,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:active?500:400}}>
-      {label}
-    </button>
-  );
-
-  const allProps = {seances,setSeances,activites,setActivites,sommeil,setSommeil,
-    vfcData,setVfcData,poids,setPoids,objectifs,setObjectifs,planningType,setPlanningType,
-    activityTypes,setActivityTypes,journalNutri,setJournalNutri,produits,setProduits,
-    recettes,setRecettes,allData,loadData,resetAll,setView};
-
 
 // ─── PARTAGE STRATÉGIE ────────────────────────────────────────────────────────
 function encodeStrategy(race, segments, settings) {
