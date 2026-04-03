@@ -3,13 +3,13 @@ import { AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart, XAxis, 
 
 // ─── ALEX IMPORTS ────────────────────────────────────────────────────────────
 import { EMPTY_SETTINGS, DEFAULT_EQUIPMENT, DEFAULT_FLAT_SPEED } from './constants.js';
-import ProfilView    from './ProfilView.jsx';
-import StrategieView from './StrategieView.jsx';
-import AnalyseView   from './AnalyseView.jsx';
-import NutritionView from './NutritionView.jsx';
-import EquipementView from './EquipementView.jsx';
-import TeamView      from './TeamView.jsx';
-import MesCoursesView from './MesCoursesView.jsx';
+import ProfilView    from './components/ProfilView.jsx';
+import StrategieView from './components/StrategieView.jsx';
+import AnalyseView   from './components/AnalyseView.jsx';
+import NutritionView from './components/NutritionView.jsx';
+import EquipementView from './components/EquipementView.jsx';
+import TeamView      from './components/TeamView.jsx';
+import MesCoursesView from './components/MesCoursesView.jsx';
 
 // ─── PALETTE ─────────────────────────────────────────────────────────────────
 const C = {
