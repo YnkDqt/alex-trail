@@ -11,6 +11,7 @@ import EquipementView from './components/EquipementView.jsx';
 import TeamView      from './components/TeamView.jsx';
 import MesCoursesView   from './components/MesCoursesView.jsx';
 import ProfilCompte     from './components/ProfilCompte.jsx';
+import { CIQUAL, CIQUAL_CATEGORIES } from './data/ciqual.js';
 
 // ─── PALETTE ─────────────────────────────────────────────────────────────────
 const C = {
@@ -3986,6 +3987,9 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   const [linkModal,     setLinkModal]     = useState(null); // recette à lier
   const [search,        setSearch]        = useState("");
   const [copied,        setCopied]        = useState(false);
+  const [ciqualSearch,  setCiqualSearch]  = useState("");
+  const [ciqualCat,     setCiqualCat]     = useState("Toutes");
+  const [ciqualModal,   setCiqualModal]   = useState(false);
 
   const updP = (k,v) => setProdForm(f=>({...f,[k]:v}));
   const updR = (k,v) => setRecForm(f=>({...f,[k]:v}));
@@ -4098,7 +4102,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
 
       {/* Tabs */}
       <div style={{display:"flex",gap:2,borderBottom:`1px solid ${C.border}`,marginBottom:20}}>
-        {[{id:"produits",label:`Produits (${produits.length})`},{id:"recettes",label:`Recettes (${recettes.length})`},{id:"historique",label:"Historique entraînements"}].map(t=>(
+         {[{id:"produits",label:`Produits (${produits.length})`},{id:"ciqual",label:"Base alimentaire"},{id:"recettes",label:`Recettes (${recettes.length})`},{id:"historique",label:"Historique entraînements"}].map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)}
             style={{background:"none",border:"none",padding:"8px 16px",cursor:"pointer",fontSize:13,
               fontWeight:tab===t.id?500:400,color:tab===t.id?C.forest:C.muted,
@@ -4196,6 +4200,81 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
             </div>
           </Modal>
           <ConfirmDialog open={!!confirmProdId} message="Supprimer ce produit ?" onConfirm={()=>delProduit(confirmProdId)} onCancel={()=>setConfirmProdId(null)}/>
+        </div>
+      )}
+
+            {tab==="ciqual"&&(
+        <div>
+          <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
+            <input value={ciqualSearch} onChange={e=>setCiqualSearch(e.target.value)}
+              placeholder="Rechercher un aliment (ex: banane, riz, saumon)..."
+              style={{...inp,flex:1,minWidth:200}}/>
+            <select value={ciqualCat} onChange={e=>setCiqualCat(e.target.value)}
+              style={{...inp,width:"auto",minWidth:160}}>
+              <option>Toutes</option>
+              {CIQUAL_CATEGORIES.map(c=><option key={c}>{c}</option>)}
+            </select>
+          </div>
+          {(()=>{
+            const q = ciqualSearch.toLowerCase();
+            const filtered = CIQUAL.filter(a=>
+              (ciqualCat==="Toutes"||a.c===ciqualCat) &&
+              (!q || a.n.toLowerCase().includes(q) || a.c.toLowerCase().includes(q))
+            ).slice(0,80);
+            return (
+              <div style={{...card,overflow:"hidden"}}>
+                <div style={{padding:"8px 16px",background:C.stone,
+                  display:"grid",gridTemplateColumns:"1fr 70px 70px 70px 70px 70px 70px 100px",gap:8,
+                  fontSize:10,fontWeight:600,color:C.muted,textTransform:"uppercase",letterSpacing:"0.04em"}}>
+                  <span>Aliment</span>
+                  <span style={{textAlign:"right"}}>Kcal</span>
+                  <span style={{textAlign:"right"}}>Gluc.</span>
+                  <span style={{textAlign:"right"}}>Prot.</span>
+                  <span style={{textAlign:"right"}}>Lip.</span>
+                  <span style={{textAlign:"right"}}>Fibres</span>
+                  <span style={{textAlign:"right"}}>Na(mg)</span>
+                  <span/>
+                </div>
+                <div style={{maxHeight:520,overflowY:"auto"}}>
+                  {filtered.length===0?(
+                    <div style={{padding:"32px 16px",textAlign:"center",color:C.muted,fontSize:13}}>Aucun aliment trouvé</div>
+                  ):filtered.map((a,i)=>(
+                    <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 70px 70px 70px 70px 100px",
+                      padding:"8px 16px",borderTop:`1px solid ${C.border}`,gap:8,alignItems:"center"}}>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:500,color:C.inkLight}}>{a.n}</div>
+                        <div style={{fontSize:11,color:C.muted}}>{a.c} · pour 100g</div>
+                      </div>
+                      {[a.e,a.g,a.p,a.l,a.f,a.na].map((v,j)=>(
+                        <span key={j} style={{fontFamily:"'DM Mono',monospace",fontSize:12,
+                          textAlign:"right",color:[MACROS[0]?.color,MACROS[1]?.color,MACROS[2]?.color,MACROS[3]?.color,C.forest,C.muted][j],fontWeight:500}}>
+                          {v||"—"}
+                        </span>
+                      ))}
+                      <button onClick={()=>{
+                        setProduits(pp=>[...pp,{
+                          id:Date.now()+Math.random(),
+                          nom:a.n, categorie:a.c,
+                          kcal:a.e, glucides:a.g, proteines:a.p, lipides:a.l,
+                          sodium:a.na, potassium:a.k, magnesium:a.mg,
+                          notes:`CIQUAL 2020 · pour 100g`
+                        }]);
+                      }} style={{fontSize:12,padding:"4px 10px",borderRadius:6,
+                        background:C.forestPale,color:C.forest,border:`1px solid ${C.forest}30`,
+                        cursor:"pointer",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap"}}>
+                        + Ajouter
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {filtered.length===80&&(
+                  <div style={{padding:"8px 16px",fontSize:11,color:C.muted,borderTop:`1px solid ${C.border}`}}>
+                    Affichage limité à 80 résultats — affine ta recherche
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
