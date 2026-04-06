@@ -305,26 +305,6 @@ const G = `
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   @keyframes slideInLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }
 
-  :root {
-    --surface: ${C.white};
-    --surface-2: ${C.stone};
-    --text-c: ${C.ink};
-    --muted-c: ${C.muted};
-    --border-c: ${C.border};
-  }
-  :root.dark {
-    --surface: #1e1b18;
-    --surface-2: #2a2622;
-    --text-c: #e8e0d5;
-    --muted-c: #9a9189;
-    --border-c: #3d3830;
-  }
-
-  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; cursor: pointer; transition: background 0.15s, color 0.15s; font-weight: 500; color: var(--muted-c); font-size: 14px; user-select: none; }
-  .nav-item:hover { background: var(--surface-2); color: var(--text-c); }
-  .nav-item.active { background: ${C.primaryPale}; color: ${C.primaryDeep}; }
-  :root.dark .nav-item.active { background: #3A2C1E; color: ${C.primaryLight}; }
-
   .badge { display:inline-flex; align-items:center; font-size:11px; font-weight:500; padding:2px 7px; border-radius:20px; white-space:nowrap; }
   .badge-plan { background:${C.skyPale}; color:${C.sky}; }
   .badge-done { background:${C.greenPale}; color:${C.green}; }
@@ -5283,6 +5263,76 @@ const ALEX_NAVS = [
   { id: "courses",     label: "Mes courses",         icon: "📚", group: "Historique" },
 ];
 
+// ─── ALEX STYLES (styles.jsx exact) ──────────────────────────────────────────
+const ALEX_C = { bg:"#F4F0EA", white:"#FDFCFA", sand:"#EDE8DF", sandDark:"#DDD5C8", primary:"#7C5C3E", primaryLight:"#9E7A58", primaryPale:"#F0E8DC", primaryDeep:"#4E3726", secondary:"#5C7A5C", secondaryPale:"#E8F0E8", secondaryDark:"#3D5C3D", text:"#2A2218", muted:"#8C7B6A", border:"#D8CEC0", green:"#5C8C6A", greenPale:"#E6F2EA", yellow:"#B8863A", yellowPale:"#FBF3E2", red:"#B84A3A", redPale:"#FBECEB", blue:"#4A7A9B", bluePale:"#E8F2F8" };
+const ALEX_G = `
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
+  .alex-scope *, .alex-scope *::before, .alex-scope *::after { box-sizing: border-box; }
+  .alex-scope { background: var(--bg); font-family: 'DM Sans', sans-serif; color: var(--text-c); font-size: 14px; line-height: 1.5; }
+  :root {
+    --bg: ${ALEX_C.bg};
+    --surface: ${ALEX_C.white};
+    --surface-2: ${ALEX_C.sand};
+    --surface-3: ${ALEX_C.sandDark};
+    --border-c: ${ALEX_C.border};
+    --text-c: ${ALEX_C.text};
+    --muted-c: ${ALEX_C.muted};
+    --primary: ${ALEX_C.primary};
+  }
+  :root.dark {
+    --bg: #14100C;
+    --surface: #1E1810;
+    --surface-2: #26201A;
+    --surface-3: #302820;
+    --border-c: #3C3028;
+    --text-c: #F0EAE0;
+    --muted-c: #9A8870;
+    --primary: ${ALEX_C.primaryLight};
+  }
+  .alex-scope input, .alex-scope select, .alex-scope textarea {
+    font-family: 'DM Sans', sans-serif; font-size: 14px;
+    background: var(--surface-2); color: var(--text-c);
+    border: 1px solid var(--border-c); border-radius: 10px;
+    padding: 9px 12px; width: 100%; outline: none;
+    transition: border 0.2s, box-shadow 0.2s;
+  }
+  .alex-scope input:focus, .alex-scope select:focus, .alex-scope textarea:focus {
+    border-color: ${ALEX_C.primary};
+    box-shadow: 0 0 0 3px ${ALEX_C.primaryPale};
+  }
+  .alex-scope input[type="range"] { background: transparent; border: none; padding: 0; box-shadow: none; accent-color: ${ALEX_C.primary}; }
+  .alex-scope table { border-collapse: collapse; width: 100%; }
+  .alex-scope thead th { font-weight: 600; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted-c); background: var(--surface-2); padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border-c); }
+  .alex-scope tbody tr { border-bottom: 1px solid var(--border-c); transition: background 0.15s; cursor: pointer; }
+  .alex-scope tbody tr:hover { background: var(--surface-2); }
+  .alex-scope tbody td { padding: 10px 14px; }
+  .alex-scope .tbl-wrap { overflow-x: auto; border-radius: 16px; border: 1px solid var(--border-c); }
+  .alex-scope .anim { animation: alexFadeUp 0.35s ease both; }
+  @keyframes alexFadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+  .alex-scope .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .alex-scope .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .alex-scope .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+  .alex-scope .badge-green  { background: ${ALEX_C.greenPale};      color: ${ALEX_C.green}; }
+  .alex-scope .badge-yellow { background: ${ALEX_C.yellowPale};     color: ${ALEX_C.yellow}; }
+  .alex-scope .badge-red    { background: ${ALEX_C.redPale};        color: ${ALEX_C.red}; }
+  .alex-scope .badge-blue   { background: ${ALEX_C.bluePale};       color: ${ALEX_C.blue}; }
+  .alex-scope .badge-brown  { background: ${ALEX_C.primaryPale};    color: ${ALEX_C.primaryDeep}; }
+  .alex-scope .badge-sage   { background: ${ALEX_C.secondaryPale};  color: ${ALEX_C.secondaryDark}; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); backdrop-filter: blur(4px); z-index: 200; display: flex; align-items: center; justify-content: center; }
+  .modal-box { background: var(--surface); border-radius: 20px; border: 1px solid var(--border-c); max-width: 680px; width: 94vw; max-height: 88vh; overflow-y: auto; padding: 32px; box-shadow: 0 24px 60px rgba(0,0,0,0.18); }
+  .confirm-box { background: var(--surface); border-radius: 16px; border: 1px solid var(--border-c); max-width: 400px; width: 90vw; padding: 28px; text-align: center; box-shadow: 0 16px 40px rgba(0,0,0,0.15); }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; cursor: pointer; transition: background 0.15s, color 0.15s; font-weight: 500; color: var(--muted-c); font-size: 14px; user-select: none; }
+  .nav-item:hover { background: var(--surface-2); color: var(--text-c); }
+  .nav-item.active { background: ${ALEX_C.primaryPale}; color: ${ALEX_C.primaryDeep}; }
+  :root.dark .nav-item.active { background: #3A2C1E; color: ${ALEX_C.primaryLight}; }
+  @media (max-width: 768px) {
+    .alex-scope .grid-2col { grid-template-columns: 1fr; }
+    .alex-scope .form-grid { grid-template-columns: repeat(2, 1fr); }
+    .modal-overlay { align-items: flex-end; }
+    .modal-box { border-radius: 20px 20px 0 0; max-height: 90vh; width: 100vw; padding: 24px; }
+  }
+`;
+
 // ─── COURSE LAYOUT (Alex exact) ──────────────────────────────────────────────
 function CourseLayout({ isMobile }) {
   const [view,         setView]         = useState("profil");
@@ -5596,6 +5646,8 @@ function CourseLayout({ isMobile }) {
 
   return (
     <>
+      <style>{ALEX_G}</style>
+      <div className="alex-scope" style={{display:"flex",flex:1,overflow:"hidden",background:"var(--bg)"}}>
       {/* MODAL REPOS */}
       {reposModal && (
         <div onClick={() => setReposModal(false)} style={{ position: "fixed", inset: 0, background: "rgba(28,25,22,0.55)", backdropFilter: "blur(3px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -5724,6 +5776,7 @@ function CourseLayout({ isMobile }) {
           {view === "courses"     && <MesCoursesView courses={courses} onLoad={loadCourse} onDelete={deleteCourse} onUpdate={updateCourse} onOverwrite={overwriteCourse} onSaveCurrent={() => { saveCourse(); alert("✅ Stratégie sauvegardée dans Mes courses !"); }} race={race} segments={segments} settings={settings} />}
         </main>
       </div>
+      </div>{/* end alex-scope */}
     </>
   );
 }
