@@ -9,7 +9,8 @@ import AnalyseView   from './components/AnalyseView.jsx';
 import NutritionView from './components/NutritionView.jsx';
 import EquipementView from './components/EquipementView.jsx';
 import TeamView      from './components/TeamView.jsx';
-import MesCoursesView from './components/MesCoursesView.jsx';
+import MesCoursesView   from './components/MesCoursesView.jsx';
+import ProfilCompte     from './components/ProfilCompte.jsx';
 
 // ─── PALETTE ─────────────────────────────────────────────────────────────────
 const C = {
@@ -5151,10 +5152,17 @@ function TrainLayout({ allTrainProps }) {
         ))}
       </nav>
       <div style={{height:1,background:C.border,margin:"0 16px"}}/>
-      <div style={{padding:"12px 16px 20px",display:"flex",alignItems:"center",gap:8}}>
+      <div onClick={()=>{setView("profil_compte");setDrawerOpen(false);}}
+        style={{padding:"12px 16px 20px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",
+          transition:"background .15s",borderRadius:"0 0 0 0"}}
+        onMouseEnter={e=>e.currentTarget.style.background=C.stone}
+        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
         <div style={{width:28,height:28,borderRadius:"50%",background:TEAL,
-          display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:600}}>Y</div>
-        <span style={{fontSize:12,color:C.inkLight,fontWeight:500}}>Ynk</span>
+          display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:600}}>
+          {(profil?.prenom||"Y").slice(0,2).toUpperCase()}
+        </div>
+        <span style={{fontSize:12,color:C.inkLight,fontWeight:500}}>{profil?.prenom||"Mon profil"}</span>
+        <span style={{marginLeft:"auto",fontSize:16,color:C.stoneDeep}}>›</span>
       </div>
     </div>
   );
@@ -5224,7 +5232,20 @@ function TrainLayout({ allTrainProps }) {
             {subView.forme==="poids"     && <FormePoids sommeil={sommeil} setSommeil={setSommeil} vfcData={vfcData} setVfcData={setVfcData} poids={poids} setPoids={setPoids} activites={activites} profil={profil} setProfil={setProfil}/>}
           </div>
         )}
-        {view==="donnees" && <DonneesParams {...allProps} confirmReset={confirmReset} setConfirmReset={setConfirmReset}/>}
+        {view==="donnees"       && <DonneesParams {...allProps} confirmReset={confirmReset} setConfirmReset={setConfirmReset}/>}
+        {view==="profil_compte" && (
+          <div style={{padding:"0 0 0 0",height:"100%"}}>
+            <div style={{padding:"16px 24px",borderBottom:`1px solid ${C.border}`,background:C.white,
+              display:"flex",alignItems:"center",gap:12}}>
+              <button onClick={()=>setView("dashboard")}
+                style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:C.muted,
+                  fontFamily:"inherit",display:"flex",alignItems:"center",gap:4}}>← Retour</button>
+              <span style={{fontSize:11,color:C.stoneDark}}>|</span>
+              <span style={{fontSize:13,color:C.inkLight,fontWeight:500}}>Profil</span>
+            </div>
+            <ProfilCompte profil={profil} setProfil={setProfil}/>
+          </div>
+        )}
       </div>
 
       <ConfirmDialog open={confirmReset} message="Effacer toutes les données ? Cette action est irréversible."
@@ -5334,7 +5355,7 @@ const ALEX_G = `
 `;
 
 // ─── COURSE LAYOUT (Alex exact) ──────────────────────────────────────────────
-function CourseLayout({ isMobile }) {
+function CourseLayout({ isMobile, strideObjectifs, profil: alexProfil, setProfil: setAlexProfil }) {
   const [view,         setView]         = useState("profil");
   const [raceRaw,      setRaceRaw]      = useState({});
   const [segmentsRaw,  setSegmentsRaw]  = useState([]);
@@ -5605,6 +5626,19 @@ function CourseLayout({ isMobile }) {
         </div>
       </nav>
       <div style={{ height: 1, background: "var(--border-c)", margin: "0 16px" }} />
+      <div onClick={() => { setView("profil_compte"); setDrawerOpen(false); }}
+        style={{ padding:"10px 16px", display:"flex", alignItems:"center", gap:8, cursor:"pointer",
+          borderBottom:"1px solid var(--border-c)", transition:"background .15s" }}
+        onMouseEnter={e=>e.currentTarget.style.background="var(--surface-2,#eae6df)"}
+        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+        <div style={{ width:28, height:28, borderRadius:"50%", background:C.primary,
+          display:"flex", alignItems:"center", justifyContent:"center",
+          color:"#fff", fontSize:11, fontWeight:700, flexShrink:0 }}>
+          {(alexProfil?.prenom||"?").slice(0,2).toUpperCase()}
+        </div>
+        <span style={{ fontSize:12, color:"var(--text-c)", fontWeight:500 }}>{alexProfil?.prenom||"Mon profil"}</span>
+        <span style={{ marginLeft:"auto", fontSize:16, color:"var(--muted-c)" }}>›</span>
+      </div>
       <div style={{ padding: "12px 16px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "4px 0", height: 20 }}>
           {autoSaved && <span style={{ fontSize: 11, color: C.green, fontWeight: 500, animation: "fadeUp 0.3s ease" }}>✓ Sauvegarde auto</span>}
@@ -5773,7 +5807,19 @@ function CourseLayout({ isMobile }) {
             if (data.settings) setSettingsRaw({ ...EMPTY_SETTINGS, ...data.settings });
             idbSave({ race: data.race, segments: data.segments, settings: { ...EMPTY_SETTINGS, ...data.settings } });
           }} />}
-          {view === "courses"     && <MesCoursesView courses={courses} onLoad={loadCourse} onDelete={deleteCourse} onUpdate={updateCourse} onOverwrite={overwriteCourse} onSaveCurrent={() => { saveCourse(); alert("✅ Stratégie sauvegardée dans Mes courses !"); }} race={race} segments={segments} settings={settings} />}
+          {view === "courses"        && <MesCoursesView courses={courses} onLoad={loadCourse} onDelete={deleteCourse} onUpdate={updateCourse} onOverwrite={overwriteCourse} onSaveCurrent={() => { saveCourse(); alert("✅ Stratégie sauvegardée dans Mes courses !"); }} race={race} segments={segments} settings={settings} />}
+          {view === "profil_compte"  && (
+            <div>
+              <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24, paddingBottom:16, borderBottom:"1px solid var(--border-c)" }}>
+                <button onClick={() => setView("profil")}
+                  style={{ background:"none", border:"none", cursor:"pointer", fontSize:13,
+                    color:"var(--muted-c)", fontFamily:"inherit", display:"flex", alignItems:"center", gap:4 }}>← Retour</button>
+                <span style={{ fontSize:11, color:"var(--muted-c)" }}>|</span>
+                <span style={{ fontSize:13, color:"var(--text-c)", fontWeight:500 }}>Profil</span>
+              </div>
+              <ProfilCompte profil={alexProfil||{}} setProfil={setAlexProfil||(() => {})}/>
+            </div>
+          )}
         </main>
       </div>
       </div>{/* end alex-scope */}
@@ -5840,7 +5886,7 @@ export default function App() {
       <div style={{display:"flex",flex:1,overflow:"hidden"}}>
         {context==="home"   && <HomeScreen setContext={setContext} seances={seances} activites={activites} vfcData={vfcData} sommeil={sommeil} poids={poids} objectifs={objectifs}/>}
         {context==="train"  && <TrainLayout allTrainProps={allTrainProps}/>}
-        {context==="course" && <CourseLayout isMobile={isMobile} strideObjectifs={objectifs}/>}
+        {context==="course" && <CourseLayout isMobile={isMobile} strideObjectifs={objectifs} profil={profil} setProfil={setProfil}/>}
       </div>
     </>
   );
