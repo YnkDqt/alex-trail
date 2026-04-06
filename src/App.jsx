@@ -5676,36 +5676,36 @@ function CourseLayout({ isMobile }) {
 
       {/* MODAL MON EXPÉRIENCE */}
       {featuresModal && (
-        <div onClick={() => setFeaturesModal(false)} style={{ position: "fixed", inset: 0, background: "rgba(28,25,22,0.55)", backdropFilter: "blur(3px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "var(--surface,#fff)", borderRadius: 16, width: "100%", maxWidth: 540, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
+        <div onClick={() => setFeaturesModal(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--surface)", borderRadius: 20, border: "1px solid var(--border-c)", width: "100%", maxWidth: 540, maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 60px rgba(0,0,0,0.18)" }}>
             <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid var(--border-c)", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 600 }}>Mon expérience</div>
+              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 600, color: "var(--text-c)" }}>Mon expérience</div>
               <button onClick={() => setFeaturesModal(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "var(--muted-c)" }}>×</button>
             </div>
             <div style={{ padding: 22, overflowY: "auto", flex: 1 }}>
-              <p style={{ fontSize: 13, color: "var(--muted-c)", marginBottom: 20, lineHeight: 1.6 }}>Active uniquement les fonctionnalités dont tu as besoin. Les onglets désactivés disparaissent de la navigation.</p>
+              <p style={{ fontSize: 13, color: "var(--muted-c)", marginBottom: 20, lineHeight: 1.6 }}>Active uniquement les fonctionnalités dont tu as besoin. Les onglets désactivés disparaissent de la navigation. Tu peux changer d'avis à tout moment.</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {FEATURE_LABELS.map(({ key, label, icon, desc }) => {
                   const active = features[key];
                   return (
-                    <div key={key} onClick={() => toggleFeature(key)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderRadius: 12, cursor: "pointer", transition: "all 0.15s", border: `2px solid ${active ? C.primary + "60" : "var(--border-c)"}`, background: active ? C.primaryPale : "var(--surface-2,#eae6df)" }}>
+                    <div key={key} onClick={() => toggleFeature(key)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderRadius: 12, cursor: "pointer", transition: "all 0.15s", border: `2px solid ${active ? ALEX_C.primary + "60" : "var(--border-c)"}`, background: active ? ALEX_C.primaryPale : "var(--surface-2)" }}>
                       <span style={{ fontSize: 22, flexShrink: 0 }}>{icon}</span>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: active ? C.primaryDeep : "var(--text-c)" }}>{label}</div>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: active ? ALEX_C.primaryDeep : "var(--text-c)" }}>{label}</div>
                         <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 2 }}>{desc}</div>
                       </div>
-                      <div style={{ width: 40, height: 22, borderRadius: 11, flexShrink: 0, background: active ? C.primary : "var(--border-c)", position: "relative", transition: "background 0.2s" }}>
+                      <div style={{ width: 40, height: 22, borderRadius: 11, flexShrink: 0, background: active ? ALEX_C.primary : "var(--border-c)", position: "relative", transition: "background 0.2s" }}>
                         <div style={{ position: "absolute", top: 3, left: active ? 21 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
                       </div>
                     </div>
                   );
                 })}
               </div>
-              <div style={{ marginTop: 20, padding: "10px 14px", background: "var(--surface-2,#eae6df)", borderRadius: 10, fontSize: 12, color: "var(--muted-c)" }}>
+              <div style={{ marginTop: 20, padding: "10px 14px", background: "var(--surface-2)", borderRadius: 10, fontSize: 12, color: "var(--muted-c)" }}>
                 💡 Les onglets Profil de course et Stratégie sont toujours visibles — ils constituent le cœur d'Alex.
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
-                <button onClick={() => setFeaturesModal(false)} style={{ background: C.primary, color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Fermer</button>
+                <button onClick={() => setFeaturesModal(false)} style={{ background: ALEX_C.primary, color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>Fermer</button>
               </div>
             </div>
           </div>
