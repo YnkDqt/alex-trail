@@ -67,9 +67,3 @@ export const statusBadge = (s) => {
   if (s==="Annulé")   return <span className="badge badge-cancel">Annulé</span>;
   return <span className="badge badge-plan">Planifié</span>;
 };
-
-export const inlineInput = (w=80) => ({
-  fontSize:12, padding:"3px 6px", borderRadius:5,
-  border:`1px solid ${C.border}`, background:C.white,
-  width:w, fontFamily:"'DM Mono',monospace", textAlign:"right",
-});

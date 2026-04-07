@@ -2,7 +2,6 @@ import React, { useState, useMemo } from "react";
 import { CS as C } from "../../stride/constants.js";
 import { Btn, Modal, Field, ConfirmDialog } from "../../stride/atoms.jsx";
 import { CIQUAL, CIQUAL_CATEGORIES } from "../../data/ciqual.js";
-
 // ─── JOURNAL NUTRITIONNEL
 const emptyJourEntry = () => ({
   id: Date.now()+Math.random(),
@@ -768,5 +767,5 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   );
 }
 
--e 
+
 export { JournalNutri, Nutrition };

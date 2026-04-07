@@ -3,7 +3,6 @@ import { CS as C, localDate, fmtDate, daysUntil, isRunning, actColor, actColorPa
   exportJSON, parseCSVActivities, emptySeance, ACTIVITY_TYPES, STATUT_OPTIONS, TYPE_MIGRATION,
   ACT_ICON, DAY_NAMES, DAY_SHORT, DEFAULT_PLANNING } from "../../stride/constants.js";
 import { Btn, Modal, Field, FormGrid, ConfirmDialog, statusBadge } from "../../stride/atoms.jsx";
-
 // ─── ENTRAÎNEMENT PROGRAMME (vue principale fusionnée) ───────────────────────
 // Statuts enrichis
 const STATUTS = [
@@ -1497,5 +1496,5 @@ function Programme({ seances, setSeances, objectifs, planningType, activites, se
   );
 }
 
--e 
+
 export { StatusBadge, ActCell, DiffSpan, EntrainementProgramme, ProgrammeView, Programme };

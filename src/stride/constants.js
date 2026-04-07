@@ -1,5 +1,5 @@
 // ─── STRIDE CONSTANTS & HELPERS ──────────────────────────────────────────────
-// Palette Stride (séparée de Alex C{} dans constants.js)
+
 export const CS = {
   bg:          "#F5F3EF",
   white:       "#FFFFFF",
@@ -28,7 +28,6 @@ export const CS = {
 };
 
 export const LS_KEY = "stride_v2";
-
 export const DAY_NAMES = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
 export const DAY_SHORT = ["Lu","Ma","Me","Je","Ve","Sa","Di"];
 export const MOIS_FR = ["","Jan","Fév","Mar","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"];
@@ -37,7 +36,6 @@ export const ACTIVITY_TYPES = [
   "Trail","Course à pied","Marche à pied","Musculation",
   "Mobilité / Gainage","Hyrox","Vélo","Repos",
 ];
-
 export const STATUT_OPTIONS = ["Planifié","Effectué","Partiel","Remplacé","Annulé"];
 
 export const ACT_ICON = {
@@ -67,7 +65,6 @@ export const DEFAULT_PLANNING = {
   "Dimanche AM":"Repos","Dimanche PM":"Repos",
 };
 
-// ─── HELPERS ─────────────────────────────────────────────────────────────────
 export const isRunning = (a) => RUNNING_TYPES.includes(TYPE_MIGRATION[a]||a);
 export const lsRead  = (k, fb) => { try { const r = localStorage.getItem(LS_KEY); if (!r) return fb; return JSON.parse(r)[k] ?? fb; } catch { return fb; } };
 export const lsWrite = (data) => { try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch {} };
@@ -87,7 +84,7 @@ export const actColorPale = (type) => {
   return {"Trail":CS.forestPale,"Course à pied":CS.greenPale,"Marche à pied":CS.yellowPale,
     "Musculation":CS.skyPale,"Repos":CS.stone}[t] || CS.stone;
 };
-export const actIcon = (type) => ACT_ICON[TYPE_MIGRATION[type]||type] || "·";
+export const actIcon  = (type) => ACT_ICON[TYPE_MIGRATION[type]||type] || "·";
 export const actShort = (type) => {
   const t = TYPE_MIGRATION[type]||type;
   return {"Trail":"Trail","Course à pied":"Course","Marche à pied":"Marche",
@@ -95,7 +92,6 @@ export const actShort = (type) => {
     "Vélo":"Vélo","Repos":"Repos"}[t] || t?.slice(0,6) || "—";
 };
 
-// ─── CSV PARSERS ─────────────────────────────────────────────────────────────
 export const parseCSVActivities = (text) => {
   const lines = text.trim().split("\n");
   const headers = lines[0].split(",").map(h=>h.trim().replace(/^"|"$/g,""));
@@ -153,8 +149,7 @@ const parseFrDateVFC = (raw) => {
   const day = m[1].padStart(2,"0");
   const mon = MOIS[m[2].toLowerCase()];
   if (!mon) return "";
-  const now = new Date();
-  const year = now.getFullYear();
+  const now = new Date(); const year = now.getFullYear();
   const testDate = new Date(`${year}-${mon}-${day}`);
   const finalYear = testDate > new Date(now.getTime() + 30*86400000) ? year-1 : year;
   return `${finalYear}-${mon}-${day}`;
@@ -167,8 +162,7 @@ export const parseCSVVFC = (text) => {
   return lines.slice(1).map(line => {
     const vals = line.split(",").map(v=>v.trim().replace(/^"|"$/g,""));
     const o = {}; headers.forEach((h,i) => o[h] = vals[i]||"");
-    const dateRaw = o["Date"]||vals[0]||"";
-    const date = parseFrDateVFC(dateRaw);
+    const date = parseFrDateVFC(o["Date"]||vals[0]||"");
     const stripMs = (v) => (v||"").replace(/ms/gi,"").trim();
     return {
       id: Date.now()+Math.random(), date,
@@ -187,7 +181,6 @@ export const parseCSVVFC = (text) => {
   }).filter(v=>v.date && v.date.match(/^\d{4}-\d{2}-\d{2}/));
 };
 
-// ─── EMPTY FACTORIES ─────────────────────────────────────────────────────────
 export const emptySeance = () => ({
   id: Date.now()+Math.random(), date: localDate(new Date()),
   demiJournee: "Lundi AM", activite: "Trailrunning", statut: "Planifié",

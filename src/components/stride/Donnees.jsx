@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { CS as C, exportJSON, lsRead, parseCSVActivities, parseCSVSommeil, parseCSVVFC,
   localDate, ACTIVITY_TYPES } from "../../stride/constants.js";
 import { Btn, Field, ConfirmDialog } from "../../stride/atoms.jsx";
-
 // ─── DONNÉES ─────────────────────────────────────────────────────────────────
 function Donnees({ activites, setActivites, sommeil, setSommeil, vfcData, setVfcData, poids, setPoids, seances, setSeances, planningType, objectifs, allData, loadData, resetAll, journalNutri }) {
   const [msgs,          setMsgs]         = useState({});
@@ -171,7 +170,6 @@ function Donnees({ activites, setActivites, sommeil, setSommeil, vfcData, setVfc
   );
 }
 
-
 // ─── PARAMÈTRES (onglet plein écran) ─────────────────────────────────────────
 function Parametres({ planningType, setPlanningType, seances, setSeances, objectifs, setObjectifs, activityTypes, setActivityTypes }) {
   const [tab,       setTab]       = useState("planning");
@@ -276,7 +274,6 @@ function Parametres({ planningType, setPlanningType, seances, setSeances, object
 }
 
 
-
 // ─── DONNÉES & PARAMÈTRES (wrapper) ──────────────────────────────────────────
 function DonneesParams(props) {
   const [tab, setTab] = useState("donnees");
@@ -303,5 +300,5 @@ function DonneesParams(props) {
 
 
 // ─── TOPBAR ───────────────────────────────────────────────────────────────────
--e 
+
 export { Donnees, Parametres, DonneesParams };

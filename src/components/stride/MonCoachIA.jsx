@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { CS as C, localDate, fmtDate, isRunning } from "../../stride/constants.js";
 import { Btn } from "../../stride/atoms.jsx";
-
 // ─── MON COACH IA ─────────────────────────────────────────────────────────────
 function MonCoachIA({ seances, setSeances, activites, sommeil, vfcData, poids, objectifs,
   planningType, produits, recettes, journalNutri, activityTypes }) {
@@ -434,5 +433,5 @@ Aide-moi à construire ma stratégie de ravitaillement pour cette course : fréq
   );
 }
 
--e 
+
 export default MonCoachIA;

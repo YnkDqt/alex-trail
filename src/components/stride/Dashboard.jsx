@@ -559,5 +559,5 @@ function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, set
   );
 }
 
--e 
+
 export default Dashboard;

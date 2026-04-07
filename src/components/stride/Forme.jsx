@@ -1,9 +1,8 @@
 import React, { useState, useMemo, useRef } from "react";
+import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer } from "recharts";
 import { CS as C, localDate, exportJSON, parseCSVSommeil, parseCSVVFC,
   emptyPoids, emptyVFC, emptySommeil } from "../../stride/constants.js";
 import { Btn, Modal, Field, ConfirmDialog } from "../../stride/atoms.jsx";
-import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer } from "recharts";
-
 // ─── WRAPPERS FORME ──────────────────────────────────────────────────────────
 // Le composant Forme gère déjà VFC/Sommeil/Poids — on le wrap avec tab forcé
 function FormeVFC(props) {
@@ -368,5 +367,5 @@ function Forme({ sommeil, setSommeil, vfcData, setVfcData, poids, setPoids, acti
   );
 }
 
--e 
+
 export { FormeVFC, FormeSommeil, FormePoids, Forme };
