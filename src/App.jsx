@@ -328,8 +328,8 @@ function TrainLayout({ allTrainProps }) {
       <div onClick={()=>{setView("profil_compte");setDrawerOpen(false);}}
         style={{padding:"10px 16px 20px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",
           transition:"background .15s",borderRadius:"0 0 0 0"}}
-        onMouseEnter={e=>e.currentTarget.style.background=C.stone}
-        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+        onMouseEnter={e=>{e.currentTarget.style.background=C.stone}}
+        onMouseLeave={e=>{e.currentTarget.style.background="transparent"}}>
         <div style={{width:28,height:28,borderRadius:"50%",background:TEAL,flexShrink:0,
           display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:600}}>
           {(profil?.prenom||"?").slice(0,2).toUpperCase()}
@@ -808,8 +808,8 @@ function CourseLayout({ isMobile, strideObjectifs, profil: alexProfil, setProfil
       {/* Profil */}
       <div onClick={() => { navigate("profil_compte"); }}
         style={{ padding: "10px 16px 20px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", transition: "background .15s" }}
-        onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
-        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+        onMouseEnter={e => {e.currentTarget.style.background = "var(--surface-2)"}}
+        onMouseLeave={e => {e.currentTarget.style.background = "transparent"}}>
         <div style={{ width: 28, height: 28, borderRadius: "50%", background: ALEX_C.primary, flexShrink: 0,
           display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 700 }}>
           {(alexProfil?.prenom || "?").slice(0, 2).toUpperCase()}
