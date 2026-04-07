@@ -5206,11 +5206,18 @@ function TrainLayout({ allTrainProps }) {
     activityTypes,setActivityTypes,journalNutri,setJournalNutri,produits,setProduits,
     recettes,setRecettes,allData,loadData,resetAll,setView};
 
+  const [strideDark, setStrideDark] = useState(()=>document.documentElement.classList.contains("dark"));
+  const toggleStrideDark = () => {
+    const next = !strideDark;
+    setStrideDark(next);
+    if(next) document.documentElement.classList.add("dark");
+    else document.documentElement.classList.remove("dark");
+  };
+
   const SidebarContent = () => (
     <div style={{display:"flex",flexDirection:"column",height:"100%"}}>
       <div style={{padding:"24px 20px 16px"}}>
         <div style={{fontFamily:"'Fraunces',serif",fontSize:20,fontWeight:500,color:TEAL,letterSpacing:"-0.02em"}}>Entraînement</div>
-        <div style={{fontSize:11,color:C.muted,marginTop:2}}>Stride</div>
       </div>
       <div style={{height:1,background:C.border,margin:"0 16px"}}/>
       <nav style={{padding:"0 8px",flex:1,display:"flex",flexDirection:"column",gap:1,overflowY:"auto"}}>
@@ -5231,17 +5238,28 @@ function TrainLayout({ allTrainProps }) {
         ))}
       </nav>
       <div style={{height:1,background:C.border,margin:"0 16px"}}/>
+      {/* Dark mode */}
+      <div style={{padding:"10px 16px 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <span style={{fontSize:12,color:C.muted,fontWeight:500}}>{strideDark?"🌙 Mode sombre":"☀️ Mode clair"}</span>
+        <div onClick={toggleStrideDark}
+          style={{width:36,height:20,borderRadius:10,cursor:"pointer",position:"relative",
+            background:strideDark?TEAL:C.stoneDark,transition:"background .2s",flexShrink:0}}>
+          <div style={{position:"absolute",top:2,left:strideDark?18:2,width:16,height:16,borderRadius:"50%",
+            background:"#fff",transition:"left .2s",boxShadow:"0 1px 3px rgba(0,0,0,.2)"}}/>
+        </div>
+      </div>
+      {/* Profil */}
       <div onClick={()=>{setView("profil_compte");setDrawerOpen(false);}}
-        style={{padding:"12px 16px 20px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",
+        style={{padding:"10px 16px 20px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",
           transition:"background .15s",borderRadius:"0 0 0 0"}}
         onMouseEnter={e=>e.currentTarget.style.background=C.stone}
         onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        <div style={{width:28,height:28,borderRadius:"50%",background:TEAL,
+        <div style={{width:28,height:28,borderRadius:"50%",background:TEAL,flexShrink:0,
           display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:600}}>
-          {(profil?.prenom||"Y").slice(0,2).toUpperCase()}
+          {(profil?.prenom||"?").slice(0,2).toUpperCase()}
         </div>
-        <span style={{fontSize:12,color:C.inkLight,fontWeight:500}}>{profil?.prenom||"Mon profil"}</span>
-        <span style={{marginLeft:"auto",fontSize:16,color:C.stoneDeep}}>›</span>
+        <span style={{fontSize:12,color:C.inkLight,fontWeight:500,flex:1}}>{profil?.prenom||"Mon profil"}</span>
+        <span style={{fontSize:14,color:C.stoneDeep}}>›</span>
       </div>
     </div>
   );
@@ -5664,25 +5682,31 @@ function CourseLayout({ isMobile, strideObjectifs, profil: alexProfil, setProfil
   // ── Sidebar ────────────────────────────────────────────────────────────────
   const SidebarContent = () => (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {/* Header */}
       <div style={{ padding: "24px 20px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, color: C.primary }}>Alex</div>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: 20, fontWeight: 500, color: C.primary, letterSpacing: "-0.02em" }}>Trail Running Strategy</div>
           {window.location.hostname !== "alex-trail.vercel.app" && !window.location.hostname.includes("localhost") && (
-            <span style={{ fontSize: 10, fontWeight: 700, background: C.yellow + "30", color: C.yellow, border: `1px solid ${C.yellow}60`, borderRadius: 5, padding: "2px 7px", letterSpacing: "0.05em" }}>DEV</span>
+            <span style={{ fontSize: 10, fontWeight: 700, background: C.yellow + "30", color: C.yellow, border: `1px solid ${C.yellow}60`, borderRadius: 5, padding: "2px 7px", letterSpacing: "0.05em", flexShrink: 0 }}>DEV</span>
           )}
         </div>
-        <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 2 }}>Trail Running Strategy</div>
       </div>
       <div style={{ height: 1, background: "var(--border-c)", margin: "0 16px" }} />
-      <nav style={{ padding: "0 10px", display: "flex", flexDirection: "column", gap: 2, flex: 1 }}>
+
+      {/* Nav */}
+      <nav style={{ padding: "0 8px", display: "flex", flexDirection: "column", gap: 1, flex: 1, overflowY: "auto" }}>
         {(() => {
           const groups = [...new Set(NAVS_ACTIVE.map(n => n.group))];
           return groups.map(group => (
             <div key={group}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.08em", padding: "10px 10px 4px", opacity: 0.7 }}>{group}</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.08em", padding: "10px 10px 3px", opacity: 0.7 }}>{group}</div>
               {NAVS_ACTIVE.filter(n => n.group === group).map(n => (
-                <div key={n.id} className={`nav-item${view === n.id ? " active" : ""}`} onClick={() => navigate(n.id)}>
-                  <span>{n.icon}</span>
+                <div key={n.id} onClick={() => navigate(n.id)}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 10, cursor: "pointer",
+                    fontWeight: 500, fontSize: 13, userSelect: "none", transition: "background .15s, color .15s",
+                    background: view === n.id ? C.primaryPale : "transparent",
+                    color: view === n.id ? C.primaryDeep : "var(--muted-c)" }}>
+                  <span style={{ fontSize: 13 }}>{n.icon}</span>
                   <span>{n.label}</span>
                 </div>
               ))}
@@ -5690,69 +5714,50 @@ function CourseLayout({ isMobile, strideObjectifs, profil: alexProfil, setProfil
           ));
         })()}
         {hasRace && (
-          <div style={{ background: "var(--surface-2,#eae6df)", borderRadius: 12, padding: "12px 14px", fontSize: 13, marginTop: 12 }}>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>{settings.raceName || race.name || "Course sans nom"}</div>
+          <div style={{ background: "var(--surface-2)", borderRadius: 12, padding: "12px 14px", fontSize: 13, marginTop: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 4, color: "var(--text-c)" }}>{settings.raceName || race.name || "Course sans nom"}</div>
             <div style={{ color: "var(--muted-c)", fontSize: 12 }}>{race.totalDistance?.toFixed(1)} km · {Math.round(race.totalElevPos || 0)} m D+</div>
             <div style={{ color: "var(--muted-c)", fontSize: 12 }}>{segments.filter(s => s.type !== "ravito" && s.type !== "repos").length} segments · {race.ravitos?.length || 0} ravitos</div>
           </div>
         )}
-        <div onClick={() => setFeaturesModal(true)} className="nav-item" style={{ marginTop: 8, borderTop: "1px solid var(--border-c)", paddingTop: 12 }}>
-          <span>⚙️</span>
-          <span>Mon expérience</span>
-          <span style={{ marginLeft: "auto", fontSize: 10, background: C.primaryPale, color: C.primaryDeep, borderRadius: 4, padding: "1px 6px", fontWeight: 600 }}>
-            {Object.values(features).filter(Boolean).length}/{Object.keys(features).length}
-          </span>
+        {/* Données & Params */}
+        <div onClick={() => navigate("donnees_params")}
+          style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 10, cursor: "pointer",
+            fontWeight: 500, fontSize: 13, userSelect: "none", transition: "background .15s, color .15s",
+            marginTop: 8, borderTop: "1px solid var(--border-c)", paddingTop: 12,
+            background: view === "donnees_params" ? C.primaryPale : "transparent",
+            color: view === "donnees_params" ? C.primaryDeep : "var(--muted-c)" }}>
+          <span style={{ fontSize: 13 }}>⚙</span>
+          <span>Données & Params</span>
+          {autoSaved && <span style={{ marginLeft: "auto", fontSize: 10, color: C.green, fontWeight: 600 }}>✓ Sauvé</span>}
+          {hasUnsaved && !autoSaved && <span style={{ marginLeft: "auto", width: 7, height: 7, borderRadius: "50%", background: C.yellow, display: "inline-block" }} />}
         </div>
       </nav>
+
       <div style={{ height: 1, background: "var(--border-c)", margin: "0 16px" }} />
-      <div onClick={() => { setView("profil_compte"); setDrawerOpen(false); }}
-        style={{ padding:"10px 16px", display:"flex", alignItems:"center", gap:8, cursor:"pointer",
-          borderBottom:"1px solid var(--border-c)", transition:"background .15s" }}
-        onMouseEnter={e=>e.currentTarget.style.background="var(--surface-2,#eae6df)"}
-        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        <div style={{ width:28, height:28, borderRadius:"50%", background:C.primary,
-          display:"flex", alignItems:"center", justifyContent:"center",
-          color:"#fff", fontSize:11, fontWeight:700, flexShrink:0 }}>
-          {(alexProfil?.prenom||"?").slice(0,2).toUpperCase()}
+
+      {/* Dark mode */}
+      <div style={{ padding: "10px 16px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 12, color: "var(--muted-c)", fontWeight: 500 }}>{settings.darkMode ? "🌙 Mode sombre" : "☀️ Mode clair"}</span>
+        <div onClick={() => setSettings(s => ({ ...s, darkMode: !s.darkMode }))}
+          style={{ width: 36, height: 20, borderRadius: 10, cursor: "pointer", position: "relative",
+            background: settings.darkMode ? C.primary : "var(--border-c)", transition: "background .2s", flexShrink: 0 }}>
+          <div style={{ position: "absolute", top: 2, left: settings.darkMode ? 18 : 2, width: 16, height: 16, borderRadius: "50%",
+            background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
         </div>
-        <span style={{ fontSize:12, color:"var(--text-c)", fontWeight:500 }}>{alexProfil?.prenom||"Mon profil"}</span>
-        <span style={{ marginLeft:"auto", fontSize:16, color:"var(--muted-c)" }}>›</span>
       </div>
-      <div style={{ padding: "12px 16px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "4px 0", height: 20 }}>
-          {autoSaved && <span style={{ fontSize: 11, color: C.green, fontWeight: 500, animation: "fadeUp 0.3s ease" }}>✓ Sauvegarde auto</span>}
+
+      {/* Profil */}
+      <div onClick={() => { navigate("profil_compte"); }}
+        style={{ padding: "10px 16px 20px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", transition: "background .15s" }}
+        onMouseEnter={e => e.currentTarget.style.background = "var(--surface-2)"}
+        onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+        <div style={{ width: 28, height: 28, borderRadius: "50%", background: C.primary, flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 700 }}>
+          {(alexProfil?.prenom || "?").slice(0, 2).toUpperCase()}
         </div>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: 12, background: "var(--surface-2,#eae6df)" }}>
-          <span style={{ fontSize: 13, color: "var(--muted-c)", fontWeight: 500 }}>{settings.darkMode ? "🌙 Mode sombre" : "☀️ Mode clair"}</span>
-          <div onClick={() => setSettings(s => ({ ...s, darkMode: !s.darkMode }))}
-            style={{ width: 40, height: 22, borderRadius: 11, cursor: "pointer", transition: "background 0.2s", position: "relative", background: settings.darkMode ? C.primary : "var(--border-c)" }}>
-            <div style={{ position: "absolute", top: 3, left: settings.darkMode ? 21 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
-          </div>
-        </div>
-        {!isStandalone && !installDone && (
-          <button onClick={handleInstall} style={{ background: C.primaryPale, border: `1px solid ${C.primary}40`, borderRadius: 12, padding: "10px 14px", cursor: "pointer", fontSize: 13, fontFamily: "'DM Sans', sans-serif", fontWeight: 600, display: "flex", alignItems: "center", gap: 8, color: C.primaryDeep, width: "100%" }}>
-            📲 Installer l'app
-          </button>
-        )}
-        {isStandalone && <div style={{ fontSize: 11, color: C.green, textAlign: "center", padding: "4px 0" }}>✓ App installée</div>}
-        <button onClick={saveData} style={{ background: hasUnsaved ? C.primary : "var(--surface-2,#eae6df)", color: hasUnsaved ? "#fff" : "var(--text-c)", border: "none", borderRadius: 12, padding: "10px 14px", cursor: "pointer", fontSize: 13, fontFamily: "'DM Sans', sans-serif", fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 8, transition: "all 0.2s", width: "100%" }}>
-          💾 Télécharger la stratégie
-          {hasUnsaved && <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.yellowPale, display: "inline-block", marginLeft: "auto" }} />}
-        </button>
-        <label style={{ display: "block" }}>
-          <div style={{ background: "var(--surface-2,#eae6df)", border: "1px solid var(--border-c)", borderRadius: 12, padding: "10px 14px", cursor: "pointer", fontSize: 13, fontWeight: 500, color: "var(--text-c)", display: "flex", alignItems: "center", gap: 8 }}>📂 Charger une stratégie</div>
-          <input type="file" accept=".json" style={{ display: "none" }} onChange={e => { if (e.target.files[0]) loadData(e.target.files[0]); }} />
-        </label>
-        <button onClick={() => {
-          const hasData = race.gpxPoints?.length > 0 || segments.length > 0;
-          if (hasData) { const choice = window.confirm(`Démarrer une nouvelle course ?\n\nOK = sauvegarder "${settings.raceName || race.name || "la course actuelle"}" avant.\nAnnuler = tout effacer.`); if (choice) saveCourse(); }
-          const newSettings = { ...EMPTY_SETTINGS, produits: settings.produits || [], equipment: settings.equipment || DEFAULT_EQUIPMENT, darkMode: settings.darkMode };
-          setRaceRaw({}); setSegmentsRaw([]); setSettingsRaw(newSettings);
-          setHasUnsaved(false); setView("profil"); setDrawerOpen(false);
-          idbSave({ race: {}, segments: [], settings: newSettings });
-        }} style={{ background: "none", border: "1px solid var(--border-c)", borderRadius: 12, padding: "10px 14px", cursor: "pointer", fontSize: 13, width: "100%", fontWeight: 500, color: "var(--muted-c)", display: "flex", alignItems: "center", gap: 8, fontFamily: "'DM Sans', sans-serif" }}>
-          🔄 Nouvelle course
-        </button>
+        <span style={{ fontSize: 12, color: "var(--text-c)", fontWeight: 500, flex: 1 }}>{alexProfil?.prenom || "Mon profil"}</span>
+        <span style={{ fontSize: 14, color: "var(--muted-c)" }}>›</span>
       </div>
     </div>
   );
@@ -5781,44 +5786,6 @@ function CourseLayout({ isMobile, strideObjectifs, profil: alexProfil, setProfil
               <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
                 <button onClick={() => setReposModal(false)} style={{ padding: "9px 18px", borderRadius: 10, border: "1px solid var(--border-c)", background: "transparent", color: "var(--muted-c)", cursor: "pointer", fontFamily: "inherit", fontSize: 14 }}>Annuler</button>
                 <button onClick={addRepos} style={{ padding: "9px 20px", borderRadius: 10, border: "none", background: C.primary, color: "#fff", cursor: "pointer", fontFamily: "inherit", fontSize: 14, fontWeight: 500 }}>Ajouter</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL MON EXPÉRIENCE */}
-      {featuresModal && (
-        <div onClick={() => setFeaturesModal(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "var(--surface)", borderRadius: 20, border: "1px solid var(--border-c)", width: "100%", maxWidth: 540, maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 60px rgba(0,0,0,0.18)" }}>
-            <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid var(--border-c)", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-              <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 600, color: "var(--text-c)" }}>Mon expérience</div>
-              <button onClick={() => setFeaturesModal(false)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "var(--muted-c)" }}>×</button>
-            </div>
-            <div style={{ padding: 22, overflowY: "auto", flex: 1 }}>
-              <p style={{ fontSize: 13, color: "var(--muted-c)", marginBottom: 20, lineHeight: 1.6 }}>Active uniquement les fonctionnalités dont tu as besoin. Les onglets désactivés disparaissent de la navigation. Tu peux changer d'avis à tout moment.</p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {FEATURE_LABELS.map(({ key, label, icon, desc }) => {
-                  const active = features[key];
-                  return (
-                    <div key={key} onClick={() => toggleFeature(key)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderRadius: 12, cursor: "pointer", transition: "all 0.15s", border: `2px solid ${active ? ALEX_C.primary + "60" : "var(--border-c)"}`, background: active ? ALEX_C.primaryPale : "var(--surface-2)" }}>
-                      <span style={{ fontSize: 22, flexShrink: 0 }}>{icon}</span>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: active ? ALEX_C.primaryDeep : "var(--text-c)" }}>{label}</div>
-                        <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 2 }}>{desc}</div>
-                      </div>
-                      <div style={{ width: 40, height: 22, borderRadius: 11, flexShrink: 0, background: active ? ALEX_C.primary : "var(--border-c)", position: "relative", transition: "background 0.2s" }}>
-                        <div style={{ position: "absolute", top: 3, left: active ? 21 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div style={{ marginTop: 20, padding: "10px 14px", background: "var(--surface-2)", borderRadius: 10, fontSize: 12, color: "var(--muted-c)" }}>
-                💡 Les onglets Profil de course et Stratégie sont toujours visibles — ils constituent le cœur d'Alex.
-              </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
-                <button onClick={() => setFeaturesModal(false)} style={{ background: ALEX_C.primary, color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>Fermer</button>
               </div>
             </div>
           </div>
@@ -5887,6 +5854,69 @@ function CourseLayout({ isMobile, strideObjectifs, profil: alexProfil, setProfil
             idbSave({ race: data.race, segments: data.segments, settings: { ...EMPTY_SETTINGS, ...data.settings } });
           }} />}
           {view === "courses"        && <MesCoursesView courses={courses} onLoad={loadCourse} onDelete={deleteCourse} onUpdate={updateCourse} onOverwrite={overwriteCourse} onSaveCurrent={() => { saveCourse(); alert("✅ Stratégie sauvegardée dans Mes courses !"); }} race={race} segments={segments} settings={settings} />}
+          {view === "donnees_params" && (
+            <div>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 600, marginBottom: 24, color: "var(--text-c)" }}>Données & Params</h2>
+              {/* Stratégie */}
+              <div style={{ marginBottom: 28 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted-c)", marginBottom: 12 }}>Stratégie de course</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <button onClick={saveData} style={{ background: hasUnsaved ? C.primary : "var(--surface-2)", color: hasUnsaved ? "#fff" : "var(--text-c)", border: "none", borderRadius: 12, padding: "12px 16px", cursor: "pointer", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", gap: 8, transition: "all .2s", width: "100%", fontFamily: "inherit" }}>
+                    💾 Télécharger la stratégie
+                    {hasUnsaved && <span style={{ marginLeft: "auto", fontSize: 11, opacity: 0.8 }}>Modifications non sauvegardées</span>}
+                  </button>
+                  <label style={{ display: "block" }}>
+                    <div style={{ background: "var(--surface-2)", border: "1px solid var(--border-c)", borderRadius: 12, padding: "12px 16px", cursor: "pointer", fontSize: 13, fontWeight: 500, color: "var(--text-c)", display: "flex", alignItems: "center", gap: 8 }}>📂 Charger une stratégie</div>
+                    <input type="file" accept=".json" style={{ display: "none" }} onChange={e => { if (e.target.files[0]) loadData(e.target.files[0]); }} />
+                  </label>
+                  <button onClick={() => {
+                    const hasData = race.gpxPoints?.length > 0 || segments.length > 0;
+                    if (hasData) { const choice = window.confirm(`Démarrer une nouvelle course ?\n\nOK = sauvegarder "${settings.raceName || race.name || "la course actuelle"}" avant.\nAnnuler = tout effacer.`); if (choice) saveCourse(); }
+                    const newSettings = { ...EMPTY_SETTINGS, produits: settings.produits || [], equipment: settings.equipment || DEFAULT_EQUIPMENT, darkMode: settings.darkMode };
+                    setRaceRaw({}); setSegmentsRaw([]); setSettingsRaw(newSettings);
+                    setHasUnsaved(false); setView("profil"); setDrawerOpen(false);
+                    idbSave({ race: {}, segments: [], settings: newSettings });
+                  }} style={{ background: "none", border: "1px solid var(--border-c)", borderRadius: 12, padding: "12px 16px", cursor: "pointer", fontSize: 13, width: "100%", fontWeight: 500, color: "var(--muted-c)", display: "flex", alignItems: "center", gap: 8, fontFamily: "inherit" }}>
+                    🔄 Nouvelle course
+                  </button>
+                  {!isStandalone && !installDone && (
+                    <button onClick={handleInstall} style={{ background: C.primaryPale, border: `1px solid ${C.primary}40`, borderRadius: 12, padding: "12px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, color: C.primaryDeep, width: "100%", fontFamily: "inherit" }}>
+                      📲 Installer l'app
+                    </button>
+                  )}
+                  {isStandalone && <div style={{ fontSize: 12, color: C.green, padding: "4px 0" }}>✓ App installée</div>}
+                </div>
+              </div>
+              {/* Fonctionnalités */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted-c)", marginBottom: 12 }}>Fonctionnalités actives</div>
+                <p style={{ fontSize: 13, color: "var(--muted-c)", marginBottom: 16, lineHeight: 1.6 }}>Active uniquement les fonctionnalités dont tu as besoin. Les onglets désactivés disparaissent de la navigation.</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {FEATURE_LABELS.map(({ key, label, icon, desc }) => {
+                    const active = features[key];
+                    return (
+                      <div key={key} onClick={() => toggleFeature(key)}
+                        style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderRadius: 12, cursor: "pointer",
+                          transition: "all .15s", border: `2px solid ${active ? C.primary + "60" : "var(--border-c)"}`,
+                          background: active ? C.primaryPale : "var(--surface-2)" }}>
+                        <span style={{ fontSize: 22, flexShrink: 0 }}>{icon}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, fontSize: 14, color: active ? C.primaryDeep : "var(--text-c)" }}>{label}</div>
+                          <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 2 }}>{desc}</div>
+                        </div>
+                        <div style={{ width: 40, height: 22, borderRadius: 11, flexShrink: 0, background: active ? C.primary : "var(--border-c)", position: "relative", transition: "background .2s" }}>
+                          <div style={{ position: "absolute", top: 3, left: active ? 21 : 3, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left .2s", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ marginTop: 16, padding: "10px 14px", background: "var(--surface-2)", borderRadius: 10, fontSize: 12, color: "var(--muted-c)" }}>
+                  💡 Profil de course et Stratégie sont toujours visibles.
+                </div>
+              </div>
+            </div>
+          )}
           {view === "profil_compte"  && (
             <div>
               <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24, paddingBottom:16, borderBottom:"1px solid var(--border-c)" }}>
