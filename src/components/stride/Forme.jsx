@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from "react";
-import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { CS as C, localDate, fmtDate, exportJSON, parseCSVSommeil, parseCSVVFC,
   emptyPoids, emptyVFC, emptySommeil } from "../../stride/constants.js";
 import { Btn, Modal, Field, ConfirmDialog } from "../../stride/atoms.jsx";
