@@ -415,6 +415,252 @@ function Accueil({ setView, seances, vfcData, sommeil, poids, objectifs, race, s
   );
 }
 
+
+// ─── DONNÉES & PARAMS VIEW ────────────────────────────────────────────────────
+function DonneesParamsView({
+  saveAllData, saveData, loadData, saveCourse, race, segments, settings,
+  setRace, setSegments, setSettings, hasUnsaved, isStandalone, installDone,
+  handleInstall, setView, setDrawerOpen,
+  seances, setSeances, activites, setActivites, sommeil, setSommeil,
+  vfcData, setVfcData, poids, setPoids, planningType, objectifs,
+  allData, loadStrideData, resetAll, journalNutri, confirmReset, setConfirmReset,
+  features, toggleFeature, FEATURE_LABELS,
+  strideFeatures, toggleStrideFeature, STRIDE_FEATURE_LABELS,
+}) {
+  const [tab, setTab] = useState("sauvegarde");
+
+  const TabBtn = ({id, label}) => (
+    <button onClick={()=>setTab(id)}
+      style={{padding:"8px 18px",border:"none",background:"none",cursor:"pointer",
+        fontFamily:"inherit",fontSize:13,fontWeight:tab===id?600:400,
+        color:tab===id?C.inkLight:C.muted,
+        borderBottom:`2px solid ${tab===id?C.forest:"transparent"}`,
+        transition:"all .15s",marginBottom:-1}}>
+      {label}
+    </button>
+  );
+
+  const ToggleRow = ({icon,label,desc,active,onToggle,color}) => {
+    const col = color || C.forest;
+    return (
+      <div onClick={onToggle}
+        style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",
+          borderRadius:10,cursor:"pointer",transition:"all .15s",
+          border:`1.5px solid ${active?col+"50":C.border}`,
+          background:active?col+"0D":C.white}}>
+        <span style={{fontSize:18,flexShrink:0,opacity:active?1:.5}}>{icon}</span>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontWeight:500,fontSize:13,color:active?C.inkLight:C.muted}}>{label}</div>
+          {desc&&<div style={{fontSize:11,color:C.muted,marginTop:1}}>{desc}</div>}
+        </div>
+        <div style={{width:34,height:19,borderRadius:10,flexShrink:0,position:"relative",
+          background:active?col:C.stoneDark,transition:"background .2s"}}>
+          <div style={{position:"absolute",top:2,left:active?17:2,width:15,height:15,
+            borderRadius:"50%",background:"#fff",transition:"left .2s",
+            boxShadow:"0 1px 3px rgba(0,0,0,.2)"}}/>
+        </div>
+      </div>
+    );
+  };
+
+  const Section = ({title, children}) => (
+    <div style={{marginBottom:28}}>
+      <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.09em",
+        color:C.muted,marginBottom:14,paddingBottom:8,borderBottom:`1px solid ${C.stone}`}}>
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+
+  const ActionBtn = ({onClick, icon, label, variant="ghost", disabled=false, badge=null}) => {
+    const bg = variant==="primary"?C.forest:variant==="danger"?C.redPale:"transparent";
+    const col = variant==="primary"?"#fff":variant==="danger"?C.red:C.inkLight;
+    const border = variant==="ghost"?`1px solid ${C.border}`:variant==="danger"?`1px solid ${C.red}30`:"none";
+    return (
+      <button onClick={onClick} disabled={disabled}
+        style={{display:"flex",alignItems:"center",gap:10,padding:"11px 16px",borderRadius:10,
+          border,background:bg,color:col,cursor:disabled?"not-allowed":"pointer",
+          fontSize:13,fontWeight:500,width:"100%",fontFamily:"inherit",
+          opacity:disabled?.5:1,transition:"all .15s"}}>
+        <span style={{fontSize:16}}>{icon}</span>
+        <span style={{flex:1,textAlign:"left"}}>{label}</span>
+        {badge&&<span style={{fontSize:11,background:`${C.forest}20`,color:C.forest,
+          padding:"2px 8px",borderRadius:20,fontWeight:600}}>{badge}</span>}
+      </button>
+    );
+  };
+
+  return (
+    <div style={{maxWidth:680,margin:"0 auto",padding:"28px 32px 60px"}}>
+      {/* Header */}
+      <div style={{marginBottom:24}}>
+        <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,
+          color:C.inkLight,letterSpacing:"-0.02em",marginBottom:4}}>
+          Données & Params
+        </h1>
+        <p style={{fontSize:13,color:C.muted}}>Sauvegarde, import et personnalisation de l'app.</p>
+      </div>
+
+      {/* Tabs */}
+      <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,marginBottom:28}}>
+        <TabBtn id="sauvegarde" label="Sauvegarde"/>
+        <TabBtn id="modules"    label="Modules"/>
+        <TabBtn id="compte"     label="Compte"/>
+      </div>
+
+      {/* ── SAUVEGARDE ── */}
+      {tab==="sauvegarde"&&(
+        <div>
+          <Section title="Sauvegarde globale">
+            <p style={{fontSize:13,color:C.muted,marginBottom:14,lineHeight:1.6}}>
+              Exporte toutes tes données en un seul fichier — entraînement + stratégies de course. Utile pour sauvegarder ou migrer vers un autre appareil.
+            </p>
+            <ActionBtn onClick={saveAllData} icon="💾" label="Exporter toutes mes données" variant="primary"/>
+          </Section>
+
+          <Section title="Stratégie de course">
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              <ActionBtn
+                onClick={saveData}
+                icon="📤"
+                label="Télécharger la stratégie courante"
+                badge={hasUnsaved?"Non sauvegardé":null}
+              />
+              <label style={{display:"block"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,padding:"11px 16px",
+                  borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",
+                  color:C.inkLight,cursor:"pointer",fontSize:13,fontWeight:500}}>
+                  <span style={{fontSize:16}}>📂</span>
+                  <span>Charger une stratégie</span>
+                </div>
+                <input type="file" accept=".json" style={{display:"none"}}
+                  onChange={e=>{if(e.target.files[0])loadData(e.target.files[0]);}}/>
+              </label>
+              <ActionBtn onClick={()=>{
+                const hasData=race.gpxPoints?.length>0||segments.length>0;
+                if(hasData){const ok=window.confirm(`Démarrer une nouvelle course ?
+
+OK = sauvegarder avant.
+Annuler = tout effacer.`);if(ok)saveCourse();}
+                const ns={...EMPTY_SETTINGS,produits:settings.produits||[],equipment:settings.equipment||DEFAULT_EQUIPMENT,darkMode:settings.darkMode};
+                setRace({});setSegments([]);setSettings(ns);setView("profil_course");setDrawerOpen(false);
+              }} icon="🔄" label="Nouvelle course"/>
+              {!isStandalone&&!installDone&&(
+                <ActionBtn onClick={handleInstall} icon="📲" label="Installer l'app"/>
+              )}
+              {isStandalone&&(
+                <div style={{fontSize:12,color:C.green,padding:"6px 0",display:"flex",alignItems:"center",gap:6}}>
+                  <span>✓</span><span>App installée</span>
+                </div>
+              )}
+            </div>
+          </Section>
+
+          <Section title="Données d'entraînement">
+            <DonneesParams seances={seances} setSeances={setSeances} activites={activites}
+              setActivites={setActivites} sommeil={sommeil} setSommeil={setSommeil}
+              vfcData={vfcData} setVfcData={setVfcData} poids={poids} setPoids={setPoids}
+              planningType={planningType} objectifs={objectifs} allData={allData}
+              loadData={loadStrideData} resetAll={resetAll} journalNutri={journalNutri}
+              confirmReset={confirmReset} setConfirmReset={setConfirmReset}/>
+          </Section>
+        </div>
+      )}
+
+      {/* ── MODULES ── */}
+      {tab==="modules"&&(
+        <div>
+          <Section title="Entraînement">
+            <p style={{fontSize:13,color:C.muted,marginBottom:14,lineHeight:1.6}}>
+              Active les modules de préparation à l'entraînement que tu souhaites voir dans la navigation.
+            </p>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {STRIDE_FEATURE_LABELS.map(({key,label,icon,desc})=>(
+                <ToggleRow key={key}
+                  icon={icon} label={label} desc={desc}
+                  active={strideFeatures[key]!==false}
+                  onToggle={()=>toggleStrideFeature(key)}
+                  color={TEAL}
+                />
+              ))}
+            </div>
+          </Section>
+
+          <Section title="Course">
+            <p style={{fontSize:13,color:C.muted,marginBottom:14,lineHeight:1.6}}>
+              Active les modules de stratégie de course dont tu as besoin.
+            </p>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {FEATURE_LABELS.map(({key,label,icon,desc})=>(
+                <ToggleRow key={key}
+                  icon={icon} label={label} desc={desc}
+                  active={features[key]}
+                  onToggle={()=>toggleFeature(key)}
+                  color={ALEX_C.primary}
+                />
+              ))}
+            </div>
+            <div style={{marginTop:14,padding:"10px 14px",background:C.stone,
+              borderRadius:10,fontSize:12,color:C.muted,lineHeight:1.5}}>
+              💡 Profil de course et Stratégie sont toujours visibles.
+            </div>
+          </Section>
+        </div>
+      )}
+
+      {/* ── COMPTE ── */}
+      {tab==="compte"&&(
+        <div>
+          <Section title="Synchronisation cloud">
+            <div style={{background:C.skyPale,border:`1px solid ${C.sky}30`,
+              borderRadius:12,padding:"20px",marginBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                <span style={{fontSize:28}}>☁️</span>
+                <div>
+                  <div style={{fontSize:15,fontWeight:600,color:C.sky,marginBottom:2}}>
+                    Supabase — bientôt disponible
+                  </div>
+                  <div style={{fontSize:12,color:C.muted}}>
+                    Accède à tes données depuis n'importe quel appareil
+                  </div>
+                </div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {[
+                  "Sauvegarde automatique dans le cloud",
+                  "Synchronisation mobile ↔ desktop",
+                  "Partage avec un coach",
+                  "Historique illimité",
+                ].map(f=>(
+                  <div key={f} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:C.sky}}>
+                    <span>→</span><span>{f}</span>
+                  </div>
+                ))}
+              </div>
+              <button disabled style={{marginTop:16,width:"100%",padding:"10px",borderRadius:10,
+                border:`1px solid ${C.sky}`,background:"transparent",color:C.sky,
+                cursor:"not-allowed",fontSize:13,fontWeight:500,fontFamily:"inherit",opacity:0.6}}>
+                Créer un compte — bientôt
+              </button>
+            </div>
+          </Section>
+
+          <Section title="Stockage local">
+            <div style={{background:C.stone,borderRadius:12,padding:"16px",fontSize:12,color:C.muted,lineHeight:1.6}}>
+              <div style={{marginBottom:8,fontWeight:600,color:C.inkLight}}>État actuel</div>
+              <div>• Entraînement → localStorage <code>stride_v2</code></div>
+              <div>• Stratégie course → IndexedDB <code>alex-trail</code></div>
+              <div>• Profil → localStorage <code>profil</code></div>
+              <div style={{marginTop:8,color:C.stoneDeep}}>Migration Supabase prévue — données conservées à la transition.</div>
+            </div>
+          </Section>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── APP LAYOUT UNIFIÉ ────────────────────────────────────────────────────────
 
 function AppLayout({
@@ -432,6 +678,8 @@ function AppLayout({
   saveData, loadData, saveCourse, loadCourse, deleteCourse, updateCourse, overwriteCourse,
   navigate, hasRace, isStandalone, installDone, handleInstall, showInstallGuide, setShowInstallGuide,
   features, toggleFeature, FEATURE_LABELS, NAVS_ACTIVE,
+  strideFeatures, toggleStrideFeature, STRIDE_FEATURE_LABELS,
+  saveAllData,
   sharedMode, installPrompt,
 }) {
   const subNavBtn = (id,label,active,onClick) => (
@@ -454,11 +702,11 @@ function AppLayout({
       { id:"accueil", label:"Tableau de bord", icon:"◉" },
     ]},
     { label: "Entraînement", color: TEAL, items: [
-      { id:"entrainement", label:"Programme",  icon:"↑" },
-      { id:"activites",    label:"Activités",  icon:"▣" },
-      { id:"forme",        label:"Forme",      icon:"♡" },
-      { id:"objectifs",    label:"Objectifs",  icon:"🏔" },
-    ]},
+      { id:"entrainement", label:"Programme",  icon:"↑", feat:"programme" },
+      { id:"activites",    label:"Activités",  icon:"▣", feat:"activites" },
+      { id:"forme",        label:"Forme",      icon:"♡", feat:"forme" },
+      { id:"objectifs",    label:"Objectifs",  icon:"🏔", feat:"objectifs" },
+    ].filter(n=>!n.feat||strideFeatures[n.feat]!==false)},
     { label: "Course", color: ALEX_C.primary, items: [
       { id:"profil_course",  label:"Profil de course",   icon:"🗺️" },
       { id:"strategie",      label:"Stratégie",          icon:"🎯" },
@@ -702,89 +950,20 @@ function AppLayout({
           }}/></div>}
           {view==="mes_courses"&&<div style={{padding:"24px 32px"}}><MesCoursesView courses={courses} onLoad={loadCourse} onDelete={deleteCourse} onUpdate={updateCourse} onOverwrite={overwriteCourse} onSaveCurrent={()=>{saveCourse();alert("✅ Stratégie sauvegardée !");}} race={race} segments={segments} settings={settings}/></div>}
           {/* Données & Params unifiés */}
-          {view==="donnees_params"&&(
-            <div style={{padding:"28px 32px",maxWidth:680}}>
-              <h2 style={{fontFamily:"'Fraunces',serif",fontSize:22,fontWeight:500,color:C.inkLight,marginBottom:6}}>Données & Params</h2>
-              <p style={{fontSize:13,color:C.muted,marginBottom:28}}>Gestion des données, stratégie de course et fonctionnalités.</p>
-
-              {/* Supabase placeholder */}
-              <div style={{background:C.skyPale,border:`1px solid ${C.sky}40`,borderRadius:12,padding:"14px 16px",marginBottom:20,display:"flex",alignItems:"center",gap:12}}>
-                <span style={{fontSize:20}}>☁️</span>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:600,color:C.sky}}>Synchronisation cloud</div>
-                  <div style={{fontSize:12,color:C.muted}}>Accède à tes données depuis n'importe quel appareil</div>
-                </div>
-                <button disabled style={{fontSize:12,padding:"6px 12px",borderRadius:8,border:`1px solid ${C.sky}`,
-                  background:"transparent",color:C.sky,cursor:"not-allowed",fontFamily:"inherit",opacity:0.6}}>
-                  Bientôt
-                </button>
-              </div>
-
-              {/* Stratégie course */}
-              <div style={{marginBottom:24}}>
-                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:C.muted,marginBottom:12}}>Stratégie de course</div>
-                <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                  <button onClick={saveData} style={{background:hasUnsaved?ALEX_C.primary:"transparent",color:hasUnsaved?"#fff":C.inkLight,border:`1px solid ${hasUnsaved?ALEX_C.primary:C.border}`,borderRadius:10,padding:"11px 16px",cursor:"pointer",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:8,transition:"all .2s",width:"100%",fontFamily:"inherit"}}>
-                    💾 Télécharger la stratégie
-                    {hasUnsaved&&<span style={{marginLeft:"auto",fontSize:11,opacity:.8}}>Non sauvegardé</span>}
-                  </button>
-                  <label style={{display:"block"}}>
-                    <div style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:10,padding:"11px 16px",cursor:"pointer",fontSize:13,fontWeight:500,color:C.inkLight,display:"flex",alignItems:"center",gap:8}}>📂 Charger une stratégie</div>
-                    <input type="file" accept=".json" style={{display:"none"}} onChange={e=>{if(e.target.files[0])loadData(e.target.files[0]);}}/>
-                  </label>
-                  <button onClick={()=>{
-                    const hasData=race.gpxPoints?.length>0||segments.length>0;
-                    if(hasData){const choice=window.confirm(`Nouvelle course ?
-
-OK = sauvegarder avant.
-Annuler = tout effacer.`);if(choice)saveCourse();}
-                    const ns={...EMPTY_SETTINGS,produits:settings.produits||[],equipment:settings.equipment||DEFAULT_EQUIPMENT,darkMode:settings.darkMode};
-                    setRace({});setSegments([]);setSettings(ns);setView("profil_course");setDrawerOpen(false);
-                  }} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:10,padding:"11px 16px",cursor:"pointer",fontSize:13,width:"100%",fontWeight:500,color:C.muted,display:"flex",alignItems:"center",gap:8,fontFamily:"inherit"}}>
-                    🔄 Nouvelle course
-                  </button>
-                  {!isStandalone&&!installDone&&(
-                    <button onClick={handleInstall} style={{background:ALEX_C.primaryPale,border:`1px solid ${ALEX_C.primary}40`,borderRadius:10,padding:"11px 16px",cursor:"pointer",fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:8,color:ALEX_C.primaryDeep,width:"100%",fontFamily:"inherit"}}>
-                      📲 Installer l'app
-                    </button>
-                  )}
-                  {isStandalone&&<div style={{fontSize:12,color:C.green,padding:"4px 0"}}>✓ App installée</div>}
-                </div>
-              </div>
-
-              {/* Données Stride */}
-              <div style={{marginBottom:24}}>
-                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:C.muted,marginBottom:12}}>Données d'entraînement</div>
-                <DonneesParams seances={seances} setSeances={setSeances} activites={activites} setActivites={setActivites} sommeil={sommeil} setSommeil={setSommeil} vfcData={vfcData} setVfcData={setVfcData} poids={poids} setPoids={setPoids} planningType={planningType} objectifs={objectifs} allData={allData} loadData={loadStrideData} resetAll={resetAll} journalNutri={journalNutri} confirmReset={confirmReset} setConfirmReset={setConfirmReset}/>
-              </div>
-
-              {/* Fonctionnalités Alex */}
-              <div>
-                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:C.muted,marginBottom:12}}>Fonctionnalités Course</div>
-                <p style={{fontSize:13,color:C.muted,marginBottom:14,lineHeight:1.6}}>Active les modules dont tu as besoin.</p>
-                <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                  {FEATURE_LABELS.map(({key,label,icon,desc})=>{
-                    const active=features[key];
-                    return (
-                      <div key={key} onClick={()=>toggleFeature(key)}
-                        style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:10,cursor:"pointer",
-                          transition:"all .15s",border:`1.5px solid ${active?ALEX_C.primary+"60":C.border}`,
-                          background:active?ALEX_C.primaryPale:C.white}}>
-                        <span style={{fontSize:20,flexShrink:0}}>{icon}</span>
-                        <div style={{flex:1}}>
-                          <div style={{fontWeight:600,fontSize:13,color:active?ALEX_C.primaryDeep:C.inkLight}}>{label}</div>
-                          <div style={{fontSize:11,color:C.muted,marginTop:1}}>{desc}</div>
-                        </div>
-                        <div style={{width:36,height:20,borderRadius:10,flexShrink:0,background:active?ALEX_C.primary:C.stoneDark,position:"relative",transition:"background .2s"}}>
-                          <div style={{position:"absolute",top:2,left:active?18:2,width:16,height:16,borderRadius:"50%",background:"#fff",transition:"left .2s",boxShadow:"0 1px 3px rgba(0,0,0,.2)"}}/>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
+          {view==="donnees_params"&&<DonneesParamsView
+            saveAllData={saveAllData} saveData={saveData} loadData={loadData}
+            saveCourse={saveCourse} race={race} segments={segments} settings={settings}
+            setRace={setRace} setSegments={setSegments} setSettings={setSettings}
+            hasUnsaved={hasUnsaved} isStandalone={isStandalone} installDone={installDone}
+            handleInstall={handleInstall} setView={setView} setDrawerOpen={setDrawerOpen}
+            seances={seances} setSeances={setSeances} activites={activites} setActivites={setActivites}
+            sommeil={sommeil} setSommeil={setSommeil} vfcData={vfcData} setVfcData={setVfcData}
+            poids={poids} setPoids={setPoids} planningType={planningType} objectifs={objectifs}
+            allData={allData} loadStrideData={loadStrideData} resetAll={resetAll}
+            journalNutri={journalNutri} confirmReset={confirmReset} setConfirmReset={setConfirmReset}
+            features={features} toggleFeature={toggleFeature} FEATURE_LABELS={FEATURE_LABELS}
+            strideFeatures={strideFeatures} toggleStrideFeature={toggleStrideFeature} STRIDE_FEATURE_LABELS={STRIDE_FEATURE_LABELS}
+          />}
           {/* Profil unifié */}
           {view==="profil_compte"&&(
             <div style={{padding:"28px 32px"}}>
@@ -868,7 +1047,23 @@ export default function App() {
   const [installDone,  setInstallDone]  = useState(false);
   const [showInstallGuide,setShowInstallGuide]=useState(false);
 
+  // Features Alex (Course)
   const FEATURES_DEFAULT={nutrition:true,equipement:true,analyse:true,team:true,courses:true,profilDetail:true};
+  // Features Stride (Entraînement)
+  const STRIDE_FEATURES_DEFAULT={programme:true,activites:true,forme:true,objectifs:true,coach:true};
+  const [strideFeatures, setStrideFeatures] = useState(()=>{
+    try{const s=localStorage.getItem("stride-features");return s?{...STRIDE_FEATURES_DEFAULT,...JSON.parse(s)}:STRIDE_FEATURES_DEFAULT;}catch{return STRIDE_FEATURES_DEFAULT;}
+  });
+  const toggleStrideFeature=key=>{
+    setStrideFeatures(prev=>{const next={...prev,[key]:!prev[key]};try{localStorage.setItem("stride-features",JSON.stringify(next));}catch{}return next;});
+  };
+  const STRIDE_FEATURE_LABELS=[
+    {key:"programme",label:"Programme",icon:"↑",desc:"Planification des séances, suivi hebdomadaire"},
+    {key:"activites",label:"Activités",icon:"▣",desc:"Historique activités Garmin importées"},
+    {key:"forme",label:"Forme",icon:"♡",desc:"VFC, sommeil, poids, journal nutritionnel"},
+    {key:"objectifs",label:"Objectifs",icon:"🏔",desc:"Courses cibles, planification compétitions"},
+    {key:"coach",label:"Coach IA",icon:"✦",desc:"Conseils personnalisés basés sur tes données"},
+  ];
   const [features, setFeatures] = useState(()=>{
     try{const s=localStorage.getItem("alex-features");return s?{...FEATURES_DEFAULT,...JSON.parse(s)}:FEATURES_DEFAULT;}catch{return FEATURES_DEFAULT;}
   });
@@ -973,6 +1168,25 @@ export default function App() {
     setReposModal(false);setReposForm({label:"",startKm:"",dureeMin:20});
   };
 
+  const saveAllData=()=>{
+    const payload={
+      _version:"1.0", _date:new Date().toISOString(),
+      // Stride
+      seances, activites, sommeil, vfcData, poids, objectifs,
+      planningType, activityTypes, journalNutri, produits, recettes, profil,
+      // Alex
+      race, segments,
+      settings:{...settings, equipment:undefined, garminStats:undefined},
+    };
+    const json=JSON.stringify(payload,null,2);
+    const blob=new Blob([json],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=`alex-sauvegarde-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
   const saveData=()=>{
     const json=JSON.stringify({race,segments,settings},null,2);
     const blob=new Blob([json],{type:"application/json"});
@@ -1055,6 +1269,8 @@ export default function App() {
       isStandalone={isStandalone} installDone={installDone}
       handleInstall={handleInstall} showInstallGuide={showInstallGuide} setShowInstallGuide={setShowInstallGuide}
       features={features} toggleFeature={toggleFeature} FEATURE_LABELS={FEATURE_LABELS} NAVS_ACTIVE={NAVS_ACTIVE}
+      strideFeatures={strideFeatures} toggleStrideFeature={toggleStrideFeature} STRIDE_FEATURE_LABELS={STRIDE_FEATURE_LABELS}
+      saveAllData={saveAllData}
       sharedMode={sharedMode} installPrompt={installPrompt}
     />
   );
