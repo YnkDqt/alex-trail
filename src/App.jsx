@@ -170,6 +170,12 @@ const ALEX_G = `
     .modal-overlay { align-items: flex-end; }
     .modal-box { border-radius: 20px 20px 0 0; max-height: 90vh; width: 100vw; padding: 24px; }
   }
+  /* Dark mode Stride — override couleurs inline */
+  :root.dark .stride-view { background: #1a1714 !important; color: #e8e4de !important; }
+  :root.dark .stride-view .card-white { background: #242018 !important; border-color: #3a342c !important; }
+  :root.dark .stride-view input,
+  :root.dark .stride-view select,
+  :root.dark .stride-view textarea { background: #2a231c !important; color: #e8e4de !important; border-color: #3a342c !important; }
 `;
 // ─── COULEURS STRIDE ────────────────────────────────────────────────────────
 const TEAL = "#1D9E75";
@@ -297,6 +303,11 @@ function Accueil({ setView, seances, vfcData, sommeil, poids, objectifs, race, s
                 })}
               </div>
               <div style={{fontSize:10,color:phaseColor,fontWeight:600,marginBottom:10}}>{phase}</div>
+              <button onClick={()=>setView("objectifs")}
+                style={{fontSize:11,padding:"4px 10px",borderRadius:7,border:`1px solid ${C.border}`,
+                  background:"transparent",color:C.muted,cursor:"pointer",fontFamily:"inherit",marginBottom:8}}>
+                Gérer les objectifs →
+              </button>
               {prepScore&&(
                 <div>
                   <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.muted,marginBottom:4}}>
@@ -356,7 +367,7 @@ function Accueil({ setView, seances, vfcData, sommeil, poids, objectifs, race, s
             <span><b style={{color:C.inkLight}}>{weeklyKm.reduce((s,w)=>s+w.dp,0).toLocaleString()} m</b> D+</span>
           </div>
         </div>
-        <div style={{display:"flex",gap:3,alignItems:"flex-end",height:90}}>
+        <div style={{display:"flex",gap:3,alignItems:"flex-end",height:80}}>
           {weeklyKm.map((w,i)=>{
             const h=Math.max(3,Math.round((w.km/maxKm)*82));
             const isLast=i===11;
@@ -370,7 +381,8 @@ function Accueil({ setView, seances, vfcData, sommeil, poids, objectifs, race, s
                     background:isLast?C.forest:w.km>0?C.forestPale:C.stone,
                     border:isLast?`1px solid ${C.forest}`:"none",
                     cursor:"default",transition:"height .3s"}}/>
-                <div style={{fontSize:8,color:isLast?C.forest:C.stoneDeep,fontWeight:isLast?600:400}}>
+                <div style={{fontSize:8,color:isLast?C.forest:C.stoneDeep,fontWeight:isLast?600:400,
+                  minHeight:10,textAlign:"center",whiteSpace:"nowrap"}}>
                   {i===0||i===5||i===11?w.label:""}
                 </div>
               </div>
@@ -650,6 +662,7 @@ function AppLayout({
         {/* Contenu principal */}
         <div className="alex-scope" style={{flex:1,overflowY:"auto",paddingTop:isMobile?mobileTopH:0}}>
           {/* Vues Stride */}
+          <div className="stride-view" style={{minHeight:"100%",background:isDark?"#1a1714":C.bg}}>
           {view==="accueil" && <Accueil setView={setView} seances={seances} vfcData={vfcData} sommeil={sommeil} poids={poids} objectifs={objectifs} race={race} settings={settings}/>}
           {view==="objectifs" && <Objectifs objectifs={objectifs} setObjectifs={setObjectifs} seances={seances} activites={activites} vfcData={vfcData} poids={poids} profil={profil} produits={produits} recettes={recettes} allData={allData}/>}
           {view==="coach" && <MonCoachIA seances={seances} setSeances={setSeances} activites={activites} sommeil={sommeil} vfcData={vfcData} poids={poids} objectifs={objectifs} planningType={planningType} produits={produits} recettes={recettes} journalNutri={journalNutri} activityTypes={activityTypes}/>}
@@ -677,6 +690,7 @@ function AppLayout({
               {subView.forme==="poids"&&<FormePoids sommeil={sommeil} setSommeil={setSommeil} vfcData={vfcData} setVfcData={setVfcData} poids={poids} setPoids={setPoids} activites={activites} profil={profil} setProfil={setProfil}/>}
             </div>
           )}
+          </div>{/* end stride-view */}
           {/* Vues Alex Course */}
           {view==="profil_course"&&<div style={{padding:"24px 32px"}}><ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profilDetail={features.profilDetail}/></div>}
           {view==="strategie"&&<div style={{padding:"24px 32px"}}><StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile}/></div>}
