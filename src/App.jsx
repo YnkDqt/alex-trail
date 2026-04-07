@@ -31,7 +31,7 @@ import SemaineType from './components/stride/SemaineType.jsx';
 import MonCoachIA from './components/stride/MonCoachIA.jsx';
 import { Donnees, Parametres, DonneesParams } from './components/stride/Donnees.jsx';
 
-// ─── GLOBAL STYLES (Stride) ───────────────────────────────────────────────────
+// ─── GLOBAL STYLES ────────────────────────────────────────────────────────────
 const G = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;1,9..144,300&family=DM+Sans:wght@400;500&display=swap');
 
@@ -65,110 +65,13 @@ const G = `
   .badge-race { background:${C.summitPale}; color:${C.summit}; }
   .badge-warn { background:${C.yellowPale}; color:${C.yellow}; }
 
-  @media (max-width: 640px) { .hide-mobile { display: none !important; } }
-  @media (min-width: 641px) { .hide-desktop { display: none !important; } }
+  @media (max-width: 640px) {
+    .hide-mobile { display: none !important; }
+  }
+  @media (min-width: 641px) {
+    .hide-desktop { display: none !important; }
+  }
 `;
-
-        onMouseEnter={e=>e.currentTarget.style.background=C.stone}
-        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        <div style={{width:28,height:28,borderRadius:"50%",background:TEAL,flexShrink:0,
-          display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:11,fontWeight:600}}>
-          {(profil?.prenom||"?").slice(0,2).toUpperCase()}
-        </div>
-        <span style={{fontSize:12,color:C.inkLight,fontWeight:500,flex:1}}>{profil?.prenom||"Mon profil"}</span>
-        <span style={{fontSize:14,color:C.stoneDeep}}>›</span>
-      </div>
-    </div>
-  );
-
-  return (
-    <div style={{display:"flex",flex:1,overflow:"hidden"}}>
-
-      {/* Sidebar desktop */}
-      {!isMobile && (
-        <div style={{width:220,flexShrink:0,background:C.white,borderRight:`1px solid ${C.border}`,
-          display:"flex",flexDirection:"column",height:"100%",overflowY:"auto"}}>
-          <SidebarContent/>
-        </div>
-      )}
-
-      {/* Mobile topbar */}
-      {isMobile && (
-        <div style={{position:"fixed",top:52,left:0,right:0,height:48,zIndex:100,
-          background:C.white,borderBottom:`1px solid ${C.border}`,
-          display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 16px"}}>
-          <div style={{fontFamily:"'Fraunces',serif",fontSize:16,fontWeight:500,color:TEAL}}>
-            {TRAIN_GROUPS.flatMap(g=>g.items).find(n=>n.id===view)?.label||"Entraînement"}
-          </div>
-          <button onClick={()=>setDrawerOpen(true)} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:C.inkLight}}>☰</button>
-        </div>
-      )}
-
-      {/* Mobile drawer */}
-      {isMobile && drawerOpen && (
-        <div style={{position:"fixed",inset:0,zIndex:300}}>
-          <div onClick={()=>setDrawerOpen(false)} style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.4)"}}/>
-          <div style={{position:"absolute",top:0,left:0,bottom:0,width:260,
-            background:C.white,overflowY:"auto",animation:"slideInLeft .25s ease",display:"flex",flexDirection:"column"}}>
-            <button onClick={()=>setDrawerOpen(false)}
-              style={{position:"absolute",top:12,right:12,background:"none",border:"none",fontSize:20,cursor:"pointer",color:C.stoneDeep}}>✕</button>
-            <SidebarContent/>
-          </div>
-        </div>
-      )}
-
-      {/* Content */}
-      <div style={{flex:1,overflowY:"auto",paddingTop:isMobile?48:0,paddingBottom:isMobile?0:0}}>
-        {view==="dashboard"    && <Dashboard {...allProps}/>}
-        {view==="objectifs"    && <Objectifs objectifs={objectifs} setObjectifs={setObjectifs} seances={seances} activites={activites} vfcData={vfcData} poids={poids} profil={profil} produits={produits} recettes={recettes} allData={allData}/>}
-        {view==="coach"        && <MonCoachIA seances={seances} setSeances={setSeances} activites={activites} sommeil={sommeil} vfcData={vfcData} poids={poids} objectifs={objectifs} planningType={planningType} produits={produits} recettes={recettes} journalNutri={journalNutri} activityTypes={activityTypes}/>}
-        {view==="entrainement" && (
-          <div>
-            <div style={{padding:"10px 40px",borderBottom:`1px solid ${C.border}`,background:C.white,display:"flex",gap:6,flexWrap:"wrap"}}>
-              {[{id:"programme",l:"Programme"},{id:"activites",l:"Activités"},{id:"recettes",l:"Recettes & Produits"},{id:"planning",l:"Semaine type"}]
-                .map(({id,l})=>subNavBtn(id,l,subView.entrainement===id,()=>setSubV("entrainement",id)))}
-            </div>
-            {subView.entrainement==="programme" && <EntrainementProgramme {...allProps}/>}
-            {subView.entrainement==="activites" && <Activites activites={activites} setActivites={setActivites} seances={seances} setSeances={setSeances}/>}
-            {subView.entrainement==="recettes"  && <Nutrition produits={produits} setProduits={setProduits} recettes={recettes} setRecettes={setRecettes} seances={seances} setSeances={setSeances}/>}
-            {subView.entrainement==="planning"  && <SemaineType planningType={planningType} setPlanningType={setPlanningType} seances={seances} setSeances={setSeances} activityTypes={activityTypes}/>}
-          </div>
-        )}
-        {view==="forme" && (
-          <div>
-            <div style={{padding:"10px 40px",borderBottom:`1px solid ${C.border}`,background:C.white,display:"flex",gap:6,flexWrap:"wrap"}}>
-              {[{id:"vfc",l:"VFC & Charge"},{id:"sommeil",l:"Sommeil"},{id:"nutrition",l:"Journal nutritionnel"},{id:"poids",l:"Suivi corporel"}]
-                .map(({id,l})=>subNavBtn(id,l,subView.forme===id,()=>setSubV("forme",id)))}
-            </div>
-            {subView.forme==="vfc"       && <FormeVFC sommeil={sommeil} setSommeil={setSommeil} vfcData={vfcData} setVfcData={setVfcData} poids={poids} setPoids={setPoids} activites={activites}/>}
-            {subView.forme==="sommeil"   && <FormeSommeil sommeil={sommeil} setSommeil={setSommeil} vfcData={vfcData} setVfcData={setVfcData} poids={poids} setPoids={setPoids} activites={activites}/>}
-            {subView.forme==="nutrition" && <JournalNutri journalNutri={journalNutri} setJournalNutri={setJournalNutri}/>}
-            {subView.forme==="poids"     && <FormePoids sommeil={sommeil} setSommeil={setSommeil} vfcData={vfcData} setVfcData={setVfcData} poids={poids} setPoids={setPoids} activites={activites} profil={profil} setProfil={setProfil}/>}
-          </div>
-        )}
-        {view==="donnees"       && <DonneesParams {...allProps} confirmReset={confirmReset} setConfirmReset={setConfirmReset}/>}
-        {view==="profil_compte" && (
-          <div style={{padding:"0 0 0 0",height:"100%"}}>
-            <div style={{padding:"16px 24px",borderBottom:`1px solid ${C.border}`,background:C.white,
-              display:"flex",alignItems:"center",gap:12}}>
-              <button onClick={()=>setView("dashboard")}
-                style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:C.muted,
-                  fontFamily:"inherit",display:"flex",alignItems:"center",gap:4}}>← Retour</button>
-              <span style={{fontSize:11,color:C.stoneDark}}>|</span>
-              <span style={{fontSize:13,color:C.inkLight,fontWeight:500}}>Profil</span>
-            </div>
-            <ProfilCompte profil={profil} setProfil={setProfil}/>
-          </div>
-        )}
-      </div>
-
-      <ConfirmDialog open={confirmReset} message="Effacer toutes les données ? Cette action est irréversible."
-        onConfirm={()=>{resetAll();setConfirmReset(false);}} onCancel={()=>setConfirmReset(false)}/>
-    </div>
-  );
-}
-
-
 
 // ─── TOPBAR ───────────────────────────────────────────────────────────────────
 function Topbar({ context, setContext }) {
@@ -524,26 +427,6 @@ function TrainLayout({ allTrainProps }) {
   );
 }
 
-
-
-// ─── PARTAGE STRATÉGIE ────────────────────────────────────────────────────────
-function encodeStrategy(race, segments, settings) {
-  const { gpxPoints, ...raceLight } = race;
-  const { equipment, garminStats, ...settingsLight } = settings;
-  const payload = { race: raceLight, segments, settings: settingsLight, v: 2, ts: Date.now() };
-  try {
-    const json = JSON.stringify(payload);
-    const encoded = btoa(unescape(encodeURIComponent(json)));
-    return encoded;
-  } catch { return null; }
-}
-function decodeStrategy(encoded) {
-  try {
-    const json = decodeURIComponent(escape(atob(encoded)));
-    return JSON.parse(json);
-  } catch { return null; }
-}
-
 // ─── ALEX NAVS ───────────────────────────────────────────────────────────────
 const ALEX_NAVS = [
   { id: "profil",      label: "Profil de course",   icon: "🗺️", group: "Préparation" },
@@ -624,6 +507,7 @@ const ALEX_G = `
     .modal-box { border-radius: 20px 20px 0 0; max-height: 90vh; width: 100vw; padding: 24px; }
   }
 `;
+
 
 // ─── COURSE LAYOUT (Alex exact) ──────────────────────────────────────────────
 function CourseLayout({ isMobile, strideObjectifs, profil: alexProfil, setProfil: setAlexProfil }) {
@@ -1109,6 +993,7 @@ function CourseLayout({ isMobile, strideObjectifs, profil: alexProfil, setProfil
     </>
   );
 }
+
 
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App() {
