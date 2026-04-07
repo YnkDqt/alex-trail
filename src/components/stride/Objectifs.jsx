@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer } from "recharts";
-import { CS as C, localDate, fmtDate, daysUntil, exportJSON, emptyObjectif } from "../../stride/constants.js";
+import { CS as C, localDate, fmtDate, daysUntil, isRunning, exportJSON, emptyObjectif } from "../../stride/constants.js";
 import { Btn, Modal, Field, FormGrid, ConfirmDialog } from "../../stride/atoms.jsx";
 // ─── OBJECTIFS ───────────────────────────────────────────────────────────────
 function Objectifs({ objectifs, setObjectifs, seances, activites, vfcData, poids, profil, produits, recettes, allData }) {

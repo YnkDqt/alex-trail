@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { CS as C, exportJSON, lsRead, parseCSVActivities, parseCSVSommeil, parseCSVVFC,
-  localDate, ACTIVITY_TYPES } from "../../stride/constants.js";
+  localDate, fmtDate, daysUntil, actColor, actShort, isRunning,
+  DAY_NAMES, DEFAULT_PLANNING, ACTIVITY_TYPES, emptyObjectif, emptySeance } from "../../stride/constants.js";
 import { Btn, Field, ConfirmDialog } from "../../stride/atoms.jsx";
 // ─── DONNÉES ─────────────────────────────────────────────────────────────────
 function Donnees({ activites, setActivites, sommeil, setSommeil, vfcData, setVfcData, poids, setPoids, seances, setSeances, planningType, objectifs, allData, loadData, resetAll, journalNutri }) {

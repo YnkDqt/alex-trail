@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { CS as C, DAY_NAMES, DEFAULT_PLANNING, ACTIVITY_TYPES } from "../../stride/constants.js";
+import { CS as C, DAY_NAMES, DEFAULT_PLANNING, ACTIVITY_TYPES, localDate, actIcon, emptySeance } from "../../stride/constants.js";
 import { Btn } from "../../stride/atoms.jsx";
 // ─── SEMAINE TYPE (sous-onglet Entraînement) ─────────────────────────────────
 function SemaineType({ planningType, setPlanningType, seances, setSeances, activityTypes }) {

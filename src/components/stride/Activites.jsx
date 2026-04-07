@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { CS as C, localDate, fmtDate, actColor, actIcon, actShort,
   TYPE_MIGRATION, GARMIN_TO_STRIDE, parseCSVActivities } from "../../stride/constants.js";
 import { Btn, Modal, Field, ConfirmDialog } from "../../stride/atoms.jsx";

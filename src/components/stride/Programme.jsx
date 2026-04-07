@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { CS as C, localDate, fmtDate, daysUntil, isRunning, actColor, actColorPale, actIcon, actShort,
   exportJSON, parseCSVActivities, emptySeance, ACTIVITY_TYPES, STATUT_OPTIONS, TYPE_MIGRATION,
-  ACT_ICON, DAY_NAMES, DAY_SHORT, DEFAULT_PLANNING } from "../../stride/constants.js";
+  ACT_ICON, DAY_NAMES, DAY_SHORT, MOIS_FR, DEFAULT_PLANNING } from "../../stride/constants.js";
 import { Btn, Modal, Field, FormGrid, ConfirmDialog, statusBadge } from "../../stride/atoms.jsx";
 // ─── ENTRAÎNEMENT PROGRAMME (vue principale fusionnée) ───────────────────────
 // Statuts enrichis
