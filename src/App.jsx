@@ -660,9 +660,8 @@ function AppLayout({
         )}
 
         {/* Contenu principal */}
-        <div className="alex-scope" style={{flex:1,overflowY:"auto",paddingTop:isMobile?mobileTopH:0}}>
+        <div className="alex-scope" style={{flex:1,overflowY:"auto",paddingTop:isMobile?mobileTopH:0,background:isDark?"#14100C":undefined}}>
           {/* Vues Stride */}
-          <div className="stride-view" style={{minHeight:"100%",background:isDark?"#1a1714":C.bg}}>
           {view==="accueil" && <Accueil setView={setView} seances={seances} vfcData={vfcData} sommeil={sommeil} poids={poids} objectifs={objectifs} race={race} settings={settings}/>}
           {view==="objectifs" && <Objectifs objectifs={objectifs} setObjectifs={setObjectifs} seances={seances} activites={activites} vfcData={vfcData} poids={poids} profil={profil} produits={produits} recettes={recettes} allData={allData}/>}
           {view==="coach" && <MonCoachIA seances={seances} setSeances={setSeances} activites={activites} sommeil={sommeil} vfcData={vfcData} poids={poids} objectifs={objectifs} planningType={planningType} produits={produits} recettes={recettes} journalNutri={journalNutri} activityTypes={activityTypes}/>}
@@ -690,7 +689,6 @@ function AppLayout({
               {subView.forme==="poids"&&<FormePoids sommeil={sommeil} setSommeil={setSommeil} vfcData={vfcData} setVfcData={setVfcData} poids={poids} setPoids={setPoids} activites={activites} profil={profil} setProfil={setProfil}/>}
             </div>
           )}
-          </div>{/* end stride-view */}
           {/* Vues Alex Course */}
           {view==="profil_course"&&<div style={{padding:"24px 32px"}}><ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profilDetail={features.profilDetail}/></div>}
           {view==="strategie"&&<div style={{padding:"24px 32px"}}><StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile}/></div>}
