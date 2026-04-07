@@ -171,6 +171,10 @@ const ALEX_G = `
     .modal-box { border-radius: 20px 20px 0 0; max-height: 90vh; width: 100vw; padding: 24px; }
   }
 `;
+// ─── COULEURS STRIDE ────────────────────────────────────────────────────────
+const TEAL = "#1D9E75";
+const TEAL_PALE = "#e8f5f0";
+
 // ─── ACCUEIL (page d'accueil unifiée) ────────────────────────────────────────
 function Accueil({ setView, seances, vfcData, sommeil, poids, objectifs, race, settings }) {
   const today = localDate(new Date());
