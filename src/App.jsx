@@ -470,7 +470,7 @@ const ALEX_G = `
     --border-c: ${ALEX_C.border};
     --text-c: ${ALEX_C.text};
     --muted-c: ${ALEX_C.muted};
-    --primary: ${ALEX_ALEX_C.primary};
+    --primary: ${ALEX_C.primary};
   }
   :root.dark {
     --bg: #14100C;
@@ -480,7 +480,7 @@ const ALEX_G = `
     --border-c: #3C3028;
     --text-c: #F0EAE0;
     --muted-c: #9A8870;
-    --primary: ${ALEX_ALEX_C.primaryLight};
+    --primary: ${ALEX_C.primaryLight};
   }
   .alex-scope input, .alex-scope select, .alex-scope textarea {
     font-family: 'DM Sans', sans-serif; font-size: 14px;
@@ -490,10 +490,10 @@ const ALEX_G = `
     transition: border 0.2s, box-shadow 0.2s;
   }
   .alex-scope input:focus, .alex-scope select:focus, .alex-scope textarea:focus {
-    border-color: ${ALEX_ALEX_C.primary};
-    box-shadow: 0 0 0 3px ${ALEX_ALEX_C.primaryPale};
+    border-color: ${ALEX_C.primary};
+    box-shadow: 0 0 0 3px ${ALEX_C.primaryPale};
   }
-  .alex-scope input[type="range"] { background: transparent; border: none; padding: 0; box-shadow: none; accent-color: ${ALEX_ALEX_C.primary}; }
+  .alex-scope input[type="range"] { background: transparent; border: none; padding: 0; box-shadow: none; accent-color: ${ALEX_C.primary}; }
   .alex-scope table { border-collapse: collapse; width: 100%; }
   .alex-scope thead th { font-weight: 600; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted-c); background: var(--surface-2); padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border-c); }
   .alex-scope tbody tr { border-bottom: 1px solid var(--border-c); transition: background 0.15s; cursor: pointer; }
@@ -509,15 +509,15 @@ const ALEX_G = `
   .alex-scope .badge-yellow { background: ${ALEX_C.yellowPale};     color: ${ALEX_C.yellow}; }
   .alex-scope .badge-red    { background: ${ALEX_C.redPale};        color: ${ALEX_C.red}; }
   .alex-scope .badge-blue   { background: ${ALEX_C.bluePale};       color: ${ALEX_C.blue}; }
-  .alex-scope .badge-brown  { background: ${ALEX_ALEX_C.primaryPale};    color: ${ALEX_ALEX_C.primaryDeep}; }
+  .alex-scope .badge-brown  { background: ${ALEX_C.primaryPale};    color: ${ALEX_C.primaryDeep}; }
   .alex-scope .badge-sage   { background: ${ALEX_C.secondaryPale};  color: ${ALEX_C.secondaryDark}; }
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); backdrop-filter: blur(4px); z-index: 200; display: flex; align-items: center; justify-content: center; }
   .modal-box { background: var(--surface); border-radius: 20px; border: 1px solid var(--border-c); max-width: 680px; width: 94vw; max-height: 88vh; overflow-y: auto; padding: 32px; box-shadow: 0 24px 60px rgba(0,0,0,0.18); }
   .confirm-box { background: var(--surface); border-radius: 16px; border: 1px solid var(--border-c); max-width: 400px; width: 90vw; padding: 28px; text-align: center; box-shadow: 0 16px 40px rgba(0,0,0,0.15); }
   .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; cursor: pointer; transition: background 0.15s, color 0.15s; font-weight: 500; color: var(--muted-c); font-size: 14px; user-select: none; }
   .nav-item:hover { background: var(--surface-2); color: var(--text-c); }
-  .nav-item.active { background: ${ALEX_ALEX_C.primaryPale}; color: ${ALEX_ALEX_C.primaryDeep}; }
-  :root.dark .nav-item.active { background: #3A2C1E; color: ${ALEX_ALEX_C.primaryLight}; }
+  .nav-item.active { background: ${ALEX_C.primaryPale}; color: ${ALEX_C.primaryDeep}; }
+  :root.dark .nav-item.active { background: #3A2C1E; color: ${ALEX_C.primaryLight}; }
   @media (max-width: 768px) {
     .alex-scope .grid-2col { grid-template-columns: 1fr; }
     .alex-scope .form-grid { grid-template-columns: repeat(2, 1fr); }
@@ -779,8 +779,8 @@ function CourseLayout({ isMobile, strideObjectifs, profil: alexProfil, setProfil
                 <div key={n.id} onClick={() => navigate(n.id)}
                   style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 10, cursor: "pointer",
                     fontWeight: 500, fontSize: 13, userSelect: "none", transition: "background .15s, color .15s",
-                    background: view === n.id ? ALEX_ALEX_C.primaryPale : "transparent",
-                    color: view === n.id ? ALEX_ALEX_C.primaryDeep : "var(--muted-c)" }}>
+                    background: view === n.id ? ALEX_C.primaryPale : "transparent",
+                    color: view === n.id ? ALEX_C.primaryDeep : "var(--muted-c)" }}>
                   <span style={{ fontSize: 13 }}>{n.icon}</span>
                   <span>{n.label}</span>
                 </div>
@@ -800,8 +800,8 @@ function CourseLayout({ isMobile, strideObjectifs, profil: alexProfil, setProfil
           style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 10, cursor: "pointer",
             fontWeight: 500, fontSize: 13, userSelect: "none", transition: "background .15s, color .15s",
             marginTop: 8, borderTop: "1px solid var(--border-c)", paddingTop: 12,
-            background: view === "donnees_params" ? ALEX_ALEX_C.primaryPale : "transparent",
-            color: view === "donnees_params" ? ALEX_ALEX_C.primaryDeep : "var(--muted-c)" }}>
+            background: view === "donnees_params" ? ALEX_C.primaryPale : "transparent",
+            color: view === "donnees_params" ? ALEX_C.primaryDeep : "var(--muted-c)" }}>
           <span style={{ fontSize: 13 }}>⚙</span>
           <span>Données & Params</span>
           {autoSaved && <span style={{ marginLeft: "auto", fontSize: 10, color: C.green, fontWeight: 600 }}>✓ Sauvé</span>}
@@ -955,7 +955,7 @@ function CourseLayout({ isMobile, strideObjectifs, profil: alexProfil, setProfil
                     🔄 Nouvelle course
                   </button>
                   {!isStandalone && !installDone && (
-                    <button onClick={handleInstall} style={{ background: ALEX_ALEX_C.primaryPale, border: `1px solid ${ALEX_C.primary}40`, borderRadius: 12, padding: "12px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, color: ALEX_ALEX_C.primaryDeep, width: "100%", fontFamily: "inherit" }}>
+                    <button onClick={handleInstall} style={{ background: ALEX_C.primaryPale, border: `1px solid ${ALEX_C.primary}40`, borderRadius: 12, padding: "12px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, color: ALEX_C.primaryDeep, width: "100%", fontFamily: "inherit" }}>
                       📲 Installer l'app
                     </button>
                   )}
@@ -973,10 +973,10 @@ function CourseLayout({ isMobile, strideObjectifs, profil: alexProfil, setProfil
                       <div key={key} onClick={() => toggleFeature(key)}
                         style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderRadius: 12, cursor: "pointer",
                           transition: "all .15s", border: `2px solid ${active ? ALEX_C.primary + "60" : "var(--border-c)"}`,
-                          background: active ? ALEX_ALEX_C.primaryPale : "var(--surface-2)" }}>
+                          background: active ? ALEX_C.primaryPale : "var(--surface-2)" }}>
                         <span style={{ fontSize: 22, flexShrink: 0 }}>{icon}</span>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 600, fontSize: 14, color: active ? ALEX_ALEX_C.primaryDeep : "var(--text-c)" }}>{label}</div>
+                          <div style={{ fontWeight: 600, fontSize: 14, color: active ? ALEX_C.primaryDeep : "var(--text-c)" }}>{label}</div>
                           <div style={{ fontSize: 12, color: "var(--muted-c)", marginTop: 2 }}>{desc}</div>
                         </div>
                         <div style={{ width: 40, height: 22, borderRadius: 11, flexShrink: 0, background: active ? ALEX_C.primary : "var(--border-c)", position: "relative", transition: "background .2s" }}>
