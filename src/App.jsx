@@ -572,38 +572,46 @@ Annuler = tout effacer.`);if(ok)saveCourse();}
       {tab==="modules"&&(
         <div>
           <Section title="Entraînement">
-            <p style={{fontSize:13,color:C.muted,marginBottom:14,lineHeight:1.6}}>
-              Active les modules de préparation à l'entraînement que tu souhaites voir dans la navigation.
-            </p>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {STRIDE_FEATURE_LABELS.map(({key,label,icon,desc})=>(
-                <ToggleRow key={key}
-                  icon={icon} label={label} desc={desc}
-                  active={strideFeatures[key]!==false}
-                  onToggle={()=>toggleStrideFeature(key)}
-                  color={TEAL}
-                />
-              ))}
-            </div>
+            <ToggleRow icon="↑" label="Section Entraînement"
+              desc="Masque entièrement la section dans la navigation"
+              active={strideFeatures._section!==false}
+              onToggle={()=>toggleStrideFeature("_section")}
+              color={TEAL}
+            />
+            {strideFeatures._section!==false&&(
+              <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8,paddingLeft:16,borderLeft:`2px solid ${TEAL}30`}}>
+                {STRIDE_FEATURE_LABELS.map(({key,label,icon,desc})=>(
+                  <ToggleRow key={key} icon={icon} label={label} desc={desc}
+                    active={strideFeatures[key]!==false}
+                    onToggle={()=>toggleStrideFeature(key)}
+                    color={TEAL}
+                  />
+                ))}
+              </div>
+            )}
           </Section>
 
           <Section title="Course">
-            <p style={{fontSize:13,color:C.muted,marginBottom:14,lineHeight:1.6}}>
-              Active les modules de stratégie de course dont tu as besoin.
-            </p>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {FEATURE_LABELS.map(({key,label,icon,desc})=>(
-                <ToggleRow key={key}
-                  icon={icon} label={label} desc={desc}
-                  active={features[key]}
-                  onToggle={()=>toggleFeature(key)}
-                  color={ALEX_C.primary}
-                />
-              ))}
-            </div>
+            <ToggleRow icon="🗺️" label="Section Course"
+              desc="Masque entièrement la section dans la navigation"
+              active={features._section!==false}
+              onToggle={()=>toggleFeature("_section")}
+              color={ALEX_C.primary}
+            />
+            {features._section!==false&&(
+              <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8,paddingLeft:16,borderLeft:`2px solid ${ALEX_C.primary}30`}}>
+                {FEATURE_LABELS.map(({key,label,icon,desc})=>(
+                  <ToggleRow key={key} icon={icon} label={label} desc={desc}
+                    active={features[key]}
+                    onToggle={()=>toggleFeature(key)}
+                    color={ALEX_C.primary}
+                  />
+                ))}
+              </div>
+            )}
             <div style={{marginTop:14,padding:"10px 14px",background:C.stone,
               borderRadius:10,fontSize:12,color:C.muted,lineHeight:1.5}}>
-              💡 Profil de course et Stratégie sont toujours visibles.
+              💡 Profil de course et Stratégie sont toujours visibles si la section est active.
             </div>
           </Section>
         </div>
@@ -701,13 +709,13 @@ function AppLayout({
     { label: null, color: null, items: [
       { id:"accueil", label:"Tableau de bord", icon:"◉" },
     ]},
-    { label: "Entraînement", color: TEAL, items: [
+    ...(strideFeatures._section!==false ? [{ label: "Entraînement", color: TEAL, items: [
       { id:"entrainement", label:"Programme",  icon:"↑", feat:"programme" },
       { id:"activites",    label:"Activités",  icon:"▣", feat:"activites" },
       { id:"forme",        label:"Forme",      icon:"♡", feat:"forme" },
       { id:"objectifs",    label:"Objectifs",  icon:"🏔", feat:"objectifs" },
-    ].filter(n=>!n.feat||strideFeatures[n.feat]!==false)},
-    { label: "Course", color: ALEX_C.primary, items: [
+    ].filter(n=>strideFeatures[n.feat]!==false)}] : []),
+    ...(features._section!==false ? [{ label: "Course", color: ALEX_C.primary, items: [
       { id:"profil_course",  label:"Profil de course",   icon:"🗺️" },
       { id:"strategie",      label:"Stratégie",          icon:"🎯" },
       ...(features.nutrition  ? [{ id:"nutrition_alex",  label:"Nutrition",   icon:"🍌" }] : []),
@@ -715,7 +723,7 @@ function AppLayout({
       ...(features.analyse    ? [{ id:"analyse",         label:"Analyse",     icon:"📊" }] : []),
       ...(features.team       ? [{ id:"team",            label:"Team",        icon:"👥" }] : []),
       ...(features.courses    ? [{ id:"mes_courses",     label:"Mes courses", icon:"📚" }] : []),
-    ]},
+    ]}] : []),
   ];
 
   const allViews = NAV_GROUPS.flatMap(g=>g.items).map(i=>i.id);
