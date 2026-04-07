@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
-import { CS as C, localDate, fmtDate, daysUntil, exportJSON, emptyObjectif } from "./constants.js";
-import { Btn, Modal, Field, FormGrid, ConfirmDialog } from "./atoms.jsx";
+import { CS as C, localDate, fmtDate, daysUntil, exportJSON, emptyObjectif } from "../../stride/constants.js";
+import { Btn, Modal, Field, FormGrid, ConfirmDialog } from "../../stride/atoms.jsx";
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer } from "recharts";
 
 // ─── OBJECTIFS ───────────────────────────────────────────────────────────────

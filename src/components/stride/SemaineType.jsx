@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { CS as C, DAY_NAMES, DEFAULT_PLANNING, ACTIVITY_TYPES } from "./constants.js";
-import { Btn } from "./atoms.jsx";
+import { CS as C, DAY_NAMES, DEFAULT_PLANNING, ACTIVITY_TYPES } from "../../stride/constants.js";
+import { Btn } from "../../stride/atoms.jsx";
 
 // ─── SEMAINE TYPE (sous-onglet Entraînement) ─────────────────────────────────
 function SemaineType({ planningType, setPlanningType, seances, setSeances, activityTypes }) {

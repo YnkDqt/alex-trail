@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
-import { CS as C, localDate, fmtDate, isRunning } from "./constants.js";
-import { Btn } from "./atoms.jsx";
+import { CS as C, localDate, fmtDate, isRunning } from "../../stride/constants.js";
+import { Btn } from "../../stride/atoms.jsx";
 
 // ─── MON COACH IA ─────────────────────────────────────────────────────────────
 function MonCoachIA({ seances, setSeances, activites, sommeil, vfcData, poids, objectifs,

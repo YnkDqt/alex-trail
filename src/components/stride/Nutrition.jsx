@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
-import { CS as C } from "./constants.js";
-import { Btn, Modal, Field, ConfirmDialog } from "./atoms.jsx";
-import { CIQUAL, CIQUAL_CATEGORIES } from "../data/ciqual.js";
+import { CS as C } from "../../stride/constants.js";
+import { Btn, Modal, Field, ConfirmDialog } from "../../stride/atoms.jsx";
+import { CIQUAL, CIQUAL_CATEGORIES } from "../../data/ciqual.js";
 
 // ─── JOURNAL NUTRITIONNEL
 const emptyJourEntry = () => ({

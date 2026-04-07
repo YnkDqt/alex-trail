@@ -21,15 +21,15 @@ import { CS as C, LS_KEY, ACTIVITY_TYPES, STATUT_OPTIONS, ACT_ICON,
   parseCSVActivities, parseCSVSommeil, parseCSVVFC,
   emptySeance, emptyObjectif, emptyPoids, emptyVFC, emptySommeil } from './stride/constants.js';
 import { Btn, Modal, Field, FormGrid, ConfirmDialog, statusBadge } from './stride/atoms.jsx';
-import Dashboard from './stride/Dashboard.jsx';
-import { StatusBadge, ActCell, DiffSpan, EntrainementProgramme, ProgrammeView, Programme } from './stride/Programme.jsx';
-import { FormeVFC, FormeSommeil, FormePoids, Forme } from './stride/Forme.jsx';
-import { Activites, LinkModal } from './stride/Activites.jsx';
-import Objectifs from './stride/Objectifs.jsx';
-import { JournalNutri, Nutrition } from './stride/Nutrition.jsx';
-import SemaineType from './stride/SemaineType.jsx';
-import MonCoachIA from './stride/MonCoachIA.jsx';
-import { Donnees, Parametres, DonneesParams } from './stride/Donnees.jsx';
+import Dashboard from './components/stride/Dashboard.jsx';
+import { StatusBadge, ActCell, DiffSpan, EntrainementProgramme, ProgrammeView, Programme } from './components/stride/Programme.jsx';
+import { FormeVFC, FormeSommeil, FormePoids, Forme } from './components/stride/Forme.jsx';
+import { Activites, LinkModal } from './components/stride/Activites.jsx';
+import Objectifs from './components/stride/Objectifs.jsx';
+import { JournalNutri, Nutrition } from './components/stride/Nutrition.jsx';
+import SemaineType from './components/stride/SemaineType.jsx';
+import MonCoachIA from './components/stride/MonCoachIA.jsx';
+import { Donnees, Parametres, DonneesParams } from './components/stride/Donnees.jsx';
 
 // ─── GLOBAL STYLES (Stride) ───────────────────────────────────────────────────
 const G = `

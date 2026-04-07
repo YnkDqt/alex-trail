@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { CS as C, localDate, daysUntil, isRunning, actColor, actShort, actColorPale, fmtDate } from "./constants.js";
-import { Btn } from "./atoms.jsx";
+import { CS as C, localDate, daysUntil, isRunning, actColor, actShort, actColorPale, fmtDate } from "../../stride/constants.js";
+import { Btn } from "../../stride/atoms.jsx";
 function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, setView }) {
   const today   = localDate(new Date());
   const nowMkey = today.slice(0,7);
