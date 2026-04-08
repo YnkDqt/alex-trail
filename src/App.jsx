@@ -14,13 +14,13 @@ import ProfilCompte   from './components/ProfilCompte.jsx';
 import { CIQUAL, CIQUAL_CATEGORIES } from './data/ciqual.js';
 
 // ─── STRIDE IMPORTS ───────────────────────────────────────────────────────────
-import { CS as C, LS_KEY, ACTIVITY_TYPES, STATUT_OPTIONS, ACT_ICON,
+import { C, LS_KEY, ACTIVITY_TYPES, STATUT_OPTIONS, ACT_ICON,
   GARMIN_TO_STRIDE, TYPE_MIGRATION, DEFAULT_PLANNING,
   isRunning, lsRead, lsWrite, exportJSON, localDate, fmtDate, daysUntil,
   actColor, actColorPale, actIcon, actShort,
   parseCSVActivities, parseCSVSommeil, parseCSVVFC,
-  emptySeance, emptyObjectif, emptyPoids, emptyVFC, emptySommeil } from './stride/constants.js';
-import { Btn, Modal, Field, FormGrid, ConfirmDialog, statusBadge } from './stride/atoms.jsx';
+  emptySeance, emptyObjectif, emptyPoids, emptyVFC, emptySommeil } from './constants.js';
+import { Btn, Modal, Field, FormGrid, ConfirmDialog, statusBadge } from './atoms.jsx';
 import Dashboard from './components/stride/Dashboard.jsx';
 import { StatusBadge, ActCell, DiffSpan, EntrainementProgramme, ProgrammeView, Programme } from './components/stride/Programme.jsx';
 import { FormeVFC, FormeSommeil, FormePoids, Forme } from './components/stride/Forme.jsx';
