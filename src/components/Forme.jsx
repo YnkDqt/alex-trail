@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useRef } from "react";
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
-import { CS as C, localDate, fmtDate, exportJSON, parseCSVSommeil, parseCSVVFC,
-  emptyPoids, emptyVFC, emptySommeil } from "../../constants.js";
-import { Btn, Modal, Field, ConfirmDialog } from "../../atoms.jsx";
+import { C, localDate, fmtDate, exportJSON, parseCSVSommeil, parseCSVVFC,
+  emptyPoids, emptyVFC, emptySommeil } from "../constants.js";
+import { Btn, Modal, Field, ConfirmDialog } from "../atoms.jsx";
 // ─── WRAPPERS FORME ──────────────────────────────────────────────────────────
 // Le composant Forme gère déjà VFC/Sommeil/Poids — on le wrap avec tab forcé
 function FormeVFC(props) {

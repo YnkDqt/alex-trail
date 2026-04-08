@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from "react";
-import { CS as C, localDate, fmtDate, daysUntil, isRunning, actColor, actShort, actColorPale,
-  exportJSON, ACTIVITY_TYPES, DEFAULT_PLANNING, emptySeance } from "../../constants.js";
-import { Btn } from "../../atoms.jsx";
+import { C, localDate, fmtDate, daysUntil, isRunning, actColor, actShort, actColorPale,
+  exportJSON, ACTIVITY_TYPES, DEFAULT_PLANNING, emptySeance } from "../constants.js";
+import { Btn } from "../atoms.jsx";
 // ─── MON COACH IA ─────────────────────────────────────────────────────────────
 function MonCoachIA({ seances, setSeances, activites, sommeil, vfcData, poids, objectifs,
   planningType, produits, recettes, journalNutri, activityTypes }) {

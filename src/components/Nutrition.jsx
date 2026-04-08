@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from "react";
-import { CS as C, isRunning, fmtDate, localDate, exportJSON } from "../../constants.js";
-import { Btn, Modal, Field, ConfirmDialog } from "../../atoms.jsx";
-import { CIQUAL, CIQUAL_CATEGORIES } from "../../data/ciqual.js";
+import { C, isRunning, fmtDate, localDate, exportJSON } from "../constants.js";
+import { Btn, Modal, Field, ConfirmDialog } from "../atoms.jsx";
+import { CIQUAL, CIQUAL_CATEGORIES } from "../data/ciqual.js";
 // ─── JOURNAL NUTRITIONNEL
 const emptyJourEntry = () => ({
   id: Date.now()+Math.random(),
