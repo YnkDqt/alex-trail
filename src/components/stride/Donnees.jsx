@@ -1,8 +1,8 @@
 import React, { useState, useRef } from "react";
 import { CS as C, exportJSON, lsRead, parseCSVActivities, parseCSVSommeil, parseCSVVFC,
   localDate, fmtDate, daysUntil, actColor, actShort, isRunning,
-  DAY_NAMES, DEFAULT_PLANNING, ACTIVITY_TYPES, emptyObjectif, emptySeance } from "../../stride/constants.js";
-import { Btn, Field, ConfirmDialog } from "../../stride/atoms.jsx";
+  DAY_NAMES, DEFAULT_PLANNING, ACTIVITY_TYPES, emptyObjectif, emptySeance } from "../../constants.js";
+import { Btn, Field, ConfirmDialog } from "../../atoms.jsx";
 // ─── DONNÉES ─────────────────────────────────────────────────────────────────
 function Donnees({ activites, setActivites, sommeil, setSommeil, vfcData, setVfcData, poids, setPoids, seances, setSeances, planningType, objectifs, allData, loadData, resetAll, journalNutri }) {
   const [msgs,          setMsgs]         = useState({});
