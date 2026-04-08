@@ -5,11 +5,15 @@ import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, e
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE NUTRITION ───────────────────────────────────────────────────────────
-export default function NutritionView({ segments, settings, setSettings, race, setRace, isMobile, onNavigate }) {
+export default function NutritionView({ segments, settings, setSettings, race, setRace, isMobile, onNavigate, profil, poids }) {
   const produits = settings.produits || [];
   const planNutrition = race.planNutrition || {};
   const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km).filter(rv => rv.assistancePresente !== false);
   const updPlan = v => setRace(r => ({ ...r, planNutrition: v }));
+
+  // Poids utilisateur : profil.poids en priorité, sinon dernier poids[], sinon 70
+  const lastPoids = useMemo(() => [...(poids || [])].sort((a,b) => new Date(b.date) - new Date(a.date))[0]||null, [poids]);
+  const userWeight = profil?.poids || lastPoids?.poids || 70;
 
   // ── État modaux ──
   const [prodModal, setProdModal] = useState(false);
@@ -82,7 +86,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
       return kcalGb - kcalGa;
     });
 
-    const poidsMax = (settings.weight || 70) * 1000 * 0.12; // 12% poids corporel
+    const poidsMax = userWeight * 1000 * 0.12; // 12% poids corporel
     const glucidesTarget = settings.glucidesTargetGh; // g/h cible si défini
 
     const newPlan = {};
@@ -247,7 +251,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
 
       {/* Bandeau profil nutritionnel actif */}
       {(() => {
-        const w = settings.weight || 70;
+        const w = userWeight;
         const src = settings.kcalSource || "minetti";
         const gs = settings.garminStats;
         let flatRate;
@@ -385,7 +389,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
                 🪄 Proposition auto-complétion
               </div>
               <div style={{ fontSize: 13, color: C.primaryDeep, marginBottom: 12, lineHeight: 1.6 }}>
-                L'algo a rempli ton plan en priorisant eau → glucides → calories, dans la limite de 12% de ton poids corporel ({Math.round((settings.weight || 70) * 0.12 * 10) / 10} kg).
+                L'algo a rempli ton plan en priorisant eau → glucides → calories, dans la limite de 12% de ton poids corporel ({Math.round(userWeight * 0.12 * 10) / 10} kg).
                 {(() => {
                   const totalKcal = zones.reduce((acc, z) => {
                     const items = autoCompletePreview[z.pointKey] || [];

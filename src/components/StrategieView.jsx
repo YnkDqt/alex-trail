@@ -5,13 +5,40 @@ import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, e
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE STRATÉGIE DE COURSE ─────────────────────────────────────────────────
-export default function StrategieView({ race, segments, setSegments, settings, setSettings, onOpenRepos, isMobile }) {
+export default function StrategieView({ race, segments, setSegments, settings, setSettings, onOpenRepos, isMobile, profil }) {
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
   const [computing, setComputing] = useState(false);
   const emptyForm = { startKm: "", endKm: "", slopePct: 0, speedKmh: 9.5, terrain: "normal", notes: "" };
   const [form, setForm] = useState(emptyForm);
+
+  // Zones FC Karvonen
+  const zonesFC = useMemo(() => {
+    const r = parseInt(profil?.fcRepos) || 0;
+    const m = parseInt(profil?.fcMax) || 0;
+    if (!r || !m || m <= r) return null;
+    const rr = m - r;
+    const ZONES = [
+      { z: "Z1", label: "Récup",     lo: 0.50, hi: 0.60, color: "#4A82B0" },
+      { z: "Z2", label: "Endurance",  lo: 0.60, hi: 0.70, color: C.green },
+      { z: "Z3", label: "Tempo",      lo: 0.70, hi: 0.80, color: C.yellow },
+      { z: "Z4", label: "Seuil",      lo: 0.80, hi: 0.90, color: "#C4521A" },
+      { z: "Z5", label: "VO2max",     lo: 0.90, hi: 1.00, color: C.red },
+    ];
+    return ZONES.map(z => ({ ...z, lo: Math.round(r + rr * z.lo), hi: Math.round(r + rr * z.hi) }));
+  }, [profil]);
+
+  // Vitesses de référence depuis allures profil (Z2/Z3)
+  const vitessesRef = useMemo(() => {
+    const z2 = profil?.allureZ2; // min/km
+    const z3 = profil?.allureZ3;
+    if (!z2 && !z3) return null;
+    return {
+      z2: z2 ? (60 / z2).toFixed(1) : null, // km/h
+      z3: z3 ? (60 / z3).toFixed(1) : null,
+    };
+  }, [profil]);
 
   const updS = (k, v) => setSettings(s => ({ ...s, [k]: v }));
   const openNew  = ()  => { setEditId(null);   setForm(emptyForm); setModal(true); };
@@ -112,6 +139,48 @@ export default function StrategieView({ race, segments, setSegments, settings, s
       <div style={{ background: C.primaryPale, border: `1px solid ${C.primary}40`, borderRadius: 12, padding: "10px 16px", marginBottom: 20, fontSize: 13, color: C.primaryDeep }}>
         Configure ta course dans <strong>Profil de course</strong> — retrouve ici les heures de passage et les segments.
       </div>
+
+      {/* Zones FC + Vitesses référence */}
+      {(zonesFC || vitessesRef) && (
+        <div style={{ display: "grid", gridTemplateColumns: zonesFC && vitessesRef ? "1fr 1fr" : "1fr", gap: 14, marginBottom: 20 }}>
+          {zonesFC && (
+            <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: C.muted, marginBottom: 8 }}>
+                Zones FC · {profil?.fcRepos}-{profil?.fcMax} bpm
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {zonesFC.map(z => (
+                  <div key={z.z} style={{ flex: 1, textAlign: "center", padding: "6px 2px", borderRadius: 6, background: z.color + "12", border: `1px solid ${z.color}30` }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: z.color }}>{z.z}</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.inkLight }}>{z.lo}-{z.hi}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {vitessesRef && (
+            <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: C.muted, marginBottom: 8 }}>
+                Vitesses référence
+              </div>
+              <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                {vitessesRef.z2 && (
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 9, color: C.muted }}>Endurance Z2</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: C.green }}>{vitessesRef.z2} <span style={{ fontSize: 11, fontWeight: 400, color: C.muted }}>km/h</span></div>
+                  </div>
+                )}
+                {vitessesRef.z3 && (
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 9, color: C.muted }}>Tempo Z3</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: C.yellow }}>{vitessesRef.z3} <span style={{ fontSize: 11, fontWeight: 400, color: C.muted }}>km/h</span></div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── RÉSULTATS ── */}
       {!segments.length ? (

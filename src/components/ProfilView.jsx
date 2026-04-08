@@ -5,7 +5,7 @@ import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, e
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
-export default function ProfilView({ race, setRace, segments, setSegments, settings, setSettings, onOpenRepos, isMobile, profilDetail = true }) {
+export default function ProfilView({ race, setRace, segments, setSegments, settings, setSettings, onOpenRepos, isMobile, profilDetail = true, profil }) {
   const [gpxError, setGpxError]       = useState(null);
   const [tooltipGlu, setTooltipGlu]   = useState(false);
   const [gpxStatus, setGpxStatus]     = useState(null);
@@ -22,6 +22,22 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
   const emptySegForm = { startKm: "", endKm: "", slopePct: 0, speedKmh: 9.5, terrain: "normal", notes: "" };
   const [segForm, setSegForm]         = useState(emptySegForm);
   const fileRef = useRef();
+
+  // Zones FC Karvonen
+  const zonesFC = useMemo(() => {
+    const r = parseInt(profil?.fcRepos) || 0;
+    const m = parseInt(profil?.fcMax) || 0;
+    if (!r || !m || m <= r) return null;
+    const rr = m - r;
+    const ZONES = [
+      { z: "Z1", label: "Récupération",     lo: 0.50, hi: 0.60, color: "#4A82B0" },
+      { z: "Z2", label: "Endurance",        lo: 0.60, hi: 0.70, color: C.green },
+      { z: "Z3", label: "Tempo",            lo: 0.70, hi: 0.80, color: C.yellow },
+      { z: "Z4", label: "Seuil",            lo: 0.80, hi: 0.90, color: "#C4521A" },
+      { z: "Z5", label: "VO2max",           lo: 0.90, hi: 1.00, color: C.red },
+    ];
+    return ZONES.map(z => ({ ...z, lo: Math.round(r + rr * z.lo), hi: Math.round(r + rr * z.hi) }));
+  }, [profil]);
 
   const profile = useMemo(() => race.gpxPoints?.length ? buildElevationProfile(race.gpxPoints, 300) : [], [race.gpxPoints]);
   const updS = (k, v) => setSettings(s => ({ ...s, [k]: v }));
@@ -229,6 +245,24 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
             <KPI label="Segments" value={segments.filter(s => s.type !== "ravito" && s.type !== "repos").length} icon="✂️" />
             <KPI label="Temps estimé" value={fmtTime(totalTime + totalRavitoSec + totalReposSec)} color={C.secondary} icon="⏱️" sub="ravitos inclus" />
           </div>
+
+          {/* Zones FC */}
+          {zonesFC && (
+            <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: C.muted, marginBottom: 10 }}>
+                Zones cardio (Karvonen) — {profil?.fcRepos} bpm repos · {profil?.fcMax} bpm max
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {zonesFC.map(z => (
+                  <div key={z.z} style={{ flex: "1 1 80px", minWidth: 70, textAlign: "center", padding: "8px 4px", borderRadius: 8, background: z.color + "15", border: `1px solid ${z.color}40` }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: z.color, marginBottom: 2 }}>{z.z}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.inkLight }}>{z.lo}–{z.hi}</div>
+                    <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>{z.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {gpxStatus && (
             <div style={{ padding: "8px 14px", borderRadius: 10, marginBottom: 12, fontSize: 13, fontWeight: 500,
               background: gpxStatus.startsWith("✅") ? C.green + "15" : C.primary + "12",

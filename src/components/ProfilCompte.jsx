@@ -180,6 +180,13 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
               <span style={{ fontSize:13, color:C.muted, flexShrink:0 }}>cm</span>
             </div>
           </Field>
+          <Field label="Poids de référence" hint="Utilisé pour les calculs nutrition Alex">
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <input type="number" min="40" max="150" step="0.1" value={p.poids||""} onChange={e=>set("poids",parseFloat(e.target.value)||"")}
+                placeholder="70" style={inp({width:90, textAlign:"right"})}/>
+              <span style={{ fontSize:13, color:C.muted, flexShrink:0 }}>kg</span>
+            </div>
+          </Field>
         </div>
 
         {/* ── Cardiaque ─────────────────────────────────────── */}
