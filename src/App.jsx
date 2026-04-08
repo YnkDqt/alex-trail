@@ -1023,6 +1023,14 @@ export default function App() {
     lsWrite({seances,activites,sommeil,vfcData,poids,objectifs,planningType,activityTypes,journalNutri,produits,recettes,profil});
   },[seances,activites,sommeil,vfcData,poids,objectifs,planningType,activityTypes,journalNutri,produits,recettes,profil]);
 
+  // Init profil.taille depuis dernier poids si vide (mount uniquement)
+  useEffect(()=>{
+    if(!profil.taille && poids.length){
+      const last = [...poids].sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
+      if(last.taille) setProfil(p=>({...p, taille:last.taille}));
+    }
+  },[]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const allData = {seances,activites,sommeil,vfcData,poids,objectifs,planningType,activityTypes,journalNutri,produits,recettes,profil};
   const loadStrideData = data => {
     if(data.seances)       setSeances(data.seances);

@@ -667,100 +667,21 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                         <span>Partir vite</span><span>Partir lentement</span>
                       </div>
                     </div>}
-                    {profilDetail && <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12 }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-
-                        {/* Colonne gauche : Poids + FC */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                          <Field label="Poids (kg)">
-                            <input type="number" min={40} max={150} value={settings.weight || 70}
-                              onChange={e => updS("weight", e.target.value === "" ? "" : +e.target.value)}
-                              onBlur={e => updS("weight", Math.max(40, Math.min(150, +e.target.value || 70)))} />
-                          </Field>
-                          <Field label="FC max (bpm)">
-                            <input type="number" min={140} max={220} placeholder="Auto"
-                              value={settings.fcMax || ""}
-                              onChange={e => updS("fcMax", e.target.value === "" ? null : +e.target.value)}
-                              onBlur={e => { if (e.target.value) updS("fcMax", Math.max(140, Math.min(220, +e.target.value))); }} />
-                          </Field>
-                          <Field label="FC Zone 2 max (bpm)">
-                            <input type="number" min={100} max={200} placeholder="Auto"
-                              value={settings.fcZone2Max || ""}
-                              onChange={e => updS("fcZone2Max", e.target.value === "" ? null : +e.target.value)}
-                              onBlur={e => { if (e.target.value) updS("fcZone2Max", Math.max(100, Math.min(200, +e.target.value))); }} />
-                          </Field>
-                          {/* Zones calculées */}
-                          {(() => {
-                            const fcMax = settings.fcMax || settings.garminStats?.fcMaxObs;
-                            const z2max = settings.fcZone2Max;
-                            if (!fcMax) return null;
-                            const z1max = z2max ? Math.round(z2max * 0.86) : Math.round(fcMax * 0.60);
-                            const z2lo  = z1max + 1;
-                            const z2hi  = z2max || Math.round(fcMax * 0.70);
-                            const z3hi  = Math.round(fcMax * 0.82);
-                            const z4hi  = Math.round(fcMax * 0.92);
-                            const gs = settings.garminStats;
-                            return (
-                              <div style={{ padding: "8px 10px", background: "var(--surface-2)", borderRadius: 8, fontSize: 11 }}>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: gs?.gapZone2Kmh ? 6 : 0 }}>
-                                  {[
-                                    { label: "Z1", range: `< ${z2lo}`, color: C.green },
-                                    { label: "Z2", range: `${z2lo}–${z2hi}`, color: C.secondary },
-                                    { label: "Z3", range: `${z2hi+1}–${z3hi}`, color: C.yellow },
-                                    { label: "Z4", range: `${z3hi+1}–${z4hi}`, color: C.red },
-                                    { label: "Z5", range: `> ${z4hi}`, color: "#9B4EA8" },
-                                  ].map(z => (
-                                    <div key={z.label} style={{ display: "flex", justifyContent: "space-between" }}>
-                                      <span style={{ fontWeight: 600, color: z.color }}>{z.label}</span>
-                                      <span style={{ color: "var(--muted-c)" }}>{z.range} bpm</span>
-                                    </div>
-                                  ))}
-                                </div>
-                                {gs?.gapZone2Kmh && (
-                                  <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 5, color: C.secondary, fontWeight: 600 }}>
-                                    Z2 : {fmtPace(gs.gapZone2Kmh)}/km
-                                    <span style={{ fontWeight: 400, color: "var(--muted-c)", marginLeft: 4 }}>({gs.z2Count} sorties)</span>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })()}
+                    {/* GAP moyenne depuis activités Stride */}
+                    {settings.garminStats?.avgGapKmh && (
+                      <div style={{ padding: "10px 12px", background: "var(--surface-2)", borderRadius: 9, border: `1px solid ${C.primary}30` }}>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+                          Allure Garmin (depuis Activités)
                         </div>
-
-                        {/* Colonne droite : Calibration Garmin */}
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 2 }}>
-                            Calibration Garmin <span style={{ fontSize: 10 }}>(vitesses auto)</span>
-                          </div>
-                          <Btn variant="soft" size="sm" onClick={() => document.getElementById("garmin-input-profil").click()}>
-                            Charger Activities.csv
-                          </Btn>
-                          <input id="garmin-input-profil" type="file" accept=".csv" style={{ display: "none" }} onChange={handleGarmin} />
-                          <span style={{ color: "var(--muted-c)", fontSize: 11 }}>
-                            Coeff. <strong>{settings.garminCoeff}</strong>
-                            {settings.garminStats && ` · ${settings.garminStats.count} sorties`}
-                          </span>
-                          {settings.garminStats && (
-                            <div style={{ padding: "6px 10px", background: "var(--surface-2)", borderRadius: 8, fontSize: 11, display: "flex", flexDirection: "column", gap: 3, color: "var(--muted-c)" }}>
-                              <span>GAP moy. <strong style={{ color: "var(--text-c)" }}>{settings.garminStats.avgGapKmh} km/h</strong></span>
-                              <span>Coeff. <strong style={{ color: C.primary }}>×{settings.garminStats.coeff}</strong></span>
-                              {settings.garminStats.fcMaxObs && (
-                                <span>FC max obs. <strong style={{ color: C.red }}>{settings.garminStats.fcMaxObs} bpm</strong></span>
-                              )}
-                              {settings.garminStats.gapZone2Kmh && (
-                                <span>Allure Z2 <strong style={{ color: C.secondary }}>{fmtPace(settings.garminStats.gapZone2Kmh)}/km</strong></span>
-                              )}
-                            </div>
-                          )}
-                          {settings.garminCoeff !== 1 && (
-                            <Btn variant="ghost" size="sm" onClick={() => { updS("garminCoeff", 1); updS("garminStats", null); updS("kcalSource", "minetti"); }}>
-                              Réinitialiser (coeff = 1)
-                            </Btn>
-                          )}
+                        <div style={{ fontSize: 16, fontWeight: 700, color: C.primary, fontFamily: "'Playfair Display', serif" }}>
+                          {settings.garminStats.avgGapKmh} km/h
+                          <span style={{ fontSize: 11, fontWeight: 400, color: "var(--muted-c)", marginLeft: 6 }}>GAP moy. · coeff ×{settings.garminStats.coeff}</span>
                         </div>
-
+                        <div style={{ fontSize: 10, color: "var(--muted-c)", marginTop: 3 }}>
+                          {settings.garminStats.count} sorties analysées
+                        </div>
                       </div>
-                    </div>}
+                    )}
                   </div>
                 </Card>
 

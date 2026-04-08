@@ -195,7 +195,7 @@ export const emptyObjectif = () => ({
 });
 export const emptyPoids = () => ({
   id: Date.now()+Math.random(), date: localDate(new Date()),
-  poids: "", taille: 180, cou: "", taille_cm: "", ventre: "",
+  poids: "", cou: "", taille_cm: "", ventre: "",
   hanche: "", cuisse: "", mollet: "",
 });
 export const emptyVFC = () => ({
