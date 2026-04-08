@@ -140,48 +140,6 @@ export default function StrategieView({ race, segments, setSegments, settings, s
         Configure ta course dans <strong>Profil de course</strong> — retrouve ici les heures de passage et les segments.
       </div>
 
-      {/* Zones FC + Vitesses référence */}
-      {(zonesFC || vitessesRef) && (
-        <div style={{ display: "grid", gridTemplateColumns: zonesFC && vitessesRef ? "1fr 1fr" : "1fr", gap: 14, marginBottom: 20 }}>
-          {zonesFC && (
-            <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: C.muted, marginBottom: 8 }}>
-                Zones FC · {profil?.fcRepos}-{profil?.fcMax} bpm
-              </div>
-              <div style={{ display: "flex", gap: 6 }}>
-                {zonesFC.map(z => (
-                  <div key={z.z} style={{ flex: 1, textAlign: "center", padding: "6px 2px", borderRadius: 6, background: z.color + "12", border: `1px solid ${z.color}30` }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: z.color }}>{z.z}</div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: C.inkLight }}>{z.lo}-{z.hi}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {vitessesRef && (
-            <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: C.muted, marginBottom: 8 }}>
-                Vitesses référence
-              </div>
-              <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-                {vitessesRef.z2 && (
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 9, color: C.muted }}>Endurance Z2</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: C.green }}>{vitessesRef.z2} <span style={{ fontSize: 11, fontWeight: 400, color: C.muted }}>km/h</span></div>
-                  </div>
-                )}
-                {vitessesRef.z3 && (
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{ fontSize: 9, color: C.muted }}>Tempo Z3</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: C.yellow }}>{vitessesRef.z3} <span style={{ fontSize: 11, fontWeight: 400, color: C.muted }}>km/h</span></div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ── RÉSULTATS ── */}
       {!segments.length ? (
         <Empty icon="✂️" title="Aucun segment défini" sub="Génère les segments depuis ta stratégie, ou ajoute-en un manuellement." action={<Btn onClick={openNew}>+ Ajouter un segment</Btn>} />

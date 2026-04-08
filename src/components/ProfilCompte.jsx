@@ -173,20 +173,6 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
           <Field label="Date de naissance" hint={age ? `${age} ans` : undefined}>
             <input type="date" value={p.dateNaissance||""} onChange={e=>set("dateNaissance",e.target.value)} style={inp()}/>
           </Field>
-          <Field label="Taille" hint="Utilisée pour le calcul %MG (Navy)">
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <input type="number" min="140" max="220" value={p.taille||""} onChange={e=>set("taille",parseInt(e.target.value)||"")}
-                placeholder="180" style={inp({width:90, textAlign:"right"})}/>
-              <span style={{ fontSize:13, color:C.muted, flexShrink:0 }}>cm</span>
-            </div>
-          </Field>
-          <Field label="Poids de référence" hint="Utilisé pour les calculs nutrition Alex">
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <input type="number" min="40" max="150" step="0.1" value={p.poids||""} onChange={e=>set("poids",parseFloat(e.target.value)||"")}
-                placeholder="70" style={inp({width:90, textAlign:"right"})}/>
-              <span style={{ fontSize:13, color:C.muted, flexShrink:0 }}>kg</span>
-            </div>
-          </Field>
         </div>
 
         {/* ── Cardiaque ─────────────────────────────────────── */}
@@ -217,16 +203,23 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
           </Field>
         </div>
 
-        {/* Zones FC calculées */}
+        {/* Zones FC calculées → éditables */}
         {zones ? (
           <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:10,
             overflow:"hidden", marginBottom:8 }}>
             <div style={{ padding:"10px 14px", background:C.stone, fontSize:11, fontWeight:600,
               textTransform:"uppercase", letterSpacing:"0.06em", color:C.muted }}>
-              Zones FC calculées — méthode Karvonen
+              Zones FC — méthode Karvonen · modifiable manuellement
             </div>
             {zones.map(z => {
-              const pct = Math.round(((z.lo + z.hi) / 2 - parseInt(p.fcRepos)) / (parseInt(p.fcMax) - parseInt(p.fcRepos)) * 100);
+              const override = p.zonesFC?.find(zz => zz.z === z.z);
+              const loVal = override?.lo ?? z.lo;
+              const hiVal = override?.hi ?? z.hi;
+              const updZone = (field, val) => {
+                const current = p.zonesFC || zones.map(zz => ({ z: zz.z, lo: zz.lo, hi: zz.hi }));
+                const updated = current.map(zz => zz.z === z.z ? { ...zz, [field]: parseInt(val) || zz[field] } : zz);
+                set("zonesFC", updated);
+              };
               return (
                 <div key={z.z} style={{ display:"flex", alignItems:"center", gap:12,
                   padding:"8px 14px", borderTop:`1px solid ${C.stone}` }}>
@@ -236,14 +229,20 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
                     flexShrink:0 }}>{z.z}</div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:12, fontWeight:500, color:C.inkLight }}>{z.label}</div>
-                    <div style={{ height:4, borderRadius:2, background:C.stone, marginTop:3 }}>
-                      <div style={{ height:"100%", borderRadius:2, background:z.color,
-                        width:`${pct}%`, transition:"width 0.3s" }}/>
-                    </div>
                   </div>
-                  <div style={{ fontFamily:"'DM Mono',monospace", fontSize:13, fontWeight:500,
-                    color:C.inkLight, flexShrink:0 }}>
-                    {z.lo}–{z.hi} <span style={{ fontSize:11, color:C.muted }}>bpm</span>
+                  <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                    <input type="number" min="30" max="230" value={loVal}
+                      onChange={e => updZone("lo", e.target.value)}
+                      style={{ width:50, fontSize:12, padding:"4px 6px", borderRadius:6,
+                        border:`1px solid ${C.border}`, textAlign:"center",
+                        fontFamily:"'DM Mono',monospace", fontWeight:500, color:C.inkLight }}/>
+                    <span style={{ fontSize:11, color:C.muted }}>–</span>
+                    <input type="number" min="30" max="230" value={hiVal}
+                      onChange={e => updZone("hi", e.target.value)}
+                      style={{ width:50, fontSize:12, padding:"4px 6px", borderRadius:6,
+                        border:`1px solid ${C.border}`, textAlign:"center",
+                        fontFamily:"'DM Mono',monospace", fontWeight:500, color:C.inkLight }}/>
+                    <span style={{ fontSize:11, color:C.muted }}>bpm</span>
                   </div>
                 </div>
               );
@@ -289,8 +288,8 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
         {/* Note bas de page */}
         <div style={{ marginTop:32, padding:"12px 14px", background:C.stone, borderRadius:10,
           fontSize:11, color:C.stoneDeep, lineHeight:1.6 }}>
-          Ces données sont partagées entre Stride et Alex. Elles servent au calcul du %MG (Navy U.S.),
-          aux zones FC (Karvonen), et à la calibration des allures dans la stratégie de course.
+          <strong>Poids et taille</strong> sont gérés dans <strong>Suivi corporel</strong> (Entraînement → Forme).<br/>
+          Zones FC modifiables manuellement pour s'adapter à tes données Garmin/montre.<br/>
           Migration Supabase prévue — pour l'instant stockées localement.
         </div>
 

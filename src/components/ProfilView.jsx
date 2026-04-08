@@ -245,24 +245,6 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
             <KPI label="Segments" value={segments.filter(s => s.type !== "ravito" && s.type !== "repos").length} icon="✂️" />
             <KPI label="Temps estimé" value={fmtTime(totalTime + totalRavitoSec + totalReposSec)} color={C.secondary} icon="⏱️" sub="ravitos inclus" />
           </div>
-
-          {/* Zones FC */}
-          {zonesFC && (
-            <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px", marginBottom: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: C.muted, marginBottom: 10 }}>
-                Zones cardio (Karvonen) — {profil?.fcRepos} bpm repos · {profil?.fcMax} bpm max
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {zonesFC.map(z => (
-                  <div key={z.z} style={{ flex: "1 1 80px", minWidth: 70, textAlign: "center", padding: "8px 4px", borderRadius: 8, background: z.color + "15", border: `1px solid ${z.color}40` }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: z.color, marginBottom: 2 }}>{z.z}</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: C.inkLight }}>{z.lo}–{z.hi}</div>
-                    <div style={{ fontSize: 9, color: C.muted, marginTop: 2 }}>{z.label}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           {gpxStatus && (
             <div style={{ padding: "8px 14px", borderRadius: 10, marginBottom: 12, fontSize: 13, fontWeight: 500,
               background: gpxStatus.startsWith("✅") ? C.green + "15" : C.primary + "12",
