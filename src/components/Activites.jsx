@@ -138,7 +138,7 @@ function Activites({ activites, setActivites, seances, setSeances }) {
                     {k:"distance",u:"km"},{k:"duree",u:""},{k:"fcMoy",u:""},{k:"fcMax",u:""},{k:"dp",u:"m"},{k:"calories",u:""},
                   ].map(({k,u})=>(
                     <div key={k} style={{padding:"3px 4px",borderRight:`1px solid ${C.border}`}}>
-                      <input value={a[k]||""} onChange={e=>updAct(a.id,k,e.target.value)}
+                      <input value={(a[k]||"").toString().replace(/,/g,'')} onChange={e=>updAct(a.id,k,e.target.value)}
                         style={{fontSize:10,padding:"1px 3px",border:`1px solid ${C.border}`,borderRadius:4,width:"100%",background:C.bg,fontFamily:"'DM Mono',monospace",textAlign:"right"}}/>
                     </div>
                   ))}
