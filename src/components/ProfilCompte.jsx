@@ -1,4 +1,6 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useAuth } from '../AuthContext';
+import { loadAthleteProfile, saveAthleteProfile } from '../supabaseHelpers';
 
 // ─── ProfilCompte ─────────────────────────────────────────────────────────────
 // Page profil unifiée — lue par Stride ET Alex
@@ -86,9 +88,30 @@ const SectionTitle = ({ children }) => (
 );
 
 export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
+  const { user } = useAuth();
   const p = profil;
 
-  const set = (k, v) => setProfil(prev => ({ ...prev, [k]: v }));
+  // Load profil from Supabase on mount
+  useEffect(() => {
+    if (!user?.id) return;
+    loadAthleteProfile(user.id).then(data => {
+      if (data && Object.keys(data).length > 2) {
+        setProfil(prev => ({ ...prev, ...data }));
+      }
+    }).catch(err => console.error('Erreur load profil:', err));
+  }, [user?.id, setProfil]);
+
+  const set = (k, v) => {
+    const updated = { ...p, [k]: v };
+    setProfil(prev => ({ ...prev, [k]: v }));
+    
+    // Auto-save to Supabase
+    if (user?.id) {
+      saveAthleteProfile(user.id, updated).catch(err => 
+        console.error('Erreur save profil:', err)
+      );
+    }
+  };
 
   const age  = useMemo(() => calcAge(p.dateNaissance), [p.dateNaissance]);
   const zones = useMemo(() => calcZones(p.fcRepos, p.fcMax), [p.fcRepos, p.fcMax]);
