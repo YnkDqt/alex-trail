@@ -11,6 +11,14 @@ const cleanNumber = (val) => {
   return isNaN(num) ? null : num
 }
 
+// Convertir number pour zones (préserver 0)
+const cleanZone = (val) => {
+  if (val === null || val === undefined || val === '') return 0
+  if (typeof val === 'number') return val
+  const num = parseFloat(String(val).replace(',', '.'))
+  return isNaN(num) ? 0 : num
+}
+
 // Convertir string vide → null, gérer points de milliers
 const cleanInt = (val) => {
   if (val === null || val === undefined || val === '') return null
@@ -147,24 +155,35 @@ export async function loadActivities(userId) {
   return (data || []).map(a => ({
     id: a.id,
     date: a.date,
+    dateHeure: a.date_heure || a.id_garmin,
     type: a.type,
     statut: a.statut,
-    idGarmin: a.id_garmin,
     titre: a.titre,
-    kmGarmin: a.distance,
+    distance: a.distance,
+    duree: a.duration_str,
     dureeMin: a.duration,
+    dp: a.elevation,
     fcMoy: a.fc_moy,
     fcMax: a.fc_max,
-    dpGarmin: a.elevation,
     calories: a.calories,
-    z0: a.z0 ?? 0,
-    z1: a.z1 ?? 0,
-    z2: a.z2 ?? 0,
-    z3: a.z3 ?? 0,
-    z4: a.z4 ?? 0,
-    z5: a.z5 ?? 0,
+    allure: a.allure,
+    gapMoy: a.gap_moy,
+    cadence: a.cadence,
+    bodyBattery: a.body_battery,
+    tss: a.tss,
+    teAero: a.te_aero,
+    z0: a.z0 != null ? a.z0 : 0,
+    z1: a.z1 != null ? a.z1 : 0,
+    z2: a.z2 != null ? a.z2 : 0,
+    z3: a.z3 != null ? a.z3 : 0,
+    z4: a.z4 != null ? a.z4 : 0,
+    z5: a.z5 != null ? a.z5 : 0,
     notes: a.notes,
-    gpxData: a.gpx_data
+    gpxData: a.gpx_data,
+    // Alias pour compatibilité
+    kmGarmin: a.distance,
+    dpGarmin: a.elevation,
+    idGarmin: a.date_heure || a.id_garmin
   }))
 }
 
@@ -177,22 +196,30 @@ export async function saveActivities(userId, activities) {
       .insert(activities.map(a => ({
         user_id: userId,
         date: a.date,
+        date_heure: a.dateHeure || a.idGarmin || a._garminId,
         type: a.type || a.activite,
         statut: a.statut,
-        id_garmin: a.idGarmin || a._garminId,
+        id_garmin: a.dateHeure || a.idGarmin || a._garminId,
         titre: a.titre || a.garminTitre,
-        distance: cleanNumber(a.kmGarmin || a.distance),
-        duration: convertDuration(a.dureeGarmin || a.dureeMin || a.duration),
+        distance: cleanNumber(a.distance || a.kmGarmin),
+        duration: convertDuration(a.duree || a.dureeGarmin || a.dureeMin || a.duration),
+        duration_str: a.duree || a.dureeGarmin,
         fc_moy: cleanInt(a.fcMoy),
         fc_max: cleanInt(a.fcMax),
-        elevation: cleanNumber(a.dpGarmin || a.elevation),
+        elevation: cleanNumber(a.dp || a.dpGarmin || a.elevation),
         calories: cleanInt(a.calories || a.cal),
-        z0: cleanNumber(a.z0),
-        z1: cleanNumber(a.z1),
-        z2: cleanNumber(a.z2),
-        z3: cleanNumber(a.z3),
-        z4: cleanNumber(a.z4),
-        z5: cleanNumber(a.z5),
+        allure: a.allure,
+        gap_moy: a.gapMoy,
+        cadence: cleanInt(a.cadence),
+        body_battery: a.bodyBattery,
+        tss: a.tss,
+        te_aero: a.teAero,
+        z0: cleanZone(a.z0),
+        z1: cleanZone(a.z1),
+        z2: cleanZone(a.z2),
+        z3: cleanZone(a.z3),
+        z4: cleanZone(a.z4),
+        z5: cleanZone(a.z5),
         notes: a.notes || a.commentaire,
         gpx_data: a.gpxData || null,
         updated_at: new Date().toISOString()

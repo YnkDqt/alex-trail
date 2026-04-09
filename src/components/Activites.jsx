@@ -154,7 +154,7 @@ function Activites({ activites, setActivites, seances, setSeances }) {
                   {["z1","z2","z3","z4","z5"].map(z=>(
                     <div key={z} style={{padding:"3px 4px",borderRight:`1px solid ${C.border}`}}>
                       {showZ
-                        ? <input type="number" min="0" max="100" step="1" value={a[z]||""}
+                        ? <input type="number" min="0" max="100" step="1" value={a[z] != null ? a[z] : ""}
                             onChange={e=>updAct(a.id,z,e.target.value)}
                             style={{fontSize:11,padding:"2px 4px",border:`1px solid ${C.border}`,borderRadius:4,width:"100%",textAlign:"center",background:C.bg,fontFamily:"'DM Mono',monospace"}}/>
                         : <span style={{fontSize:9,color:C.border,padding:"0 4px"}}>—</span>

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useAuth } from './AuthContext';
+import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities } from './supabaseHelpers';
 import Login from './Login';
 
 // ─── ALEX IMPORTS ─────────────────────────────────────────────────────────────
@@ -1036,6 +1037,25 @@ export default function App() {
   useEffect(()=>{
     lsWrite({seances,activites,sommeil,vfcData,poids,objectifs,planningType,activityTypes,journalNutri,produits,recettes,profil});
   },[seances,activites,sommeil,vfcData,poids,objectifs,planningType,activityTypes,journalNutri,produits,recettes,profil]);
+
+  // Load activités depuis Supabase au mount
+  useEffect(()=>{
+    if (!user?.id) return;
+    loadActivities(user.id).then(data => {
+      if (data && data.length > 0) {
+        setActivites(data);
+      }
+    }).catch(err => console.error('Erreur load activités:', err));
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-save activités vers Supabase (debounced 2s)
+  useEffect(()=>{
+    if (!user?.id || activites.length === 0) return;
+    const timer = setTimeout(() => {
+      saveActivities(user.id, activites).catch(err => console.error('Erreur save activités:', err));
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [activites, user?.id]);
 
   // Init profil.taille depuis dernier poids si vide (mount uniquement)
   useEffect(()=>{
