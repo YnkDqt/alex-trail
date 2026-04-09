@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { useAuth } from './AuthContext';
+import Login from './Login';
 
 // ─── ALEX IMPORTS ─────────────────────────────────────────────────────────────
 import { EMPTY_SETTINGS, DEFAULT_EQUIPMENT, DEFAULT_FLAT_SPEED } from './constants.js';
@@ -689,6 +691,7 @@ function AppLayout({
   strideFeatures, toggleStrideFeature, STRIDE_FEATURE_LABELS,
   saveAllData,
   sharedMode, installPrompt,
+  signOut,
 }) {
   const subNavBtn = (id,label,active,onClick) => (
     <button key={id} onClick={onClick}
@@ -815,7 +818,7 @@ function AppLayout({
 
       {/* Profil avatar */}
       <div onClick={()=>{setView("profil_compte");setDrawerOpen(false);}}
-        style={{padding:"10px 14px 18px",display:"flex",alignItems:"center",gap:8,
+        style={{padding:"10px 14px 10px",display:"flex",alignItems:"center",gap:8,
           cursor:"pointer",transition:"background .15s"}}
         onMouseEnter={e=>{e.currentTarget.style.background=C.stone}}
         onMouseLeave={e=>{e.currentTarget.style.background="transparent"}}>
@@ -825,6 +828,15 @@ function AppLayout({
         </div>
         <span style={{fontSize:12,color:C.inkLight,fontWeight:500,flex:1}}>{profil?.prenom||"Mon profil"}</span>
         <span style={{fontSize:14,color:C.stoneDeep}}>›</span>
+      </div>
+
+      {/* Déconnexion */}
+      <div onClick={signOut}
+        style={{padding:"6px 14px 18px",display:"flex",alignItems:"center",gap:8,
+          cursor:"pointer",transition:"background .15s"}}
+        onMouseEnter={e=>{e.currentTarget.style.background=C.redPale}}
+        onMouseLeave={e=>{e.currentTarget.style.background="transparent"}}>
+        <span style={{fontSize:12,color:C.red,fontWeight:500}}>Déconnexion</span>
       </div>
     </div>
   );
@@ -995,6 +1007,8 @@ function AppLayout({
 
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App() {
+  const { user, loading, signOut } = useAuth();
+  
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   useEffect(()=>{ const h=()=>setIsMobile(window.innerWidth<=768); window.addEventListener("resize",h); return()=>window.removeEventListener("resize",h); },[]);
 
@@ -1044,6 +1058,7 @@ export default function App() {
     if(data.journalNutri)  setJournalNutri(data.journalNutri);
     if(data.produits)      setProduits(data.produits);
     if(data.recettes)      setRecettes(data.recettes);
+    if(data.profil)        setProfil(data.profil);
   };
   const resetAll = ()=>{ setSeances([]); setActivites([]); setSommeil([]); setVfcData([]); setPoids([]); setObjectifs([]); };
 
@@ -1102,25 +1117,6 @@ export default function App() {
     if(n.id==="courses")return features.courses;
     return true;
   });
-
-  // IDB
-  const IDB_NAME="alex-trail",IDB_STORE="state",IDB_COURSES="courses",IDB_KEY="current";
-  const openDB=()=>new Promise((res,rej)=>{
-    const req=indexedDB.open(IDB_NAME,3);
-    req.onupgradeneeded=e=>{
-      const db=e.target.result;
-      if(!db.objectStoreNames.contains(IDB_STORE))db.createObjectStore(IDB_STORE);
-      if(!db.objectStoreNames.contains(IDB_COURSES))db.createObjectStore(IDB_COURSES,{keyPath:"id"});
-      if(!db.objectStoreNames.contains("stride"))db.createObjectStore("stride");
-    };
-    req.onsuccess=e=>res(e.target.result);
-    req.onerror=rej;
-  });
-  const idbSave=async data=>{try{const db=await openDB();db.transaction(IDB_STORE,"readwrite").objectStore(IDB_STORE).put(data,IDB_KEY);}catch{}};
-  const idbLoad=async()=>{try{const db=await openDB();return new Promise(res=>{const req=db.transaction(IDB_STORE,"readonly").objectStore(IDB_STORE).get(IDB_KEY);req.onsuccess=e=>res(e.target.result);req.onerror=()=>res(null);});}catch{return null;}};
-  const idbSaveCourse=async(id,data)=>{try{const db=await openDB();db.transaction(IDB_COURSES,"readwrite").objectStore(IDB_COURSES).put({id,...data});}catch{}};
-  const idbLoadCourses=async()=>{try{const db=await openDB();return new Promise(res=>{const req=db.transaction(IDB_COURSES,"readonly").objectStore(IDB_COURSES).getAll();req.onsuccess=e=>res(e.target.result||[]);req.onerror=()=>res([]);});}catch{return[];}};
-  const idbDeleteCourse=async id=>{try{const db=await openDB();db.transaction(IDB_COURSES,"readwrite").objectStore(IDB_COURSES).delete(id);}catch{}};
 
   const race=raceRaw; const segments=segmentsRaw; const settings=settingsRaw;
   const setRace=useCallback(upd=>{setRaceRaw(upd);setHasUnsaved(true);},[]);
@@ -1227,14 +1223,32 @@ export default function App() {
           }
           setSettingsRaw(merged);
         }
-        idbSave({race:d.race||{},segments:d.segments||[],settings:{...EMPTY_SETTINGS,...(d.settings||{})}});
         setHasUnsaved(false);setView("profil_course");setDrawerOpen(false);
       }catch{alert("Fichier JSON invalide.");}
     };
     reader.readAsText(file);
   };
 
-  const saveCourse=()=>{
+  // IDB
+  const IDB_NAME="alex-trail",IDB_STORE="state",IDB_COURSES="courses",IDB_KEY="current";
+  const openDB=()=>new Promise((res,rej)=>{
+    const req=indexedDB.open(IDB_NAME,3);
+    req.onupgradeneeded=e=>{
+      const db=e.target.result;
+      if(!db.objectStoreNames.contains(IDB_STORE))db.createObjectStore(IDB_STORE);
+      if(!db.objectStoreNames.contains(IDB_COURSES))db.createObjectStore(IDB_COURSES,{keyPath:"id"});
+      if(!db.objectStoreNames.contains("stride"))db.createObjectStore("stride");
+    };
+    req.onsuccess=e=>res(e.target.result);
+    req.onerror=rej;
+  });
+  const idbSave=async data=>{try{const db=await openDB();db.transaction(IDB_STORE,"readwrite").objectStore(IDB_STORE).put(data,IDB_KEY);}catch{}};
+  const idbLoad=async()=>{try{const db=await openDB();return new Promise(res=>{const req=db.transaction(IDB_STORE,"readonly").objectStore(IDB_STORE).get(IDB_KEY);req.onsuccess=e=>res(e.target.result);req.onerror=()=>res(null);});}catch{return null;}};
+  const idbSaveCourse=async(id,data)=>{try{const db=await openDB();db.transaction(IDB_COURSES,"readwrite").objectStore(IDB_COURSES).put({id,...data});}catch{}};
+  const idbLoadCourses=async()=>{try{const db=await openDB();return new Promise(res=>{const req=db.transaction(IDB_COURSES,"readonly").objectStore(IDB_COURSES).getAll();req.onsuccess=e=>res(e.target.result||[]);req.onerror=()=>res([]);});}catch{return[];}};
+  const idbDeleteCourse=async id=>{try{const db=await openDB();db.transaction(IDB_COURSES,"readwrite").objectStore(IDB_COURSES).delete(id);}catch{}};
+
+  const saveCourseFn=()=>{
     const id=Date.now();
     const segsCourse=segments.filter(s=>s.type!=="ravito"&&s.type!=="repos");
     const totalCourse=segsCourse.reduce((s,seg)=>s+(seg.endKm-seg.startKm)/seg.speedKmh*3600,0);
@@ -1243,21 +1257,25 @@ export default function App() {
     const entry={id,savedAt:id,name:settings.raceName||race.name||"Course sans nom",distance:race.totalDistance||0,elevPos:race.totalElevPos||0,segCount:segsCourse.length,startTime:settings.startTime||"07:00",totalTime:totalCourse+totalReposSec+totalRavitoSec,race,segments,settings};
     idbSaveCourse(id,entry);setCourses(prev=>[entry,...prev]);return entry;
   };
-  const loadCourse=entry=>{
+  const loadCourseFn=entry=>{
     const ms={...EMPTY_SETTINGS,...(entry.settings||{}),produits:settings.produits||[],equipment:settings.equipment||DEFAULT_EQUIPMENT};
     setRaceRaw(entry.race||{});setSegmentsRaw(entry.segments||[]);setSettingsRaw(ms);
     idbSave({race:entry.race,segments:entry.segments,settings:ms});
     setHasUnsaved(false);setView("profil_course");setDrawerOpen(false);
   };
-  const deleteCourse=id=>{idbDeleteCourse(id);setCourses(prev=>prev.filter(c=>c.id!==id));};
-  const updateCourse=(id,patch)=>setCourses(prev=>prev.map(c=>{if(c.id!==id)return c;const u={...c,...patch};idbSaveCourse(id,u);return u;}));
-  const overwriteCourse=id=>{
+  const deleteCourseFn=id=>{idbDeleteCourse(id);setCourses(prev=>prev.filter(c=>c.id!==id));};
+  const updateCourseFn=(id,patch)=>setCourses(prev=>prev.map(c=>{if(c.id!==id)return c;const u={...c,...patch};idbSaveCourse(id,u);return u;}));
+  const overwriteCourseFn=id=>{
     const totalTime=segments.filter(s=>s.type!=="ravito"&&s.type!=="repos").reduce((s,seg)=>s+(seg.endKm-seg.startKm)/seg.speedKmh*3600,0);
     setCourses(prev=>prev.map(c=>{if(c.id!==id)return c;const u={...c,name:settings.raceName||race.name||c.name,distance:race.totalDistance||0,elevPos:race.totalElevPos||0,segCount:segments.filter(s=>s.type!=="ravito"&&s.type!=="repos").length,startTime:settings.startTime||"07:00",totalTime,race,segments,settings,updatedAt:Date.now()};idbSaveCourse(id,u);return u;}));
   };
 
   const navigate=id=>{setView(id);setDrawerOpen(false);};
   const hasRace=!!race.gpxPoints?.length;
+
+  // Auth guard
+  if (loading) return <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'DM Sans, sans-serif' }}>Chargement...</div>;
+  if (!user) return <Login />;
 
   return (
     <AppLayout
@@ -1279,8 +1297,8 @@ export default function App() {
       reposModal={reposModal} setReposModal={setReposModal}
       reposForm={reposForm} setReposForm={setReposForm} addRepos={addRepos}
       saveData={saveData} loadData={loadData}
-      saveCourse={saveCourse} loadCourse={loadCourse}
-      deleteCourse={deleteCourse} updateCourse={updateCourse} overwriteCourse={overwriteCourse}
+      saveCourse={saveCourseFn} loadCourse={loadCourseFn}
+      deleteCourse={deleteCourseFn} updateCourse={updateCourseFn} overwriteCourse={overwriteCourseFn}
       navigate={navigate} hasRace={hasRace}
       isStandalone={isStandalone} installDone={installDone}
       handleInstall={handleInstall} showInstallGuide={showInstallGuide} setShowInstallGuide={setShowInstallGuide}
@@ -1288,6 +1306,7 @@ export default function App() {
       strideFeatures={strideFeatures} toggleStrideFeature={toggleStrideFeature} STRIDE_FEATURE_LABELS={STRIDE_FEATURE_LABELS}
       saveAllData={saveAllData}
       sharedMode={sharedMode} installPrompt={installPrompt}
+      signOut={signOut}
     />
   );
 }
