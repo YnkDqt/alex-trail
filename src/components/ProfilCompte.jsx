@@ -106,10 +106,13 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
     setProfil(prev => ({ ...prev, [k]: v }));
     
     // Auto-save to Supabase
+    console.log('🔍 Tentative save Supabase:', { userId: user?.id, field: k, value: v, profil: updated });
     if (user?.id) {
-      saveAthleteProfile(user.id, updated).catch(err => 
-        console.error('Erreur save profil:', err)
-      );
+      saveAthleteProfile(user.id, updated)
+        .then(() => console.log('✅ Save Supabase OK'))
+        .catch(err => console.error('❌ Erreur save profil:', err));
+    } else {
+      console.warn('⚠️ Pas de user.id, save Supabase ignoré');
     }
   };
 
