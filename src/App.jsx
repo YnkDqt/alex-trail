@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useAuth } from './AuthContext';
-import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities } from './supabaseHelpers';
+import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances } from './supabaseHelpers';
 import Login from './Login';
 
 // ─── ALEX IMPORTS ─────────────────────────────────────────────────────────────
@@ -1048,6 +1048,17 @@ export default function App() {
     }).catch(err => console.error('Erreur load activités:', err));
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Load séances depuis Supabase au mount
+  useEffect(()=>{
+    if (!user?.id) return;
+    loadSeances(user.id).then(data => {
+      console.log('🔍 Load séances:', { count: data?.length, sample: data?.[0] });
+      if (data && data.length > 0) {
+        setSeances(data);
+      }
+    }).catch(err => console.error('Erreur load séances:', err));
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-save activités vers Supabase (debounced 2s)
   useEffect(()=>{
     if (!user?.id || activites.length === 0) return;
@@ -1056,6 +1067,15 @@ export default function App() {
     }, 2000);
     return () => clearTimeout(timer);
   }, [activites, user?.id]);
+
+  // Auto-save séances vers Supabase (debounced 2s)
+  useEffect(()=>{
+    if (!user?.id || seances.length === 0) return;
+    const timer = setTimeout(() => {
+      saveSeances(user.id, seances).catch(err => console.error('Erreur save séances:', err));
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [seances, user?.id]);
 
   // Init profil.taille depuis dernier poids si vide (mount uniquement)
   useEffect(()=>{
