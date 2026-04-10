@@ -85,7 +85,7 @@ export default function Confidentialite({ setView }) {
           <li><span style={s.em}>Suppression</span> : supprimer définitivement votre compte et toutes vos données (bouton "Supprimer mon compte")</li>
         </ul>
         <p style={s.p}>
-          Pour exercer ces droits ou pour toute question : <a href="mailto:contact@alex-trail.app" style={{ color: C.forest }}>contact@alex-trail.app</a>
+          Pour exercer ces droits ou pour toute question : <a href="mailto:alex-trailrunning@proton.me" style={{ color: C.forest }}>alex-trailrunning@proton.me</a>
         </p>
       </div>
 
@@ -122,7 +122,7 @@ export default function Confidentialite({ setView }) {
         <h2 style={s.h2}>10. Contact</h2>
         <p style={s.p}>
           Pour toute question concernant vos données personnelles :<br/>
-          Email : <a href="mailto:contact@alex-trail.app" style={{ color: C.forest }}>contact@alex-trail.app</a>
+          Email : <a href="mailto:alex-trailrunning@proton.me" style={{ color: C.forest }}>alex-trailrunning@proton.me</a>
         </p>
       </div>
 
