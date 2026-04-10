@@ -64,13 +64,14 @@ function Forme({ sommeil, setSommeil, vfcData, setVfcData, poids, setPoids, acti
 
   // Navy BF calc — formule homme ou femme selon profil
   const calcBF = (p) => {
-    const h = parseFloat(profil?.taille) || parseFloat(p.taille) || 180;
-    const ab = parseFloat(p.ventre)||0;
-    const neck = parseFloat(p.cou)||0;
+    const parseNum = (v) => parseFloat(String(v || '').replace(',', '.')) || 0;
+    const h = parseNum(profil?.taille) || parseNum(p.taille) || 180;
+    const ab = parseNum(p.ventre);
+    const neck = parseNum(p.cou);
     if(!ab||!neck||ab<=neck||h<=0) return null;
     const isFemme = (profil?.sexe||"Homme") === "Femme";
     if(isFemme) {
-      const hip = parseFloat(p.hanche)||0;
+      const hip = parseNum(p.hanche);
       if(!hip) return null;
       return Math.round((495/(1.29579-0.35004*Math.log10(ab+hip-neck)+0.22100*Math.log10(h))-450)*10)/10;
     }
@@ -346,11 +347,15 @@ function Forme({ sommeil, setSommeil, vfcData, setVfcData, poids, setPoids, acti
                     <div key={p.id} style={{display:"grid",gridTemplateColumns:"110px 76px 56px 60px 60px 66px 60px 60px 66px 66px 60px 60px 64px 30px",padding:"7px 14px",borderTop:`1px solid ${C.border}`,alignItems:"center",gap:8,minWidth:980}}>
                       <input type="date" value={p.date} onChange={e=>updPoids(p.id,"date",e.target.value)} style={{...inp(108),textAlign:"left"}}/>
                       <div style={{display:"flex",alignItems:"center",gap:2}}>
-                        <input value={p.poids} onChange={e=>updPoids(p.id,"poids",e.target.value)} placeholder="kg" style={{...inp(46),fontWeight:500,color:C.inkLight}}/>
+                        <input value={p.poids ? String(p.poids).replace('.', ',') : ''} 
+                          onChange={e=>updPoids(p.id,"poids",e.target.value.replace(',', '.'))} 
+                          placeholder="kg" style={{...inp(46),fontWeight:500,color:C.inkLight}}/>
                       </div>
-                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,textAlign:"center",color:diff?parseFloat(diff)>0?C.red:C.green:C.stoneDeep}}>{diff?(parseFloat(diff)>0?"+":"")+diff:"—"}</span>
+                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,textAlign:"center",color:diff?parseFloat(diff)>0?C.red:C.green:C.stoneDeep}}>{diff?(parseFloat(diff)>0?"+":"")+diff.replace('.', ','):"—"}</span>
                       {["cou","epaules","poitrine","bras","taille_cm","ventre","hanche","cuisse","mollet"].map(k=>(
-                        <input key={k} value={p[k]||""} onChange={e=>updPoids(p.id,k,e.target.value)} placeholder="—" style={inp(48)}/>
+                        <input key={k} value={p[k] ? String(p[k]).replace('.', ',') : ''} 
+                          onChange={e=>updPoids(p.id,k,e.target.value.replace(',', '.'))} 
+                          placeholder="—" style={inp(48)}/>
                       ))}
                       <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,textAlign:"center",color:C.forest,fontWeight:500}}>{bf?`${bf}%`:"—"}</span>
                       <button onClick={()=>delPoids(p.id)} style={{background:"none",border:"none",cursor:"pointer",color:C.stoneDark,fontSize:12,padding:0}}>✕</button>

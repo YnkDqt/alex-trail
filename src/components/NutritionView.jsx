@@ -5,8 +5,7 @@ import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, e
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE NUTRITION ───────────────────────────────────────────────────────────
-export default function NutritionView({ segments, settings, setSettings, race, setRace, isMobile, onNavigate, profil, poids }) {
-  const produits = settings.produits || [];
+export default function NutritionView({ segments, settings, setSettings, race, setRace, isMobile, onNavigate, profil, poids, produits = [], setProduits }) {
   const planNutrition = race.planNutrition || {};
   const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km).filter(rv => rv.assistancePresente !== false);
   const updPlan = v => setRace(r => ({ ...r, planNutrition: v }));
@@ -69,7 +68,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
 
   const getQte = (pointKey, produitId) => (planNutrition[pointKey] || []).find(x => x.produitId === produitId)?.quantite || 0;
 
-  const updProduits = p => setSettings(s => ({ ...s, produits: p }));
+  const updProduits = p => setProduits(p);
 
   // ── Auto-complétion nutrition ─────────────────────────────────────────────
   const [autoCompletePreview, setAutoCompletePreview] = useState(null);

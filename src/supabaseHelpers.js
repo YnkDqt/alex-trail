@@ -5,8 +5,35 @@ import { supabase } from './supabaseClient'
 const cleanNumber = (val) => {
   if (val === null || val === undefined || val === '') return null
   if (typeof val === 'number') return val
-  // Remplacer virgule par point, enlever points de milliers
-  let str = String(val).replace(/\./g, '').replace(',', '.')
+  
+  let str = String(val).trim()
+  const original = str
+  
+  // Si contient virgule ET point → point = milliers, virgule = décimal (ex: "1.234,56" format EU)
+  if (str.includes(',') && str.includes('.')) {
+    str = str.replace(/\./g, '').replace(',', '.')
+  }
+  // Si contient seulement virgule
+  else if (str.includes(',')) {
+    // Si virgule suivie de 3 chiffres exactement → milliers (ex: "1,315" format US)
+    if (/^\d+,\d{3}$/.test(str)) {
+      str = str.replace(',', '')
+    }
+    // Sinon → décimal (ex: "12,64" format EU)
+    else {
+      str = str.replace(',', '.')
+    }
+  }
+  // Si contient seulement point
+  else if (str.includes('.')) {
+    // Si point suivi de 3 chiffres exactement ET rien après → milliers (ex: "1.000" format EU)
+    if (/^\d+\.\d{3}$/.test(str)) {
+      str = str.replace('.', '')
+    }
+    // Sinon → décimal (ex: "12.64" format US)
+    // On ne touche pas
+  }
+  
   const num = parseFloat(str)
   return isNaN(num) ? null : num
 }
@@ -111,11 +138,13 @@ export async function loadSeances(userId) {
   return (data || []).map(s => ({
     id: s.id,
     date: s.date,
+    demiJournee: s.demi_journee,
     activite: s.activite,
-    dureeMin: s.duree_min,
-    distance: s.distance,
-    notes: s.notes,
     statut: s.statut,
+    commentaire: s.notes,
+    dureeObj: s.duree_obj,
+    kmObj: s.distance_obj,
+    dpObj: s.dp_obj,
     ...(s.data || {})
   }))
 }
@@ -129,11 +158,13 @@ export async function saveSeances(userId, seances) {
       .insert(seances.map(s => ({
         user_id: userId,
         date: s.date,
+        demi_journee: s.demiJournee,
         activite: s.activite,
-        duree_min: cleanInt(s.dureeMin),
-        distance: cleanNumber(s.distance),
-        notes: s.notes,
         statut: s.statut,
+        notes: s.commentaire || s.notes,
+        duree_obj: s.dureeObj,
+        distance_obj: cleanNumber(s.kmObj),
+        dp_obj: cleanNumber(s.dpObj),
         data: s,
         updated_at: new Date().toISOString()
       })))
@@ -230,6 +261,16 @@ export async function saveActivities(userId, activities) {
 }
 
 // ─── SOMMEIL ──────────────────────────────────────────────────────────────────
+// Convertir "6h 58min" → "06:58"
+const convertDureeSommeil = (str) => {
+  if (!str) return ""
+  const match = str.match(/(\d+)h\s*(\d+)min/)
+  if (!match) return str
+  const h = match[1].padStart(2, '0')
+  const m = match[2].padStart(2, '0')
+  return `${h}:${m}`
+}
+
 export async function loadSommeil(userId) {
   const { data, error } = await supabase
     .from('sommeil')
@@ -239,21 +280,28 @@ export async function loadSommeil(userId) {
   
   if (error) throw error
   
-  return (data || []).map(s => ({
-    id: s.id,
-    date: s.date,
-    score: s.score,
-    qualite: s.qualite,
-    dureeMin: s.duree_min,
-    fcMoy: s.fc_moy,
-    bodyBatteryNuit: s.bb_nuit,
-    bodyBatteryMatin: s.body_battery,
-    spo2: s.spo2,
-    resp: s.resp,
-    coucher: s.coucher,
-    lever: s.lever,
-    ...(s.data || {})
-  }))
+  return (data || []).map(s => {
+    const loaded = {
+      id: s.id,
+      date: s.date,
+      score: s.score,
+      qualite: s.qualite,
+      dureeMin: s.duree_min,
+      fcMoy: s.fc_moy,
+      bodyBatteryNuit: s.bb_nuit,
+      bodyBatteryMatin: s.body_battery,
+      spo2: s.spo2,
+      resp: s.resp,
+      coucher: s.coucher,
+      lever: s.lever,
+      ...(s.data || {})
+    }
+    // Convertir durée si format texte
+    if (loaded.duree && typeof loaded.duree === 'string' && loaded.duree.includes('h')) {
+      loaded.duree = convertDureeSommeil(loaded.duree)
+    }
+    return loaded
+  })
 }
 
 export async function saveSommeil(userId, sommeil) {
@@ -339,12 +387,11 @@ export async function loadPoids(userId) {
     id: p.id,
     date: p.date,
     poids: p.poids,
-    taille: p.taille,
+    taille_cm: p.taille_cm,
     cou: p.cou,
     epaules: p.epaules,
     poitrine: p.poitrine,
     bras: p.bras,
-    tailleCm: p.taille_cm,
     ventre: p.ventre,
     hanche: p.hanche,
     cuisse: p.cuisse,

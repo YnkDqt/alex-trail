@@ -205,13 +205,38 @@ export const actShort = (type) => {
 };
 
 // ─── PARSERS CSV GARMIN ──────────────────────────────────────────────────────
+// Parser CSV basique qui gère les guillemets
+const parseCSVLine = (line) => {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  return result;
+};
+
 export const parseCSVActivities = (text) => {
   const lines = text.trim().split("\n");
-  const headers = lines[0].split(",").map(h=>h.trim().replace(/^"|"$/g,""));
+  const headers = parseCSVLine(lines[0]);
+  
   return lines.slice(1).map(line => {
-    const vals = line.split(",").map(v=>v.trim().replace(/^"|"$/g,""));
-    const o = {}; headers.forEach((h,i) => o[h] = vals[i]||"");
-    return {
+    const vals = parseCSVLine(line);
+    const o = {}; 
+    headers.forEach((h,i) => o[h] = vals[i]||"");
+    
+    const activity = {
       id: Date.now()+Math.random(), date: o["Date"]?.slice(0,10)||"",
       dateHeure: o["Date"]||"", type: o["Type d'activité"]||"Trail",
       titre: o["Titre"]||"", distance: o["Distance"]||"", calories: o["Calories"]||"",
@@ -226,6 +251,8 @@ export const parseCSVActivities = (text) => {
       z2: o["% Z2"]||"", z3: o["% Z3"]||"",
       z4: o["% Z4"]||"", z5: o["% Z5"]||"",
     };
+    
+    return activity;
   }).filter(a=>a.date);
 };
 
