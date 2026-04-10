@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useAuth } from './AuthContext';
-import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances } from './supabaseHelpers';
+import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse } from './supabaseHelpers';
 import Login from './Login';
 
 // ─── ALEX IMPORTS ─────────────────────────────────────────────────────────────
@@ -1059,6 +1059,38 @@ export default function App() {
     }).catch(err => console.error('Erreur load séances:', err));
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Load sommeil depuis Supabase au mount
+  useEffect(()=>{
+    if (!user?.id) return;
+    loadSommeil(user.id).then(data => {
+      if (data && data.length > 0) setSommeil(data);
+    }).catch(err => console.error('Erreur load sommeil:', err));
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load VFC depuis Supabase au mount
+  useEffect(()=>{
+    if (!user?.id) return;
+    loadVFC(user.id).then(data => {
+      if (data && data.length > 0) setVfcData(data);
+    }).catch(err => console.error('Erreur load VFC:', err));
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load poids depuis Supabase au mount
+  useEffect(()=>{
+    if (!user?.id) return;
+    loadPoids(user.id).then(data => {
+      if (data && data.length > 0) setPoids(data);
+    }).catch(err => console.error('Erreur load poids:', err));
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load objectifs depuis Supabase au mount
+  useEffect(()=>{
+    if (!user?.id) return;
+    loadObjectifs(user.id).then(data => {
+      if (data && data.length > 0) setObjectifs(data);
+    }).catch(err => console.error('Erreur load objectifs:', err));
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-save activités vers Supabase (debounced 2s)
   useEffect(()=>{
     if (!user?.id || activites.length === 0) return;
@@ -1076,6 +1108,42 @@ export default function App() {
     }, 2000);
     return () => clearTimeout(timer);
   }, [seances, user?.id]);
+
+  // Auto-save sommeil vers Supabase (debounced 2s)
+  useEffect(()=>{
+    if (!user?.id || sommeil.length === 0) return;
+    const timer = setTimeout(() => {
+      saveSommeil(user.id, sommeil).catch(err => console.error('Erreur save sommeil:', err));
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [sommeil, user?.id]);
+
+  // Auto-save VFC vers Supabase (debounced 2s)
+  useEffect(()=>{
+    if (!user?.id || vfcData.length === 0) return;
+    const timer = setTimeout(() => {
+      saveVFC(user.id, vfcData).catch(err => console.error('Erreur save VFC:', err));
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [vfcData, user?.id]);
+
+  // Auto-save poids vers Supabase (debounced 2s)
+  useEffect(()=>{
+    if (!user?.id || poids.length === 0) return;
+    const timer = setTimeout(() => {
+      savePoids(user.id, poids).catch(err => console.error('Erreur save poids:', err));
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [poids, user?.id]);
+
+  // Auto-save objectifs vers Supabase (debounced 2s)
+  useEffect(()=>{
+    if (!user?.id || objectifs.length === 0) return;
+    const timer = setTimeout(() => {
+      saveObjectifs(user.id, objectifs).catch(err => console.error('Erreur save objectifs:', err));
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [objectifs, user?.id]);
 
   // Init profil.taille depuis dernier poids si vide (mount uniquement)
   useEffect(()=>{
@@ -1194,19 +1262,28 @@ export default function App() {
         return;
       }
     }
-    idbLoad().then(d=>{
-      if(d?.race)setRaceRaw(d.race);
-      if(d?.segments)setSegmentsRaw(d.segments);
-      if(d?.settings)setSettingsRaw({...EMPTY_SETTINGS,...d.settings});
-    });
-    idbLoadCourses().then(list=>setCourses(list.sort((a,b)=>b.savedAt-a.savedAt)));
-  },[]);
+    if (user?.id) {
+      loadCurrentRace(user.id).then(d=>{
+        if(d?.race && Object.keys(d.race).length > 0) setRaceRaw(d.race);
+        if(d?.segments && d.segments.length > 0) setSegmentsRaw(d.segments);
+        if(d?.settings && Object.keys(d.settings).length > 0) setSettingsRaw({...EMPTY_SETTINGS,...d.settings});
+      }).catch(err => console.error('Erreur load current race:', err));
+      
+      loadCourses(user.id).then(list=>setCourses(list.sort((a,b)=>b.savedAt-a.savedAt)))
+        .catch(err => console.error('Erreur load courses:', err));
+    }
+  },[user?.id]);
 
   useEffect(()=>{
-    if(!race&&!segments.length)return;
-    const timer=setTimeout(()=>{idbSave({race,segments,settings});setAutoSaved(true);setTimeout(()=>setAutoSaved(false),2000);},800);
+    if(!user?.id) return;
+    if(!race && !segments.length) return;
+    const timer=setTimeout(()=>{
+      saveCurrentRace(user.id, race, segments, settings)
+        .then(() => {setAutoSaved(true); setTimeout(()=>setAutoSaved(false),2000);})
+        .catch(err => console.error('Erreur save current race:', err));
+    },800);
     return()=>clearTimeout(timer);
-  },[race,segments,settings]);
+  },[race,segments,settings,user?.id]);
 
   useEffect(()=>{
     if(settings.darkMode)document.documentElement.classList.add("dark");
@@ -1289,25 +1366,51 @@ export default function App() {
   const idbDeleteCourse=async id=>{try{const db=await openDB();db.transaction(IDB_COURSES,"readwrite").objectStore(IDB_COURSES).delete(id);}catch{}};
 
   const saveCourseFn=()=>{
-    const id=Date.now();
+    const id=crypto.randomUUID();
+    const savedAt=Date.now();
     const segsCourse=segments.filter(s=>s.type!=="ravito"&&s.type!=="repos");
     const totalCourse=segsCourse.reduce((s,seg)=>s+(seg.endKm-seg.startKm)/seg.speedKmh*3600,0);
     const totalReposSec=segments.filter(s=>s.type==="repos").reduce((s,seg)=>s+(seg.dureeMin||0)*60,0);
     const totalRavitoSec=(race.ravitos?.length||0)*(settings.ravitoTimeMin||3)*60;
-    const entry={id,savedAt:id,name:settings.raceName||race.name||"Course sans nom",distance:race.totalDistance||0,elevPos:race.totalElevPos||0,segCount:segsCourse.length,startTime:settings.startTime||"07:00",totalTime:totalCourse+totalReposSec+totalRavitoSec,race,segments,settings};
-    idbSaveCourse(id,entry);setCourses(prev=>[entry,...prev]);return entry;
+    const entry={id,savedAt,name:settings.raceName||race.name||"Course sans nom",distance:race.totalDistance||0,elevPos:race.totalElevPos||0,segCount:segsCourse.length,startTime:settings.startTime||"07:00",totalTime:totalCourse+totalReposSec+totalRavitoSec,race,segments,settings};
+    if (user?.id) {
+      saveCourse(user.id, entry).catch(err => console.error('Erreur save course:', err));
+    }
+    setCourses(prev=>[entry,...prev]);
+    return entry;
   };
   const loadCourseFn=entry=>{
     const ms={...EMPTY_SETTINGS,...(entry.settings||{}),produits:settings.produits||[],equipment:settings.equipment||DEFAULT_EQUIPMENT};
     setRaceRaw(entry.race||{});setSegmentsRaw(entry.segments||[]);setSettingsRaw(ms);
-    idbSave({race:entry.race,segments:entry.segments,settings:ms});
+    if (user?.id) {
+      saveCurrentRace(user.id, entry.race, entry.segments, ms).catch(err => console.error('Erreur save current race:', err));
+    }
     setHasUnsaved(false);setView("profil_course");setDrawerOpen(false);
   };
-  const deleteCourseFn=id=>{idbDeleteCourse(id);setCourses(prev=>prev.filter(c=>c.id!==id));};
-  const updateCourseFn=(id,patch)=>setCourses(prev=>prev.map(c=>{if(c.id!==id)return c;const u={...c,...patch};idbSaveCourse(id,u);return u;}));
+  const deleteCourseFn=id=>{
+    if (user?.id) {
+      deleteCourse(user.id, id).catch(err => console.error('Erreur delete course:', err));
+    }
+    setCourses(prev=>prev.filter(c=>c.id!==id));
+  };
+  const updateCourseFn=(id,patch)=>setCourses(prev=>prev.map(c=>{
+    if(c.id!==id)return c;
+    const u={...c,...patch};
+    if (user?.id) {
+      saveCourse(user.id, u).catch(err => console.error('Erreur update course:', err));
+    }
+    return u;
+  }));
   const overwriteCourseFn=id=>{
     const totalTime=segments.filter(s=>s.type!=="ravito"&&s.type!=="repos").reduce((s,seg)=>s+(seg.endKm-seg.startKm)/seg.speedKmh*3600,0);
-    setCourses(prev=>prev.map(c=>{if(c.id!==id)return c;const u={...c,name:settings.raceName||race.name||c.name,distance:race.totalDistance||0,elevPos:race.totalElevPos||0,segCount:segments.filter(s=>s.type!=="ravito"&&s.type!=="repos").length,startTime:settings.startTime||"07:00",totalTime,race,segments,settings,updatedAt:Date.now()};idbSaveCourse(id,u);return u;}));
+    setCourses(prev=>prev.map(c=>{
+      if(c.id!==id)return c;
+      const u={...c,name:settings.raceName||race.name||c.name,distance:race.totalDistance||0,elevPos:race.totalElevPos||0,segCount:segments.filter(s=>s.type!=="ravito"&&s.type!=="repos").length,startTime:settings.startTime||"07:00",totalTime,race,segments,settings,updatedAt:Date.now()};
+      if (user?.id) {
+        saveCourse(user.id, u).catch(err => console.error('Erreur overwrite course:', err));
+      }
+      return u;
+    }));
   };
 
   const navigate=id=>{setView(id);setDrawerOpen(false);};
