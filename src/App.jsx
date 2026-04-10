@@ -516,11 +516,97 @@ function DonneesParamsView({
       {/* ── SAUVEGARDE ── */}
       {tab==="sauvegarde"&&(
         <div>
-          <Section title="Sauvegarde globale">
+          <Section title="Export / Import">
             <p style={{fontSize:13,color:C.muted,marginBottom:14,lineHeight:1.6}}>
-              Exporte toutes tes données en un seul fichier — entraînement + stratégies de course. Utile pour sauvegarder ou migrer vers un autre appareil.
+              Un seul fichier JSON pour toutes tes données : profil, activités, forme, courses, nutrition. Pratique pour sauvegarder ou changer d'appareil.
             </p>
-            <ActionBtn onClick={saveAllData} icon="💾" label="Exporter toutes mes données" variant="primary"/>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              <ActionBtn onClick={async () => {
+                if (!user?.id) return;
+                try {
+                  const [profile, activities, seances, sommeil, vfc, poids, objectifs, nutrition, settings, currentRace, courses] = await Promise.all([
+                    loadAthleteProfile(user.id),
+                    loadActivities(user.id),
+                    loadSeances(user.id),
+                    loadSommeil(user.id),
+                    loadVFC(user.id),
+                    loadPoids(user.id),
+                    loadObjectifs(user.id),
+                    loadNutrition(user.id),
+                    loadStrideSettings(user.id),
+                    loadCurrentRace(user.id),
+                    loadCourses(user.id),
+                  ]);
+                  const exportData = {
+                    format: "alex-export-1.0",
+                    exportDate: new Date().toISOString(),
+                    userId: user.id,
+                    userEmail: user.email,
+                    profile, activities, seances, sommeil, vfc, poids, objectifs, nutrition, settings, currentRace, courses,
+                  };
+                  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `alex-export-${new Date().toISOString().slice(0,10)}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch (err) {
+                  console.error('Erreur export:', err);
+                  alert('Erreur lors de l\'export');
+                }
+              }} icon="📥" label="Exporter toutes mes données" variant="primary"/>
+              
+              <label style={{display:"block"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,padding:"11px 16px",
+                  borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",
+                  color:C.inkLight,cursor:"pointer",fontSize:13,fontWeight:500}}>
+                  <span style={{fontSize:16}}>📤</span>
+                  <span>Importer mes données</span>
+                </div>
+                <input type="file" accept=".json" style={{display:"none"}}
+                  onChange={async e => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const confirm = window.confirm(
+                      "⚠️ ATTENTION\n\n" +
+                      "L'import va ÉCRASER toutes tes données actuelles.\n\n" +
+                      "Continue uniquement si tu veux restaurer une sauvegarde complète.\n\n" +
+                      "Continuer ?"
+                    );
+                    if (!confirm) return;
+                    try {
+                      const text = await file.text();
+                      const data = JSON.parse(text);
+                      if (!data.format?.startsWith('alex-export')) {
+                        alert('Format de fichier invalide');
+                        return;
+                      }
+                      // Restaurer tout dans Supabase
+                      await Promise.all([
+                        data.profile && saveAthleteProfile(user.id, data.profile),
+                        data.activities && saveActivities(user.id, data.activities),
+                        data.seances && saveSeances(user.id, data.seances),
+                        data.sommeil && saveSommeil(user.id, data.sommeil),
+                        data.vfc && saveVFC(user.id, data.vfc),
+                        data.poids && savePoids(user.id, data.poids),
+                        data.objectifs && saveObjectifs(user.id, data.objectifs),
+                        data.nutrition && saveNutrition(user.id, data.nutrition),
+                        data.settings && saveStrideSettings(user.id, data.settings),
+                        data.currentRace && saveCurrentRace(user.id, data.currentRace),
+                      ]);
+                      alert('✅ Import réussi ! Recharge la page.');
+                      window.location.reload();
+                    } catch (err) {
+                      console.error('Erreur import:', err);
+                      alert('Erreur lors de l\'import : ' + err.message);
+                    }
+                  }}/>
+              </label>
+            </div>
+            <div style={{marginTop:14,padding:"10px 14px",background:C.stone,borderRadius:10,fontSize:12,color:C.muted,lineHeight:1.6}}>
+              💡 L'import écrase toutes les données. Exporte d'abord si tu veux garder une copie de l'existant.
+            </div>
           </Section>
 
           <Section title="Stratégie de course">
@@ -559,15 +645,6 @@ Annuler = tout effacer.`);if(ok)saveCourse();}
                 </div>
               )}
             </div>
-          </Section>
-
-          <Section title="Données d'entraînement">
-            <DonneesParams seances={seances} setSeances={setSeances} activites={activites}
-              setActivites={setActivites} sommeil={sommeil} setSommeil={setSommeil}
-              vfcData={vfcData} setVfcData={setVfcData} poids={poids} setPoids={setPoids}
-              planningType={planningType} objectifs={objectifs} allData={allData}
-              loadData={loadStrideData} resetAll={resetAll} journalNutri={journalNutri}
-              confirmReset={confirmReset} setConfirmReset={setConfirmReset}/>
           </Section>
         </div>
       )}
