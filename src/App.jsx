@@ -14,6 +14,7 @@ import EquipementView from './components/EquipementView.jsx';
 import TeamView       from './components/TeamView.jsx';
 import MesCoursesView from './components/MesCoursesView.jsx';
 import ProfilCompte   from './components/ProfilCompte.jsx';
+import Confidentialite from './components/Confidentialite.jsx';
 import { CIQUAL, CIQUAL_CATEGORIES } from './data/ciqual.js';
 
 // ─── STRIDE IMPORTS ───────────────────────────────────────────────────────────
@@ -832,6 +833,12 @@ function AppLayout({
       </div>
 
       {/* Déconnexion */}
+      <div style={{padding:"6px 14px 4px",fontSize:11,color:C.muted,borderTop:`1px solid ${C.border}`,marginTop:6}}>
+        <span onClick={()=>{setView("confidentialite");setDrawerOpen(false);}}
+          style={{cursor:"pointer",textDecoration:"underline"}}>
+          Politique de confidentialité
+        </span>
+      </div>
       <div onClick={signOut}
         style={{padding:"6px 14px 18px",display:"flex",alignItems:"center",gap:8,
           cursor:"pointer",transition:"background .15s"}}
@@ -997,6 +1004,8 @@ function AppLayout({
               <ProfilCompte profil={profil} setProfil={setProfil}/>
             </div>
           )}
+          {/* Politique de confidentialité */}
+          {view==="confidentialite"&&<Confidentialite setView={setView}/>}
         </div>
       </div>
 
