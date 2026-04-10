@@ -774,11 +774,6 @@ function AppLayout({
   signOut,
   user,
 }) {
-  strideFeatures, toggleStrideFeature, STRIDE_FEATURE_LABELS,
-  saveAllData,
-  sharedMode, installPrompt,
-  signOut,
-}) {
   const subNavBtn = (id,label,active,onClick) => (
     <button key={id} onClick={onClick}
       style={{padding:"5px 14px",border:`0.5px solid ${active?TEAL:C.border}`,
