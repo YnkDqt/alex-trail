@@ -1184,14 +1184,23 @@ export default function App() {
   useEffect(()=>{
     if (!user?.id) return;
     loadNutrition(user.id).then(data => {
+      let needsSave = false;
+      
       // Migration: ajouter type aux produits/recettes existants
       if (data.produits && data.produits.length > 0) {
-        const migratedProduits = data.produits.map(p => ({
-          ...p,
-          type: p.type || 'produit'
-        }));
+        const migratedProduits = data.produits.map(p => {
+          if (!p.type) needsSave = true;
+          return { ...p, type: p.type || 'produit' };
+        });
         setProduits(migratedProduits);
+        
+        // Sauvegarder immédiatement si migration effectuée
+        if (needsSave) {
+          saveNutrition(user.id, data.journalNutri || [], migratedProduits, data.recettes || [])
+            .catch(err => console.error('Erreur save migration:', err));
+        }
       }
+      
       if (data.recettes && data.recettes.length > 0) {
         const migratedRecettes = data.recettes.map(r => ({
           ...r,
@@ -1199,6 +1208,7 @@ export default function App() {
         }));
         setRecettes(migratedRecettes);
       }
+      
       if (data.journalNutri && data.journalNutri.length > 0) setJournalNutri(data.journalNutri);
     }).catch(err => console.error('Erreur load nutrition:', err));
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
