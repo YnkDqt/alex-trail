@@ -674,7 +674,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
                     boisson: false,
                     volumeMl: ""
                   };
-                  updBibliotheque([...produits, newProd]);
+                  updBibliotheque([...bibliotheque, newProd]);
                   setCiqualLibModal(false);
                   setCiqualLibSearch("");
                 }}>＋ Ajouter</Btn>

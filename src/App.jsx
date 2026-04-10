@@ -1184,8 +1184,21 @@ export default function App() {
   useEffect(()=>{
     if (!user?.id) return;
     loadNutrition(user.id).then(data => {
-      if (data.produits && data.produits.length > 0) setProduits(data.produits);
-      if (data.recettes && data.recettes.length > 0) setRecettes(data.recettes);
+      // Migration: ajouter type aux produits/recettes existants
+      if (data.produits && data.produits.length > 0) {
+        const migratedProduits = data.produits.map(p => ({
+          ...p,
+          type: p.type || 'produit'
+        }));
+        setProduits(migratedProduits);
+      }
+      if (data.recettes && data.recettes.length > 0) {
+        const migratedRecettes = data.recettes.map(r => ({
+          ...r,
+          type: r.type || 'recette'
+        }));
+        setRecettes(migratedRecettes);
+      }
       if (data.journalNutri && data.journalNutri.length > 0) setJournalNutri(data.journalNutri);
     }).catch(err => console.error('Erreur load nutrition:', err));
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps

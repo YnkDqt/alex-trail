@@ -439,7 +439,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   // Calcul macros recette
   const calcMacros = (rec) => {
     return (rec.ingredients||[]).reduce((acc, ing)=>{
-      const prod = produits.find(p=>p.id===ing.produitId);
+      const prod = produits.find(p=>p.id===ing.produitId && p.type==="produit");
       if(!prod) return acc;
       const factor = parseFloat(ing.quantite)||0;
       return {
@@ -794,7 +794,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
           ):(
             <div style={{display:"grid",gap:6}}>
               {recForm.ingredients.map((ing,idx)=>{
-                const prod = produits.find(p=>p.id===ing.produitId && (!p.type || p.type==="produit"));
+                const prod = produits.find(p=>p.id===ing.produitId && p.type==="produit");
                 return (
                   <div key={idx} style={{display:"flex",gap:8,alignItems:"center",padding:8,background:C.stone,borderRadius:6}}>
                     <span style={{flex:1,fontSize:13,color:C.inkLight}}>{prod?.nom||"Produit inconnu"}</span>
@@ -811,7 +811,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
             <select value="" onChange={e=>{if(e.target.value)addIngredientFromProduit(e.target.value)}}
               style={{flex:1,padding:"6px 10px",fontSize:13,borderRadius:7,border:`1px solid ${C.border}`,cursor:"pointer"}}>
               <option value="">+ Ingrédient depuis mes produits...</option>
-              {produits.map(p=><option key={p.id} value={p.id}>{p.nom}</option>)}
+              {produits.filter(p=>p.type==="produit").map(p=><option key={p.id} value={p.id}>{p.nom}</option>)}
             </select>
             <Btn variant="sage" size="sm" onClick={()=>setIngCiqualModal(true)}>🔍 Base alimentaire</Btn>
           </div>
