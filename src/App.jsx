@@ -594,7 +594,10 @@ function DonneesParamsView({
                         data.objectifs && saveObjectifs(user.id, data.objectifs),
                         data.nutrition && saveNutrition(user.id, data.nutrition),
                         data.settings && saveStrideSettings(user.id, data.settings),
-                        data.currentRace && saveCurrentRace(user.id, data.currentRace),
+                        data.currentRace && saveCurrentRace(user.id, 
+                          // Fix double imbrication race.race
+                          data.currentRace.race?.race ? data.currentRace.race : data.currentRace
+                        ),
                       ]);
                       alert('✅ Import réussi ! Recharge la page.');
                       window.location.reload();
