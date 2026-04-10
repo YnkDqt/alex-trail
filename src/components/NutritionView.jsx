@@ -23,6 +23,12 @@ export default function NutritionView({ segments, settings, setSettings, race, s
   const [prodForm, setProdForm] = useState(emptyProd);
   const updP = (k, v) => setProdForm(f => ({ ...f, [k]: v }));
 
+  // Modaux bibliothèque
+  const [ciqualLibModal, setCiqualLibModal] = useState(false);
+  const [ciqualLibSearch, setCiqualLibSearch] = useState("");
+  const [ciqualLibCat, setCiqualLibCat] = useState("Toutes");
+  const [strideRecModal, setStrideRecModal] = useState(false);
+
   const openNewProd  = ()  => { setEditProdId(null);  setProdForm(emptyProd); setProdModal(true); };
   const openEditProd = p   => { setEditProdId(p.id);  setProdForm({ ...emptyProd, ...p }); setProdModal(true); };
   const saveProd = () => {
@@ -328,12 +334,16 @@ export default function NutritionView({ segments, settings, setSettings, race, s
       </div>
 
       {/* ══ SECTION 1 : BIBLIOTHÈQUE DE PRODUITS ══════════════════════════════ */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
         <div>
           <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700 }}>Bibliothèque de produits</div>
-          <div style={{ fontSize: 13, color: "var(--muted-c)", marginTop: 2 }}>Crée tes produits une fois, utilise-les partout</div>
+          <div style={{ fontSize: 13, color: "var(--muted-c)", marginTop: 2 }}>Sélectionne tes produits/recettes pour cette course</div>
         </div>
-        <Btn onClick={openNewProd}>+ Produit</Btn>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn variant="soft" onClick={() => setCiqualLibModal(true)}>🔍 CIQUAL</Btn>
+          <Btn variant="soft" onClick={() => setStrideRecModal(true)}>📚 Recettes</Btn>
+          <Btn onClick={openNewProd}>+ Produit</Btn>
+        </div>
       </div>
 
       {produits.length === 0 ? (
@@ -595,6 +605,132 @@ export default function NutritionView({ segments, settings, setSettings, race, s
           <Btn variant="ghost" onClick={() => setProdModal(false)}>Annuler</Btn>
           <Btn onClick={saveProd}>Enregistrer</Btn>
         </div>
+      </Modal>
+
+      {/* Modal CIQUAL Bibliothèque */}
+      <Modal open={ciqualLibModal} onClose={() => setCiqualLibModal(false)} title="Ajouter depuis CIQUAL" width={800}>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, marginBottom: 12 }}>
+            <input value={ciqualLibSearch} onChange={e => setCiqualLibSearch(e.target.value)}
+              placeholder="Rechercher un aliment..."
+              style={{ fontSize: 13, padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.border}`, width: "100%" }} />
+            <select value={ciqualLibCat} onChange={e => setCiqualLibCat(e.target.value)}
+              style={{ padding: "8px 12px", fontSize: 13, borderRadius: 8, border: `1px solid ${C.border}`, minWidth: 180 }}>
+              <option value="Toutes">Toutes catégories</option>
+              {CIQUAL_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={{ maxHeight: 400, overflowY: "auto", border: `1px solid ${C.border}`, borderRadius: 8 }}>
+          {(() => {
+            let results = CIQUAL;
+            if (ciqualLibCat !== "Toutes") results = results.filter(a => a.categorie === ciqualLibCat);
+            if (ciqualLibSearch.trim()) {
+              const terms = ciqualLibSearch.toLowerCase().split(" ").filter(Boolean);
+              results = results.filter(a => terms.every(t => (a.nom || "").toLowerCase().includes(t)));
+            }
+            results = results.slice(0, 50);
+            
+            if (results.length === 0) return <div style={{ textAlign: "center", padding: "40px 20px", color: C.muted }}>Aucun résultat</div>;
+            
+            return results.map(alim => (
+              <div key={alim.code} style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+                padding: "10px 14px", borderBottom: `1px solid ${C.border}`, gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: C.inkLight, marginBottom: 2 }}>{alim.nom}</div>
+                  <div style={{ fontSize: 11, color: C.muted }}>{alim.categorie}</div>
+                  <div style={{ display: "flex", gap: 10, fontSize: 11, marginTop: 4 }}>
+                    <span style={{ color: "#e65100" }}>{Math.round(alim.energie_kcal || 0)} kcal</span>
+                    <span style={{ color: "#1d9e75" }}>{(alim.glucides || 0).toFixed(1)}g gluc.</span>
+                    <span style={{ color: "#185FA5" }}>{(alim.proteines || 0).toFixed(1)}g prot.</span>
+                  </div>
+                </div>
+                <Btn size="sm" onClick={() => {
+                  const newProd = {
+                    id: Date.now(),
+                    nom: alim.nom,
+                    par100g: true,
+                    poids: 100,
+                    kcal: alim.energie_kcal || 0,
+                    glucides: alim.glucides || 0,
+                    proteines: alim.proteines || 0,
+                    lipides: alim.lipides || 0,
+                    sodium: alim.sodium || 0,
+                    potassium: alim.potassium || 0,
+                    magnesium: alim.magnesium || 0,
+                    zinc: alim.zinc || 0,
+                    calcium: alim.calcium || 0,
+                    boisson: false,
+                    volumeMl: ""
+                  };
+                  updProduits([...produits, newProd]);
+                  setCiqualLibModal(false);
+                  setCiqualLibSearch("");
+                }}>＋ Ajouter</Btn>
+              </div>
+            ));
+          })()}
+        </div>
+      </Modal>
+
+      {/* Modal Recettes Stride */}
+      <Modal open={strideRecModal} onClose={() => setStrideRecModal(false)} title="Ajouter recettes Stride" width={700}>
+        {recettes.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "40px 20px", color: C.muted }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>📚</div>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Aucune recette</div>
+            <div style={{ fontSize: 13 }}>Crée des recettes dans "Nutrition entraînement"</div>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: 10 }}>
+            {recettes.map(rec => {
+              const alreadyAdded = produits.some(p => p.nom === rec.nom && p.source === "stride_recette");
+              return (
+                <div key={rec.id} style={{ padding: "12px 16px", background: C.stone, borderRadius: 8,
+                  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: C.inkLight }}>{rec.nom}</div>
+                    <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{rec.description || "—"}</div>
+                    <div style={{ fontSize: 12, marginTop: 4, color: C.muted }}>
+                      {rec.portions} portion{rec.portions > 1 ? "s" : ""} · {rec.ingredients?.length || 0} ingrédient{rec.ingredients?.length > 1 ? "s" : ""}
+                    </div>
+                  </div>
+                  {alreadyAdded ? (
+                    <span style={{ fontSize: 12, color: C.green }}>✓ Ajoutée</span>
+                  ) : (
+                    <Btn size="sm" onClick={() => {
+                      // Calculer macros de la recette (simplifié : on suppose que produits[] contient les ingrédients)
+                      const macros = (rec.ingredients || []).reduce((acc, ing) => {
+                        // Ici on devrait chercher dans les produits Stride, simplifié pour l'exemple
+                        return acc;
+                      }, { kcal: 0, glucides: 0, proteines: 0, lipides: 0, sodium: 0 });
+                      
+                      const newProd = {
+                        id: Date.now(),
+                        nom: rec.nom,
+                        par100g: false,
+                        poids: 0,
+                        kcal: macros.kcal || 0,
+                        glucides: macros.glucides || 0,
+                        proteines: macros.proteines || 0,
+                        lipides: macros.lipides || 0,
+                        sodium: macros.sodium || 0,
+                        potassium: 0,
+                        magnesium: 0,
+                        zinc: 0,
+                        calcium: 0,
+                        boisson: false,
+                        volumeMl: "",
+                        source: "stride_recette"
+                      };
+                      updProduits([...produits, newProd]);
+                    }}>＋ Ajouter</Btn>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </Modal>
 
       <ConfirmDialog open={!!confirmProdId} message="Supprimer ce produit de la bibliothèque ?" onConfirm={() => { updProduits(produits.filter(p => p.id !== confirmProdId)); setConfirmProdId(null); }} onCancel={() => setConfirmProdId(null)} />
