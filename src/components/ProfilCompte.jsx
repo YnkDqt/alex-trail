@@ -311,6 +311,65 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
           </div>
         )}
 
+        {/* Export données RGPD */}
+        <SectionTitle>Mes données</SectionTitle>
+        <button onClick={async () => {
+          if (!user?.id) return;
+          try {
+            // Charger toutes les données depuis Supabase
+            const [profile, activities, seances, sommeil, vfc, poids, objectifs, nutrition, settings, currentRace, courses] = await Promise.all([
+              loadAthleteProfile(user.id),
+              import('../supabaseHelpers').then(m => m.loadActivities(user.id)),
+              import('../supabaseHelpers').then(m => m.loadSeances(user.id)),
+              import('../supabaseHelpers').then(m => m.loadSommeil(user.id)),
+              import('../supabaseHelpers').then(m => m.loadVFC(user.id)),
+              import('../supabaseHelpers').then(m => m.loadPoids(user.id)),
+              import('../supabaseHelpers').then(m => m.loadObjectifs(user.id)),
+              import('../supabaseHelpers').then(m => m.loadNutrition(user.id)),
+              import('../supabaseHelpers').then(m => m.loadStrideSettings(user.id)),
+              import('../supabaseHelpers').then(m => m.loadCurrentRace(user.id)),
+              import('../supabaseHelpers').then(m => m.loadCourses(user.id)),
+            ]);
+
+            const exportData = {
+              format: "alex-export-rgpd-1.0",
+              exportDate: new Date().toISOString(),
+              userId: user.id,
+              userEmail: user.email,
+              profile,
+              activities,
+              seances,
+              sommeil,
+              vfc,
+              poids,
+              objectifs,
+              nutrition,
+              settings,
+              currentRace,
+              courses,
+            };
+
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `alex-export-${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+          } catch (err) {
+            console.error('Erreur export:', err);
+            alert('Erreur lors de l\'export');
+          }
+        }}
+          style={{ width:"100%", padding:"12px 20px", borderRadius:10, border:`1px solid ${C.forest}`,
+            background:C.forestPale, color:C.forest, cursor:"pointer", fontFamily:"inherit",
+            fontSize:14, fontWeight:500, marginBottom:16 }}>
+          📥 Exporter toutes mes données
+        </button>
+        <div style={{ fontSize:12, color:C.muted, marginBottom:32, lineHeight:1.6 }}>
+          Télécharge un fichier JSON contenant l'intégralité de tes données (profil, activités, courses, nutrition, etc.). Conforme RGPD.
+        </div>
+
         {/* Note bas de page */}
         <div style={{ marginTop:32, padding:"12px 14px", background:C.stone, borderRadius:10,
           fontSize:11, color:C.stoneDeep, lineHeight:1.6 }}>
