@@ -364,7 +364,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
           <div className="tbl-wrap">
             <table>
               <thead><tr>
-                <th>Produit</th><th>Base</th><th>Poids</th><th>Kcal</th><th>Glucides</th><th>Protéines</th><th>Na (mg)</th><th></th>
+                <th>Produit</th><th>Base</th><th>Poids</th><th>Kcal</th><th>Gluc.</th><th>Prot.</th><th>Lip.</th><th>Na</th><th>K</th><th>Mg</th><th>Zn</th><th>Ca</th><th></th>
               </tr></thead>
               <tbody>
                 {bibliotheque.map(p => (
@@ -375,7 +375,12 @@ export default function NutritionView({ segments, settings, setSettings, race, s
                     <td style={{ color: C.red, fontWeight: 600 }}>{p.kcal} kcal</td>
                     <td style={{ color: C.yellow }}>{p.glucides} g</td>
                     <td style={{ color: "var(--muted-c)" }}>{p.proteines} g</td>
-                    <td style={{ color: "var(--muted-c)" }}>{p.sodium} mg</td>
+                    <td style={{ color: "var(--muted-c)" }}>{p.lipides} g</td>
+                    <td style={{ color: "var(--muted-c)", fontSize: 11 }}>{p.sodium} mg</td>
+                    <td style={{ color: "var(--muted-c)", fontSize: 11 }}>{p.potassium || 0} mg</td>
+                    <td style={{ color: "var(--muted-c)", fontSize: 11 }}>{p.magnesium || 0} mg</td>
+                    <td style={{ color: "var(--muted-c)", fontSize: 11 }}>{p.zinc || 0} mg</td>
+                    <td style={{ color: "var(--muted-c)", fontSize: 11 }}>{p.calcium || 0} mg</td>
                     <td onClick={e => e.stopPropagation()}>
                       <Btn size="sm" variant="danger" onClick={() => setConfirmProdId(p.id)}>✕</Btn>
                     </td>
@@ -705,31 +710,43 @@ export default function NutritionView({ segments, settings, setSettings, race, s
                     <span style={{ fontSize: 12, color: C.green }}>✓ Ajoutée</span>
                   ) : (
                     <Btn size="sm" onClick={() => {
-                      // Calculer macros de la recette (simplifié : on suppose que produits[] contient les ingrédients)
+                      // Calculer macros depuis ingrédients + produits Stride
                       const macros = (rec.ingredients || []).reduce((acc, ing) => {
-                        // Ici on devrait chercher dans les produits Stride, simplifié pour l'exemple
-                        return acc;
-                      }, { kcal: 0, glucides: 0, proteines: 0, lipides: 0, sodium: 0 });
+                        const prod = produits.find(p => p.id === ing.produitId);
+                        if (!prod) return acc;
+                        const factor = (ing.quantite || 0) / 100;
+                        return {
+                          kcal: acc.kcal + Math.round((prod.kcal || 0) * factor),
+                          glucides: acc.glucides + Math.round((prod.glucides || 0) * factor),
+                          proteines: acc.proteines + Math.round((prod.proteines || 0) * factor),
+                          lipides: acc.lipides + Math.round((prod.lipides || 0) * factor),
+                          sodium: acc.sodium + Math.round((prod.sodium || 0) * factor),
+                          potassium: acc.potassium + Math.round((prod.potassium || 0) * factor),
+                          magnesium: acc.magnesium + Math.round((prod.magnesium || 0) * factor),
+                          zinc: acc.zinc + Math.round((prod.zinc || 0) * factor),
+                          calcium: acc.calcium + Math.round((prod.calcium || 0) * factor)
+                        };
+                      }, { kcal: 0, glucides: 0, proteines: 0, lipides: 0, sodium: 0, potassium: 0, magnesium: 0, zinc: 0, calcium: 0 });
                       
                       const newProd = {
                         id: Date.now(),
                         nom: rec.nom,
                         par100g: false,
                         poids: 0,
-                        kcal: macros.kcal || 0,
-                        glucides: macros.glucides || 0,
-                        proteines: macros.proteines || 0,
-                        lipides: macros.lipides || 0,
-                        sodium: macros.sodium || 0,
-                        potassium: 0,
-                        magnesium: 0,
-                        zinc: 0,
-                        calcium: 0,
+                        kcal: macros.kcal,
+                        glucides: macros.glucides,
+                        proteines: macros.proteines,
+                        lipides: macros.lipides,
+                        sodium: macros.sodium,
+                        potassium: macros.potassium,
+                        magnesium: macros.magnesium,
+                        zinc: macros.zinc,
+                        calcium: macros.calcium,
                         boisson: false,
                         volumeMl: "",
                         source: "stride_recette"
                       };
-                      updBibliotheque([...produits, newProd]);
+                      updBibliotheque([...bibliotheque, newProd]);
                     }}>＋ Ajouter</Btn>
                   )}
                 </div>
