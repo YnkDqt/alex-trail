@@ -6,10 +6,14 @@ import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, Cust
 import { CIQUAL, CIQUAL_CATEGORIES } from '../data/ciqual.js';
 
 // ─── VUE NUTRITION ───────────────────────────────────────────────────────────
-export default function NutritionView({ segments, settings, setSettings, race, setRace, isMobile, onNavigate, profil, poids, produits = [], setProduits, recettes = [] }) {
+export default function NutritionView({ segments, settings, setSettings, race, setRace, isMobile, onNavigate, profil, poids, recettes = [], produits = [] }) {
   const planNutrition = race.planNutrition || {};
   const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km).filter(rv => rv.assistancePresente !== false);
   const updPlan = v => setRace(r => ({ ...r, planNutrition: v }));
+
+  // Bibliothèque locale Course (vide par défaut)
+  const bibliotheque = race.bibliotheque || [];
+  const updBibliotheque = (items) => setRace(r => ({ ...r, bibliotheque: items }));
 
   // Poids utilisateur : profil.poids en priorité, sinon dernier poids[], sinon 70
   const lastPoids = useMemo(() => [...(poids || [])].sort((a,b) => new Date(b.date) - new Date(a.date))[0]||null, [poids]);
@@ -34,8 +38,8 @@ export default function NutritionView({ segments, settings, setSettings, race, s
   const saveProd = () => {
     if (!prodForm.nom.trim()) return;
     const item = { ...prodForm, id: editProdId || Date.now(), poids: +prodForm.poids||0, kcal: +prodForm.kcal||0, proteines: +prodForm.proteines||0, lipides: +prodForm.lipides||0, glucides: +prodForm.glucides||0, sodium: +prodForm.sodium||0, potassium: +prodForm.potassium||0, magnesium: +prodForm.magnesium||0, zinc: +prodForm.zinc||0, calcium: +prodForm.calcium||0 };
-    if (editProdId) updProduits(produits.map(p => p.id === editProdId ? item : p));
-    else updProduits([...produits, item]);
+    if (editProdId) updBibliotheque(bibliotheque.map(p => p.id === editProdId ? item : p));
+    else updBibliotheque([...bibliotheque, item]);
     setProdModal(false);
   };
 
@@ -49,7 +53,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
   const totalPoint = pointKey => {
     const items = planNutrition[pointKey] || [];
     return items.reduce((acc, { produitId, quantite }) => {
-      const p = produits.find(x => x.id === produitId);
+      const p = bibliotheque.find(x => x.id === produitId);
       if (!p) return acc;
       const n = nutriProduit(p, quantite);
       return { kcal: acc.kcal + n.kcal, glucides: acc.glucides + n.glucides, proteines: acc.proteines + n.proteines, sodium: acc.sodium + n.sodium, eauMl: acc.eauMl + n.eauMl };
@@ -75,16 +79,14 @@ export default function NutritionView({ segments, settings, setSettings, race, s
 
   const getQte = (pointKey, produitId) => (planNutrition[pointKey] || []).find(x => x.produitId === produitId)?.quantite || 0;
 
-  const updProduits = p => setProduits(p);
-
   // ── Auto-complétion nutrition ─────────────────────────────────────────────
   const [autoCompletePreview, setAutoCompletePreview] = useState(null);
 
   const runAutoComplete = () => {
-    if (!produits.length || !zones.length) return;
+    if (!bibliotheque.length || !zones.length) return;
 
     // Trier les produits par priorité : boisson d'abord, puis kcal/g décroissant
-    const produitsActifs = [...produits].sort((a, b) => {
+    const produitsActifs = [...bibliotheque].sort((a, b) => {
       if (a.boisson && !b.boisson) return -1;
       if (!a.boisson && b.boisson) return 1;
       const kcalGa = a.par100g ? a.kcal / 100 : (a.poids > 0 ? a.kcal / a.poids : 0);
@@ -104,7 +106,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
 
       // Calcul des apports déjà en place
       const apportActuel = () => items.reduce((acc, { produitId, quantite }) => {
-        const p = produits.find(x => x.id === produitId);
+        const p = bibliotheque.find(x => x.id === produitId);
         if (!p) return acc;
         const n = nutriProduit(p, quantite);
         return { kcal: acc.kcal + n.kcal, glucides: acc.glucides + n.glucides, eauMl: acc.eauMl + n.eauMl };
@@ -161,7 +163,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
 
         // Vérifier poids max avant d'ajouter quoi que ce soit
         const poidsActuel = items.reduce((s, { produitId, quantite }) => {
-          const p = produits.find(x => x.id === produitId);
+          const p = bibliotheque.find(x => x.id === produitId);
           if (!p) return s;
           return s + (p.par100g ? p.poids * quantite / 100 : (p.poids || 0) * quantite);
         }, 0);
@@ -346,12 +348,16 @@ export default function NutritionView({ segments, settings, setSettings, race, s
         </div>
       </div>
 
-      {produits.length === 0 ? (
+      {bibliotheque.length === 0 ? (
         <Card style={{ marginBottom: 24, textAlign: "center", color: "var(--muted-c)" }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>🏪</div>
           <div style={{ fontWeight: 600, marginBottom: 4 }}>Bibliothèque vide</div>
-          <div style={{ fontSize: 13, marginBottom: 14 }}>Ajoute tes barres, gels et boissons pour construire ton plan.</div>
-          <Btn onClick={openNewProd}>+ Ajouter un produit</Btn>
+          <div style={{ fontSize: 13, marginBottom: 14 }}>Sélectionne des produits/recettes pour cette course</div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+            <Btn variant="soft" onClick={() => setCiqualLibModal(true)}>🔍 CIQUAL</Btn>
+            <Btn variant="soft" onClick={() => setStrideRecModal(true)}>📚 Recettes</Btn>
+            <Btn onClick={openNewProd}>+ Produit</Btn>
+          </div>
         </Card>
       ) : (
         <Card noPad style={{ marginBottom: 24 }}>
@@ -361,7 +367,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
                 <th>Produit</th><th>Base</th><th>Poids</th><th>Kcal</th><th>Glucides</th><th>Protéines</th><th>Na (mg)</th><th></th>
               </tr></thead>
               <tbody>
-                {produits.map(p => (
+                {bibliotheque.map(p => (
                   <tr key={p.id} onClick={() => openEditProd(p)} style={{ cursor: "pointer" }}>
                     <td style={{ fontWeight: 600 }}>{p.nom}</td>
                     <td style={{ color: "var(--muted-c)", fontSize: 12 }}>{p.par100g ? "/ 100g" : "/ unité"}</td>
@@ -382,7 +388,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
       )}
 
       {/* ══ SECTION 2 : PLAN DE RAVITAILLEMENT ════════════════════════════════ */}
-      {produits.length > 0 && (
+      {bibliotheque.length > 0 && (
         <>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 4 }}>
             <div style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700 }}>Plan de ravitaillement</div>
@@ -404,7 +410,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
                   const totalKcal = zones.reduce((acc, z) => {
                     const items = autoCompletePreview[z.pointKey] || [];
                     return acc + items.reduce((s, { produitId, quantite }) => {
-                      const p = produits.find(x => x.id === produitId); if (!p) return s;
+                      const p = bibliotheque.find(x => x.id === produitId); if (!p) return s;
                       const n = nutriProduit(p, quantite);
                       return s + n.kcal;
                     }, 0);
@@ -412,7 +418,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
                   const totalGlu = zones.reduce((acc, z) => {
                     const items = autoCompletePreview[z.pointKey] || [];
                     return acc + items.reduce((s, { produitId, quantite }) => {
-                      const p = produits.find(x => x.id === produitId); if (!p) return s;
+                      const p = bibliotheque.find(x => x.id === produitId); if (!p) return s;
                       const n = nutriProduit(p, quantite);
                       return s + n.glucides;
                     }, 0);
@@ -463,7 +469,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
 
                   {/* Sélection produits */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {produits.map(p => {
+                    {bibliotheque.map(p => {
                       const qte = getQte(zone.pointKey, p.id);
                       const n = qte > 0 ? nutriProduit(p, qte) : null;
                       return (
@@ -663,7 +669,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
                     boisson: false,
                     volumeMl: ""
                   };
-                  updProduits([...produits, newProd]);
+                  updBibliotheque([...produits, newProd]);
                   setCiqualLibModal(false);
                   setCiqualLibSearch("");
                 }}>＋ Ajouter</Btn>
@@ -684,7 +690,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
         ) : (
           <div style={{ display: "grid", gap: 10 }}>
             {recettes.map(rec => {
-              const alreadyAdded = produits.some(p => p.nom === rec.nom && p.source === "stride_recette");
+              const alreadyAdded = bibliotheque.some(p => p.nom === rec.nom && p.source === "stride_recette");
               return (
                 <div key={rec.id} style={{ padding: "12px 16px", background: C.stone, borderRadius: 8,
                   display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
@@ -723,7 +729,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
                         volumeMl: "",
                         source: "stride_recette"
                       };
-                      updProduits([...produits, newProd]);
+                      updBibliotheque([...produits, newProd]);
                     }}>＋ Ajouter</Btn>
                   )}
                 </div>
@@ -733,7 +739,7 @@ export default function NutritionView({ segments, settings, setSettings, race, s
         )}
       </Modal>
 
-      <ConfirmDialog open={!!confirmProdId} message="Supprimer ce produit de la bibliothèque ?" onConfirm={() => { updProduits(produits.filter(p => p.id !== confirmProdId)); setConfirmProdId(null); }} onCancel={() => setConfirmProdId(null)} />
+      <ConfirmDialog open={!!confirmProdId} message="Supprimer ce produit de la bibliothèque ?" onConfirm={() => { updBibliotheque(bibliotheque.filter(p => p.id !== confirmProdId)); setConfirmProdId(null); }} onCancel={() => setConfirmProdId(null)} />
     </div>
   );
 }
