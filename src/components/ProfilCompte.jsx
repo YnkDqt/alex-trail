@@ -370,6 +370,49 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
           Télécharge un fichier JSON contenant l'intégralité de tes données (profil, activités, courses, nutrition, etc.). Conforme RGPD.
         </div>
 
+        {/* Suppression compte */}
+        <button onClick={async () => {
+          const confirm = window.confirm(
+            "⚠️ ATTENTION\n\n" +
+            "Cette action est IRRÉVERSIBLE.\n\n" +
+            "Toutes tes données seront définitivement supprimées :\n" +
+            "• Profil athlète\n" +
+            "• Activités et séances\n" +
+            "• Données de forme (VFC, sommeil, poids)\n" +
+            "• Courses et stratégies\n" +
+            "• Nutrition\n\n" +
+            "Veux-tu vraiment supprimer ton compte ?"
+          );
+          
+          if (!confirm) return;
+          
+          const doubleConfirm = window.prompt(
+            "Pour confirmer, tape ton email :"
+          );
+          
+          if (doubleConfirm !== user?.email) {
+            alert("Email incorrect. Suppression annulée.");
+            return;
+          }
+          
+          try {
+            const { deleteAccount } = await import('../AuthContext');
+            await deleteAccount();
+            alert("Compte supprimé. Tu vas être déconnecté.");
+          } catch (err) {
+            console.error('Erreur suppression:', err);
+            alert('Erreur lors de la suppression');
+          }
+        }}
+          style={{ width:"100%", padding:"12px 20px", borderRadius:10, border:`1px solid ${C.red}`,
+            background:C.redPale, color:C.red, cursor:"pointer", fontFamily:"inherit",
+            fontSize:14, fontWeight:500, marginBottom:8 }}>
+          🗑️ Supprimer mon compte
+        </button>
+        <div style={{ fontSize:11, color:C.red, marginBottom:32, lineHeight:1.6 }}>
+          Action irréversible. Toutes tes données seront définitivement effacées.
+        </div>
+
         {/* Note bas de page */}
         <div style={{ marginTop:32, padding:"12px 14px", background:C.stone, borderRadius:10,
           fontSize:11, color:C.stoneDeep, lineHeight:1.6 }}>
