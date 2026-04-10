@@ -430,6 +430,7 @@ function DonneesParamsView({
   allData, loadStrideData, resetAll, journalNutri, confirmReset, setConfirmReset,
   features, toggleFeature, FEATURE_LABELS,
   strideFeatures, toggleStrideFeature, STRIDE_FEATURE_LABELS,
+  user,
 }) {
   const [tab, setTab] = useState("sauvegarde");
 
@@ -771,6 +772,12 @@ function AppLayout({
   saveAllData,
   sharedMode, installPrompt,
   signOut,
+  user,
+}) {
+  strideFeatures, toggleStrideFeature, STRIDE_FEATURE_LABELS,
+  saveAllData,
+  sharedMode, installPrompt,
+  signOut,
 }) {
   const subNavBtn = (id,label,active,onClick) => (
     <button key={id} onClick={onClick}
@@ -1068,6 +1075,7 @@ function AppLayout({
             journalNutri={journalNutri} confirmReset={confirmReset} setConfirmReset={setConfirmReset}
             features={features} toggleFeature={toggleFeature} FEATURE_LABELS={FEATURE_LABELS}
             strideFeatures={strideFeatures} toggleStrideFeature={toggleStrideFeature} STRIDE_FEATURE_LABELS={STRIDE_FEATURE_LABELS}
+            user={user}
           />}
           {/* Profil unifié */}
           {view==="profil_compte"&&(
@@ -1573,6 +1581,7 @@ export default function App() {
       saveAllData={saveAllData}
       sharedMode={sharedMode} installPrompt={installPrompt}
       signOut={signOut}
+      user={user}
     />
   );
 }
