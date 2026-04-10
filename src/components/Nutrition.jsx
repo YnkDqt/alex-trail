@@ -610,7 +610,9 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
 
           {/* Liste Produits */}
           {viewMode==="produits"&&(
-            filteredProduits.length===0?(
+            (() => {
+              const produitsOnly = filteredProduits.filter(p => !p.type || p.type === "produit");
+              return produitsOnly.length===0?(
               <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
                 <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>🥕</div>
                 <div style={{fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:6}}>Aucun produit</div>
@@ -622,7 +624,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
               </div>
             ):(
               <div style={{...card,overflow:"hidden"}}>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 80px 80px 80px 80px 80px 120px 32px",
+                <div style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 70px 70px 70px 70px 70px 70px 70px 100px 32px",
                   padding:"8px 16px",background:C.stone,gap:8,fontSize:10,fontWeight:600,color:C.muted,
                   textTransform:"uppercase",letterSpacing:"0.04em"}}>
                   <span>Nom</span>
@@ -630,23 +632,31 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
                   <span style={{textAlign:"right"}}>Gluc.</span>
                   <span style={{textAlign:"right"}}>Prot.</span>
                   <span style={{textAlign:"right"}}>Lip.</span>
-                  <span style={{textAlign:"right"}}>Sodium</span>
+                  <span style={{textAlign:"right"}}>Na</span>
+                  <span style={{textAlign:"right"}}>K</span>
+                  <span style={{textAlign:"right"}}>Mg</span>
+                  <span style={{textAlign:"right"}}>Zn</span>
+                  <span style={{textAlign:"right"}}>Ca</span>
                   <span>Source</span>
                   <span/>
                 </div>
                 <div style={{maxHeight:520,overflowY:"auto"}}>
-                  {filteredProduits.map(p=>(
-                    <div key={p.id} style={{display:"grid",gridTemplateColumns:"1fr 80px 80px 80px 80px 80px 120px 32px",
+                  {produitsOnly.map(p=>(
+                    <div key={p.id} style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 70px 70px 70px 70px 70px 70px 70px 100px 32px",
                       padding:"10px 16px",gap:8,borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:13}}>
                       <div>
                         <div style={{fontWeight:500,color:C.inkLight}}>{p.nom}</div>
                         {p.categorie&&<div style={{fontSize:11,color:C.muted}}>{p.categorie}</div>}
                       </div>
                       <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#e65100"}}>{p.kcal||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#1d9e75"}}>{p.glucides||0}g</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#185FA5"}}>{p.proteines||0}g</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#7F77DD"}}>{p.lipides||0}g</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#BA7517"}}>{p.sodium||0}mg</span>
+                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#1d9e75"}}>{p.glucides||0}</span>
+                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#185FA5"}}>{p.proteines||0}</span>
+                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#7F77DD"}}>{p.lipides||0}</span>
+                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#BA7517",fontSize:11}}>{p.sodium||0}</span>
+                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{p.potassium||0}</span>
+                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{p.magnesium||0}</span>
+                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{p.zinc||0}</span>
+                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{p.calcium||0}</span>
                       <span style={{fontSize:11,color:C.muted}}>{p.source==="ciqual"?"CIQUAL":"Perso"}</span>
                       <div style={{display:"flex",gap:2}}>
                         <button onClick={()=>openEditProd(p)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.forest}}>✎</button>
@@ -656,7 +666,8 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
                   ))}
                 </div>
               </div>
-            )
+            );
+            })()
           )}
         </div>
       )}
@@ -728,6 +739,18 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
               {k:"proteines",label:"Protéines",unit:"g"},
               {k:"lipides",label:"Lipides",unit:"g"},
               {k:"sodium",label:"Sodium",unit:"mg"}
+            ].map(({k,label,unit})=>(
+              <Field key={k} label={`${label} (${unit})`}>
+                <input type="number" min="0" step="0.1" value={prodForm[k]||""} onChange={e=>updP(k,e.target.value)} style={{width:"100%"}}/>
+              </Field>
+            ))}
+          </div>
+          <div style={{gridColumn:"1/-1",display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+            {[
+              {k:"potassium",label:"Potassium",unit:"mg"},
+              {k:"magnesium",label:"Magnésium",unit:"mg"},
+              {k:"zinc",label:"Zinc",unit:"mg"},
+              {k:"calcium",label:"Calcium",unit:"mg"}
             ].map(({k,label,unit})=>(
               <Field key={k} label={`${label} (${unit})`}>
                 <input type="number" min="0" step="0.1" value={prodForm[k]||""} onChange={e=>updP(k,e.target.value)} style={{width:"100%"}}/>
@@ -849,6 +872,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
                     <span style={{color:"#1d9e75"}}>{(alim.g||0).toFixed(1)}g gluc.</span>
                     <span style={{color:"#185FA5"}}>{(alim.p||0).toFixed(1)}g prot.</span>
                     <span style={{color:"#7F77DD"}}>{(alim.l||0).toFixed(1)}g lip.</span>
+                    <span style={{color:C.muted,fontSize:10}}>{Math.round(alim.k||0)}mg K · {Math.round(alim.mg||0)}mg Mg</span>
                   </div>
                 </div>
                 <Btn size="sm" onClick={()=>addFromCiqual(alim)}>＋ Ajouter</Btn>
@@ -890,6 +914,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
                     <span style={{color:"#1d9e75"}}>{(alim.g||0).toFixed(1)}g gluc.</span>
                     <span style={{color:"#185FA5"}}>{(alim.p||0).toFixed(1)}g prot.</span>
                     <span style={{color:"#7F77DD"}}>{(alim.l||0).toFixed(1)}g lip.</span>
+                    <span style={{color:C.muted,fontSize:10}}>{Math.round(alim.k||0)}mg K · {Math.round(alim.mg||0)}mg Mg</span>
                   </div>
                 </div>
                 <Btn size="sm" onClick={()=>addIngredientFromCiqual(alim)}>＋ Ajouter</Btn>
