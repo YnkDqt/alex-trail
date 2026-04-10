@@ -584,6 +584,7 @@ function DonneesParamsView({
                         return;
                       }
                       // Restaurer tout dans Supabase
+                      const raceData = data.currentRace?.race?.race ? data.currentRace.race : data.currentRace;
                       await Promise.all([
                         data.profile && saveAthleteProfile(user.id, data.profile),
                         data.activities && saveActivities(user.id, data.activities),
@@ -594,10 +595,7 @@ function DonneesParamsView({
                         data.objectifs && saveObjectifs(user.id, data.objectifs),
                         data.nutrition && saveNutrition(user.id, data.nutrition),
                         data.settings && saveStrideSettings(user.id, data.settings),
-                        data.currentRace && saveCurrentRace(user.id, 
-                          // Fix double imbrication race.race
-                          data.currentRace.race?.race ? data.currentRace.race : data.currentRace
-                        ),
+                        raceData && saveCurrentRace(user.id, raceData.race, raceData.segments, raceData.settings),
                       ]);
                       alert('✅ Import réussi ! Recharge la page.');
                       window.location.reload();
@@ -1027,11 +1025,11 @@ function AppLayout({
           {view==="entrainement" && (
             <div>
               <div style={{padding:"10px 24px",borderBottom:`1px solid ${C.border}`,background:C.white,display:"flex",gap:6,flexWrap:"wrap"}}>
-                {[{id:"programme",l:"Programme"},{id:"recettes",l:"Recettes & Produits"},{id:"planning",l:"Semaine type"}]
+                {[{id:"programme",l:"Programme"},{id:"nutrition",l:"Nutrition entraînement"},{id:"planning",l:"Semaine type"}]
                   .map(({id,l})=>subNavBtn(id,l,subView.entrainement===id,()=>setSubV("entrainement",id)))}
               </div>
               {subView.entrainement==="programme"&&<EntrainementProgramme seances={seances} setSeances={setSeances} activites={activites} setActivites={setActivites} objectifs={objectifs} planningType={planningType} setPlanningType={setPlanningType} activityTypes={activityTypes} setActivityTypes={setActivityTypes} allData={allData} loadData={loadStrideData} resetAll={resetAll} setView={setView}/>}
-              {subView.entrainement==="recettes"&&<Nutrition produits={produits} setProduits={setProduits} recettes={recettes} setRecettes={setRecettes} seances={seances} setSeances={setSeances}/>}
+              {subView.entrainement==="nutrition"&&<Nutrition produits={produits} setProduits={setProduits} recettes={recettes} setRecettes={setRecettes} seances={seances} setSeances={setSeances}/>}
               {subView.entrainement==="planning"&&<SemaineType planningType={planningType} setPlanningType={setPlanningType} seances={seances} setSeances={setSeances} activityTypes={activityTypes}/>}
             </div>
           )}
@@ -1050,7 +1048,7 @@ function AppLayout({
           {/* Vues Alex Course */}
           {view==="profil_course"&&<div style={{padding:"24px 32px"}}><ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profilDetail={features.profilDetail} profil={profil}/></div>}
           {view==="strategie"&&<div style={{padding:"24px 32px"}}><StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profil={profil}/></div>}
-          {view==="nutrition_alex"&&<div style={{padding:"24px 32px"}}><NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} isMobile={isMobile} onNavigate={setView} profil={profil} poids={poids} produits={produits} setProduits={setProduits}/></div>}
+          {view==="nutrition_alex"&&<div style={{padding:"24px 32px"}}><NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} isMobile={isMobile} onNavigate={setView} profil={profil} poids={poids} produits={produits} setProduits={setProduits} recettes={recettes}/></div>}
           {view==="equipement"&&<div style={{padding:"24px 32px"}}><EquipementView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} isMobile={isMobile}/></div>}
           {view==="analyse"&&<div style={{padding:"24px 32px"}}><AnalyseView race={race} segments={segments} settings={settings} isMobile={isMobile} onNavigate={setView}/></div>}
           {view==="team"&&<div style={{padding:"24px 32px"}}><TeamView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} isMobile={isMobile} onLoadStrategy={data=>{

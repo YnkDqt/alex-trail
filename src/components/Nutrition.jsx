@@ -2,7 +2,8 @@ import React, { useState, useMemo, useRef } from "react";
 import { C, isRunning, fmtDate, localDate, exportJSON } from "../constants.js";
 import { Btn, Modal, Field, ConfirmDialog } from "../atoms.jsx";
 import { CIQUAL, CIQUAL_CATEGORIES } from "../data/ciqual.js";
-// ─── JOURNAL NUTRITIONNEL
+
+// ─── JOURNAL NUTRITIONNEL (inchangé)
 const emptyJourEntry = () => ({
   id: Date.now()+Math.random(),
   date: localDate(new Date()),
@@ -149,32 +150,19 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
               const hasDelta = j.kcalBrulees&&j.kcalConso;
               const deltaColor = !hasDelta?C.muted:delta<-100?C.green:delta>100?C.red:C.muted;
               return (
-                <div key={j.id}
-                  style={{display:"grid",gridTemplateColumns:"110px 1fr 1fr 90px 1fr 1fr 1fr 1fr 32px",
-                    padding:"9px 16px",borderTop:`1px solid ${C.border}`,gap:8,alignItems:"center",cursor:"pointer"}}
-                  onClick={()=>openEdit(j)}>
-                  <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.muted}}>{fmtDate(j.date)}</span>
-                  {COLS_KCAL.map(({k,col})=>(
-                    <span key={k} style={{fontFamily:"'DM Mono',monospace",fontSize:12,
-                      textAlign:"right",color:(j[k])?col:C.stoneDeep,fontWeight:j[k]?500:400}}>
-                      {j[k]||"—"}
-                    </span>
-                  ))}
-                  <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,textAlign:"right",fontWeight:500,color:deltaColor}}>
+                <div key={j.id} style={{display:"grid",gridTemplateColumns:"110px 1fr 1fr 90px 1fr 1fr 1fr 1fr 32px",
+                  padding:"10px 16px",gap:8,borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:13}}>
+                  <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:C.inkLight}}>{fmtDate(j.date)}</span>
+                  {COLS_KCAL.map(({k,col})=><span key={k} style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:col,fontWeight:500}}>{j[k]||"—"}</span>)}
+                  <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",fontWeight:500,color:deltaColor}}>
                     {hasDelta?(delta>0?"+":"")+delta:"—"}
                   </span>
-                  {COLS_MACRO.map(({k,col})=>(
-                    <span key={k} style={{fontFamily:"'DM Mono',monospace",fontSize:12,
-                      textAlign:"right",color:(j[k])?col:C.stoneDeep,fontWeight:j[k]?500:400}}>
-                      {j[k]||"—"}
-                    </span>
-                  ))}
-                  <span style={{fontSize:11,color:C.muted,fontStyle:"italic",
-                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    {j.notes||""}
-                  </span>
-                  <button onClick={e=>{e.stopPropagation();setConfirmId(j.id);}}
-                    style={{background:"none",border:"none",cursor:"pointer",color:C.stoneDark,fontSize:12,padding:0}}>✕</button>
+                  {COLS_MACRO.map(({k,col})=><span key={k} style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:col}}>{j[k]||"—"}</span>)}
+                  <span style={{fontSize:12,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={j.notes||""}>{j.notes||""}</span>
+                  <div style={{display:"flex",gap:2}}>
+                    <button onClick={()=>openEdit(j)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.forest}}>✎</button>
+                    <button onClick={()=>setConfirmId(j.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red}}>🗑</button>
+                  </div>
                 </div>
               );
             })}
@@ -245,127 +233,277 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
   );
 }
 
-// ─── NUTRITION ────────────────────────────────────────────────────────────────
-const MACROS = [
-  {k:"kcal",     label:"Kcal",     unit:"kcal",  color:"#e65100"},
-  {k:"glucides", label:"Glucides", unit:"g",     color:"#1d9e75"},
-  {k:"proteines",label:"Protéines",unit:"g",     color:"#185FA5"},
-  {k:"lipides",  label:"Lipides",  unit:"g",     color:"#7F77DD"},
-  {k:"sodium",   label:"Sodium",   unit:"mg",    color:"#BA7517"},
-];
+// ─── NUTRITION ENTRAÎNEMENT ───────────────────────────────────────────────────
+const emptyProduit = () => ({
+  id: Date.now()+Math.random(),
+  nom: "",
+  kcal: "",
+  glucides: "",
+  proteines: "",
+  lipides: "",
+  sodium: "",
+  potassium: "",
+  magnesium: "",
+  zinc: "",
+  calcium: "",
+  categorie: "",
+  source: "perso", // "perso" ou "ciqual"
+  notes: ""
+});
 
-const emptyProduit = () => ({id:Date.now()+Math.random(),nom:"",kcal:"",glucides:"",proteines:"",lipides:"",sodium:"",potassium:"",magnesium:"",categorie:"",notes:""});
-const emptyRecette = () => ({id:Date.now()+Math.random(),nom:"",description:"",usage:"Entraînement",portions:1,ingredients:[],notes:""});
+const emptyRecette = () => ({
+  id: Date.now()+Math.random(),
+  nom: "",
+  description: "",
+  usage: "Entraînement",
+  portions: 1,
+  ingredients: [], // {produitId, quantite}
+  notes: ""
+});
 
 function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setSeances }) {
-  const [tab,           setTab]           = useState("produits");
-  const [prodModal,     setProdModal]     = useState(false);
-  const [prodForm,      setProdForm]      = useState(emptyProduit());
-  const [editProdId,    setEditProdId]    = useState(null);
+  const [subTab, setSubTab] = useState("recettes_produits"); // recettes_produits | historique
+
+  // ── RECETTES & PRODUITS ──
+  const [viewMode, setViewMode] = useState("recettes"); // recettes | produits
+  const [search, setSearch] = useState("");
+  
+  // Produits
+  const [prodModal, setProdModal] = useState(false);
+  const [prodForm, setProdForm] = useState(emptyProduit());
+  const [editProdId, setEditProdId] = useState(null);
   const [confirmProdId, setConfirmProdId] = useState(null);
-  const [recModal,      setRecModal]      = useState(false);
-  const [recForm,       setRecForm]       = useState(emptyRecette());
-  const [editRecId,     setEditRecId]     = useState(null);
-  const [confirmRecId,  setConfirmRecId]  = useState(null);
-  const [linkModal,     setLinkModal]     = useState(null); // recette à lier
-  const [search,        setSearch]        = useState("");
-  const [copied,        setCopied]        = useState(false);
-  const [ciqualSearch,  setCiqualSearch]  = useState("");
-  const [ciqualCat,     setCiqualCat]     = useState("Toutes");
-  const [ciqualModal,   setCiqualModal]   = useState(false);
+
+  // Recettes
+  const [recModal, setRecModal] = useState(false);
+  const [recForm, setRecForm] = useState(emptyRecette());
+  const [editRecId, setEditRecId] = useState(null);
+  const [confirmRecId, setConfirmRecId] = useState(null);
+
+  // Recherche CIQUAL pour produits
+  const [ciqualSearch, setCiqualSearch] = useState("");
+  const [ciqualCat, setCiqualCat] = useState("Toutes");
+  const [ciqualModal, setCiqualModal] = useState(false);
+
+  // Recherche CIQUAL pour ingrédients recette (nouveau)
+  const [ingCiqualModal, setIngCiqualModal] = useState(false);
+  const [ingCiqualSearch, setIngCiqualSearch] = useState("");
+  const [ingCiqualCat, setIngCiqualCat] = useState("Toutes");
 
   const updP = (k,v) => setProdForm(f=>({...f,[k]:v}));
   const updR = (k,v) => setRecForm(f=>({...f,[k]:v}));
 
-  // CRUD produits
+  // ── CRUD Produits ──
+  const openNewProd = () => {
+    setEditProdId(null);
+    setProdForm(emptyProduit());
+    setProdModal(true);
+  };
+  const openEditProd = (p) => {
+    setEditProdId(p.id);
+    setProdForm({...emptyProduit(), ...p});
+    setProdModal(true);
+  };
   const saveProduit = () => {
     if(!prodForm.nom.trim()) return;
-    const item = {...prodForm, id:editProdId||Date.now()+Math.random(),
-      kcal:parseFloat(prodForm.kcal)||0, glucides:parseFloat(prodForm.glucides)||0,
-      proteines:parseFloat(prodForm.proteines)||0, lipides:parseFloat(prodForm.lipides)||0,
-      sodium:parseFloat(prodForm.sodium)||0};
+    const item = {
+      ...prodForm,
+      id: editProdId || Date.now()+Math.random(),
+      kcal: parseFloat(prodForm.kcal)||0,
+      glucides: parseFloat(prodForm.glucides)||0,
+      proteines: parseFloat(prodForm.proteines)||0,
+      lipides: parseFloat(prodForm.lipides)||0,
+      sodium: parseFloat(prodForm.sodium)||0,
+      potassium: parseFloat(prodForm.potassium)||0,
+      magnesium: parseFloat(prodForm.magnesium)||0,
+      zinc: parseFloat(prodForm.zinc)||0,
+      calcium: parseFloat(prodForm.calcium)||0
+    };
     if(editProdId) setProduits(pp=>pp.map(p=>p.id===editProdId?item:p));
     else setProduits(pp=>[...pp,item]);
     setProdModal(false);
   };
-  const delProduit = (id) => { setProduits(pp=>pp.filter(p=>p.id!==id)); setConfirmProdId(null); };
+  const delProduit = (id) => {
+    setProduits(pp=>pp.filter(p=>p.id!==id));
+    setConfirmProdId(null);
+  };
 
-  // CRUD recettes
+  // Ajout produit depuis CIQUAL (modal produits)
+  const addFromCiqual = (alim) => {
+    const newProd = {
+      id: Date.now()+Math.random(),
+      nom: alim.nom,
+      kcal: alim.energie_kcal || 0,
+      glucides: alim.glucides || 0,
+      proteines: alim.proteines || 0,
+      lipides: alim.lipides || 0,
+      sodium: alim.sodium || 0,
+      potassium: alim.potassium || 0,
+      magnesium: alim.magnesium || 0,
+      zinc: alim.zinc || 0,
+      calcium: alim.calcium || 0,
+      categorie: alim.categorie || "",
+      source: "ciqual",
+      notes: `Ajouté depuis CIQUAL (code: ${alim.code})`
+    };
+    setProduits(pp=>[...pp, newProd]);
+    setCiqualModal(false);
+    setCiqualSearch("");
+  };
+
+  // ── CRUD Recettes ──
+  const openNewRec = () => {
+    setEditRecId(null);
+    setRecForm(emptyRecette());
+    setRecModal(true);
+  };
+  const openEditRec = (r) => {
+    setEditRecId(r.id);
+    setRecForm({...emptyRecette(), ...r});
+    setRecModal(true);
+  };
   const saveRecette = () => {
     if(!recForm.nom.trim()) return;
-    const item = {...recForm, id:editRecId||Date.now()+Math.random(),
-      portions:parseInt(recForm.portions)||1};
+    const item = {
+      ...recForm,
+      id: editRecId || Date.now()+Math.random(),
+      portions: parseInt(recForm.portions)||1
+    };
     if(editRecId) setRecettes(rr=>rr.map(r=>r.id===editRecId?item:r));
     else setRecettes(rr=>[...rr,item]);
     setRecModal(false);
   };
-  const delRecette = (id) => { setRecettes(rr=>rr.filter(r=>r.id!==id)); setConfirmRecId(null); };
+  const delRecette = (id) => {
+    setRecettes(rr=>rr.filter(r=>r.id!==id));
+    setConfirmRecId(null);
+  };
 
-  // Calcul macros d'une recette (somme des ingrédients)
+  // Ajouter ingrédient dans recette depuis base perso
+  const addIngredientFromProduit = (produitId) => {
+    const exists = recForm.ingredients.find(i=>i.produitId===produitId);
+    if(exists) return; // déjà présent
+    setRecForm(f=>({
+      ...f,
+      ingredients: [...f.ingredients, {produitId, quantite: 100}] // 100g par défaut
+    }));
+  };
+
+  // Ajouter ingrédient depuis CIQUAL (crée produit temp + ajoute à recette)
+  const addIngredientFromCiqual = (alim) => {
+    // Créer produit temporaire dans la liste produits
+    const newProd = {
+      id: Date.now()+Math.random(),
+      nom: alim.nom,
+      kcal: alim.energie_kcal || 0,
+      glucides: alim.glucides || 0,
+      proteines: alim.proteines || 0,
+      lipides: alim.lipides || 0,
+      sodium: alim.sodium || 0,
+      potassium: alim.potassium || 0,
+      magnesium: alim.magnesium || 0,
+      zinc: alim.zinc || 0,
+      calcium: alim.calcium || 0,
+      categorie: alim.categorie || "",
+      source: "ciqual",
+      notes: `Ajouté depuis CIQUAL (code: ${alim.code})`
+    };
+    setProduits(pp=>[...pp, newProd]);
+    
+    // Ajouter à la recette
+    setRecForm(f=>({
+      ...f,
+      ingredients: [...f.ingredients, {produitId: newProd.id, quantite: 100}]
+    }));
+    
+    setIngCiqualModal(false);
+    setIngCiqualSearch("");
+  };
+
+  const removeIngredient = (idx) => {
+    setRecForm(f=>({
+      ...f,
+      ingredients: f.ingredients.filter((_, i)=>i!==idx)
+    }));
+  };
+
+  const updateIngredientQte = (idx, qte) => {
+    setRecForm(f=>({
+      ...f,
+      ingredients: f.ingredients.map((ing, i)=>i===idx?{...ing, quantite: parseFloat(qte)||0}:ing)
+    }));
+  };
+
+  // Calcul macros recette
   const calcMacros = (rec) => {
-    return (rec.ingredients||[]).reduce((acc,ing)=>{
+    return (rec.ingredients||[]).reduce((acc, ing)=>{
       const prod = produits.find(p=>p.id===ing.produitId);
       if(!prod) return acc;
       const factor = parseFloat(ing.quantite)||0;
       return {
-        kcal:      acc.kcal      + Math.round((prod.kcal     ||0)*factor/100),
-        glucides:  acc.glucides  + Math.round((prod.glucides ||0)*factor/100),
+        kcal: acc.kcal + Math.round((prod.kcal||0)*factor/100),
+        glucides: acc.glucides + Math.round((prod.glucides||0)*factor/100),
         proteines: acc.proteines + Math.round((prod.proteines||0)*factor/100),
-        lipides:   acc.lipides   + Math.round((prod.lipides  ||0)*factor/100),
-        sodium:    acc.sodium    + Math.round((prod.sodium   ||0)*factor/100),
+        lipides: acc.lipides + Math.round((prod.lipides||0)*factor/100),
+        sodium: acc.sodium + Math.round((prod.sodium||0)*factor/100)
       };
-    },{kcal:0,glucides:0,proteines:0,lipides:0,sodium:0});
+    }, {kcal:0, glucides:0, proteines:0, lipides:0, sodium:0});
   };
 
-  // Lier recette à une séance
+  // Filtres recherche CIQUAL (modal produits)
+  const filteredCiqual = useMemo(()=>{
+    let results = CIQUAL;
+    if(ciqualCat!=="Toutes") results = results.filter(a=>a.categorie===ciqualCat);
+    if(ciqualSearch.trim()) {
+      const terms = ciqualSearch.toLowerCase().split(" ").filter(Boolean);
+      results = results.filter(a=>
+        terms.every(t=>(a.nom||"").toLowerCase().includes(t))
+      );
+    }
+    return results.slice(0, 50); // Limite 50 résultats
+  }, [ciqualSearch, ciqualCat]);
+
+  // Filtres recherche CIQUAL ingrédients (modal recette)
+  const filteredIngCiqual = useMemo(()=>{
+    let results = CIQUAL;
+    if(ingCiqualCat!=="Toutes") results = results.filter(a=>a.categorie===ingCiqualCat);
+    if(ingCiqualSearch.trim()) {
+      const terms = ingCiqualSearch.toLowerCase().split(" ").filter(Boolean);
+      results = results.filter(a=>
+        terms.every(t=>(a.nom||"").toLowerCase().includes(t))
+      );
+    }
+    return results.slice(0, 50);
+  }, [ingCiqualSearch, ingCiqualCat]);
+
+  // Filtres produits/recettes
+  const filteredProduits = useMemo(()=>{
+    if(!search) return produits;
+    return produits.filter(p=>
+      (p.nom||"").toLowerCase().includes(search.toLowerCase()) ||
+      (p.categorie||"").toLowerCase().includes(search.toLowerCase())
+    );
+  }, [produits, search]);
+
+  const filteredRecettes = useMemo(()=>{
+    if(!search) return recettes;
+    return recettes.filter(r=>
+      (r.nom||"").toLowerCase().includes(search.toLowerCase()) ||
+      (r.description||"").toLowerCase().includes(search.toLowerCase())
+    );
+  }, [recettes, search]);
+
+  // ── HISTORIQUE ENTRAÎNEMENTS ──
+  const seancesEff = useMemo(()=>
+    [...seances].filter(s=>s.statut==="Effectué"&&isRunning(s.activite))
+      .sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,50)
+  , [seances]);
+
   const linkRecetteToSeance = (seanceId, recetteId) => {
     setSeances(ss=>ss.map(s=>s.id===seanceId?{...s,recetteId}:s));
-    setLinkModal(null);
   };
   const unlinkRecette = (seanceId) => {
     setSeances(ss=>ss.map(s=>s.id===seanceId?{...s,recetteId:undefined}:s));
   };
-
-  // Export bibliothèque vers Alex
-  const exportToAlex = () => {
-    const payload = {
-      _stride_nutrition: "1.0",
-      produits: produits.map(p=>({
-        nom:p.nom, kcal:p.kcal||0, proteines:p.proteines||0,
-        lipides:p.lipides||0, glucides:p.glucides||0,
-        sodium:p.sodium||0, potassium:p.potassium||0,
-        magnesium:p.magnesium||0, categorie:p.categorie||"",
-        notes:p.notes||"",
-      })),
-      recettes: recettes.map(r=>({
-        nom:r.nom, description:r.description||"",
-        usage:r.usage||"", portions:r.portions||1,
-        ingredients:(r.ingredients||[]).map(i=>{
-          const p=produits.find(x=>x.id===i.produitId);
-          return {produit:p?.nom||"", quantite:i.quantite||0};
-        }),
-        macros: calcMacros(r),
-        notes:r.notes||"",
-      })),
-    };
-    const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a"); a.href=url;
-    a.download=`stride-nutrition-${localDate(new Date())}.json`; a.click();
-    URL.revokeObjectURL(url);
-    setCopied(true); setTimeout(()=>setCopied(false),2500);
-  };
-
-  const filteredProduits = useMemo(()=>{
-    if(!search) return produits;
-    return produits.filter(p=>(p.nom||"").toLowerCase().includes(search.toLowerCase())||(p.categorie||"").toLowerCase().includes(search.toLowerCase()));
-  },[produits,search]);
-
-  // Séances effectuées (trail) pour liaison recettes
-  const seancesEff = useMemo(()=>
-    [...seances].filter(s=>s.statut==="Effectué"&&isRunning(s.activite))
-      .sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,50)
-  ,[seances]);
 
   const card = {background:C.white,border:`1px solid ${C.border}`,borderRadius:12};
   const lbl = {fontSize:10,fontWeight:500,textTransform:"uppercase",letterSpacing:"0.06em",color:C.muted};
@@ -373,399 +511,401 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
 
   return (
     <div className="anim" style={{padding:"24px 40px 80px"}}>
+      {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:10}}>
         <div>
-          <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight,marginBottom:4}}>Recettes & Produits</h1>
-          <p style={{fontSize:12,color:C.muted}}>Bibliothèque de produits · Recettes · Liaison aux entraînements · Export Alex</p>
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <Btn variant="sage" size="sm" onClick={exportToAlex}>{copied?"✓ Exporté !":"→ Exporter vers Alex"}</Btn>
+          <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight,marginBottom:4}}>Nutrition entraînement</h1>
+          <p style={{fontSize:12,color:C.muted}}>Recettes personnalisées · Produits · Base alimentaire CIQUAL · Historique</p>
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Sub-tabs */}
       <div style={{display:"flex",gap:2,borderBottom:`1px solid ${C.border}`,marginBottom:20}}>
-         {[{id:"produits",label:`Produits (${produits.length})`},{id:"ciqual",label:"Base alimentaire"},{id:"recettes",label:`Recettes (${recettes.length})`},{id:"historique",label:"Historique entraînements"}].map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)}
+        {[
+          {id:"recettes_produits", label:"Recettes & Produits"},
+          {id:"historique", label:"Historique entraînements"}
+        ].map(t=>(
+          <button key={t.id} onClick={()=>setSubTab(t.id)}
             style={{background:"none",border:"none",padding:"8px 16px",cursor:"pointer",fontSize:13,
-              fontWeight:tab===t.id?500:400,color:tab===t.id?C.forest:C.muted,
-              borderBottom:tab===t.id?`2px solid ${C.forest}`:"2px solid transparent",marginBottom:-1,fontFamily:"inherit"}}>
+              fontWeight:subTab===t.id?500:400,color:subTab===t.id?C.forest:C.muted,
+              borderBottom:subTab===t.id?`2px solid ${C.forest}`:"2px solid transparent",
+              marginBottom:-1,fontFamily:"inherit"}}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {/* ── PRODUITS ── */}
-      {tab==="produits"&&(
+      {/* ── RECETTES & PRODUITS ── */}
+      {subTab==="recettes_produits"&&(
         <div>
-          <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center"}}>
-            <input value={search} onChange={e=>setSearch(e.target.value)}
-              placeholder="Rechercher un produit..."
-              style={{...inp,maxWidth:320}}/>
-            <Btn onClick={()=>{setEditProdId(null);setProdForm(emptyProduit());setProdModal(true);}}>＋ Produit</Btn>
+          {/* Toggle Recettes/Produits */}
+          <div style={{display:"flex",gap:8,marginBottom:16}}>
+            <Btn variant={viewMode==="recettes"?"default":"ghost"} onClick={()=>setViewMode("recettes")}>
+              Recettes ({recettes.length})
+            </Btn>
+            <Btn variant={viewMode==="produits"?"default":"ghost"} onClick={()=>setViewMode("produits")}>
+              Produits ({produits.length})
+            </Btn>
           </div>
 
-          {filteredProduits.length===0?(
-            <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
-              <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>🥗</div>
-              <div style={{fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:6}}>Bibliothèque vide</div>
-              <div style={{fontSize:13}}>Ajoutez vos produits nutrition (gels, barres, boissons...)</div>
-            </div>
-          ):(
-            <div style={{...card,overflow:"hidden"}}>
-              {/* Header */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 80px 80px 80px 80px 80px 80px 32px",
-                padding:"8px 16px",background:C.stone,gap:8,
-                fontSize:10,fontWeight:600,color:C.muted,textTransform:"uppercase",letterSpacing:"0.04em"}}>
-                <span>Produit</span><span style={{textAlign:"right"}}>Kcal</span>
-                <span style={{textAlign:"right"}}>Gluc.</span><span style={{textAlign:"right"}}>Prot.</span>
-                <span style={{textAlign:"right"}}>Lip.</span><span style={{textAlign:"right"}}>Na (mg)</span>
-                <span style={{textAlign:"right"}}>Catégorie</span><span/>
-              </div>
-              <div style={{maxHeight:480,overflowY:"auto"}}>
-                {filteredProduits.map(p=>(
-                  <div key={p.id}
-                    style={{display:"grid",gridTemplateColumns:"1fr 80px 80px 80px 80px 80px 80px 32px",
-                      padding:"9px 16px",borderTop:`1px solid ${C.border}`,gap:8,alignItems:"center",cursor:"pointer"}}
-                    onClick={()=>{setEditProdId(p.id);setProdForm({...emptyProduit(),...p});setProdModal(true);}}>
-                    <div>
-                      <div style={{fontSize:13,fontWeight:500,color:C.inkLight}}>{p.nom}</div>
-                      {p.notes&&<div style={{fontSize:11,color:C.muted,fontStyle:"italic"}}>{p.notes.slice(0,40)}</div>}
-                    </div>
-                    {[p.kcal,p.glucides,p.proteines,p.lipides,p.sodium].map((v,i)=>(
-                      <span key={i} style={{fontFamily:"'DM Mono',monospace",fontSize:12,textAlign:"right",
-                        color:MACROS[i]?.color||C.inkLight,fontWeight:500}}>{v||"—"}</span>
-                    ))}
-                    <span style={{fontSize:11,color:C.muted,textAlign:"right"}}>{p.categorie||"—"}</span>
-                    <button onClick={e=>{e.stopPropagation();setConfirmProdId(p.id);}}
-                      style={{background:"none",border:"none",cursor:"pointer",color:C.stoneDark,fontSize:12,padding:0}}>✕</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Modal produit */}
-          <Modal open={prodModal} onClose={()=>setProdModal(false)} title={editProdId?"Modifier le produit":"Nouveau produit"} width={520}>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-              <Field label="Nom" full><input value={prodForm.nom} onChange={e=>updP("nom",e.target.value)} placeholder="Gel énergétique Maurten" style={{width:"100%"}}/></Field>
-              <Field label="Catégorie"><input value={prodForm.categorie||""} onChange={e=>updP("categorie",e.target.value)} placeholder="Gel, Barre, Boisson..." style={{width:"100%"}}/></Field>
-              <div style={{gridColumn:"1/-1"}}>
-                <div style={{...lbl,marginBottom:8}}>Valeurs pour 100g (ou par unité)</div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
-                  {MACROS.map(({k,label,unit})=>(
-                    <div key={k}>
-                      <div style={{fontSize:11,color:C.muted,marginBottom:4}}>{label} ({unit})</div>
-                      <input type="number" min="0" step="0.1" value={prodForm[k]||""}
-                        onChange={e=>updP(k,e.target.value)}
-                        style={{width:"100%",fontSize:12,padding:"5px 8px",borderRadius:6,border:`1px solid ${C.border}`,textAlign:"right"}}/>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div style={{gridColumn:"1/-1"}}>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
-                  {[{k:"potassium",l:"Potassium (mg)"},{k:"magnesium",l:"Magnésium (mg)"}].map(({k,l})=>(
-                    <div key={k}>
-                      <div style={{fontSize:11,color:C.muted,marginBottom:4}}>{l}</div>
-                      <input type="number" min="0" value={prodForm[k]||""}
-                        onChange={e=>updP(k,e.target.value)}
-                        style={{width:"100%",fontSize:12,padding:"5px 8px",borderRadius:6,border:`1px solid ${C.border}`,textAlign:"right"}}/>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <Field label="Notes" full><input value={prodForm.notes||""} onChange={e=>updP("notes",e.target.value)} placeholder="Usage conseillé, goût, source..." style={{width:"100%"}}/></Field>
-            </div>
-            <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:20}}>
-              <Btn variant="ghost" onClick={()=>setProdModal(false)}>Annuler</Btn>
-              <Btn onClick={saveProduit}>{editProdId?"Enregistrer":"Ajouter"}</Btn>
-            </div>
-          </Modal>
-          <ConfirmDialog open={!!confirmProdId} message="Supprimer ce produit ?" onConfirm={()=>delProduit(confirmProdId)} onCancel={()=>setConfirmProdId(null)}/>
-        </div>
-      )}
-
-            {tab==="ciqual"&&(
-        <div>
-          <div style={{display:"flex",gap:10,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
-            <input value={ciqualSearch} onChange={e=>setCiqualSearch(e.target.value)}
-              placeholder="Rechercher un aliment (ex: banane, riz, saumon)..."
-              style={{...inp,flex:1,minWidth:200}}/>
-            <select value={ciqualCat} onChange={e=>setCiqualCat(e.target.value)}
-              style={{...inp,width:"auto",minWidth:160}}>
-              <option>Toutes</option>
-              {CIQUAL_CATEGORIES.map(c=><option key={c}>{c}</option>)}
-            </select>
-          </div>
-          {(()=>{
-            const q = ciqualSearch.toLowerCase();
-            const filtered = CIQUAL.filter(a=>
-              (ciqualCat==="Toutes"||a.c===ciqualCat) &&
-              (!q || a.n.toLowerCase().includes(q) || a.c.toLowerCase().includes(q))
-            ).slice(0,80);
-            return (
-              <div style={{...card,overflow:"hidden"}}>
-                <div style={{padding:"8px 16px",background:C.stone,
-                  display:"grid",gridTemplateColumns:"1fr 70px 70px 70px 70px 70px 70px 100px",gap:8,
-                  fontSize:10,fontWeight:600,color:C.muted,textTransform:"uppercase",letterSpacing:"0.04em"}}>
-                  <span>Aliment</span>
-                  <span style={{textAlign:"right"}}>Kcal</span>
-                  <span style={{textAlign:"right"}}>Gluc.</span>
-                  <span style={{textAlign:"right"}}>Prot.</span>
-                  <span style={{textAlign:"right"}}>Lip.</span>
-                  <span style={{textAlign:"right"}}>Fibres</span>
-                  <span style={{textAlign:"right"}}>Na(mg)</span>
-                  <span/>
-                </div>
-                <div style={{maxHeight:520,overflowY:"auto"}}>
-                  {filtered.length===0?(
-                    <div style={{padding:"32px 16px",textAlign:"center",color:C.muted,fontSize:13}}>Aucun aliment trouvé</div>
-                  ):filtered.map((a,i)=>(
-                    <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 70px 70px 70px 70px 100px",
-                      padding:"8px 16px",borderTop:`1px solid ${C.border}`,gap:8,alignItems:"center"}}>
-                      <div>
-                        <div style={{fontSize:13,fontWeight:500,color:C.inkLight}}>{a.n}</div>
-                        <div style={{fontSize:11,color:C.muted}}>{a.c} · pour 100g</div>
-                      </div>
-                      {[a.e,a.g,a.p,a.l,a.f,a.na].map((v,j)=>(
-                        <span key={j} style={{fontFamily:"'DM Mono',monospace",fontSize:12,
-                          textAlign:"right",color:[MACROS[0]?.color,MACROS[1]?.color,MACROS[2]?.color,MACROS[3]?.color,C.forest,C.muted][j],fontWeight:500}}>
-                          {v||"—"}
-                        </span>
-                      ))}
-                      <button onClick={()=>{
-                        setProduits(pp=>[...pp,{
-                          id:Date.now()+Math.random(),
-                          nom:a.n, categorie:a.c,
-                          kcal:a.e, glucides:a.g, proteines:a.p, lipides:a.l,
-                          sodium:a.na, potassium:a.k, magnesium:a.mg,
-                          notes:`CIQUAL 2020 · pour 100g`
-                        }]);
-                      }} style={{fontSize:12,padding:"4px 10px",borderRadius:6,
-                        background:C.forestPale,color:C.forest,border:`1px solid ${C.forest}30`,
-                        cursor:"pointer",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap"}}>
-                        + Ajouter
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                {filtered.length===80&&(
-                  <div style={{padding:"8px 16px",fontSize:11,color:C.muted,borderTop:`1px solid ${C.border}`}}>
-                    Affichage limité à 80 résultats — affine ta recherche
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
-      {/* ── RECETTES ── */}
-      {tab==="recettes"&&(
-        <div>
-          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}>
-            <Btn onClick={()=>{setEditRecId(null);setRecForm(emptyRecette());setRecModal(true);}}>＋ Recette</Btn>
+          {/* Barre actions */}
+          <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+            <input
+              value={search}
+              onChange={e=>setSearch(e.target.value)}
+              placeholder={viewMode==="recettes"?"Rechercher une recette...":"Rechercher un produit..."}
+              style={{...inp,flex:1,minWidth:200}}
+            />
+            {viewMode==="recettes"&&<Btn onClick={openNewRec}>＋ Recette</Btn>}
+            {viewMode==="produits"&&(
+              <>
+                <Btn onClick={openNewProd}>＋ Produit perso</Btn>
+                <Btn variant="sage" onClick={()=>setCiqualModal(true)}>🔍 Base alimentaire</Btn>
+              </>
+            )}
           </div>
 
-          {recettes.length===0?(
-            <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
-              <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>🍽️</div>
-              <div style={{fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:6}}>Aucune recette</div>
-              <div style={{fontSize:13}}>Créez vos gels maison, barres énergétiques, boissons de course...</div>
-            </div>
-          ):(
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
-              {recettes.map(rec=>{
-                const macros=calcMacros(rec);
-                const linked=seances.filter(s=>s.recetteId===rec.id);
-                return (
-                  <div key={rec.id} style={{...card,padding:"18px 20px",cursor:"pointer"}}
-                    onClick={()=>{setEditRecId(rec.id);setRecForm({...emptyRecette(),...rec,ingredients:rec.ingredients||[]});setRecModal(true);}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                      <div>
-                        <div style={{fontSize:15,fontWeight:600,color:C.inkLight}}>{rec.nom}</div>
-                        <div style={{fontSize:11,color:C.muted,marginTop:2}}>{rec.usage||""} · {rec.portions} portion(s)</div>
-                      </div>
-                      <button onClick={e=>{e.stopPropagation();setConfirmRecId(rec.id);}}
-                        style={{background:"none",border:"none",cursor:"pointer",color:C.stoneDark,fontSize:14,padding:0}}>✕</button>
-                    </div>
-                    {rec.description&&<div style={{fontSize:12,color:C.muted,marginBottom:10,fontStyle:"italic"}}>{rec.description}</div>}
-                    {/* Macros */}
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:4,marginBottom:10}}>
-                      {MACROS.map(({k,label,color})=>(
-                        <div key={k} style={{textAlign:"center",background:C.stone,borderRadius:6,padding:"6px 4px"}}>
-                          <div style={{fontFamily:"'DM Mono',monospace",fontSize:13,fontWeight:500,color}}>{macros[k]||0}</div>
-                          <div style={{fontSize:9,color:C.muted,textTransform:"uppercase"}}>{label}</div>
-                        </div>
-                      ))}
-                    </div>
-                    {/* Ingrédients */}
-                    {(rec.ingredients||[]).length>0&&(
-                      <div style={{fontSize:11,color:C.muted,marginBottom:10}}>
-                        {(rec.ingredients||[]).map(i=>{const p=produits.find(x=>x.id===i.produitId);return p?`${p.nom} (${i.quantite}g)`:null;}).filter(Boolean).join(" · ")}
-                      </div>
-                    )}
-                    {/* Séances liées */}
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                      <span style={{fontSize:11,color:linked.length>0?C.forest:C.stoneDeep}}>
-                        {linked.length>0?`✓ ${linked.length} entraînement(s) lié(s)`:"Non testé en entraînement"}
-                      </span>
-                      <button onClick={e=>{e.stopPropagation();setLinkModal(rec);}}
-                        style={{fontSize:11,padding:"3px 10px",borderRadius:6,border:`1px solid ${C.border}`,
-                          cursor:"pointer",background:C.bg,color:C.sky}}>
-                        Lier →
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Modal recette */}
-          <Modal open={recModal} onClose={()=>setRecModal(false)} title={editRecId?"Modifier la recette":"Nouvelle recette"} width={580}>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-              <Field label="Nom" full><input value={recForm.nom} onChange={e=>updR("nom",e.target.value)} placeholder="Gel maison Verdon" style={{width:"100%"}}/></Field>
-              <Field label="Usage">
-                <select value={recForm.usage||"Entraînement"} onChange={e=>updR("usage",e.target.value)} style={{width:"100%"}}>
-                  {["Entraînement","Course","Ravitaillement","Récupération","Quotidien"].map(u=><option key={u}>{u}</option>)}
-                </select>
-              </Field>
-              <Field label="Portions"><input type="number" min="1" value={recForm.portions||1} onChange={e=>updR("portions",e.target.value)} style={{width:"100%"}}/></Field>
-              <Field label="Description" full><input value={recForm.description||""} onChange={e=>updR("description",e.target.value)} placeholder="Description courte..." style={{width:"100%"}}/></Field>
-            </div>
-
-            {/* Ingrédients */}
-            <div style={{marginTop:16}}>
-              <div style={{...lbl,marginBottom:10}}>Ingrédients</div>
-              {(recForm.ingredients||[]).map((ing,i)=>{
-                const p=produits.find(x=>x.id===ing.produitId);
-                return (
-                  <div key={i} style={{display:"flex",gap:8,alignItems:"center",marginBottom:7}}>
-                    <select value={ing.produitId||""} onChange={e=>updR("ingredients",(recForm.ingredients||[]).map((x,j)=>j===i?{...x,produitId:parseFloat(e.target.value)||e.target.value}:x))}
-                      style={{flex:1,fontSize:12,padding:"5px 8px",borderRadius:6,border:`1px solid ${C.border}`}}>
-                      <option value="">— Choisir un produit</option>
-                      {produits.map(p=><option key={p.id} value={p.id}>{p.nom}</option>)}
-                    </select>
-                    <input type="number" min="0" placeholder="g" value={ing.quantite||""}
-                      onChange={e=>updR("ingredients",(recForm.ingredients||[]).map((x,j)=>j===i?{...x,quantite:parseFloat(e.target.value)||0}:x))}
-                      style={{width:70,fontSize:12,padding:"5px 8px",borderRadius:6,border:`1px solid ${C.border}`,textAlign:"right"}}/>
-                    <span style={{fontSize:11,color:C.muted}}>g</span>
-                    <button onClick={()=>updR("ingredients",(recForm.ingredients||[]).filter((_,j)=>j!==i))}
-                      style={{background:"none",border:"none",cursor:"pointer",color:C.red,fontSize:13}}>✕</button>
-                  </div>
-                );
-              })}
-              <Btn variant="soft" size="sm" onClick={()=>updR("ingredients",[...(recForm.ingredients||[]),{produitId:"",quantite:""}])}>＋ Ingrédient</Btn>
-              {/* Preview macros */}
-              {(recForm.ingredients||[]).length>0&&(()=>{
-                const preview=(recForm.ingredients||[]).reduce((acc,ing)=>{
-                  const prod=produits.find(p=>String(p.id)===String(ing.produitId));
-                  if(!prod||!ing.quantite) return acc;
-                  const f=parseFloat(ing.quantite)||0;
-                  return {kcal:acc.kcal+Math.round((prod.kcal||0)*f/100),
-                    glucides:acc.glucides+Math.round((prod.glucides||0)*f/100),
-                    proteines:acc.proteines+Math.round((prod.proteines||0)*f/100),
-                    lipides:acc.lipides+Math.round((prod.lipides||0)*f/100)};
-                },{kcal:0,glucides:0,proteines:0,lipides:0});
-                return (
-                  <div style={{display:"flex",gap:12,marginTop:10,padding:"8px 12px",background:C.stone,borderRadius:8,fontSize:12}}>
-                    {[["Kcal","kcal","#e65100"],["Glucides","glucides","#1d9e75"],["Protéines","proteines","#185FA5"],["Lipides","lipides","#7F77DD"]].map(([l,k,col])=>(
-                      <span key={k}><span style={{color:C.muted}}>{l}: </span><span style={{fontWeight:500,color:col}}>{preview[k]}</span></span>
-                    ))}
-                  </div>
-                );
-              })()}
-            </div>
-            <Field label="Notes" full><input value={recForm.notes||""} onChange={e=>updR("notes",e.target.value)} placeholder="Préparation, conservation..." style={{width:"100%",marginTop:12}}/></Field>
-            <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:20}}>
-              <Btn variant="ghost" onClick={()=>setRecModal(false)}>Annuler</Btn>
-              <Btn onClick={saveRecette}>{editRecId?"Enregistrer":"Ajouter"}</Btn>
-            </div>
-          </Modal>
-          <ConfirmDialog open={!!confirmRecId} message="Supprimer cette recette ?" onConfirm={()=>delRecette(confirmRecId)} onCancel={()=>setConfirmRecId(null)}/>
-
-          {/* Modal lier recette → séance */}
-          <Modal open={!!linkModal} onClose={()=>setLinkModal(null)} title={`Lier "${linkModal?.nom}" à un entraînement`} width={480}>
-            <p style={{fontSize:12,color:C.muted,marginBottom:14}}>Sélectionne les séances où tu as testé cette recette.</p>
-            <div style={{maxHeight:360,overflowY:"auto",display:"flex",flexDirection:"column",gap:7}}>
-              {seancesEff.map(s=>{
-                const isLinked=s.recetteId===linkModal?.id;
-                return (
-                  <div key={s.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",
-                    padding:"10px 14px",borderRadius:8,background:isLinked?C.forestPale:C.stone,
-                    border:`1px solid ${isLinked?C.forest:C.border}`}}>
-                    <div>
-                      <div style={{fontSize:13,fontWeight:500,color:C.inkLight}}>{s.activite}</div>
-                      <div style={{fontSize:11,color:C.muted}}>{fmtDate(s.date)} · {s.kmGarmin?s.kmGarmin+"km":""} {s.dpGarmin?s.dpGarmin+"m↑":""}</div>
-                    </div>
-                    <button onClick={()=>isLinked?unlinkRecette(s.id):linkRecetteToSeance(s.id,linkModal?.id)}
-                      style={{fontSize:11,padding:"4px 12px",borderRadius:6,cursor:"pointer",fontWeight:500,
-                        border:`1px solid ${isLinked?C.forest:C.border}`,
-                        background:isLinked?C.forest:"transparent",
-                        color:isLinked?C.white:C.sky}}>
-                      {isLinked?"✓ Lié":"Lier"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}>
-              <Btn variant="ghost" onClick={()=>setLinkModal(null)}>Fermer</Btn>
-            </div>
-          </Modal>
-        </div>
-      )}
-
-      {/* ── HISTORIQUE ── */}
-      {tab==="historique"&&(
-        <div>
-          <p style={{fontSize:12,color:C.muted,marginBottom:16}}>Entraînements liés à une recette — aperçu de ce qui a été testé.</p>
-          {seancesEff.filter(s=>s.recetteId).length===0?(
-            <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
-              <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>🔗</div>
-              <div style={{fontSize:14,color:C.inkLight,marginBottom:6}}>Aucune liaison</div>
-              <div style={{fontSize:12}}>Dans l'onglet Recettes, clique sur "Lier →" pour associer une recette à un entraînement.</div>
-            </div>
-          ):(
-            <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:12,overflow:"hidden"}}>
-              <div style={{display:"grid",gridTemplateColumns:"110px 1fr 1fr 80px 80px 32px",
-                padding:"8px 16px",background:C.stone,fontSize:10,fontWeight:600,color:C.muted,
-                gap:8,textTransform:"uppercase",letterSpacing:"0.04em"}}>
-                <span>Date</span><span>Séance</span><span>Recette testée</span><span style={{textAlign:"right"}}>Km</span><span style={{textAlign:"right"}}>D+</span><span/>
+          {/* Liste Recettes */}
+          {viewMode==="recettes"&&(
+            filteredRecettes.length===0?(
+              <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
+                <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>🍽️</div>
+                <div style={{fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:6}}>Aucune recette</div>
+                <div style={{fontSize:13,marginBottom:20}}>Crée tes recettes pour tes entraînements</div>
+                <Btn onClick={openNewRec}>＋ Créer une recette</Btn>
               </div>
-              <div style={{maxHeight:480,overflowY:"auto"}}>
-                {seancesEff.filter(s=>s.recetteId).map(s=>{
-                  const rec=recettes.find(r=>r.id===s.recetteId);
-                  const macros=rec?calcMacros(rec):{};
+            ):(
+              <div style={{display:"grid",gap:12}}>
+                {filteredRecettes.map(r=>{
+                  const macros = calcMacros(r);
                   return (
-                    <div key={s.id} style={{display:"grid",gridTemplateColumns:"110px 1fr 1fr 80px 80px 32px",
-                      padding:"10px 16px",borderTop:`1px solid ${C.border}`,gap:8,alignItems:"center"}}>
-                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.muted}}>{fmtDate(s.date)}</span>
-                      <div>
-                        <div style={{fontSize:13,fontWeight:500,color:C.inkLight}}>{s.activite}</div>
-                        {s.commentaire&&<div style={{fontSize:11,color:C.muted,fontStyle:"italic"}}>{s.commentaire}</div>}
+                    <div key={r.id} style={{...card,padding:16}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:8}}>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:15,fontWeight:500,color:C.inkLight,marginBottom:2}}>{r.nom}</div>
+                          <div style={{fontSize:12,color:C.muted}}>{r.description||"—"}</div>
+                        </div>
+                        <div style={{display:"flex",gap:4}}>
+                          <button onClick={()=>openEditRec(r)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.forest}}>✎</button>
+                          <button onClick={()=>setConfirmRecId(r.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red}}>🗑</button>
+                        </div>
                       </div>
-                      <div>
-                        <div style={{fontSize:13,fontWeight:500,color:C.forest}}>{rec?.nom||"—"}</div>
-                        {rec&&<div style={{fontSize:11,color:C.muted}}>{macros.kcal}kcal · {macros.glucides}g gluc · {macros.proteines}g prot</div>}
+                      <div style={{display:"flex",gap:12,fontSize:12,color:C.muted,marginBottom:8}}>
+                        <span>Portions: {r.portions}</span>
+                        <span>•</span>
+                        <span>Ingrédients: {r.ingredients.length}</span>
                       </div>
-                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,textAlign:"right",color:C.forest}}>{s.kmGarmin||"—"}</span>
-                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,textAlign:"right",color:C.muted}}>{s.dpGarmin||"—"}</span>
-                      <button onClick={()=>unlinkRecette(s.id)}
-                        style={{background:"none",border:"none",cursor:"pointer",color:C.stoneDark,fontSize:11}}>✕</button>
+                      <div style={{display:"flex",gap:12,fontSize:12}}>
+                        <span style={{color:"#e65100",fontWeight:500}}>{macros.kcal} kcal</span>
+                        <span style={{color:"#1d9e75"}}>{macros.glucides}g gluc.</span>
+                        <span style={{color:"#185FA5"}}>{macros.proteines}g prot.</span>
+                        <span style={{color:"#7F77DD"}}>{macros.lipides}g lip.</span>
+                      </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            )
+          )}
+
+          {/* Liste Produits */}
+          {viewMode==="produits"&&(
+            filteredProduits.length===0?(
+              <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
+                <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>🥕</div>
+                <div style={{fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:6}}>Aucun produit</div>
+                <div style={{fontSize:13,marginBottom:20}}>Ajoute des produits depuis la base alimentaire ou crée les tiens</div>
+                <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+                  <Btn onClick={openNewProd}>＋ Produit perso</Btn>
+                  <Btn variant="sage" onClick={()=>setCiqualModal(true)}>🔍 Base alimentaire</Btn>
+                </div>
+              </div>
+            ):(
+              <div style={{...card,overflow:"hidden"}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 80px 80px 80px 80px 80px 120px 32px",
+                  padding:"8px 16px",background:C.stone,gap:8,fontSize:10,fontWeight:600,color:C.muted,
+                  textTransform:"uppercase",letterSpacing:"0.04em"}}>
+                  <span>Nom</span>
+                  <span style={{textAlign:"right"}}>Kcal</span>
+                  <span style={{textAlign:"right"}}>Gluc.</span>
+                  <span style={{textAlign:"right"}}>Prot.</span>
+                  <span style={{textAlign:"right"}}>Lip.</span>
+                  <span style={{textAlign:"right"}}>Sodium</span>
+                  <span>Source</span>
+                  <span/>
+                </div>
+                <div style={{maxHeight:520,overflowY:"auto"}}>
+                  {filteredProduits.map(p=>(
+                    <div key={p.id} style={{display:"grid",gridTemplateColumns:"1fr 80px 80px 80px 80px 80px 120px 32px",
+                      padding:"10px 16px",gap:8,borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:13}}>
+                      <div>
+                        <div style={{fontWeight:500,color:C.inkLight}}>{p.nom}</div>
+                        {p.categorie&&<div style={{fontSize:11,color:C.muted}}>{p.categorie}</div>}
+                      </div>
+                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#e65100"}}>{p.kcal||0}</span>
+                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#1d9e75"}}>{p.glucides||0}g</span>
+                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#185FA5"}}>{p.proteines||0}g</span>
+                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#7F77DD"}}>{p.lipides||0}g</span>
+                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#BA7517"}}>{p.sodium||0}mg</span>
+                      <span style={{fontSize:11,color:C.muted}}>{p.source==="ciqual"?"CIQUAL":"Perso"}</span>
+                      <div style={{display:"flex",gap:2}}>
+                        <button onClick={()=>openEditProd(p)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.forest}}>✎</button>
+                        <button onClick={()=>setConfirmProdId(p.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red}}>🗑</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
           )}
         </div>
       )}
+
+      {/* ── HISTORIQUE ENTRAÎNEMENTS ── */}
+      {subTab==="historique"&&(
+        seancesEff.length===0?(
+          <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
+            <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>🏃</div>
+            <div style={{fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:6}}>Aucune séance</div>
+            <div style={{fontSize:13}}>Tes séances d'entraînement effectuées apparaîtront ici</div>
+          </div>
+        ):(
+          <div style={{...card,overflow:"hidden"}}>
+            <div style={{display:"grid",gridTemplateColumns:"100px 1fr 100px 100px 1fr",
+              padding:"8px 16px",background:C.stone,gap:8,fontSize:10,fontWeight:600,color:C.muted,
+              textTransform:"uppercase",letterSpacing:"0.04em"}}>
+              <span>Date</span>
+              <span>Activité</span>
+              <span style={{textAlign:"right"}}>Durée</span>
+              <span style={{textAlign:"right"}}>Distance</span>
+              <span>Recette liée</span>
+            </div>
+            <div style={{maxHeight:520,overflowY:"auto"}}>
+              {seancesEff.map(s=>{
+                const linkedRec = recettes.find(r=>r.id===s.recetteId);
+                return (
+                  <div key={s.id} style={{display:"grid",gridTemplateColumns:"100px 1fr 100px 100px 1fr",
+                    padding:"10px 16px",gap:8,borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:13}}>
+                    <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:C.inkLight}}>{fmtDate(s.date)}</span>
+                    <span style={{fontWeight:500,color:C.inkLight}}>{s.activite}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace"}}>{s.duree_obj||"—"}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace"}}>{s.distance_obj?s.distance_obj+"km":"—"}</span>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      {linkedRec?(
+                        <>
+                          <span style={{fontSize:12,color:C.forest}}>{linkedRec.nom}</span>
+                          <button onClick={()=>unlinkRecette(s.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:C.red}}>✕</button>
+                        </>
+                      ):(
+                        <select value="" onChange={e=>e.target.value&&linkRecetteToSeance(s.id, e.target.value)}
+                          style={{fontSize:12,padding:"4px 8px",borderRadius:6,border:`1px solid ${C.border}`,cursor:"pointer"}}>
+                          <option value="">Lier une recette...</option>
+                          {recettes.map(r=><option key={r.id} value={r.id}>{r.nom}</option>)}
+                        </select>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )
+      )}
+
+      {/* ── MODAL PRODUIT ── */}
+      <Modal open={prodModal} onClose={()=>setProdModal(false)} title={editProdId?"Modifier le produit":"Nouveau produit"} width={600}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <Field label="Nom" full>
+            <input value={prodForm.nom} onChange={e=>updP("nom",e.target.value)} placeholder="ex: Banane" style={{width:"100%"}}/>
+          </Field>
+          <Field label="Catégorie" full>
+            <input value={prodForm.categorie} onChange={e=>updP("categorie",e.target.value)} placeholder="ex: Fruits" style={{width:"100%"}}/>
+          </Field>
+          <div style={{gridColumn:"1/-1",display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
+            {[
+              {k:"kcal",label:"Kcal",unit:"kcal"},
+              {k:"glucides",label:"Glucides",unit:"g"},
+              {k:"proteines",label:"Protéines",unit:"g"},
+              {k:"lipides",label:"Lipides",unit:"g"},
+              {k:"sodium",label:"Sodium",unit:"mg"}
+            ].map(({k,label,unit})=>(
+              <Field key={k} label={`${label} (${unit})`}>
+                <input type="number" min="0" step="0.1" value={prodForm[k]||""} onChange={e=>updP(k,e.target.value)} style={{width:"100%"}}/>
+              </Field>
+            ))}
+          </div>
+          <Field label="Notes" full>
+            <textarea value={prodForm.notes||""} onChange={e=>updP("notes",e.target.value)} placeholder="Remarques..." style={{width:"100%",minHeight:60}}/>
+          </Field>
+        </div>
+        <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:20}}>
+          <Btn variant="ghost" onClick={()=>setProdModal(false)}>Annuler</Btn>
+          <Btn onClick={saveProduit}>{editProdId?"Enregistrer":"Ajouter"}</Btn>
+        </div>
+      </Modal>
+
+      {/* ── MODAL RECETTE ── */}
+      <Modal open={recModal} onClose={()=>setRecModal(false)} title={editRecId?"Modifier la recette":"Nouvelle recette"} width={700}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+          <Field label="Nom" full>
+            <input value={recForm.nom} onChange={e=>updR("nom",e.target.value)} placeholder="ex: Energy balls" style={{width:"100%"}}/>
+          </Field>
+          <Field label="Portions">
+            <input type="number" min="1" value={recForm.portions} onChange={e=>updR("portions",e.target.value)} style={{width:"100%"}}/>
+          </Field>
+          <Field label="Description" full>
+            <textarea value={recForm.description||""} onChange={e=>updR("description",e.target.value)} placeholder="Courte description..." style={{width:"100%",minHeight:50}}/>
+          </Field>
+        </div>
+
+        {/* Ingrédients */}
+        <div style={{marginBottom:16}}>
+          <div style={{...lbl,marginBottom:8}}>Ingrédients</div>
+          {recForm.ingredients.length===0?(
+            <div style={{textAlign:"center",padding:"20px",background:C.stone,borderRadius:8,color:C.muted,fontSize:13}}>
+              Aucun ingrédient ajouté
+            </div>
+          ):(
+            <div style={{display:"grid",gap:6}}>
+              {recForm.ingredients.map((ing,idx)=>{
+                const prod = produits.find(p=>p.id===ing.produitId);
+                return (
+                  <div key={idx} style={{display:"flex",gap:8,alignItems:"center",padding:8,background:C.stone,borderRadius:6}}>
+                    <span style={{flex:1,fontSize:13,color:C.inkLight}}>{prod?.nom||"Produit inconnu"}</span>
+                    <input type="number" min="0" step="1" value={ing.quantite} onChange={e=>updateIngredientQte(idx,e.target.value)}
+                      style={{width:80,padding:"4px 8px",fontSize:12,borderRadius:6,border:`1px solid ${C.border}`,textAlign:"right"}}/>
+                    <span style={{fontSize:12,color:C.muted}}>g</span>
+                    <button onClick={()=>removeIngredient(idx)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red}}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div style={{display:"flex",gap:8,marginTop:10}}>
+            <select value="" onChange={e=>{if(e.target.value)addIngredientFromProduit(e.target.value)}}
+              style={{flex:1,padding:"6px 10px",fontSize:13,borderRadius:7,border:`1px solid ${C.border}`,cursor:"pointer"}}>
+              <option value="">+ Ingrédient depuis mes produits...</option>
+              {produits.map(p=><option key={p.id} value={p.id}>{p.nom}</option>)}
+            </select>
+            <Btn variant="sage" size="sm" onClick={()=>setIngCiqualModal(true)}>🔍 Base alimentaire</Btn>
+          </div>
+        </div>
+
+        {/* Macros totales */}
+        {recForm.ingredients.length>0&&(()=>{
+          const macros = calcMacros(recForm);
+          return (
+            <div style={{padding:12,background:C.stone,borderRadius:8,marginBottom:16}}>
+              <div style={{...lbl,marginBottom:6}}>Total recette</div>
+              <div style={{display:"flex",gap:12,fontSize:13}}>
+                <span style={{color:"#e65100",fontWeight:500}}>{macros.kcal} kcal</span>
+                <span style={{color:"#1d9e75"}}>{macros.glucides}g gluc.</span>
+                <span style={{color:"#185FA5"}}>{macros.proteines}g prot.</span>
+                <span style={{color:"#7F77DD"}}>{macros.lipides}g lip.</span>
+              </div>
+            </div>
+          );
+        })()}
+
+        <Field label="Notes">
+          <textarea value={recForm.notes||""} onChange={e=>updR("notes",e.target.value)} placeholder="Instructions, remarques..." style={{width:"100%",minHeight:60}}/>
+        </Field>
+
+        <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:20}}>
+          <Btn variant="ghost" onClick={()=>setRecModal(false)}>Annuler</Btn>
+          <Btn onClick={saveRecette}>{editRecId?"Enregistrer":"Créer"}</Btn>
+        </div>
+      </Modal>
+
+      {/* ── MODAL CIQUAL PRODUITS ── */}
+      <Modal open={ciqualModal} onClose={()=>setCiqualModal(false)} title="Base alimentaire CIQUAL" width={800}>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,marginBottom:12}}>
+            <input value={ciqualSearch} onChange={e=>setCiqualSearch(e.target.value)}
+              placeholder="Rechercher un aliment..."
+              style={{...inp}}/>
+            <select value={ciqualCat} onChange={e=>setCiqualCat(e.target.value)}
+              style={{padding:"6px 12px",fontSize:13,borderRadius:7,border:`1px solid ${C.border}`,minWidth:180}}>
+              <option value="Toutes">Toutes catégories</option>
+              {CIQUAL_CATEGORIES.map(cat=><option key={cat} value={cat}>{cat}</option>)}
+            </select>
+          </div>
+          <div style={{fontSize:12,color:C.muted}}>
+            {filteredCiqual.length} résultat{filteredCiqual.length>1?"s":""} {filteredCiqual.length===50&&"(max 50)"}
+          </div>
+        </div>
+        <div style={{maxHeight:400,overflowY:"auto",border:`1px solid ${C.border}`,borderRadius:8}}>
+          {filteredCiqual.length===0?(
+            <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>Aucun résultat</div>
+          ):(
+            filteredCiqual.map(alim=>(
+              <div key={alim.code} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                padding:"10px 14px",borderBottom:`1px solid ${C.border}`,gap:12}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:14,fontWeight:500,color:C.inkLight,marginBottom:2}}>{alim.nom}</div>
+                  <div style={{fontSize:11,color:C.muted}}>{alim.categorie}</div>
+                  <div style={{display:"flex",gap:10,fontSize:11,marginTop:4}}>
+                    <span style={{color:"#e65100"}}>{Math.round(alim.energie_kcal||0)} kcal</span>
+                    <span style={{color:"#1d9e75"}}>{(alim.glucides||0).toFixed(1)}g gluc.</span>
+                    <span style={{color:"#185FA5"}}>{(alim.proteines||0).toFixed(1)}g prot.</span>
+                    <span style={{color:"#7F77DD"}}>{(alim.lipides||0).toFixed(1)}g lip.</span>
+                  </div>
+                </div>
+                <Btn size="sm" onClick={()=>addFromCiqual(alim)}>＋ Ajouter</Btn>
+              </div>
+            ))
+          )}
+        </div>
+      </Modal>
+
+      {/* ── MODAL CIQUAL INGRÉDIENTS (recette) ── */}
+      <Modal open={ingCiqualModal} onClose={()=>setIngCiqualModal(false)} title="Ajouter ingrédient depuis CIQUAL" width={800}>
+        <div style={{marginBottom:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,marginBottom:12}}>
+            <input value={ingCiqualSearch} onChange={e=>setIngCiqualSearch(e.target.value)}
+              placeholder="Rechercher un aliment..."
+              style={{...inp}}/>
+            <select value={ingCiqualCat} onChange={e=>setIngCiqualCat(e.target.value)}
+              style={{padding:"6px 12px",fontSize:13,borderRadius:7,border:`1px solid ${C.border}`,minWidth:180}}>
+              <option value="Toutes">Toutes catégories</option>
+              {CIQUAL_CATEGORIES.map(cat=><option key={cat} value={cat}>{cat}</option>)}
+            </select>
+          </div>
+          <div style={{fontSize:12,color:C.muted}}>
+            {filteredIngCiqual.length} résultat{filteredIngCiqual.length>1?"s":""} {filteredIngCiqual.length===50&&"(max 50)"}
+          </div>
+        </div>
+        <div style={{maxHeight:400,overflowY:"auto",border:`1px solid ${C.border}`,borderRadius:8}}>
+          {filteredIngCiqual.length===0?(
+            <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>Aucun résultat</div>
+          ):(
+            filteredIngCiqual.map(alim=>(
+              <div key={alim.code} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                padding:"10px 14px",borderBottom:`1px solid ${C.border}`,gap:12}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:14,fontWeight:500,color:C.inkLight,marginBottom:2}}>{alim.nom}</div>
+                  <div style={{fontSize:11,color:C.muted}}>{alim.categorie}</div>
+                  <div style={{display:"flex",gap:10,fontSize:11,marginTop:4}}>
+                    <span style={{color:"#e65100"}}>{Math.round(alim.energie_kcal||0)} kcal</span>
+                    <span style={{color:"#1d9e75"}}>{(alim.glucides||0).toFixed(1)}g gluc.</span>
+                    <span style={{color:"#185FA5"}}>{(alim.proteines||0).toFixed(1)}g prot.</span>
+                    <span style={{color:"#7F77DD"}}>{(alim.lipides||0).toFixed(1)}g lip.</span>
+                  </div>
+                </div>
+                <Btn size="sm" onClick={()=>addIngredientFromCiqual(alim)}>＋ Ajouter</Btn>
+              </div>
+            ))
+          )}
+        </div>
+      </Modal>
+
+      {/* Dialogs confirmation */}
+      <ConfirmDialog open={!!confirmProdId} message="Supprimer ce produit ?"
+        onConfirm={()=>delProduit(confirmProdId)} onCancel={()=>setConfirmProdId(null)}/>
+      <ConfirmDialog open={!!confirmRecId} message="Supprimer cette recette ?"
+        onConfirm={()=>delRecette(confirmRecId)} onCancel={()=>setConfirmRecId(null)}/>
     </div>
   );
 }
-
 
 export { JournalNutri, Nutrition };

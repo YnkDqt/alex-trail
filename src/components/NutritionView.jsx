@@ -3,9 +3,10 @@ import { AreaChart, Area, BarChart, Bar, ComposedChart, Line, XAxis, YAxis, Tool
 import { C, RUNNER_LEVELS, TERRAIN_TYPES, DEFAULT_EQUIPMENT, PREP_TIMELINE, EMPTY_SETTINGS, DEFAULT_FLAT_SPEED } from '../constants.js';
 import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, exportRecap, exportGPXMontre, suggestSpeed, autoSegmentGPX, parseGarminCSV, buildElevationProfile, calcSlopeFromGPX, parseGPX } from '../utils.jsx';
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, CustomTooltip } from '../atoms.jsx';
+import { CIQUAL, CIQUAL_CATEGORIES } from '../data/ciqual.js';
 
 // ─── VUE NUTRITION ───────────────────────────────────────────────────────────
-export default function NutritionView({ segments, settings, setSettings, race, setRace, isMobile, onNavigate, profil, poids, produits = [], setProduits }) {
+export default function NutritionView({ segments, settings, setSettings, race, setRace, isMobile, onNavigate, profil, poids, produits = [], setProduits, recettes = [] }) {
   const planNutrition = race.planNutrition || {};
   const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km).filter(rv => rv.assistancePresente !== false);
   const updPlan = v => setRace(r => ({ ...r, planNutrition: v }));
