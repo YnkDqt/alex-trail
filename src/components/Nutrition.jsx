@@ -332,19 +332,19 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   const addFromCiqual = (alim) => {
     const newProd = {
       id: Date.now()+Math.random(),
-      nom: alim.nom,
-      kcal: alim.energie_kcal || 0,
-      glucides: alim.glucides || 0,
-      proteines: alim.proteines || 0,
-      lipides: alim.lipides || 0,
-      sodium: alim.sodium || 0,
-      potassium: alim.potassium || 0,
-      magnesium: alim.magnesium || 0,
-      zinc: alim.zinc || 0,
-      calcium: alim.calcium || 0,
-      categorie: alim.categorie || "",
+      nom: alim.n,
+      kcal: alim.e || 0,
+      glucides: alim.g || 0,
+      proteines: alim.p || 0,
+      lipides: alim.l || 0,
+      sodium: alim.na || 0,
+      potassium: alim.k || 0,
+      magnesium: alim.mg || 0,
+      zinc: 0,
+      calcium: 0,
+      categorie: alim.c || "",
       source: "ciqual",
-      notes: `Ajouté depuis CIQUAL (code: ${alim.code})`
+      notes: `Ajouté depuis CIQUAL`
     };
     setProduits(pp=>[...pp, newProd]);
     setCiqualModal(false);
@@ -393,19 +393,19 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
     // Créer produit temporaire dans la liste produits
     const newProd = {
       id: Date.now()+Math.random(),
-      nom: alim.nom,
-      kcal: alim.energie_kcal || 0,
-      glucides: alim.glucides || 0,
-      proteines: alim.proteines || 0,
-      lipides: alim.lipides || 0,
-      sodium: alim.sodium || 0,
-      potassium: alim.potassium || 0,
-      magnesium: alim.magnesium || 0,
-      zinc: alim.zinc || 0,
-      calcium: alim.calcium || 0,
-      categorie: alim.categorie || "",
+      nom: alim.n,
+      kcal: alim.e || 0,
+      glucides: alim.g || 0,
+      proteines: alim.p || 0,
+      lipides: alim.l || 0,
+      sodium: alim.na || 0,
+      potassium: alim.k || 0,
+      magnesium: alim.mg || 0,
+      zinc: 0,
+      calcium: 0,
+      categorie: alim.c || "",
       source: "ciqual",
-      notes: `Ajouté depuis CIQUAL (code: ${alim.code})`
+      notes: `Ajouté depuis CIQUAL`
     };
     setProduits(pp=>[...pp, newProd]);
     
@@ -452,11 +452,11 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   // Filtres recherche CIQUAL (modal produits)
   const filteredCiqual = useMemo(()=>{
     let results = CIQUAL;
-    if(ciqualCat!=="Toutes") results = results.filter(a=>a.categorie===ciqualCat);
+    if(ciqualCat!=="Toutes") results = results.filter(a=>a.c===ciqualCat);
     if(ciqualSearch.trim()) {
       const terms = ciqualSearch.toLowerCase().split(" ").filter(Boolean);
       results = results.filter(a=>
-        terms.every(t=>(a.nom||"").toLowerCase().includes(t))
+        terms.every(t=>(a.n||"").toLowerCase().includes(t))
       );
     }
     return results.slice(0, 50); // Limite 50 résultats
@@ -465,11 +465,11 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   // Filtres recherche CIQUAL ingrédients (modal recette)
   const filteredIngCiqual = useMemo(()=>{
     let results = CIQUAL;
-    if(ingCiqualCat!=="Toutes") results = results.filter(a=>a.categorie===ingCiqualCat);
+    if(ingCiqualCat!=="Toutes") results = results.filter(a=>a.c===ingCiqualCat);
     if(ingCiqualSearch.trim()) {
       const terms = ingCiqualSearch.toLowerCase().split(" ").filter(Boolean);
       results = results.filter(a=>
-        terms.every(t=>(a.nom||"").toLowerCase().includes(t))
+        terms.every(t=>(a.n||"").toLowerCase().includes(t))
       );
     }
     return results.slice(0, 50);
@@ -839,16 +839,16 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
             <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>Aucun résultat</div>
           ):(
             filteredCiqual.map(alim=>(
-              <div key={alim.code} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+              <div key={alim.n} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
                 padding:"10px 14px",borderBottom:`1px solid ${C.border}`,gap:12}}>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:14,fontWeight:500,color:C.inkLight,marginBottom:2}}>{alim.nom}</div>
-                  <div style={{fontSize:11,color:C.muted}}>{alim.categorie}</div>
+                  <div style={{fontSize:14,fontWeight:500,color:C.inkLight,marginBottom:2}}>{alim.n}</div>
+                  <div style={{fontSize:11,color:C.muted}}>{alim.c}</div>
                   <div style={{display:"flex",gap:10,fontSize:11,marginTop:4}}>
-                    <span style={{color:"#e65100"}}>{Math.round(alim.energie_kcal||0)} kcal</span>
-                    <span style={{color:"#1d9e75"}}>{(alim.glucides||0).toFixed(1)}g gluc.</span>
-                    <span style={{color:"#185FA5"}}>{(alim.proteines||0).toFixed(1)}g prot.</span>
-                    <span style={{color:"#7F77DD"}}>{(alim.lipides||0).toFixed(1)}g lip.</span>
+                    <span style={{color:"#e65100"}}>{Math.round(alim.e||0)} kcal</span>
+                    <span style={{color:"#1d9e75"}}>{(alim.g||0).toFixed(1)}g gluc.</span>
+                    <span style={{color:"#185FA5"}}>{(alim.p||0).toFixed(1)}g prot.</span>
+                    <span style={{color:"#7F77DD"}}>{(alim.l||0).toFixed(1)}g lip.</span>
                   </div>
                 </div>
                 <Btn size="sm" onClick={()=>addFromCiqual(alim)}>＋ Ajouter</Btn>
@@ -880,16 +880,16 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
             <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>Aucun résultat</div>
           ):(
             filteredIngCiqual.map(alim=>(
-              <div key={alim.code} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+              <div key={alim.n} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
                 padding:"10px 14px",borderBottom:`1px solid ${C.border}`,gap:12}}>
                 <div style={{flex:1}}>
-                  <div style={{fontSize:14,fontWeight:500,color:C.inkLight,marginBottom:2}}>{alim.nom}</div>
-                  <div style={{fontSize:11,color:C.muted}}>{alim.categorie}</div>
+                  <div style={{fontSize:14,fontWeight:500,color:C.inkLight,marginBottom:2}}>{alim.n}</div>
+                  <div style={{fontSize:11,color:C.muted}}>{alim.c}</div>
                   <div style={{display:"flex",gap:10,fontSize:11,marginTop:4}}>
-                    <span style={{color:"#e65100"}}>{Math.round(alim.energie_kcal||0)} kcal</span>
-                    <span style={{color:"#1d9e75"}}>{(alim.glucides||0).toFixed(1)}g gluc.</span>
-                    <span style={{color:"#185FA5"}}>{(alim.proteines||0).toFixed(1)}g prot.</span>
-                    <span style={{color:"#7F77DD"}}>{(alim.lipides||0).toFixed(1)}g lip.</span>
+                    <span style={{color:"#e65100"}}>{Math.round(alim.e||0)} kcal</span>
+                    <span style={{color:"#1d9e75"}}>{(alim.g||0).toFixed(1)}g gluc.</span>
+                    <span style={{color:"#185FA5"}}>{(alim.p||0).toFixed(1)}g prot.</span>
+                    <span style={{color:"#7F77DD"}}>{(alim.l||0).toFixed(1)}g lip.</span>
                   </div>
                 </div>
                 <Btn size="sm" onClick={()=>addIngredientFromCiqual(alim)}>＋ Ajouter</Btn>

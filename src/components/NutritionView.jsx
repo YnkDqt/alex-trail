@@ -624,42 +624,42 @@ export default function NutritionView({ segments, settings, setSettings, race, s
         <div style={{ maxHeight: 400, overflowY: "auto", border: `1px solid ${C.border}`, borderRadius: 8 }}>
           {(() => {
             let results = CIQUAL;
-            if (ciqualLibCat !== "Toutes") results = results.filter(a => a.categorie === ciqualLibCat);
+            if (ciqualLibCat !== "Toutes") results = results.filter(a => a.c === ciqualLibCat);
             if (ciqualLibSearch.trim()) {
               const terms = ciqualLibSearch.toLowerCase().split(" ").filter(Boolean);
-              results = results.filter(a => terms.every(t => (a.nom || "").toLowerCase().includes(t)));
+              results = results.filter(a => terms.every(t => (a.n || "").toLowerCase().includes(t)));
             }
             results = results.slice(0, 50);
             
             if (results.length === 0) return <div style={{ textAlign: "center", padding: "40px 20px", color: C.muted }}>Aucun résultat</div>;
             
             return results.map(alim => (
-              <div key={alim.code} style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
+              <div key={alim.n} style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
                 padding: "10px 14px", borderBottom: `1px solid ${C.border}`, gap: 12 }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 500, color: C.inkLight, marginBottom: 2 }}>{alim.nom}</div>
-                  <div style={{ fontSize: 11, color: C.muted }}>{alim.categorie}</div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: C.inkLight, marginBottom: 2 }}>{alim.n}</div>
+                  <div style={{ fontSize: 11, color: C.muted }}>{alim.c}</div>
                   <div style={{ display: "flex", gap: 10, fontSize: 11, marginTop: 4 }}>
-                    <span style={{ color: "#e65100" }}>{Math.round(alim.energie_kcal || 0)} kcal</span>
-                    <span style={{ color: "#1d9e75" }}>{(alim.glucides || 0).toFixed(1)}g gluc.</span>
-                    <span style={{ color: "#185FA5" }}>{(alim.proteines || 0).toFixed(1)}g prot.</span>
+                    <span style={{ color: "#e65100" }}>{Math.round(alim.e || 0)} kcal</span>
+                    <span style={{ color: "#1d9e75" }}>{(alim.g || 0).toFixed(1)}g gluc.</span>
+                    <span style={{ color: "#185FA5" }}>{(alim.p || 0).toFixed(1)}g prot.</span>
                   </div>
                 </div>
                 <Btn size="sm" onClick={() => {
                   const newProd = {
                     id: Date.now(),
-                    nom: alim.nom,
+                    nom: alim.n,
                     par100g: true,
                     poids: 100,
-                    kcal: alim.energie_kcal || 0,
-                    glucides: alim.glucides || 0,
-                    proteines: alim.proteines || 0,
-                    lipides: alim.lipides || 0,
-                    sodium: alim.sodium || 0,
-                    potassium: alim.potassium || 0,
-                    magnesium: alim.magnesium || 0,
-                    zinc: alim.zinc || 0,
-                    calcium: alim.calcium || 0,
+                    kcal: alim.e || 0,
+                    glucides: alim.g || 0,
+                    proteines: alim.p || 0,
+                    lipides: alim.l || 0,
+                    sodium: alim.na || 0,
+                    potassium: alim.k || 0,
+                    magnesium: alim.mg || 0,
+                    zinc: 0,
+                    calcium: 0,
                     boisson: false,
                     volumeMl: ""
                   };
