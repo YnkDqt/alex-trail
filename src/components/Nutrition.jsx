@@ -794,7 +794,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
           ):(
             <div style={{display:"grid",gap:6}}>
               {recForm.ingredients.map((ing,idx)=>{
-                const prod = produits.find(p=>p.id===ing.produitId);
+                const prod = produits.find(p=>p.id===ing.produitId && (!p.type || p.type==="produit"));
                 return (
                   <div key={idx} style={{display:"flex",gap:8,alignItems:"center",padding:8,background:C.stone,borderRadius:6}}>
                     <span style={{flex:1,fontSize:13,color:C.inkLight}}>{prod?.nom||"Produit inconnu"}</span>
