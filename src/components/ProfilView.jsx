@@ -944,7 +944,11 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
           </div>
 
           <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Btn variant="ghost" size="sm" onClick={() => { setRace(r => ({ ...r, gpxPoints: null, totalDistance: 0, totalElevPos: 0, totalElevNeg: 0 })); setSegments([]); }}>
+            <Btn variant="ghost" size="sm" onClick={() => { 
+              setRace({ gpxPoints: null, totalDistance: 0, totalElevPos: 0, totalElevNeg: 0, ravitos: [] }); 
+              setSegments([]); 
+              setSettings({ ...EMPTY_SETTINGS });
+            }}>
               🔄 Recharger un autre GPX
             </Btn>
             {race.gpxPoints?.length > 0 && (
