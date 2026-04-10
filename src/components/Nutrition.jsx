@@ -309,6 +309,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
     const item = {
       ...prodForm,
       id: editProdId || Date.now()+Math.random(),
+      type: "produit",
       kcal: parseFloat(prodForm.kcal)||0,
       glucides: parseFloat(prodForm.glucides)||0,
       proteines: parseFloat(prodForm.proteines)||0,
@@ -332,6 +333,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   const addFromCiqual = (alim) => {
     const newProd = {
       id: Date.now()+Math.random(),
+      type: "produit",
       nom: alim.n,
       kcal: alim.e || 0,
       glucides: alim.g || 0,
@@ -393,6 +395,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
     // Créer produit temporaire dans la liste produits
     const newProd = {
       id: Date.now()+Math.random(),
+      type: "produit",
       nom: alim.n,
       kcal: alim.e || 0,
       glucides: alim.g || 0,
