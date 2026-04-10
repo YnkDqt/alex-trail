@@ -236,6 +236,7 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
 // ─── NUTRITION ENTRAÎNEMENT ───────────────────────────────────────────────────
 const emptyProduit = () => ({
   id: Date.now()+Math.random(),
+  type: "produit",
   nom: "",
   kcal: "",
   glucides: "",
@@ -253,6 +254,7 @@ const emptyProduit = () => ({
 
 const emptyRecette = () => ({
   id: Date.now()+Math.random(),
+  type: "recette",
   nom: "",
   description: "",
   usage: "Entraînement",
@@ -369,6 +371,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
     const item = {
       ...recForm,
       id: editRecId || Date.now()+Math.random(),
+      type: "recette",
       portions: parseInt(recForm.portions)||1
     };
     if(editRecId) setRecettes(rr=>rr.map(r=>r.id===editRecId?item:r));
