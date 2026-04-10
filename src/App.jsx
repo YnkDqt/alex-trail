@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useAuth } from './AuthContext';
-import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse } from './supabaseHelpers';
+import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse, loadNutrition, saveNutrition, loadStrideSettings, saveStrideSettings } from './supabaseHelpers';
 import Login from './Login';
 
 // ─── ALEX IMPORTS ─────────────────────────────────────────────────────────────
@@ -1091,6 +1091,25 @@ export default function App() {
     }).catch(err => console.error('Erreur load objectifs:', err));
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Load nutrition depuis Supabase au mount
+  useEffect(()=>{
+    if (!user?.id) return;
+    loadNutrition(user.id).then(data => {
+      if (data.produits && data.produits.length > 0) setProduits(data.produits);
+      if (data.recettes && data.recettes.length > 0) setRecettes(data.recettes);
+      if (data.journalNutri && data.journalNutri.length > 0) setJournalNutri(data.journalNutri);
+    }).catch(err => console.error('Erreur load nutrition:', err));
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load stride settings (planningType, activityTypes) depuis Supabase au mount
+  useEffect(()=>{
+    if (!user?.id) return;
+    loadStrideSettings(user.id).then(data => {
+      if (data.planningType) setPlanningType(data.planningType);
+      if (data.activityTypes && data.activityTypes.length > 0) setActivityTypes(data.activityTypes);
+    }).catch(err => console.error('Erreur load stride settings:', err));
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-save activités vers Supabase (debounced 2s)
   useEffect(()=>{
     if (!user?.id || activites.length === 0) return;
@@ -1144,6 +1163,25 @@ export default function App() {
     }, 2000);
     return () => clearTimeout(timer);
   }, [objectifs, user?.id]);
+
+  // Auto-save nutrition vers Supabase (debounced 2s)
+  useEffect(()=>{
+    if (!user?.id) return;
+    if (journalNutri.length === 0 && produits.length === 0 && recettes.length === 0) return;
+    const timer = setTimeout(() => {
+      saveNutrition(user.id, journalNutri, produits, recettes).catch(err => console.error('Erreur save nutrition:', err));
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [journalNutri, produits, recettes, user?.id]);
+
+  // Auto-save stride settings vers Supabase (debounced 2s)
+  useEffect(()=>{
+    if (!user?.id) return;
+    const timer = setTimeout(() => {
+      saveStrideSettings(user.id, planningType, activityTypes).catch(err => console.error('Erreur save stride settings:', err));
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [planningType, activityTypes, user?.id]);
 
   // Init profil.taille depuis dernier poids si vide (mount uniquement)
   useEffect(()=>{
