@@ -5,6 +5,7 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
+  const [rgpdConsent, setRgpdConsent] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { signIn, signUp } = useAuth()
@@ -12,6 +13,13 @@ export default function Login() {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
+    
+    // Validation RGPD pour signup
+    if (isSignUp && !rgpdConsent) {
+      setError("Vous devez accepter la politique de confidentialité")
+      return
+    }
+    
     setLoading(true)
     
     const { error } = isSignUp 
@@ -60,7 +68,37 @@ export default function Login() {
             style={{ marginBottom: '1rem', width: '100%' }}
           />
           
-          {error && <p style={{ color: '#e74c3c', marginBottom: '1rem' }}>{error}</p>}
+          {isSignUp && (
+            <label style={{
+              display: 'flex',
+              alignItems: 'start',
+              gap: '8px',
+              fontSize: '13px',
+              color: '#666',
+              cursor: 'pointer',
+              marginBottom: '1rem',
+              lineHeight: '1.5'
+            }}>
+              <input 
+                type="checkbox" 
+                checked={rgpdConsent} 
+                onChange={e => setRgpdConsent(e.target.checked)}
+                style={{ marginTop: '2px', cursor: 'pointer' }}
+              />
+              <span>
+                J'accepte la <a 
+                  href="https://alex-trail.vercel.app/#confidentialite" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  style={{ color: '#1D9E75', textDecoration: 'underline' }}
+                >
+                  politique de confidentialité
+                </a>
+              </span>
+            </label>
+          )}
+          
+          {error && <p style={{ color: '#e74c3c', marginBottom: '1rem', fontSize: '13px' }}>{error}</p>}
           
           <button type="submit" disabled={loading} style={{ width: '100%', marginBottom: '1rem' }}>
             {loading ? 'Chargement...' : (isSignUp ? 'Créer' : 'Se connecter')}
@@ -68,7 +106,11 @@ export default function Login() {
         </form>
         
         <button 
-          onClick={() => setIsSignUp(!isSignUp)}
+          onClick={() => {
+            setIsSignUp(!isSignUp)
+            setRgpdConsent(false)
+            setError('')
+          }}
           style={{ 
             background: 'transparent', 
             border: 'none', 
