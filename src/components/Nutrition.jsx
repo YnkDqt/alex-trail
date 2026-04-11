@@ -17,13 +17,12 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
   const [form,      setForm]      = useState(emptyJourEntry());
   const [editId,    setEditId]    = useState(null);
   const [confirmId, setConfirmId] = useState(null);
-  const [importRef] = useState(()=>({current:null}));
   const fileRef = useRef();
 
   const upd = (k,v) => setForm(f=>({...f,[k]:v}));
 
   const openNew  = ()  => { setEditId(null);  setForm(emptyJourEntry()); setModal(true); };
-  const openEdit = (e) => { setEditId(e.id);  setForm({...emptyJourEntry(),...e});        setModal(true); };
+  const openEdit = (e) => { setEditId(e.id);  setForm({...emptyJourEntry(),...e}); setModal(true); };
 
   const save = () => {
     const item = {
@@ -41,7 +40,6 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
 
   const del = (id) => { setJournalNutri(jj=>jj.filter(j=>j.id!==id)); setConfirmId(null); };
 
-  // Import depuis JSON stride (champ journalNutri ou nutrition)
   const handleImport = (e) => {
     const file = e.target.files?.[0]; if(!file) return;
     const r = new FileReader();
@@ -61,7 +59,6 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
 
   const sorted = useMemo(()=>[...journalNutri].sort((a,b)=>new Date(b.date)-new Date(a.date)),[journalNutri]);
 
-  // Stats 7 derniers jours
   const last7 = useMemo(()=>{
     const since = localDate(new Date(Date.now()-6*86400000));
     return sorted.filter(j=>j.date>=since);
@@ -103,7 +100,6 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
         </div>
       </div>
 
-      {/* KPIs 7j */}
       {last7.length>0&&(
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:20}}>
           {[
@@ -123,7 +119,6 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
         </div>
       )}
 
-      {/* Tableau */}
       {sorted.length===0?(
         <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
           <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>📊</div>
@@ -133,7 +128,6 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
         </div>
       ):(
         <div style={{...card,overflow:"hidden"}}>
-          {/* Header */}
           <div style={{display:"grid",gridTemplateColumns:"110px 1fr 1fr 90px 1fr 1fr 1fr 1fr 32px",
             padding:"8px 16px",background:C.stone,gap:8,
             fontSize:10,fontWeight:600,color:C.muted,textTransform:"uppercase",letterSpacing:"0.04em"}}>
@@ -170,7 +164,6 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
         </div>
       )}
 
-      {/* Modal saisie */}
       <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifier l'entrée":"Nouvelle entrée"} width={480}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <Field label="Date" full>
@@ -186,7 +179,6 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
                 placeholder="ex: 2100" style={{width:"100%"}}/>
             </Field>
           </div>
-          {/* Delta live */}
           {form.kcalBrulees&&form.kcalConso&&(()=>{
             const d=(parseFloat(form.kcalBrulees)||0)-(parseFloat(form.kcalConso)||0);
             const col=d<-100?C.green:d>100?C.red:C.muted;
@@ -236,7 +228,6 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
 // ─── NUTRITION ENTRAÎNEMENT ───────────────────────────────────────────────────
 const emptyProduit = () => ({
   id: Date.now()+Math.random(),
-  type: "produit",
   nom: "",
   kcal: "",
   glucides: "",
@@ -248,46 +239,41 @@ const emptyProduit = () => ({
   zinc: "",
   calcium: "",
   categorie: "",
-  source: "perso", // "perso" ou "ciqual"
+  source: "perso",
   notes: ""
 });
 
 const emptyRecette = () => ({
   id: Date.now()+Math.random(),
-  type: "recette",
   nom: "",
   description: "",
-  usage: "Entraînement",
   portions: 1,
   ingredients: [], // {produitId, quantite}
   notes: ""
 });
 
 function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setSeances }) {
-  const [subTab, setSubTab] = useState("recettes_produits"); // recettes_produits | historique
-
-  // ── RECETTES & PRODUITS ──
-  const [viewMode, setViewMode] = useState("recettes"); // recettes | produits
+  const [tab, setTab] = useState("produits"); // produits | recettes | historique
   const [search, setSearch] = useState("");
   
-  // Produits
+  // ── Produits ──
   const [prodModal, setProdModal] = useState(false);
   const [prodForm, setProdForm] = useState(emptyProduit());
   const [editProdId, setEditProdId] = useState(null);
   const [confirmProdId, setConfirmProdId] = useState(null);
+  
+  // Recherche CIQUAL produits
+  const [ciqualModal, setCiqualModal] = useState(false);
+  const [ciqualSearch, setCiqualSearch] = useState("");
+  const [ciqualCat, setCiqualCat] = useState("Toutes");
 
-  // Recettes
+  // ── Recettes ──
   const [recModal, setRecModal] = useState(false);
   const [recForm, setRecForm] = useState(emptyRecette());
   const [editRecId, setEditRecId] = useState(null);
   const [confirmRecId, setConfirmRecId] = useState(null);
 
-  // Recherche CIQUAL pour produits
-  const [ciqualSearch, setCiqualSearch] = useState("");
-  const [ciqualCat, setCiqualCat] = useState("Toutes");
-  const [ciqualModal, setCiqualModal] = useState(false);
-
-  // Recherche CIQUAL pour ingrédients recette (nouveau)
+  // Recherche CIQUAL pour ingrédients recette
   const [ingCiqualModal, setIngCiqualModal] = useState(false);
   const [ingCiqualSearch, setIngCiqualSearch] = useState("");
   const [ingCiqualCat, setIngCiqualCat] = useState("Toutes");
@@ -301,17 +287,18 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
     setProdForm(emptyProduit());
     setProdModal(true);
   };
+  
   const openEditProd = (p) => {
     setEditProdId(p.id);
     setProdForm({...emptyProduit(), ...p});
     setProdModal(true);
   };
+  
   const saveProduit = () => {
     if(!prodForm.nom.trim()) return;
     const item = {
       ...prodForm,
       id: editProdId || Date.now()+Math.random(),
-      type: "produit",
       kcal: parseFloat(prodForm.kcal)||0,
       glucides: parseFloat(prodForm.glucides)||0,
       proteines: parseFloat(prodForm.proteines)||0,
@@ -326,16 +313,16 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
     else setProduits(pp=>[...pp,item]);
     setProdModal(false);
   };
+  
   const delProduit = (id) => {
     setProduits(pp=>pp.filter(p=>p.id!==id));
     setConfirmProdId(null);
   };
 
-  // Ajout produit depuis CIQUAL (modal produits)
+  // Ajout depuis CIQUAL
   const addFromCiqual = (alim) => {
     const newProd = {
       id: Date.now()+Math.random(),
-      type: "produit",
       nom: alim.n,
       kcal: alim.e || 0,
       glucides: alim.g || 0,
@@ -348,7 +335,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
       calcium: 0,
       categorie: alim.c || "",
       source: "ciqual",
-      notes: `Ajouté depuis CIQUAL`
+      notes: ""
     };
     setProduits(pp=>[...pp, newProd]);
     setCiqualModal(false);
@@ -361,44 +348,43 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
     setRecForm(emptyRecette());
     setRecModal(true);
   };
+  
   const openEditRec = (r) => {
     setEditRecId(r.id);
     setRecForm({...emptyRecette(), ...r});
     setRecModal(true);
   };
+  
   const saveRecette = () => {
     if(!recForm.nom.trim()) return;
     const item = {
       ...recForm,
       id: editRecId || Date.now()+Math.random(),
-      type: "recette",
       portions: parseInt(recForm.portions)||1
     };
     if(editRecId) setRecettes(rr=>rr.map(r=>r.id===editRecId?item:r));
     else setRecettes(rr=>[...rr,item]);
     setRecModal(false);
   };
+  
   const delRecette = (id) => {
     setRecettes(rr=>rr.filter(r=>r.id!==id));
     setConfirmRecId(null);
   };
 
-  // Ajouter ingrédient dans recette depuis base perso
+  // Ingrédients recette
   const addIngredientFromProduit = (produitId) => {
     const exists = recForm.ingredients.find(i=>i.produitId===produitId);
-    if(exists) return; // déjà présent
+    if(exists) return;
     setRecForm(f=>({
       ...f,
-      ingredients: [...f.ingredients, {produitId, quantite: 100}] // 100g par défaut
+      ingredients: [...f.ingredients, {produitId, quantite: 100}]
     }));
   };
 
-  // Ajouter ingrédient depuis CIQUAL (crée produit temp + ajoute à recette)
   const addIngredientFromCiqual = (alim) => {
-    // Créer produit temporaire dans la liste produits
     const newProd = {
       id: Date.now()+Math.random(),
-      type: "produit",
       nom: alim.n,
       kcal: alim.e || 0,
       glucides: alim.g || 0,
@@ -411,16 +397,13 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
       calcium: 0,
       categorie: alim.c || "",
       source: "ciqual",
-      notes: `Ajouté depuis CIQUAL`
+      notes: ""
     };
     setProduits(pp=>[...pp, newProd]);
-    
-    // Ajouter à la recette
     setRecForm(f=>({
       ...f,
       ingredients: [...f.ingredients, {produitId: newProd.id, quantite: 100}]
     }));
-    
     setIngCiqualModal(false);
     setIngCiqualSearch("");
   };
@@ -442,7 +425,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   // Calcul macros recette
   const calcMacros = (rec) => {
     return (rec.ingredients||[]).reduce((acc, ing)=>{
-      const prod = produits.find(p=>p.id===ing.produitId && p.type==="produit");
+      const prod = produits.find(p=>p.id===ing.produitId);
       if(!prod) return acc;
       const factor = parseFloat(ing.quantite)||0;
       return {
@@ -455,33 +438,27 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
     }, {kcal:0, glucides:0, proteines:0, lipides:0, sodium:0});
   };
 
-  // Filtres recherche CIQUAL (modal produits)
+  // Filtres
   const filteredCiqual = useMemo(()=>{
     let results = CIQUAL;
     if(ciqualCat!=="Toutes") results = results.filter(a=>a.c===ciqualCat);
     if(ciqualSearch.trim()) {
       const terms = ciqualSearch.toLowerCase().split(" ").filter(Boolean);
-      results = results.filter(a=>
-        terms.every(t=>(a.n||"").toLowerCase().includes(t))
-      );
+      results = results.filter(a=>terms.every(t=>(a.n||"").toLowerCase().includes(t)));
     }
-    return results.slice(0, 50); // Limite 50 résultats
+    return results.slice(0, 50);
   }, [ciqualSearch, ciqualCat]);
 
-  // Filtres recherche CIQUAL ingrédients (modal recette)
   const filteredIngCiqual = useMemo(()=>{
     let results = CIQUAL;
     if(ingCiqualCat!=="Toutes") results = results.filter(a=>a.c===ingCiqualCat);
     if(ingCiqualSearch.trim()) {
       const terms = ingCiqualSearch.toLowerCase().split(" ").filter(Boolean);
-      results = results.filter(a=>
-        terms.every(t=>(a.n||"").toLowerCase().includes(t))
-      );
+      results = results.filter(a=>terms.every(t=>(a.n||"").toLowerCase().includes(t)));
     }
     return results.slice(0, 50);
   }, [ingCiqualSearch, ingCiqualCat]);
 
-  // Filtres produits/recettes
   const filteredProduits = useMemo(()=>{
     if(!search) return produits;
     return produits.filter(p=>
@@ -498,7 +475,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
     );
   }, [recettes, search]);
 
-  // ── HISTORIQUE ENTRAÎNEMENTS ──
+  // ── Historique entraînements ──
   const seancesEff = useMemo(()=>
     [...seances].filter(s=>s.statut==="Effectué"&&isRunning(s.activite))
       .sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,50)
@@ -507,179 +484,163 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   const linkRecetteToSeance = (seanceId, recetteId) => {
     setSeances(ss=>ss.map(s=>s.id===seanceId?{...s,recetteId}:s));
   };
+  
   const unlinkRecette = (seanceId) => {
     setSeances(ss=>ss.map(s=>s.id===seanceId?{...s,recetteId:undefined}:s));
   };
 
   const card = {background:C.white,border:`1px solid ${C.border}`,borderRadius:12};
   const lbl = {fontSize:10,fontWeight:500,textTransform:"uppercase",letterSpacing:"0.06em",color:C.muted};
-  const inp = {fontSize:13,padding:"6px 10px",borderRadius:7,border:`1px solid ${C.border}`,background:C.bg,width:"100%"};
 
   return (
     <div className="anim" style={{padding:"24px 40px 80px"}}>
-      {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:10}}>
         <div>
           <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight,marginBottom:4}}>Nutrition entraînement</h1>
-          <p style={{fontSize:12,color:C.muted}}>Recettes personnalisées · Produits · Base alimentaire CIQUAL · Historique</p>
+          <p style={{fontSize:12,color:C.muted}}>Produits · Recettes · Base CIQUAL · Historique</p>
         </div>
       </div>
 
-      {/* Sub-tabs */}
+      {/* Tabs */}
       <div style={{display:"flex",gap:2,borderBottom:`1px solid ${C.border}`,marginBottom:20}}>
         {[
-          {id:"recettes_produits", label:"Recettes & Produits"},
+          {id:"produits", label:`Produits (${produits.length})`},
+          {id:"recettes", label:`Recettes (${recettes.length})`},
           {id:"historique", label:"Historique entraînements"}
         ].map(t=>(
-          <button key={t.id} onClick={()=>setSubTab(t.id)}
+          <button key={t.id} onClick={()=>{setTab(t.id);setSearch("");}}
             style={{background:"none",border:"none",padding:"8px 16px",cursor:"pointer",fontSize:13,
-              fontWeight:subTab===t.id?500:400,color:subTab===t.id?C.forest:C.muted,
-              borderBottom:subTab===t.id?`2px solid ${C.forest}`:"2px solid transparent",
+              fontWeight:tab===t.id?500:400,color:tab===t.id?C.forest:C.muted,
+              borderBottom:tab===t.id?`2px solid ${C.forest}`:"2px solid transparent",
               marginBottom:-1,fontFamily:"inherit"}}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {/* ── RECETTES & PRODUITS ── */}
-      {subTab==="recettes_produits"&&(
+      {/* ── TAB PRODUITS ── */}
+      {tab==="produits"&&(
         <div>
-          {/* Toggle Recettes/Produits */}
-          <div style={{display:"flex",gap:8,marginBottom:16}}>
-            <Btn variant={viewMode==="recettes"?"default":"ghost"} onClick={()=>setViewMode("recettes")}>
-              Recettes ({recettes.length})
-            </Btn>
-            <Btn variant={viewMode==="produits"?"default":"ghost"} onClick={()=>setViewMode("produits")}>
-              Produits ({produits.length})
-            </Btn>
-          </div>
-
-          {/* Barre actions */}
           <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-            <input
-              value={search}
-              onChange={e=>setSearch(e.target.value)}
-              placeholder={viewMode==="recettes"?"Rechercher une recette...":"Rechercher un produit..."}
-              style={{...inp,flex:1,minWidth:200}}
-            />
-            {viewMode==="recettes"&&<Btn onClick={openNewRec}>＋ Recette</Btn>}
-            {viewMode==="produits"&&(
-              <>
-                <Btn onClick={openNewProd}>＋ Produit perso</Btn>
-                <Btn variant="sage" onClick={()=>setCiqualModal(true)}>🔍 Base alimentaire</Btn>
-              </>
-            )}
+            <input value={search} onChange={e=>setSearch(e.target.value)}
+              placeholder="Rechercher un produit..."
+              style={{flex:1,minWidth:200,fontSize:13,padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`}}/>
+            <Btn variant="soft" onClick={()=>setCiqualModal(true)}>🔍 Base CIQUAL</Btn>
+            <Btn onClick={openNewProd}>＋ Produit perso</Btn>
           </div>
 
-          {/* Liste Recettes */}
-          {viewMode==="recettes"&&(
-            filteredRecettes.length===0?(
-              <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
-                <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>🍽️</div>
-                <div style={{fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:6}}>Aucune recette</div>
-                <div style={{fontSize:13,marginBottom:20}}>Crée tes recettes pour tes entraînements</div>
-                <Btn onClick={openNewRec}>＋ Créer une recette</Btn>
+          {filteredProduits.length===0?(
+            <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
+              <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>🥕</div>
+              <div style={{fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:6}}>Aucun produit</div>
+              <div style={{fontSize:13,marginBottom:20}}>Ajoute des produits depuis CIQUAL ou crée les tiens</div>
+              <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+                <Btn variant="soft" onClick={()=>setCiqualModal(true)}>🔍 Base CIQUAL</Btn>
+                <Btn onClick={openNewProd}>＋ Produit perso</Btn>
               </div>
-            ):(
-              <div style={{display:"grid",gap:12}}>
-                {filteredRecettes.map(r=>{
-                  const macros = calcMacros(r);
-                  return (
-                    <div key={r.id} style={{...card,padding:16}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:8}}>
-                        <div style={{flex:1}}>
-                          <div style={{fontSize:15,fontWeight:500,color:C.inkLight,marginBottom:2}}>{r.nom}</div>
-                          <div style={{fontSize:12,color:C.muted}}>{r.description||"—"}</div>
-                        </div>
-                        <div style={{display:"flex",gap:4}}>
-                          <button onClick={()=>openEditRec(r)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.forest}}>✎</button>
-                          <button onClick={()=>setConfirmRecId(r.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red}}>🗑</button>
-                        </div>
-                      </div>
-                      <div style={{display:"flex",gap:12,fontSize:12,color:C.muted,marginBottom:8}}>
-                        <span>Portions: {r.portions}</span>
-                        <span>•</span>
-                        <span>Ingrédients: {r.ingredients.length}</span>
-                      </div>
-                      <div style={{display:"flex",gap:12,fontSize:12}}>
-                        <span style={{color:"#e65100",fontWeight:500}}>{macros.kcal} kcal</span>
-                        <span style={{color:"#1d9e75"}}>{macros.glucides}g gluc.</span>
-                        <span style={{color:"#185FA5"}}>{macros.proteines}g prot.</span>
-                        <span style={{color:"#7F77DD"}}>{macros.lipides}g lip.</span>
-                      </div>
+            </div>
+          ):(
+            <div style={{...card,overflow:"hidden"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 70px 70px 70px 70px 70px 70px 70px 100px 32px",
+                padding:"8px 16px",background:C.stone,gap:8,fontSize:10,fontWeight:600,color:C.muted,
+                textTransform:"uppercase",letterSpacing:"0.04em"}}>
+                <span>Nom</span>
+                <span style={{textAlign:"right"}}>Kcal</span>
+                <span style={{textAlign:"right"}}>Gluc.</span>
+                <span style={{textAlign:"right"}}>Prot.</span>
+                <span style={{textAlign:"right"}}>Lip.</span>
+                <span style={{textAlign:"right"}}>Na</span>
+                <span style={{textAlign:"right"}}>K</span>
+                <span style={{textAlign:"right"}}>Mg</span>
+                <span style={{textAlign:"right"}}>Zn</span>
+                <span style={{textAlign:"right"}}>Ca</span>
+                <span>Source</span>
+                <span/>
+              </div>
+              <div style={{maxHeight:520,overflowY:"auto"}}>
+                {filteredProduits.map(p=>(
+                  <div key={p.id} style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 70px 70px 70px 70px 70px 70px 70px 100px 32px",
+                    padding:"10px 16px",gap:8,borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:13}}>
+                    <div>
+                      <div style={{fontWeight:500,color:C.inkLight}}>{p.nom}</div>
+                      {p.categorie&&<div style={{fontSize:11,color:C.muted}}>{p.categorie}</div>}
                     </div>
-                  );
-                })}
-              </div>
-            )
-          )}
-
-          {/* Liste Produits */}
-          {viewMode==="produits"&&(
-            (() => {
-              const produitsOnly = filteredProduits.filter(p => !p.type || p.type === "produit");
-              return produitsOnly.length===0?(
-              <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
-                <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>🥕</div>
-                <div style={{fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:6}}>Aucun produit</div>
-                <div style={{fontSize:13,marginBottom:20}}>Ajoute des produits depuis la base alimentaire ou crée les tiens</div>
-                <div style={{display:"flex",gap:8,justifyContent:"center"}}>
-                  <Btn onClick={openNewProd}>＋ Produit perso</Btn>
-                  <Btn variant="sage" onClick={()=>setCiqualModal(true)}>🔍 Base alimentaire</Btn>
-                </div>
-              </div>
-            ):(
-              <div style={{...card,overflow:"hidden"}}>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 70px 70px 70px 70px 70px 70px 70px 100px 32px",
-                  padding:"8px 16px",background:C.stone,gap:8,fontSize:10,fontWeight:600,color:C.muted,
-                  textTransform:"uppercase",letterSpacing:"0.04em"}}>
-                  <span>Nom</span>
-                  <span style={{textAlign:"right"}}>Kcal</span>
-                  <span style={{textAlign:"right"}}>Gluc.</span>
-                  <span style={{textAlign:"right"}}>Prot.</span>
-                  <span style={{textAlign:"right"}}>Lip.</span>
-                  <span style={{textAlign:"right"}}>Na</span>
-                  <span style={{textAlign:"right"}}>K</span>
-                  <span style={{textAlign:"right"}}>Mg</span>
-                  <span style={{textAlign:"right"}}>Zn</span>
-                  <span style={{textAlign:"right"}}>Ca</span>
-                  <span>Source</span>
-                  <span/>
-                </div>
-                <div style={{maxHeight:520,overflowY:"auto"}}>
-                  {produitsOnly.map(p=>(
-                    <div key={p.id} style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 70px 70px 70px 70px 70px 70px 70px 100px 32px",
-                      padding:"10px 16px",gap:8,borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:13}}>
-                      <div>
-                        <div style={{fontWeight:500,color:C.inkLight}}>{p.nom}</div>
-                        {p.categorie&&<div style={{fontSize:11,color:C.muted}}>{p.categorie}</div>}
-                      </div>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#e65100"}}>{p.kcal||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#1d9e75"}}>{p.glucides||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#185FA5"}}>{p.proteines||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#7F77DD"}}>{p.lipides||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#BA7517",fontSize:11}}>{p.sodium||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{p.potassium||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{p.magnesium||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{p.zinc||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{p.calcium||0}</span>
-                      <span style={{fontSize:11,color:C.muted}}>{p.source==="ciqual"?"CIQUAL":"Perso"}</span>
-                      <div style={{display:"flex",gap:2}}>
-                        <button onClick={()=>openEditProd(p)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.forest}}>✎</button>
-                        <button onClick={()=>setConfirmProdId(p.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red}}>🗑</button>
-                      </div>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#e65100"}}>{p.kcal||0}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#1d9e75"}}>{p.glucides||0}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#185FA5"}}>{p.proteines||0}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#7F77DD"}}>{p.lipides||0}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#BA7517",fontSize:11}}>{p.sodium||0}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{p.potassium||0}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{p.magnesium||0}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{p.zinc||0}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{p.calcium||0}</span>
+                    <span style={{fontSize:11,color:C.muted}}>{p.source==="ciqual"?"CIQUAL":"Perso"}</span>
+                    <div style={{display:"flex",gap:2}}>
+                      <button onClick={()=>openEditProd(p)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.forest}}>✎</button>
+                      <button onClick={()=>setConfirmProdId(p.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red}}>🗑</button>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
-            );
-            })()
+            </div>
           )}
         </div>
       )}
 
-      {/* ── HISTORIQUE ENTRAÎNEMENTS ── */}
-      {subTab==="historique"&&(
+      {/* ── TAB RECETTES ── */}
+      {tab==="recettes"&&(
+        <div>
+          <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+            <input value={search} onChange={e=>setSearch(e.target.value)}
+              placeholder="Rechercher une recette..."
+              style={{flex:1,minWidth:200,fontSize:13,padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`}}/>
+            <Btn onClick={openNewRec}>＋ Recette</Btn>
+          </div>
+
+          {filteredRecettes.length===0?(
+            <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
+              <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>🍽️</div>
+              <div style={{fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:6}}>Aucune recette</div>
+              <div style={{fontSize:13,marginBottom:20}}>Crée tes recettes pour tes entraînements</div>
+              <Btn onClick={openNewRec}>＋ Créer une recette</Btn>
+            </div>
+          ):(
+            <div style={{display:"grid",gap:12}}>
+              {filteredRecettes.map(r=>{
+                const macros = calcMacros(r);
+                return (
+                  <div key={r.id} style={{...card,padding:16}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:8}}>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:15,fontWeight:500,color:C.inkLight,marginBottom:2}}>{r.nom}</div>
+                        <div style={{fontSize:12,color:C.muted}}>{r.description||"—"}</div>
+                      </div>
+                      <div style={{display:"flex",gap:4}}>
+                        <button onClick={()=>openEditRec(r)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.forest}}>✎</button>
+                        <button onClick={()=>setConfirmRecId(r.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red}}>🗑</button>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:12,fontSize:12,color:C.muted,marginBottom:8}}>
+                      <span>Portions: {r.portions}</span>
+                      <span>•</span>
+                      <span>Ingrédients: {r.ingredients.length}</span>
+                    </div>
+                    <div style={{display:"flex",gap:12,fontSize:12}}>
+                      <span style={{color:"#e65100",fontWeight:500}}>{macros.kcal} kcal</span>
+                      <span style={{color:"#1d9e75"}}>{macros.glucides}g gluc.</span>
+                      <span style={{color:"#185FA5"}}>{macros.proteines}g prot.</span>
+                      <span style={{color:"#7F77DD"}}>{macros.lipides}g lip.</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── TAB HISTORIQUE ── */}
+      {tab==="historique"&&(
         seancesEff.length===0?(
           <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
             <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>🏃</div>
@@ -787,7 +748,6 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
           </Field>
         </div>
 
-        {/* Ingrédients */}
         <div style={{marginBottom:16}}>
           <div style={{...lbl,marginBottom:8}}>Ingrédients</div>
           {recForm.ingredients.length===0?(
@@ -797,7 +757,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
           ):(
             <div style={{display:"grid",gap:6}}>
               {recForm.ingredients.map((ing,idx)=>{
-                const prod = produits.find(p=>p.id===ing.produitId && p.type==="produit");
+                const prod = produits.find(p=>p.id===ing.produitId);
                 return (
                   <div key={idx} style={{display:"flex",gap:8,alignItems:"center",padding:8,background:C.stone,borderRadius:6}}>
                     <span style={{flex:1,fontSize:13,color:C.inkLight}}>{prod?.nom||"Produit inconnu"}</span>
@@ -814,13 +774,12 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
             <select value="" onChange={e=>{if(e.target.value)addIngredientFromProduit(e.target.value)}}
               style={{flex:1,padding:"6px 10px",fontSize:13,borderRadius:7,border:`1px solid ${C.border}`,cursor:"pointer"}}>
               <option value="">+ Ingrédient depuis mes produits...</option>
-              {produits.filter(p=>p.type==="produit").map(p=><option key={p.id} value={p.id}>{p.nom}</option>)}
+              {produits.map(p=><option key={p.id} value={p.id}>{p.nom}</option>)}
             </select>
-            <Btn variant="sage" size="sm" onClick={()=>setIngCiqualModal(true)}>🔍 Base alimentaire</Btn>
+            <Btn variant="sage" size="sm" onClick={()=>setIngCiqualModal(true)}>🔍 Base CIQUAL</Btn>
           </div>
         </div>
 
-        {/* Macros totales */}
         {recForm.ingredients.length>0&&(()=>{
           const macros = calcMacros(recForm);
           return (
@@ -852,9 +811,9 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
           <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,marginBottom:12}}>
             <input value={ciqualSearch} onChange={e=>setCiqualSearch(e.target.value)}
               placeholder="Rechercher un aliment..."
-              style={{...inp}}/>
+              style={{fontSize:13,padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`,width:"100%"}}/>
             <select value={ciqualCat} onChange={e=>setCiqualCat(e.target.value)}
-              style={{padding:"6px 12px",fontSize:13,borderRadius:7,border:`1px solid ${C.border}`,minWidth:180}}>
+              style={{padding:"8px 12px",fontSize:13,borderRadius:8,border:`1px solid ${C.border}`,minWidth:180}}>
               <option value="Toutes">Toutes catégories</option>
               {CIQUAL_CATEGORIES.map(cat=><option key={cat} value={cat}>{cat}</option>)}
             </select>
@@ -888,15 +847,15 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
         </div>
       </Modal>
 
-      {/* ── MODAL CIQUAL INGRÉDIENTS (recette) ── */}
+      {/* ── MODAL CIQUAL INGRÉDIENTS ── */}
       <Modal open={ingCiqualModal} onClose={()=>setIngCiqualModal(false)} title="Ajouter ingrédient depuis CIQUAL" width={800}>
         <div style={{marginBottom:16}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,marginBottom:12}}>
             <input value={ingCiqualSearch} onChange={e=>setIngCiqualSearch(e.target.value)}
               placeholder="Rechercher un aliment..."
-              style={{...inp}}/>
+              style={{fontSize:13,padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`,width:"100%"}}/>
             <select value={ingCiqualCat} onChange={e=>setIngCiqualCat(e.target.value)}
-              style={{padding:"6px 12px",fontSize:13,borderRadius:7,border:`1px solid ${C.border}`,minWidth:180}}>
+              style={{padding:"8px 12px",fontSize:13,borderRadius:8,border:`1px solid ${C.border}`,minWidth:180}}>
               <option value="Toutes">Toutes catégories</option>
               {CIQUAL_CATEGORIES.map(cat=><option key={cat} value={cat}>{cat}</option>)}
             </select>
@@ -930,7 +889,6 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
         </div>
       </Modal>
 
-      {/* Dialogs confirmation */}
       <ConfirmDialog open={!!confirmProdId} message="Supprimer ce produit ?"
         onConfirm={()=>delProduit(confirmProdId)} onCancel={()=>setConfirmProdId(null)}/>
       <ConfirmDialog open={!!confirmRecId} message="Supprimer cette recette ?"

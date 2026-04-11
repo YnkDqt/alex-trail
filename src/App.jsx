@@ -1414,7 +1414,14 @@ export default function App() {
     }
     if (user?.id) {
       loadCurrentRace(user.id).then(d=>{
-        if(d?.race && Object.keys(d.race).length > 0) setRaceRaw(d.race);
+        if(d?.race && Object.keys(d.race).length > 0) {
+          // Init bibliotheque si absente
+          const raceWithBib = {
+            ...d.race,
+            bibliotheque: d.race.bibliotheque || { produits: [], recettes: [] }
+          };
+          setRaceRaw(raceWithBib);
+        }
         if(d?.segments && d.segments.length > 0) setSegmentsRaw(d.segments);
         if(d?.settings && Object.keys(d.settings).length > 0) setSettingsRaw({...EMPTY_SETTINGS,...d.settings});
       }).catch(err => console.error('Erreur load current race:', err));
