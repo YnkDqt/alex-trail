@@ -15,7 +15,19 @@ export default function NutritionView({
   produits = []   // Produits entraînement
 }) {
   // Bibliothèque course (structure séparée)
-  const bibliotheque = race.bibliotheque || { produits: [], recettes: [] };
+  const bibliotheque = useMemo(() => {
+    const bib = race.bibliotheque;
+    // Si ancien format (array) ou undefined, convertir en nouveau format
+    if (!bib || Array.isArray(bib)) {
+      return { produits: [], recettes: [] };
+    }
+    // Si nouveau format mais incomplet
+    return {
+      produits: bib.produits || [],
+      recettes: bib.recettes || []
+    };
+  }, [race.bibliotheque]);
+  
   const updBibliotheque = (newBib) => setRace(r => ({ ...r, bibliotheque: newBib }));
 
   // Poids utilisateur

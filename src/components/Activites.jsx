@@ -84,8 +84,8 @@ function Activites({ activites, setActivites, seances, setSeances }) {
         <div style={{overflowX:"auto"}}>
           {/* Header */}
           <div style={{display:"grid",gridTemplateColumns:"70px 90px 180px 120px 200px 90px 110px 80px 80px 70px 70px 68px 68px 68px 68px 68px 40px",minWidth:1580,borderBottom:`1px solid ${C.border}`}}>
-            {[["","Statut"],["","Lier"],["dateHeure","ID (date + heure)"],["type","Type"],["titre","Titre"],["distance","Dist."],["duree","Durée"],["fcMoy","FC Ø"],["fcMax","FC Max"],["dp","D+"],["calories","Cal."],["","Z0%"],["z1","Z1%"],["z2","Z2%"],["z3","Z3%"],["z4","Z4%"],["z5","Z5%"],["",""]].map(([k,l])=>(
-              <div key={k||"del"} style={{...thStyle(k)}} onClick={()=>k&&sort(k)}>{l}{sortKey===k?sortDir>0?" ↑":" ↓":""}</div>
+            {[["","Statut"],["","Lier"],["dateHeure","ID (date + heure)"],["type","Type"],["titre","Titre"],["distance","Dist."],["duree","Durée"],["fcMoy","FC Ø"],["fcMax","FC Max"],["dp","D+"],["calories","Cal."],["","Z0%"],["z1","Z1%"],["z2","Z2%"],["z3","Z3%"],["z4","Z4%"],["z5","Z5%"],["",""]].map(([k,l],idx)=>(
+              <div key={k||`col-${idx}`} style={{...thStyle(k)}} onClick={()=>k&&sort(k)}>{l}{sortKey===k?sortDir>0?" ↑":" ↓":""}</div>
             ))}
           </div>
           {/* Rows */}

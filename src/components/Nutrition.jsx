@@ -252,7 +252,7 @@ const emptyRecette = () => ({
   notes: ""
 });
 
-function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setSeances }) {
+function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setSeances, activites = [] }) {
   const [tab, setTab] = useState("produits"); // produits | recettes | historique
   const [search, setSearch] = useState("");
   
@@ -277,6 +277,10 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   const [ingCiqualModal, setIngCiqualModal] = useState(false);
   const [ingCiqualSearch, setIngCiqualSearch] = useState("");
   const [ingCiqualCat, setIngCiqualCat] = useState("Toutes");
+
+  // Modal mes produits pour ingrédients
+  const [mesProduitsModal, setMesProduitsModal] = useState(false);
+  const [mesProduitsSearch, setMesProduitsSearch] = useState("");
 
   const updP = (k,v) => setProdForm(f=>({...f,[k]:v}));
   const updR = (k,v) => setRecForm(f=>({...f,[k]:v}));
@@ -383,27 +387,40 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   };
 
   const addIngredientFromCiqual = (alim) => {
-    const newProd = {
-      id: Date.now()+Math.random(),
-      nom: alim.n,
-      kcal: alim.e || 0,
-      glucides: alim.g || 0,
-      proteines: alim.p || 0,
-      lipides: alim.l || 0,
-      sodium: alim.na || 0,
-      potassium: alim.k || 0,
-      magnesium: alim.mg || 0,
-      zinc: 0,
-      calcium: 0,
-      categorie: alim.c || "",
-      source: "ciqual",
-      notes: ""
-    };
-    setProduits(pp=>[...pp, newProd]);
-    setRecForm(f=>({
-      ...f,
-      ingredients: [...f.ingredients, {produitId: newProd.id, quantite: 100}]
-    }));
+    // Vérifier si produit existe déjà (même nom + source ciqual)
+    const existing = produits.find(p => p.nom === alim.n && p.source === "ciqual");
+    
+    if (existing) {
+      // Produit existe déjà, juste ajouter à la recette
+      setRecForm(f=>({
+        ...f,
+        ingredients: [...f.ingredients, {produitId: existing.id, quantite: 100}]
+      }));
+    } else {
+      // Créer nouveau produit
+      const newProd = {
+        id: Date.now()+Math.random(),
+        nom: alim.n,
+        kcal: alim.e || 0,
+        glucides: alim.g || 0,
+        proteines: alim.p || 0,
+        lipides: alim.l || 0,
+        sodium: alim.na || 0,
+        potassium: alim.k || 0,
+        magnesium: alim.mg || 0,
+        zinc: 0,
+        calcium: 0,
+        categorie: alim.c || "",
+        source: "ciqual",
+        notes: ""
+      };
+      setProduits(pp=>[...pp, newProd]);
+      setRecForm(f=>({
+        ...f,
+        ingredients: [...f.ingredients, {produitId: newProd.id, quantite: 100}]
+      }));
+    }
+    
     setIngCiqualModal(false);
     setIngCiqualSearch("");
   };
@@ -481,12 +498,41 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
       .sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,50)
   , [seances]);
 
-  const linkRecetteToSeance = (seanceId, recetteId) => {
-    setSeances(ss=>ss.map(s=>s.id===seanceId?{...s,recetteId}:s));
+  // Modal nutrition séance
+  const [nutritionSeanceModal, setNutritionSeanceModal] = useState(false);
+  const [editNutritionSeanceId, setEditNutritionSeanceId] = useState(null);
+  const [nutritionSeanceForm, setNutritionSeanceForm] = useState([]); // [{id, quantite}]
+
+  const openNutritionSeance = (seance) => {
+    setEditNutritionSeanceId(seance.id);
+    setNutritionSeanceForm(seance.nutrition || []); // [{id, quantite}]
+    setNutritionSeanceModal(true);
   };
-  
-  const unlinkRecette = (seanceId) => {
-    setSeances(ss=>ss.map(s=>s.id===seanceId?{...s,recetteId:undefined}:s));
+
+  const saveNutritionSeance = () => {
+    setSeances(ss=>ss.map(s=>
+      s.id===editNutritionSeanceId 
+        ? {...s, nutrition: nutritionSeanceForm} 
+        : s
+    ));
+    setNutritionSeanceModal(false);
+  };
+
+  const toggleNutritionItem = (id) => {
+    const exists = nutritionSeanceForm.find(n=>n.id===id);
+    if(exists) {
+      setNutritionSeanceForm(f=>f.filter(n=>n.id!==id));
+    } else {
+      setNutritionSeanceForm(f=>[...f, {id, quantite: 1}]); // 1 portion par défaut
+    }
+  };
+
+  const updateNutritionQte = (id, qte) => {
+    setNutritionSeanceForm(f=>f.map(n=>n.id===id?{...n, quantite: parseFloat(qte)||0}:n));
+  };
+
+  const unlinkNutritionSeance = (seanceId) => {
+    setSeances(ss=>ss.map(s=>s.id===seanceId?{...s,nutrition:[]}:s));
   };
 
   const card = {background:C.white,border:`1px solid ${C.border}`,borderRadius:12};
@@ -649,37 +695,46 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
           </div>
         ):(
           <div style={{...card,overflow:"hidden"}}>
-            <div style={{display:"grid",gridTemplateColumns:"100px 1fr 100px 100px 1fr",
+            <div style={{display:"grid",gridTemplateColumns:"100px 1fr 1fr",
               padding:"8px 16px",background:C.stone,gap:8,fontSize:10,fontWeight:600,color:C.muted,
               textTransform:"uppercase",letterSpacing:"0.04em"}}>
               <span>Date</span>
               <span>Activité</span>
-              <span style={{textAlign:"right"}}>Durée</span>
-              <span style={{textAlign:"right"}}>Distance</span>
-              <span>Recette liée</span>
+              <span>Nutrition liée</span>
             </div>
             <div style={{maxHeight:520,overflowY:"auto"}}>
               {seancesEff.map(s=>{
-                const linkedRec = recettes.find(r=>r.id===s.recetteId);
+                const nutrition = s.nutrition || [];
+                const linkedItems = nutrition.map(n=>{
+                  const rec = recettes.find(r=>r.id===n.id);
+                  const prod = produits.find(p=>p.id===n.id);
+                  return {item: rec || prod, qte: n.quantite};
+                }).filter(x=>x.item);
+                
                 return (
-                  <div key={s.id} style={{display:"grid",gridTemplateColumns:"100px 1fr 100px 100px 1fr",
+                  <div key={s.id} style={{display:"grid",gridTemplateColumns:"100px 1fr 1fr",
                     padding:"10px 16px",gap:8,borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:13}}>
                     <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:C.inkLight}}>{fmtDate(s.date)}</span>
                     <span style={{fontWeight:500,color:C.inkLight}}>{s.activite}</span>
-                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace"}}>{s.duree_obj||"—"}</span>
-                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace"}}>{s.distance_obj?s.distance_obj+"km":"—"}</span>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      {linkedRec?(
+                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                      {linkedItems.length>0?(
                         <>
-                          <span style={{fontSize:12,color:C.forest}}>{linkedRec.nom}</span>
-                          <button onClick={()=>unlinkRecette(s.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:C.red}}>✕</button>
+                          <div style={{display:"flex",gap:4,flexWrap:"wrap",flex:1}}>
+                            {linkedItems.map(({item,qte},idx)=>(
+                              <span key={idx} style={{fontSize:11,background:C.stone,padding:"2px 8px",borderRadius:12,color:C.inkLight}}>
+                                {item.nom} <span style={{color:C.muted}}>×{qte}</span>
+                              </span>
+                            ))}
+                          </div>
+                          <button onClick={()=>openNutritionSeance(s)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:C.forest}}>✎</button>
+                          <button onClick={()=>unlinkNutritionSeance(s.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:C.red}}>✕</button>
                         </>
                       ):(
-                        <select value="" onChange={e=>e.target.value&&linkRecetteToSeance(s.id, e.target.value)}
-                          style={{fontSize:12,padding:"4px 8px",borderRadius:6,border:`1px solid ${C.border}`,cursor:"pointer"}}>
-                          <option value="">Lier une recette...</option>
-                          {recettes.map(r=><option key={r.id} value={r.id}>{r.nom}</option>)}
-                        </select>
+                        <button onClick={()=>openNutritionSeance(s)} 
+                          style={{fontSize:12,padding:"4px 12px",borderRadius:6,border:`1px solid ${C.border}`,
+                            background:C.white,cursor:"pointer",color:C.muted}}>
+                          + Lier nutrition
+                        </button>
                       )}
                     </div>
                   </div>
@@ -771,12 +826,8 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
             </div>
           )}
           <div style={{display:"flex",gap:8,marginTop:10}}>
-            <select value="" onChange={e=>{if(e.target.value)addIngredientFromProduit(e.target.value)}}
-              style={{flex:1,padding:"6px 10px",fontSize:13,borderRadius:7,border:`1px solid ${C.border}`,cursor:"pointer"}}>
-              <option value="">+ Ingrédient depuis mes produits...</option>
-              {produits.map(p=><option key={p.id} value={p.id}>{p.nom}</option>)}
-            </select>
-            <Btn variant="sage" size="sm" onClick={()=>setIngCiqualModal(true)}>🔍 Base CIQUAL</Btn>
+            <Btn variant="soft" onClick={()=>setIngCiqualModal(true)}>🔍 Base CIQUAL</Btn>
+            <Btn variant="soft" onClick={()=>setMesProduitsModal(true)}>🥕 Mes produits</Btn>
           </div>
         </div>
 
@@ -886,6 +937,137 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
               </div>
             ))
           )}
+        </div>
+      </Modal>
+
+      {/* ── MODAL MES PRODUITS (pour ingrédients) ── */}
+      <Modal open={mesProduitsModal} onClose={()=>{setMesProduitsModal(false);setMesProduitsSearch("");}} title="Mes produits" width={700}>
+        <div style={{marginBottom:16}}>
+          <input value={mesProduitsSearch} onChange={e=>setMesProduitsSearch(e.target.value)}
+            placeholder="Rechercher dans mes produits..."
+            style={{fontSize:13,padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`,width:"100%"}}/>
+        </div>
+        <div style={{maxHeight:400,overflowY:"auto",border:`1px solid ${C.border}`,borderRadius:8}}>
+          {produits.length===0?(
+            <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>
+              <div style={{fontSize:14,marginBottom:8}}>Aucun produit</div>
+              <div style={{fontSize:12}}>Crée des produits dans l'onglet "Produits"</div>
+            </div>
+          ):(()=>{
+            const filtered = produits.filter(p=>
+              !mesProduitsSearch || (p.nom||"").toLowerCase().includes(mesProduitsSearch.toLowerCase())
+            );
+            const alreadyAdded = new Set(recForm.ingredients.map(i=>i.produitId));
+            
+            return filtered.length===0?(
+              <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>Aucun résultat</div>
+            ):(
+              filtered.map(p=>{
+                const added = alreadyAdded.has(p.id);
+                return (
+                  <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                    padding:"10px 14px",borderBottom:`1px solid ${C.border}`,gap:12,opacity:added?0.5:1}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:14,fontWeight:500,color:C.inkLight,marginBottom:2}}>{p.nom}</div>
+                      {p.categorie&&<div style={{fontSize:11,color:C.muted}}>{p.categorie}</div>}
+                      <div style={{display:"flex",gap:10,fontSize:11,marginTop:4}}>
+                        <span style={{color:"#e65100"}}>{Math.round(p.kcal||0)} kcal</span>
+                        <span style={{color:"#1d9e75"}}>{(p.glucides||0).toFixed(1)}g gluc.</span>
+                        <span style={{color:"#185FA5"}}>{(p.proteines||0).toFixed(1)}g prot.</span>
+                        <span style={{color:"#7F77DD"}}>{(p.lipides||0).toFixed(1)}g lip.</span>
+                      </div>
+                    </div>
+                    {added?(
+                      <span style={{fontSize:12,color:C.muted}}>✓ Ajouté</span>
+                    ):(
+                      <Btn size="sm" onClick={()=>{addIngredientFromProduit(p.id);setMesProduitsModal(false);setMesProduitsSearch("");}}>＋ Ajouter</Btn>
+                    )}
+                  </div>
+                );
+              })
+            );
+          })()}
+        </div>
+      </Modal>
+
+      {/* ── MODAL NUTRITION SÉANCE ── */}
+      <Modal open={nutritionSeanceModal} onClose={()=>setNutritionSeanceModal(false)} title="Nutrition de la séance" width={600}>
+        {recettes.length===0 && produits.length===0?(
+          <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>
+            <div style={{fontSize:14,marginBottom:8}}>Aucun produit ou recette</div>
+            <div style={{fontSize:12}}>Crée des produits ou recettes dans les onglets correspondants</div>
+          </div>
+        ):(
+          <>
+            {recettes.length>0&&(
+              <div style={{marginBottom:20}}>
+                <div style={{...lbl,marginBottom:10}}>Recettes</div>
+                <div style={{display:"grid",gap:6}}>
+                  {recettes.map(r=>{
+                    const item = nutritionSeanceForm.find(n=>n.id===r.id);
+                    const checked = !!item;
+                    return (
+                      <label key={r.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",
+                        borderRadius:8,border:`1px solid ${checked?C.forest:C.border}`,
+                        background:checked?C.forest+"10":C.white,cursor:"pointer"}}>
+                        <input type="checkbox" checked={checked} onChange={()=>toggleNutritionItem(r.id)}
+                          style={{width:16,height:16,cursor:"pointer",accentColor:C.forest}}/>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:14,fontWeight:500,color:C.inkLight}}>{r.nom}</div>
+                          {r.description&&<div style={{fontSize:11,color:C.muted}}>{r.description}</div>}
+                        </div>
+                        {checked&&(
+                          <div style={{display:"flex",alignItems:"center",gap:6}} onClick={e=>e.preventDefault()}>
+                            <input type="number" min="0.1" step="0.5" value={item.quantite} 
+                              onChange={e=>updateNutritionQte(r.id, e.target.value)}
+                              style={{width:60,padding:"4px 8px",fontSize:12,borderRadius:6,border:`1px solid ${C.border}`,textAlign:"right"}}/>
+                            <span style={{fontSize:12,color:C.muted}}>portion{item.quantite>1?"s":""}</span>
+                          </div>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {produits.length>0&&(
+              <div>
+                <div style={{...lbl,marginBottom:10}}>Produits</div>
+                <div style={{display:"grid",gap:6}}>
+                  {produits.map(p=>{
+                    const item = nutritionSeanceForm.find(n=>n.id===p.id);
+                    const checked = !!item;
+                    return (
+                      <label key={p.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",
+                        borderRadius:8,border:`1px solid ${checked?C.forest:C.border}`,
+                        background:checked?C.forest+"10":C.white,cursor:"pointer"}}>
+                        <input type="checkbox" checked={checked} onChange={()=>toggleNutritionItem(p.id)}
+                          style={{width:16,height:16,cursor:"pointer",accentColor:C.forest}}/>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:14,fontWeight:500,color:C.inkLight}}>{p.nom}</div>
+                          {p.categorie&&<div style={{fontSize:11,color:C.muted}}>{p.categorie}</div>}
+                        </div>
+                        {checked&&(
+                          <div style={{display:"flex",alignItems:"center",gap:6}} onClick={e=>e.preventDefault()}>
+                            <input type="number" min="1" step="1" value={item.quantite} 
+                              onChange={e=>updateNutritionQte(p.id, e.target.value)}
+                              style={{width:60,padding:"4px 8px",fontSize:12,borderRadius:6,border:`1px solid ${C.border}`,textAlign:"right"}}/>
+                            <span style={{fontSize:12,color:C.muted}}>g</span>
+                          </div>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:20}}>
+          <Btn variant="ghost" onClick={()=>setNutritionSeanceModal(false)}>Annuler</Btn>
+          <Btn onClick={saveNutritionSeance}>Enregistrer</Btn>
         </div>
       </Modal>
 
