@@ -239,6 +239,7 @@ const emptyProduit = () => ({
   zinc: "",
   calcium: "",
   categorie: "",
+  boisson: false,
   source: "perso",
   notes: ""
 });
@@ -249,7 +250,9 @@ const emptyRecette = () => ({
   description: "",
   portions: 1,
   ingredients: [], // {produitId, quantite}
-  notes: ""
+  notes: "",
+  boisson: false,
+  volumeMlParPortion: ""
 });
 
 function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setSeances, activites = [] }) {
@@ -608,7 +611,10 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
                   <div key={p.id} style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 70px 70px 70px 70px 70px 70px 70px 100px 32px",
                     padding:"10px 16px",gap:8,borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:13}}>
                     <div>
-                      <div style={{fontWeight:500,color:C.inkLight}}>{p.nom}</div>
+                      <div style={{fontWeight:500,color:C.inkLight,display:"flex",alignItems:"center",gap:6}}>
+                        {p.nom}
+                        {p.boisson&&<span style={{fontSize:11,background:C.blue+"15",color:C.blue,padding:"2px 6px",borderRadius:4,fontWeight:500}}>💧 Boisson</span>}
+                      </div>
                       {p.categorie&&<div style={{fontSize:11,color:C.muted}}>{p.categorie}</div>}
                     </div>
                     <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#e65100"}}>{p.kcal||0}</span>
@@ -782,6 +788,16 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
           <Field label="Notes" full>
             <textarea value={prodForm.notes||""} onChange={e=>updP("notes",e.target.value)} placeholder="Remarques..." style={{width:"100%",minHeight:60}}/>
           </Field>
+          <div style={{gridColumn:"1/-1",padding:"12px 14px",background:C.stone,borderRadius:8}}>
+            <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
+              <input type="checkbox" checked={prodForm.boisson||false} onChange={e=>updP("boisson",e.target.checked)}
+                style={{width:16,height:16,cursor:"pointer"}}/>
+              <div>
+                <div style={{fontSize:13,fontWeight:500,color:C.inkLight}}>Boisson</div>
+                <div style={{fontSize:11,color:C.muted}}>Ce produit contient de l'eau (sera comptabilisé dans les apports hydriques)</div>
+              </div>
+            </label>
+          </div>
         </div>
         <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:20}}>
           <Btn variant="ghost" onClick={()=>setProdModal(false)}>Annuler</Btn>
@@ -845,6 +861,34 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
             </div>
           );
         })()}
+
+        <div style={{marginBottom:16}}>
+          <div style={{...lbl,marginBottom:8}}>Type de recette</div>
+          <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:recForm.boisson?C.bluePale:C.stone,
+            border:`1px solid ${recForm.boisson?C.blue+"40":C.border}`,borderRadius:10,cursor:"pointer"}}
+            onClick={()=>updR("boisson",!recForm.boisson)}>
+            <div style={{width:44,height:24,borderRadius:12,background:recForm.boisson?C.blue:C.border,position:"relative",transition:"all 0.2s"}}>
+              <div style={{width:20,height:20,borderRadius:"50%",background:C.white,position:"absolute",top:2,
+                left:recForm.boisson?22:2,transition:"left 0.2s",boxShadow:"0 2px 4px rgba(0,0,0,0.1)"}}/>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:600,fontSize:13,color:recForm.boisson?C.blue:C.inkLight}}>
+                {recForm.boisson?"Recette boisson 💧":"Recette solide"}
+              </div>
+              <div style={{fontSize:11,color:C.muted,marginTop:2}}>
+                {recForm.boisson?"Compte dans l'hydratation":"Ne compte pas dans l'hydratation"}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {recForm.boisson&&(
+          <Field label="Volume par portion (ml)" style={{marginBottom:16}}>
+            <input type="number" min="0" step="10" value={recForm.volumeMlParPortion||""} 
+              onChange={e=>updR("volumeMlParPortion",e.target.value)}
+              placeholder="ex: 500 (ml par portion)" style={{width:"100%"}}/>
+          </Field>
+        )}
 
         <Field label="Notes">
           <textarea value={recForm.notes||""} onChange={e=>updR("notes",e.target.value)} placeholder="Instructions, remarques..." style={{width:"100%",minHeight:60}}/>

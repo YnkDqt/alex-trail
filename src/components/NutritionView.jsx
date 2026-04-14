@@ -1,103 +1,189 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { C } from '../constants.js';
-import { fmtTime, fmtPace, calcNutrition } from '../utils.jsx';
-import { Btn, Modal, Field, ConfirmDialog } from '../atoms.jsx';
+import { fmtTime, calcNutrition } from '../utils.jsx';
+import { Btn, Modal, Field, ConfirmDialog, KPI } from '../atoms.jsx';
 import { CIQUAL, CIQUAL_CATEGORIES } from '../data/ciqual.js';
 
-// ─── VUE NUTRITION COURSE ────────────────────────────────────────────────────
 export default function NutritionView({ 
   segments, 
   race, 
   setRace, 
   profil, 
   poids, 
-  recettes = [],  // Recettes entraînement
-  produits = []   // Produits entraînement
+  recettes = [],
+  produits = [],
+  settings
 }) {
-  // Bibliothèque course (structure séparée)
+  // Bibliothèque course
   const bibliotheque = useMemo(() => {
     const bib = race.bibliotheque;
-    // Si ancien format (array) ou undefined, convertir en nouveau format
     if (!bib || Array.isArray(bib)) {
-      return { produits: [], recettes: [] };
+      // Init bibliothèque avec Eau par défaut
+      const eauDefaut = {
+        id: "eau-default-" + Date.now(),
+        nom: "Eau",
+        kcal: 0, glucides: 0, proteines: 0, lipides: 0,
+        sodium: 0, potassium: 0, magnesium: 0, zinc: 0, calcium: 0,
+        categorie: "Boisson", source: "default", notes: "Eau pure",
+        boisson: true
+      };
+      return { produits: [eauDefaut], recettes: [] };
     }
-    // Si nouveau format mais incomplet
-    return {
-      produits: bib.produits || [],
-      recettes: bib.recettes || []
-    };
+    
+    // Si bibliothèque existe mais pas d'eau, l'ajouter
+    const produits = bib.produits || [];
+    const hasEau = produits.some(p => p.nom.toLowerCase() === "eau" || p.source === "default");
+    if (!hasEau && produits.length > 0) {
+      const eauDefaut = {
+        id: "eau-default-" + Date.now(),
+        nom: "Eau",
+        kcal: 0, glucides: 0, proteines: 0, lipides: 0,
+        sodium: 0, potassium: 0, magnesium: 0, zinc: 0, calcium: 0,
+        categorie: "Boisson", source: "default", notes: "Eau pure",
+        boisson: true
+      };
+      return { produits: [eauDefaut, ...produits], recettes: bib.recettes || [] };
+    }
+    
+    return { produits, recettes: bib.recettes || [] };
   }, [race.bibliotheque]);
   
   const updBibliotheque = (newBib) => setRace(r => ({ ...r, bibliotheque: newBib }));
 
-  // Poids utilisateur
-  const lastPoids = useMemo(() => 
-    [...(poids || [])].sort((a,b) => new Date(b.date) - new Date(a.date))[0]?.poids || 70
-  , [poids]);
-  const userWeight = profil?.poids || lastPoids;
+  const userWeight = profil?.poids || [...(poids || [])].sort((a,b) => new Date(b.date) - new Date(a.date))[0]?.poids || 70;
 
-  // Ravitaillements
+  // Produits départ (persistés dans race.depart)
+  const produitsDepartLocal = race.depart?.produits || [];
+  const setProduitsDepartLocal = (prods) => setRace(r => ({ ...r, depart: { produits: prods } }));
+
+  // Ravitaillements (filtrer assistant présente + exclure km=0 automatique)
   const ravitos = useMemo(() => 
-    [...(race.ravitos || [])].sort((a, b) => a.km - b.km).filter(rv => rv.assistancePresente !== false)
+    [...(race.ravitos || [])]
+      .filter(rv => rv.km !== 0)
+      .sort((a, b) => a.km - b.km)
   , [race.ravitos]);
 
-  // ── État ──
-  const [view, setView] = useState("bibliotheque"); // bibliotheque | plan
+  const updRavitos = (newRavitos) => setRace(r => ({ ...r, ravitos: newRavitos }));
 
-  // Modaux bibliothèque
+  // ── États modaux bibliothèque ──
   const [prodModal, setProdModal] = useState(false);
   const [recModal, setRecModal] = useState(false);
   const [ciqualModal, setCiqualModal] = useState(false);
   const [strideRecModal, setStrideRecModal] = useState(false);
   const [strideProdModal, setStrideProdModal] = useState(false);
-  
   const [editProdId, setEditProdId] = useState(null);
   const [editRecId, setEditRecId] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
-  const [confirmType, setConfirmType] = useState(null); // "produit" | "recette"
+  const [confirmType, setConfirmType] = useState(null);
+  const [autoCompletePreview, setAutoCompletePreview] = useState(null);
 
-  // Forms
   const emptyProduit = () => ({
     id: Date.now()+Math.random(),
-    nom: "",
-    kcal: "",
-    glucides: "",
-    proteines: "",
-    lipides: "",
-    sodium: "",
-    potassium: "",
-    magnesium: "",
-    zinc: "",
-    calcium: "",
-    categorie: "",
-    notes: ""
+    nom: "", kcal: "", glucides: "", proteines: "", lipides: "",
+    sodium: "", potassium: "", magnesium: "", zinc: "", calcium: "",
+    categorie: "", notes: ""
   });
 
   const emptyRecette = () => ({
-    id: Date.now()+Math.random(),
-    nom: "",
-    description: "",
-    portions: 1,
-    ingredients: [], // {produitId, quantite}
-    notes: ""
+    id: Date.now()+Math.random(), nom: "", description: "", portions: 1,
+    ingredients: [], notes: "", boisson: false, volumeMlParPortion: ""
   });
 
   const [prodForm, setProdForm] = useState(emptyProduit());
   const [recForm, setRecForm] = useState(emptyRecette());
-
-  // CIQUAL
   const [ciqualSearch, setCiqualSearch] = useState("");
   const [ciqualCat, setCiqualCat] = useState("Toutes");
-
-  // Ingrédients recette CIQUAL
   const [ingCiqualModal, setIngCiqualModal] = useState(false);
   const [ingCiqualSearch, setIngCiqualSearch] = useState("");
   const [ingCiqualCat, setIngCiqualCat] = useState("Toutes");
+  const [ingMesProduitsModal, setIngMesProduitsModal] = useState(false);
+  const [ingMesProduitsSearch, setIngMesProduitsSearch] = useState("");
 
   const updP = (k,v) => setProdForm(f=>({...f,[k]:v}));
   const updR = (k,v) => setRecForm(f=>({...f,[k]:v}));
 
-  // ── CRUD Bibliothèque Produits ──
+  // ── CALCULS ESTIMÉS ──
+  const nutriEstimes = useMemo(() => {
+    return segments.reduce((acc, seg) => {
+      if (seg.type === "ravito" || seg.type === "repos") return acc;
+      const n = calcNutrition(seg, { ...settings, weight: userWeight });
+      const dH = seg.speedKmh > 0 ? (seg.endKm - seg.startKm) / seg.speedKmh : 0;
+      return {
+        kcal: acc.kcal + n.kcal,
+        eau: acc.eau + Math.round(n.eauH * dH),
+        proteines: acc.proteines + Math.round(n.proteinesH * dH),
+        lipides: acc.lipides + Math.round(n.lipidesH * dH),
+        glucides: acc.glucides + Math.round(n.glucidesH * dH),
+        sodium: acc.sodium + Math.round(n.selH * dH),
+        potassium: acc.potassium + Math.round(dH * 200),
+        magnesium: acc.magnesium + Math.round(dH * 50),
+        zinc: acc.zinc + Math.round(dH * 2),
+        calcium: acc.calcium + Math.round(dH * 100)
+      };
+    }, { kcal: 0, eau: 0, proteines: 0, lipides: 0, glucides: 0, sodium: 0, potassium: 0, magnesium: 0, zinc: 0, calcium: 0 });
+  }, [segments, settings, userWeight]);
+
+  // ── CALCULS PLANIFIÉS ──
+  const nutriPlanifies = useMemo(() => {
+    const allItems = [...bibliotheque.produits, ...bibliotheque.recettes];
+    
+    // Inclure produits départ + ravitos
+    const allProduits = [
+      ...produitsDepartLocal,
+      ...ravitos.flatMap(rv => rv.produits || [])
+    ];
+    
+    return allProduits.reduce((total, item) => {
+        const prod = allItems.find(p => p.id === item.id);
+        if (!prod) return total;
+        
+        const qte = item.quantite || 0;
+        
+        if (prod.ingredients) {
+          const macros = (prod.ingredients || []).reduce((m, ing) => {
+            const ingProd = [...produits, ...bibliotheque.produits].find(p => p.id === ing.produitId);
+            if (!ingProd) return m;
+            const qteGrammes = ing.quantite || 0;
+            
+            return {
+              kcal: m.kcal + (ingProd.kcal || 0) * qteGrammes / 100,
+              eau: m.eau + (ingProd.boisson ? qteGrammes : 0), // 1g eau = 1ml
+              proteines: m.proteines + (ingProd.proteines || 0) * qteGrammes / 100,
+              lipides: m.lipides + (ingProd.lipides || 0) * qteGrammes / 100,
+              glucides: m.glucides + (ingProd.glucides || 0) * qteGrammes / 100,
+              sodium: m.sodium + (ingProd.sodium || 0) * qteGrammes / 100,
+              potassium: m.potassium + (ingProd.potassium || 0) * qteGrammes / 100,
+              magnesium: m.magnesium + (ingProd.magnesium || 0) * qteGrammes / 100,
+              zinc: m.zinc + (ingProd.zinc || 0) * qteGrammes / 100,
+              calcium: m.calcium + (ingProd.calcium || 0) * qteGrammes / 100
+            };
+          }, { kcal: 0, eau: 0, proteines: 0, lipides: 0, glucides: 0, sodium: 0, potassium: 0, magnesium: 0, zinc: 0, calcium: 0 });
+          
+          return Object.keys(macros).reduce((t, k) => ({ ...t, [k]: t[k] + macros[k] * qte }), total);
+        }
+        
+        // Produit simple - si boisson, quantité = volume eau (1g = 1ml)
+        const eauProd = prod.boisson ? qte * 100 : 0; // qte en portions, 1 portion = 100g
+        
+        return {
+          kcal: total.kcal + (prod.kcal || 0) * qte,
+          eau: total.eau + eauProd,
+          proteines: total.proteines + (prod.proteines || 0) * qte,
+          lipides: total.lipides + (prod.lipides || 0) * qte,
+          glucides: total.glucides + (prod.glucides || 0) * qte,
+          sodium: total.sodium + (prod.sodium || 0) * qte,
+          potassium: total.potassium + (prod.potassium || 0) * qte,
+          magnesium: total.magnesium + (prod.magnesium || 0) * qte,
+          zinc: total.zinc + (prod.zinc || 0) * qte,
+          calcium: total.calcium + (prod.calcium || 0) * qte
+        };
+    }, { kcal: 0, eau: 0, proteines: 0, lipides: 0, glucides: 0, sodium: 0, potassium: 0, magnesium: 0, zinc: 0, calcium: 0 });
+  }, [ravitos, produitsDepartLocal, bibliotheque, produits]);
+
+  const calcProgress = (planifie, estime) => estime > 0 ? Math.round((planifie / estime) * 100) : 0;
+  const progressColor = (pct) => pct >= 90 ? C.green : pct >= 70 ? C.yellow : C.red;
+
+  // ── CRUD Bibliothèque ──
   const openNewProd = () => {
     setEditProdId(null);
     setProdForm(emptyProduit());
@@ -113,83 +199,49 @@ export default function NutritionView({
   const saveProduit = () => {
     if(!prodForm.nom.trim()) return;
     const item = {
-      ...prodForm,
-      id: editProdId || Date.now()+Math.random(),
-      kcal: parseFloat(prodForm.kcal)||0,
-      glucides: parseFloat(prodForm.glucides)||0,
-      proteines: parseFloat(prodForm.proteines)||0,
-      lipides: parseFloat(prodForm.lipides)||0,
-      sodium: parseFloat(prodForm.sodium)||0,
-      potassium: parseFloat(prodForm.potassium)||0,
-      magnesium: parseFloat(prodForm.magnesium)||0,
-      zinc: parseFloat(prodForm.zinc)||0,
+      ...prodForm, id: editProdId || Date.now()+Math.random(),
+      kcal: parseFloat(prodForm.kcal)||0, glucides: parseFloat(prodForm.glucides)||0,
+      proteines: parseFloat(prodForm.proteines)||0, lipides: parseFloat(prodForm.lipides)||0,
+      sodium: parseFloat(prodForm.sodium)||0, potassium: parseFloat(prodForm.potassium)||0,
+      magnesium: parseFloat(prodForm.magnesium)||0, zinc: parseFloat(prodForm.zinc)||0,
       calcium: parseFloat(prodForm.calcium)||0
     };
     
     if(editProdId) {
-      updBibliotheque({
-        ...bibliotheque,
-        produits: bibliotheque.produits.map(p=>p.id===editProdId?item:p)
-      });
+      updBibliotheque({ ...bibliotheque, produits: bibliotheque.produits.map(p=>p.id===editProdId?item:p) });
     } else {
-      updBibliotheque({
-        ...bibliotheque,
-        produits: [...bibliotheque.produits, item]
-      });
+      updBibliotheque({ ...bibliotheque, produits: [...bibliotheque.produits, item] });
     }
     setProdModal(false);
   };
 
   const delProduit = (id) => {
-    updBibliotheque({
-      ...bibliotheque,
-      produits: bibliotheque.produits.filter(p=>p.id!==id)
-    });
+    updBibliotheque({ ...bibliotheque, produits: bibliotheque.produits.filter(p=>p.id!==id) });
     setConfirmId(null);
   };
 
-  // Ajout depuis CIQUAL
   const addFromCiqual = (alim) => {
+    const isBoisson = alim.c && alim.c.toLowerCase().includes("boisson");
     const newProd = {
-      id: Date.now()+Math.random(),
-      nom: alim.n,
-      kcal: alim.e || 0,
-      glucides: alim.g || 0,
-      proteines: alim.p || 0,
-      lipides: alim.l || 0,
-      sodium: alim.na || 0,
-      potassium: alim.k || 0,
-      magnesium: alim.mg || 0,
-      zinc: 0,
-      calcium: 0,
-      categorie: alim.c || "",
-      source: "ciqual",
-      notes: ""
+      id: Date.now()+Math.random(), nom: alim.n,
+      kcal: alim.e || 0, glucides: alim.g || 0, proteines: alim.p || 0,
+      lipides: alim.l || 0, sodium: alim.na || 0, potassium: alim.k || 0,
+      magnesium: alim.mg || 0, zinc: 0, calcium: 0,
+      categorie: alim.c || "", source: "ciqual", notes: "",
+      boisson: isBoisson
     };
-    updBibliotheque({
-      ...bibliotheque,
-      produits: [...bibliotheque.produits, newProd]
-    });
+    updBibliotheque({ ...bibliotheque, produits: [...bibliotheque.produits, newProd] });
     setCiqualModal(false);
     setCiqualSearch("");
   };
 
-  // Ajout depuis mes produits entraînement
   const addFromStrideProduits = (selectedIds) => {
     const selected = produits.filter(p=>selectedIds.includes(p.id));
-    const newProds = selected.map(p=>({
-      ...p,
-      id: Date.now()+Math.random(), // Nouvel ID pour éviter conflits
-      source: "stride"
-    }));
-    updBibliotheque({
-      ...bibliotheque,
-      produits: [...bibliotheque.produits, ...newProds]
-    });
+    const newProds = selected.map(p=>({ ...p, id: Date.now()+Math.random(), source: "stride" }));
+    updBibliotheque({ ...bibliotheque, produits: [...bibliotheque.produits, ...newProds] });
     setStrideProdModal(false);
   };
 
-  // ── CRUD Bibliothèque Recettes ──
   const openNewRec = () => {
     setEditRecId(null);
     setRecForm(emptyRecette());
@@ -204,50 +256,28 @@ export default function NutritionView({
 
   const saveRecette = () => {
     if(!recForm.nom.trim()) return;
-    const item = {
-      ...recForm,
-      id: editRecId || Date.now()+Math.random(),
-      portions: parseInt(recForm.portions)||1
-    };
+    const item = { ...recForm, id: editRecId || Date.now()+Math.random(), portions: parseInt(recForm.portions)||1 };
     
     if(editRecId) {
-      updBibliotheque({
-        ...bibliotheque,
-        recettes: bibliotheque.recettes.map(r=>r.id===editRecId?item:r)
-      });
+      updBibliotheque({ ...bibliotheque, recettes: bibliotheque.recettes.map(r=>r.id===editRecId?item:r) });
     } else {
-      updBibliotheque({
-        ...bibliotheque,
-        recettes: [...bibliotheque.recettes, item]
-      });
+      updBibliotheque({ ...bibliotheque, recettes: [...bibliotheque.recettes, item] });
     }
     setRecModal(false);
   };
 
   const delRecette = (id) => {
-    updBibliotheque({
-      ...bibliotheque,
-      recettes: bibliotheque.recettes.filter(r=>r.id!==id)
-    });
+    updBibliotheque({ ...bibliotheque, recettes: bibliotheque.recettes.filter(r=>r.id!==id) });
     setConfirmId(null);
   };
 
-  // Ajout depuis mes recettes entraînement
   const addFromStrideRecettes = (selectedIds) => {
     const selected = recettes.filter(r=>selectedIds.includes(r.id));
-    const newRecs = selected.map(r=>({
-      ...r,
-      id: Date.now()+Math.random(),
-      source: "stride"
-    }));
-    updBibliotheque({
-      ...bibliotheque,
-      recettes: [...bibliotheque.recettes, ...newRecs]
-    });
+    const newRecs = selected.map(r=>({ ...r, id: Date.now()+Math.random(), source: "stride" }));
+    updBibliotheque({ ...bibliotheque, recettes: [...bibliotheque.recettes, ...newRecs] });
     setStrideRecModal(false);
   };
 
-  // Ingrédients recette - tous produits disponibles (bibliothèque + entraînement)
   const allProduitsForIngredients = useMemo(() => [
     ...bibliotheque.produits,
     ...produits.map(p=>({...p, fromStride: true}))
@@ -257,78 +287,39 @@ export default function NutritionView({
     const exists = recForm.ingredients.find(i=>i.produitId===produitId);
     if(exists) return;
     
-    // Si produit vient de stride, l'ajouter à la bibliothèque course
     const prod = allProduitsForIngredients.find(p=>p.id===produitId);
     if(prod?.fromStride) {
-      const newProd = {
-        ...prod,
-        id: Date.now()+Math.random(),
-        fromStride: undefined,
-        source: "stride"
-      };
-      updBibliotheque({
-        ...bibliotheque,
-        produits: [...bibliotheque.produits, newProd]
-      });
-      setRecForm(f=>({
-        ...f,
-        ingredients: [...f.ingredients, {produitId: newProd.id, quantite: 100}]
-      }));
+      const newProd = { ...prod, id: Date.now()+Math.random(), fromStride: undefined, source: "stride" };
+      updBibliotheque({ ...bibliotheque, produits: [...bibliotheque.produits, newProd] });
+      setRecForm(f=>({ ...f, ingredients: [...f.ingredients, {produitId: newProd.id, quantite: 100}] }));
     } else {
-      setRecForm(f=>({
-        ...f,
-        ingredients: [...f.ingredients, {produitId, quantite: 100}]
-      }));
+      setRecForm(f=>({ ...f, ingredients: [...f.ingredients, {produitId, quantite: 100}] }));
     }
   };
 
   const addIngredientFromCiqual = (alim) => {
     const newProd = {
-      id: Date.now()+Math.random(),
-      nom: alim.n,
-      kcal: alim.e || 0,
-      glucides: alim.g || 0,
-      proteines: alim.p || 0,
-      lipides: alim.l || 0,
-      sodium: alim.na || 0,
-      potassium: alim.k || 0,
-      magnesium: alim.mg || 0,
-      zinc: 0,
-      calcium: 0,
-      categorie: alim.c || "",
-      source: "ciqual",
-      notes: ""
+      id: Date.now()+Math.random(), nom: alim.n,
+      kcal: alim.e || 0, glucides: alim.g || 0, proteines: alim.p || 0,
+      lipides: alim.l || 0, sodium: alim.na || 0, potassium: alim.k || 0,
+      magnesium: alim.mg || 0, zinc: 0, calcium: 0,
+      categorie: alim.c || "", source: "ciqual", notes: ""
     };
     
-    updBibliotheque({
-      ...bibliotheque,
-      produits: [...bibliotheque.produits, newProd]
-    });
-    
-    setRecForm(f=>({
-      ...f,
-      ingredients: [...f.ingredients, {produitId: newProd.id, quantite: 100}]
-    }));
-    
+    updBibliotheque({ ...bibliotheque, produits: [...bibliotheque.produits, newProd] });
+    setRecForm(f=>({ ...f, ingredients: [...f.ingredients, {produitId: newProd.id, quantite: 100}] }));
     setIngCiqualModal(false);
     setIngCiqualSearch("");
   };
 
   const removeIngredient = (idx) => {
-    setRecForm(f=>({
-      ...f,
-      ingredients: f.ingredients.filter((_, i)=>i!==idx)
-    }));
+    setRecForm(f=>({ ...f, ingredients: f.ingredients.filter((_, i)=>i!==idx) }));
   };
 
   const updateIngredientQte = (idx, qte) => {
-    setRecForm(f=>({
-      ...f,
-      ingredients: f.ingredients.map((ing, i)=>i===idx?{...ing, quantite: parseFloat(qte)||0}:ing)
-    }));
+    setRecForm(f=>({ ...f, ingredients: f.ingredients.map((ing, i)=>i===idx?{...ing, quantite: parseFloat(qte)||0}:ing) }));
   };
 
-  // Calcul macros recette
   const calcMacros = (rec) => {
     return (rec.ingredients||[]).reduce((acc, ing)=>{
       const prod = allProduitsForIngredients.find(p=>p.id===ing.produitId);
@@ -344,7 +335,209 @@ export default function NutritionView({
     }, {kcal:0, glucides:0, proteines:0, lipides:0, sodium:0});
   };
 
-  // Filtres CIQUAL
+  const nutriProduit = (item, quantite) => {
+    if (item.itemType === "recette") {
+      const macros = calcMacros(item);
+      const ratio = quantite / (item.portions || 1);
+      const eauMl = item.boisson ? (item.volumeMlParPortion || 0) * ratio : 0;
+      return {
+        kcal: macros.kcal * ratio,
+        glucides: macros.glucides * ratio,
+        eauMl
+      };
+    }
+    // Produit simple
+    const ratio = quantite / 100;
+    const eauMl = item.boisson ? quantite : 0; // 1g boisson = 1ml
+    return {
+      kcal: (item.kcal || 0) * ratio,
+      glucides: (item.glucides || 0) * ratio,
+      eauMl
+    };
+  };
+
+  const handleAutoComplete = () => {
+    // ── 1. FUSION ZONES AUTONOMES ──
+    const zonesAjustees = [];
+    let i = 0;
+    while (i < zones.length) {
+      const zone = zones[i];
+      const isAutonome = i > 0 && ravitos[i - 1]?.assistancePresente === false;
+      
+      if (isAutonome && zonesAjustees.length > 0) {
+        const prev = zonesAjustees[zonesAjustees.length - 1];
+        prev.to = zone.to;
+        prev.dist = prev.to - prev.from;
+        prev.toLbl = zone.toLbl;
+        prev.besoin.kcal += zone.besoin.kcal;
+        prev.besoin.glucides += zone.besoin.glucides;
+        prev.besoin.eau += zone.besoin.eau;
+        prev.fusionAutonome = true;
+      } else {
+        zonesAjustees.push({ ...zone, fusionAutonome: false });
+      }
+      i++;
+    }
+
+    // ── 2. CLASSIFICATION PRODUITS ──
+    const eauPure = allBibItems.find(p => p.boisson && p.nom && p.nom.toLowerCase() === "eau");
+    const boissonsEnergie = allBibItems.filter(p => p.boisson && p.id !== eauPure?.id);
+    const solides = allBibItems.filter(p => !p.boisson);
+
+    if (!eauPure && boissonsEnergie.length === 0 && solides.length === 0) {
+      alert("Bibliothèque vide.");
+      return;
+    }
+
+    // Trier solides par densité glucides (priorité trail)
+    solides.sort((a, b) => {
+      const densA = a.itemType === "recette" ? (a.macros?.glucides || 0) / (a.portions || 1) * 100 : (a.glucides || 0);
+      const densB = b.itemType === "recette" ? (b.macros?.glucides || 0) / (b.portions || 1) * 100 : (b.glucides || 0);
+      return densB - densA;
+    });
+
+    const newPlan = {};
+
+    // ── 3. OPTIMISATION PAR ZONE ──
+    zonesAjustees.forEach((zone, zi) => {
+      const { pointKey, besoin } = zone;
+      const isDepart = zi === 0;
+      
+      // Cibles avec marges
+      const marge = isDepart ? 1.1 : (zone.fusionAutonome ? 1.15 : 1.0);
+      const cibleKcal = Math.round(besoin.kcal * marge);
+      const cibleGlucides = Math.round(besoin.glucides * marge);
+      const cibleEau = Math.round(besoin.eau * marge); // en ml
+      
+      const plan = [];
+      let totalKcal = 0, totalGluc = 0, totalEau = 0;
+
+      // ── Étape 1 : Eau pure (300ml min sécurité sauf départ) ──
+      if (eauPure) {
+        const eauMin = isDepart ? 0 : 300; // ml
+        const eauCible = Math.max(cibleEau * 0.4, eauMin); // 40% besoin ou min
+        const qteGrammes = Math.ceil(eauCible / 100) * 100; // Arrondi 100g
+        
+        plan.push({ id: eauPure.id, quantite: qteGrammes });
+        const nutri = nutriProduit(eauPure, qteGrammes);
+        totalEau += nutri.eauMl;
+      }
+
+      // ── Étape 2 : Boisson énergétique (compléter eau + kcal) ──
+      if (boissonsEnergie.length > 0) {
+        const b = boissonsEnergie[0];
+        const eauRestante = cibleEau - totalEau;
+        
+        if (eauRestante > 100) { // Si > 100ml manquant
+          let qte = 0;
+          
+          if (b.itemType === "recette") {
+            // Recette : calcul portions
+            const volParPortion = parseFloat(b.volumeMlParPortion) || 500;
+            const portions = Math.ceil(eauRestante / volParPortion);
+            qte = portions;
+          } else {
+            // Produit : grammes = ml
+            qte = Math.ceil(eauRestante / 100) * 100;
+          }
+          
+          plan.push({ id: b.id, quantite: qte });
+          const nutri = nutriProduit(b, qte);
+          totalKcal += nutri.kcal;
+          totalGluc += nutri.glucides;
+          totalEau += nutri.eauMl;
+        }
+      }
+
+      // ── Étape 3 : Solides (glucides + kcal) ──
+      if (solides.length > 0) {
+        const produitsUtilises = Math.min(3, solides.length); // Variété max 3
+        
+        for (let round = 0; round < 10; round++) { // Max 10 itérations
+          const manqueKcal = cibleKcal - totalKcal;
+          const manqueGluc = cibleGlucides - totalGluc;
+          
+          // Seuil acceptation : ±10%
+          if (manqueKcal < cibleKcal * 0.1 && manqueGluc < cibleGlucides * 0.1) break;
+          if (manqueKcal < 0 && manqueGluc < 0) break;
+          
+          // Sélectionner meilleur produit pour besoin actuel
+          let bestProd = null;
+          let bestScore = -Infinity;
+          
+          for (let p of solides.slice(0, produitsUtilises)) {
+            const isProduit = p.itemType === "produit";
+            const qteTest = isProduit ? 50 : 1; // 50g ou 1 portion
+            const nutri = nutriProduit(p, qteTest);
+            
+            // Score = gain kcal + 1.5× gain glucides (priorité glucides trail)
+            const gainKcal = Math.min(manqueKcal, nutri.kcal);
+            const gainGluc = Math.min(manqueGluc, nutri.glucides);
+            const score = gainKcal + gainGluc * 1.5;
+            
+            if (score > bestScore) {
+              bestScore = score;
+              bestProd = { prod: p, qteTest, nutri };
+            }
+          }
+          
+          if (!bestProd || bestScore <= 0) break;
+          
+          // Ajouter au plan
+          const existing = plan.find(x => x.id === bestProd.prod.id);
+          if (existing) {
+            existing.quantite += bestProd.qteTest;
+          } else {
+            plan.push({ id: bestProd.prod.id, quantite: bestProd.qteTest });
+          }
+          
+          totalKcal += bestProd.nutri.kcal;
+          totalGluc += bestProd.nutri.glucides;
+        }
+      }
+
+      // ── Étape 4 : Arrondir quantités ──
+      const planFinal = plan.map(p => {
+        const item = allBibItems.find(x => x.id === p.id);
+        if (!item) return p;
+        
+        const isProduit = item.itemType === "produit";
+        const arrondi = isProduit ? Math.round(p.quantite / 10) * 10 : Math.round(p.quantite);
+        
+        return { ...p, quantite: Math.max(arrondi, isProduit ? 10 : 1) };
+      });
+
+      newPlan[pointKey] = planFinal;
+    });
+
+    setAutoCompletePreview(newPlan);
+  };
+
+  const applyAutoComplete = () => {
+    if (!autoCompletePreview) return;
+    
+    // Séparer depart vs ravitos
+    const departItems = autoCompletePreview["depart"];
+    if (departItems) {
+      setProduitsDepartLocal(departItems);
+    }
+    
+    // Batch update tous ravitos en une seule fois
+    const ravitoKeys = Object.keys(autoCompletePreview).filter(k => k !== "depart");
+    if (ravitoKeys.length > 0) {
+      const updated = ravitos.map(rv => {
+        const pointKey = String(rv.id);
+        if (autoCompletePreview[pointKey]) {
+          return { ...rv, produits: autoCompletePreview[pointKey] };
+        }
+        return rv;
+      });
+      updRavitos(updated);
+    }
+    
+    setAutoCompletePreview(null);
+  };
+
   const filteredCiqual = useMemo(()=>{
     let results = CIQUAL;
     if(ciqualCat!=="Toutes") results = results.filter(a=>a.c===ciqualCat);
@@ -365,131 +558,404 @@ export default function NutritionView({
     return results.slice(0, 50);
   }, [ingCiqualSearch, ingCiqualCat]);
 
-  // ── UI ──
-  const card = {background:C.white,border:`1px solid ${C.border}`,borderRadius:12};
-  const lbl = {fontSize:10,fontWeight:500,textTransform:"uppercase",letterSpacing:"0.06em",color:C.muted};
+  // ── Plan ravitaillement ──
+  const totalDist = segments.filter(s => s.type !== "ravito" && s.type !== "repos").reduce((s, seg) => Math.max(s, seg.endKm), 0);
+  const bornes = [0, ...ravitos.map(r => r.km), totalDist].filter((v, i, a) => v !== a[i-1]);
+  
+  const zones = useMemo(() => bornes.slice(0, -1).map((from, i) => {
+    const to = bornes[i + 1];
+    const label = i === 0 ? "Départ" : (ravitos[i-1]?.name || `Ravito ${i}`);
+    const toLbl = i === bornes.length - 2 ? "Arrivée" : (ravitos[i]?.name || `Ravito ${i+1}`);
+    const pointKey = i === 0 ? "depart" : String(ravitos[i-1]?.id);
+    
+    const segsZ = segments.filter(s => s.type !== "ravito" && s.type !== "repos" && s.startKm < to && s.endKm > from);
+    const besoin = segsZ.reduce((acc, seg) => {
+      const overlap = Math.min(seg.endKm, to) - Math.max(seg.startKm, from);
+      const ratio = overlap / (seg.endKm - seg.startKm || 1);
+      const n = calcNutrition(seg, { ...settings, weight: userWeight });
+      const dH = (seg.endKm - seg.startKm) / seg.speedKmh * ratio;
+      return { 
+        kcal: acc.kcal + Math.round(n.kcalH * dH), 
+        eau: acc.eau + Math.round(n.eauH * dH), 
+        glucides: acc.glucides + Math.round(n.glucidesH * dH) 
+      };
+    }, { kcal: 0, eau: 0, glucides: 0 });
+    
+    return { label, toLbl, from, to, pointKey, besoin, dist: to - from };
+  }), [bornes, ravitos, segments, settings, userWeight]);
 
-  // Tableau unifié bibliothèque
+  const updateRavitoQte = (ravitoId, prodId, delta) => {
+    // Zone départ (ravitoId = 'depart-local')
+    if (ravitoId === 'depart-local') {
+      const existing = produitsDepartLocal.find(p => p.id === prodId);
+      if (existing) {
+        const newQte = Math.max(0, (existing.quantite || 0) + delta);
+        if (newQte === 0) {
+          setProduitsDepartLocal(produitsDepartLocal.filter(p => p.id !== prodId));
+        } else {
+          setProduitsDepartLocal(produitsDepartLocal.map(p => p.id === prodId ? { ...p, quantite: newQte } : p));
+        }
+      } else if (delta > 0) {
+        setProduitsDepartLocal([...produitsDepartLocal, { id: prodId, quantite: delta }]);
+      }
+      return;
+    }
+    
+    // Ravitos normaux
+    const updated = ravitos.map(rv => {
+      if (rv.id !== ravitoId) return rv;
+      const prods = rv.produits || [];
+      const existing = prods.find(p => p.id === prodId);
+      
+      if (existing) {
+        const newQte = Math.max(0, (existing.quantite || 0) + delta);
+        if (newQte === 0) {
+          return { ...rv, produits: prods.filter(p => p.id !== prodId) };
+        }
+        return { ...rv, produits: prods.map(p => p.id === prodId ? { ...p, quantite: newQte } : p) };
+      } else if (delta > 0) {
+        return { ...rv, produits: [...prods, { id: prodId, quantite: delta }] };
+      }
+      return rv;
+    });
+    updRavitos(updated);
+  };
+
   const allBibItems = useMemo(() => {
     const prods = bibliotheque.produits.map(p=>({...p, itemType: "produit"}));
     const recs = bibliotheque.recettes.map(r=>({...r, itemType: "recette", macros: calcMacros(r)}));
     return [...prods, ...recs];
   }, [bibliotheque]);
 
+  const card = {background:C.white,border:`1px solid ${C.border}`,borderRadius:12};
+  const lbl = {fontSize:10,fontWeight:500,textTransform:"uppercase",letterSpacing:"0.06em",color:C.muted};
+
+  const nutrients = [
+    { key: 'eau', label: 'Eau', unit: 'L', factor: 1000, icon: '💧', color: C.blue },
+    { key: 'kcal', label: 'Kcal', unit: 'kcal', factor: 1, icon: '🔥', color: C.red },
+    { key: 'proteines', label: 'Prot.', unit: 'g', factor: 1, icon: '🥩', color: '#185FA5' },
+    { key: 'lipides', label: 'Lip.', unit: 'g', factor: 1, icon: '🥑', color: '#7F77DD' },
+    { key: 'glucides', label: 'Gluc.', unit: 'g', factor: 1, icon: '🍌', color: '#1d9e75' },
+    { key: 'sodium', label: 'Sodium', unit: 'mg', factor: 1, icon: '🧂', color: '#BA7517' },
+    { key: 'potassium', label: 'Potassium', unit: 'mg', factor: 1, icon: '', color: C.muted },
+    { key: 'magnesium', label: 'Magnésium', unit: 'mg', factor: 1, icon: '', color: C.muted },
+    { key: 'zinc', label: 'Zinc', unit: 'mg', factor: 1, icon: '', color: C.muted },
+    { key: 'calcium', label: 'Calcium', unit: 'mg', factor: 1, icon: '', color: C.muted }
+  ];
+
   return (
     <div className="anim" style={{padding:"24px 40px 80px"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:10}}>
-        <div>
-          <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight,marginBottom:4}}>Nutrition course</h1>
-          <p style={{fontSize:12,color:C.muted}}>Bibliothèque · Plan ravitaillement · Besoins énergétiques</p>
+      <div style={{marginBottom:20}}>
+        <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight,marginBottom:4}}>Nutrition course</h1>
+        <p style={{fontSize:12,color:C.muted}}>Besoins estimés · Apports planifiés · Bibliothèque · Plan ravitaillement</p>
+      </div>
+
+      {/* ── BESOINS ESTIMÉS ── */}
+      <div style={{marginBottom:12}}>
+        <div style={{...lbl,marginBottom:4}}>Besoins estimés (calculés depuis profil de course)</div>
+        {(() => {
+          const totalTime = segments.reduce((s, seg) => {
+            if (seg.type === "ravito" || seg.type === "repos") return s;
+            return s + (seg.speedKmh > 0 ? (seg.endKm - seg.startKm) / seg.speedKmh : 0);
+          }, 0);
+          const kcalH = totalTime > 0 ? Math.round(nutriEstimes.kcal / totalTime) : 0;
+          const glucidesH = totalTime > 0 ? Math.round(nutriEstimes.glucides / totalTime) : 0;
+          return (
+            <div style={{fontSize:11,color:C.muted,fontStyle:"italic",marginBottom:10}}>
+              Base calibration : {kcalH} kcal/h · {glucidesH}g glucides/h {settings.glucidesTargetGh ? `(cible ${settings.glucidesTargetGh}g/h)` : "(auto)"}
+            </div>
+          );
+        })()}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:10}}>
+          {nutrients.map(n => {
+            const val = nutriEstimes[n.key] || 0;
+            const display = n.factor > 1 ? (val / n.factor).toFixed(1) : Math.round(val);
+            return (
+              <div key={n.key} style={{background:C.stone,borderRadius:10,padding:"10px 14px"}}>
+                <div style={{fontSize:10,color:C.muted,marginBottom:4}}>{n.label}</div>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:20,fontWeight:500,color:n.color,lineHeight:1}}>
+                  {n.icon&&<span style={{marginRight:4}}>{n.icon}</span>}
+                  {display}
+                  <span style={{fontSize:11,color:C.muted,fontWeight:400,marginLeft:3}}>{n.unit}</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{display:"flex",gap:2,borderBottom:`1px solid ${C.border}`,marginBottom:20}}>
-        {[
-          {id:"bibliotheque", label:`Bibliothèque (${allBibItems.length})`},
-          {id:"plan", label:"Plan ravitaillement"}
-        ].map(t=>(
-          <button key={t.id} onClick={()=>setView(t.id)}
-            style={{background:"none",border:"none",padding:"8px 16px",cursor:"pointer",fontSize:13,
-              fontWeight:view===t.id?500:400,color:view===t.id?C.forest:C.muted,
-              borderBottom:view===t.id?`2px solid ${C.forest}`:"2px solid transparent",
-              marginBottom:-1,fontFamily:"inherit"}}>
-            {t.label}
-          </button>
-        ))}
+      {/* ── APPORTS PLANIFIÉS ── */}
+      <div style={{marginBottom:30}}>
+        <div style={{...lbl,marginBottom:10}}>Apports planifiés (depuis plan ravitaillement)</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:10}}>
+          {nutrients.map(n => {
+            const val = nutriPlanifies[n.key] || 0;
+            const estime = nutriEstimes[n.key] || 0;
+            const display = n.factor > 1 ? (val / n.factor).toFixed(1) : Math.round(val);
+            const pct = calcProgress(val, estime);
+            const col = progressColor(pct);
+            return (
+              <div key={n.key} style={{background:C.stone,borderRadius:10,padding:"10px 14px",
+                border:`1.5px solid ${col}20`}}>
+                <div style={{fontSize:10,color:C.muted,marginBottom:4}}>{n.label}</div>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:20,fontWeight:500,color:n.color,lineHeight:1,marginBottom:4}}>
+                  {display}
+                  <span style={{fontSize:11,color:C.muted,fontWeight:400,marginLeft:3}}>{n.unit}</span>
+                </div>
+                <div style={{fontSize:11,fontWeight:500,color:col}}>{pct}%</div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* ── BIBLIOTHÈQUE ── */}
-      {view==="bibliotheque"&&(
-        <div>
-          <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-            <Btn variant="soft" onClick={()=>setStrideRecModal(true)}>📚 Mes recettes entraînement</Btn>
-            <Btn variant="soft" onClick={()=>setStrideProdModal(true)}>🥕 Mes produits entraînement</Btn>
-            <Btn variant="soft" onClick={()=>setCiqualModal(true)}>🔍 Base CIQUAL</Btn>
-            <Btn onClick={openNewProd}>＋ Créer produit</Btn>
-            <Btn onClick={openNewRec}>＋ Créer recette</Btn>
-          </div>
-
-          {allBibItems.length===0?(
-            <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
-              <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>🍽️</div>
-              <div style={{fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:6}}>Bibliothèque vide</div>
-              <div style={{fontSize:13,marginBottom:20}}>Ajoute des produits et recettes pour cette course</div>
-              <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
-                <Btn variant="soft" onClick={()=>setStrideRecModal(true)}>📚 Mes recettes</Btn>
-                <Btn variant="soft" onClick={()=>setCiqualModal(true)}>🔍 CIQUAL</Btn>
-                <Btn onClick={openNewProd}>＋ Créer produit</Btn>
-              </div>
+      <div style={{marginBottom:30}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{...lbl}}>Bibliothèque de produits</div>
+          <div style={{display:"flex",gap:8}}>
+            <div style={{fontSize:11,color:C.muted,alignSelf:"center",fontStyle:"italic"}}>
+              Modifs depuis Entraînement = rechargez la page
             </div>
-          ):(
-            <div style={{...card,overflow:"hidden"}}>
-              <div style={{display:"grid",gridTemplateColumns:"120px 1fr 70px 70px 70px 70px 70px 70px 70px 70px 70px 32px",
-                padding:"8px 16px",background:C.stone,gap:8,fontSize:10,fontWeight:600,color:C.muted,
-                textTransform:"uppercase",letterSpacing:"0.04em"}}>
-                <span>Type</span>
-                <span>Nom</span>
-                <span style={{textAlign:"right"}}>Kcal</span>
-                <span style={{textAlign:"right"}}>Gluc.</span>
-                <span style={{textAlign:"right"}}>Prot.</span>
-                <span style={{textAlign:"right"}}>Lip.</span>
-                <span style={{textAlign:"right"}}>Na</span>
-                <span style={{textAlign:"right"}}>K</span>
-                <span style={{textAlign:"right"}}>Mg</span>
-                <span style={{textAlign:"right"}}>Zn</span>
-                <span style={{textAlign:"right"}}>Ca</span>
-                <span/>
-              </div>
-              <div style={{maxHeight:520,overflowY:"auto"}}>
-                {allBibItems.map(item=>{
-                  const isProd = item.itemType==="produit";
-                  const macros = isProd ? item : item.macros;
-                  return (
-                    <div key={item.id} style={{display:"grid",gridTemplateColumns:"120px 1fr 70px 70px 70px 70px 70px 70px 70px 70px 70px 32px",
-                      padding:"10px 16px",gap:8,borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:13}}>
-                      <span style={{fontSize:11,fontWeight:500,color:isProd?C.forest:"#7F77DD"}}>
-                        {isProd?"Produit":"Recette"}
-                      </span>
-                      <div>
-                        <div style={{fontWeight:500,color:C.inkLight}}>{item.nom}</div>
-                        {item.categorie&&<div style={{fontSize:11,color:C.muted}}>{item.categorie}</div>}
-                        {!isProd&&item.description&&<div style={{fontSize:11,color:C.muted}}>{item.description}</div>}
+            <Btn variant="soft" size="sm" onClick={()=>setStrideRecModal(true)}>📚 Mes recettes</Btn>
+            <Btn variant="soft" size="sm" onClick={()=>setStrideProdModal(true)}>🥕 Mes produits</Btn>
+            <Btn variant="soft" size="sm" onClick={()=>setCiqualModal(true)}>🔍 CIQUAL</Btn>
+            <Btn size="sm" onClick={openNewProd}>+ Produit</Btn>
+            <Btn size="sm" onClick={openNewRec}>+ Recette</Btn>
+          </div>
+        </div>
+
+        {allBibItems.length===0?(
+          <div style={{textAlign:"center",padding:"40px 20px",color:C.muted,background:C.stone,borderRadius:10}}>
+            <div style={{fontSize:14,marginBottom:8}}>Bibliothèque vide</div>
+            <div style={{fontSize:12}}>Ajoute des produits et recettes pour cette course</div>
+          </div>
+        ):(
+          <div style={{...card,overflow:"hidden"}}>
+            <div style={{display:"grid",gridTemplateColumns:"80px 1fr 60px 60px 60px 60px 60px 60px 60px 60px 60px 32px",
+              padding:"7px 14px",background:C.stone,gap:8,fontSize:9,fontWeight:600,color:C.muted,
+              textTransform:"uppercase",letterSpacing:"0.04em"}}>
+              <span>Type</span><span>Nom</span>
+              <span style={{textAlign:"right"}}>Kcal</span>
+              <span style={{textAlign:"right"}}>Gluc.</span>
+              <span style={{textAlign:"right"}}>Prot.</span>
+              <span style={{textAlign:"right"}}>Lip.</span>
+              <span style={{textAlign:"right"}}>Na</span>
+              <span style={{textAlign:"right"}}>K</span>
+              <span style={{textAlign:"right"}}>Mg</span>
+              <span style={{textAlign:"right"}}>Zn</span>
+              <span style={{textAlign:"right"}}>Ca</span>
+              <span/>
+            </div>
+            <div style={{maxHeight:320,overflowY:"auto"}}>
+              {allBibItems.map(item=>{
+                const isProd = item.itemType==="produit";
+                const macros = isProd ? item : item.macros;
+                return (
+                  <div key={item.id} style={{display:"grid",gridTemplateColumns:"80px 1fr 60px 60px 60px 60px 60px 60px 60px 60px 60px 32px",
+                    padding:"9px 14px",gap:8,borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:12}}>
+                    <span style={{fontSize:10,fontWeight:500,color:isProd?C.forest:"#7F77DD"}}>
+                      {isProd?"Produit":"Recette"}
+                    </span>
+                    <div>
+                      <div style={{fontWeight:500,color:C.inkLight,fontSize:13}}>
+                        {item.nom}
+                        {item.boisson&&<span style={{fontSize:10,marginLeft:6,padding:"2px 6px",background:C.bluePale,color:C.blue,borderRadius:4,fontWeight:600}}>💧</span>}
                       </div>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#e65100"}}>{macros?.kcal||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#1d9e75"}}>{macros?.glucides||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#185FA5"}}>{macros?.proteines||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#7F77DD"}}>{macros?.lipides||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#BA7517",fontSize:11}}>{macros?.sodium||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{item.potassium||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{item.magnesium||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{item.zinc||0}</span>
-                      <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{item.calcium||0}</span>
-                      <div style={{display:"flex",gap:2}}>
-                        <button onClick={()=>isProd?openEditProd(item):openEditRec(item)} 
-                          style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.forest}}>✎</button>
-                        <button onClick={()=>{setConfirmId(item.id);setConfirmType(item.itemType);}} 
-                          style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red}}>🗑</button>
+                      {item.categorie&&<div style={{fontSize:10,color:C.muted}}>{item.categorie}</div>}
+                    </div>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#e65100",fontSize:11}}>{Math.round(macros?.kcal||0)}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#1d9e75",fontSize:11}}>{Math.round(macros?.glucides||0)}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#185FA5",fontSize:11}}>{Math.round(macros?.proteines||0)}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#7F77DD",fontSize:11}}>{Math.round(macros?.lipides||0)}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:10}}>{Math.round(item.sodium||0)}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:10}}>{Math.round(item.potassium||0)}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:10}}>{Math.round(item.magnesium||0)}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:10}}>{Math.round(item.zinc||0)}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:10}}>{Math.round(item.calcium||0)}</span>
+                    <button onClick={()=>{setConfirmId(item.id);setConfirmType(item.itemType);}} 
+                      style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:C.red}}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── PLAN RAVITAILLEMENT ── */}
+      <div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{...lbl}}>Plan de ravitaillement</div>
+          <Btn variant="soft" size="sm" onClick={handleAutoComplete} disabled style={{opacity:0.4,cursor:"not-allowed"}}>🤖 Auto-compléter (bientôt)</Btn>
+        </div>
+
+        {autoCompletePreview && (
+          <div style={{background:C.primaryPale,border:`1px solid ${C.primary}40`,borderRadius:14,padding:"16px 20px",marginBottom:20}}>
+            <div style={{fontWeight:700,color:C.primary,marginBottom:8,fontSize:15}}>
+              🪄 Proposition auto-complétion
+            </div>
+            <div style={{fontSize:13,color:C.primary,marginBottom:12,lineHeight:1.6}}>
+              Répartition intelligente sur {zones.length} zones · Poids limite : {Math.round(userWeight * 0.12 * 10) / 10} kg
+              {(() => {
+                const totalKcal = Object.values(autoCompletePreview).reduce((acc, items) => {
+                  return acc + items.reduce((s, { id, quantite }) => {
+                    const p = allBibItems.find(x => x.id === id);
+                    if (!p) return s;
+                    const n = nutriProduit(p, quantite);
+                    return s + n.kcal;
+                  }, 0);
+                }, 0);
+                const totalGlu = Object.values(autoCompletePreview).reduce((acc, items) => {
+                  return acc + items.reduce((s, { id, quantite }) => {
+                    const p = allBibItems.find(x => x.id === id);
+                    if (!p) return s;
+                    const n = nutriProduit(p, quantite);
+                    return s + n.glucides;
+                  }, 0);
+                }, 0);
+                const totalEau = Object.values(autoCompletePreview).reduce((acc, items) => {
+                  return acc + items.reduce((s, { id, quantite }) => {
+                    const p = allBibItems.find(x => x.id === id);
+                    if (!p) return s;
+                    const n = nutriProduit(p, quantite);
+                    return s + n.eauMl;
+                  }, 0);
+                }, 0);
+                const pctKcal = nutriEstimes.kcal > 0 ? Math.round(totalKcal / nutriEstimes.kcal * 100) : 0;
+                const pctGlu = nutriEstimes.glucides > 0 ? Math.round(totalGlu / nutriEstimes.glucides * 100) : 0;
+                const pctEau = nutriEstimes.eau > 0 ? Math.round(totalEau / nutriEstimes.eau * 100) : 0;
+                const color = pctKcal >= 90 && pctKcal <= 120 ? C.green : (pctKcal >= 70 ? C.yellow : C.red);
+                
+                return (
+                  <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:6}}>
+                    <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+                      <span><strong>{Math.round(totalKcal)} kcal</strong> <span style={{color,fontWeight:600}}>({pctKcal}%)</span></span>
+                      <span><strong>{Math.round(totalGlu)}g glucides</strong> <span style={{color:pctGlu>=90&&pctGlu<=120?C.green:C.yellow,fontWeight:600}}>({pctGlu}%)</span></span>
+                      <span><strong>{(totalEau/1000).toFixed(1)}L eau</strong> <span style={{color:pctEau>=80?C.green:C.yellow,fontWeight:600}}>({pctEau}%)</span></span>
+                    </div>
+                    {zones.map((z, zi) => {
+                      const pointKey = zi === 0 ? "depart" : String(ravitos[zi - 1]?.id);
+                      const items = autoCompletePreview[pointKey] || [];
+                      if (items.length === 0) return null;
+                      
+                      const zoneKcal = items.reduce((s, { id, quantite }) => {
+                        const p = allBibItems.find(x => x.id === id);
+                        if (!p) return s;
+                        return s + nutriProduit(p, quantite).kcal;
+                      }, 0);
+                      const zoneGlu = items.reduce((s, { id, quantite }) => {
+                        const p = allBibItems.find(x => x.id === id);
+                        if (!p) return s;
+                        return s + nutriProduit(p, quantite).glucides;
+                      }, 0);
+                      const zPctKcal = z.besoin.kcal > 0 ? Math.round(zoneKcal / z.besoin.kcal * 100) : 0;
+                      const zColor = zPctKcal >= 90 && zPctKcal <= 130 ? C.green : (zPctKcal >= 70 ? C.yellow : C.red);
+                      
+                      return (
+                        <div key={zi} style={{fontSize:11,color:C.primary,paddingLeft:10,borderLeft:`2px solid ${C.primary}40`,marginTop:4}}>
+                          <strong>{z.label}</strong>: {Math.round(zoneKcal)} kcal · {Math.round(zoneGlu)}g gluc. 
+                          <span style={{color:zColor,fontWeight:600,marginLeft:6}}>({zPctKcal}%)</span>
+                          <span style={{color:C.muted,marginLeft:6}}>· {items.length} produit{items.length>1?"s":""}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <Btn onClick={applyAutoComplete}>✓ Appliquer</Btn>
+              <Btn variant="ghost" onClick={()=>setAutoCompletePreview(null)}>Annuler</Btn>
+            </div>
+          </div>
+        )}
+
+        {zones.map((z, zi) => {
+          // Zone départ = state local, autres = ravitos normaux
+          const ravitoId = zi === 0 ? 'depart-local' : ravitos[zi - 1]?.id;
+          const ravitoProds = zi === 0 ? produitsDepartLocal : (ravitos[zi - 1]?.produits || []);
+          const isAutonome = zi > 0 && ravitos[zi - 1]?.assistancePresente === false;
+          
+          // Calcul plan zone
+          const planZone = ravitoProds.reduce((acc, {id, quantite}) => {
+            const item = allBibItems.find(x => x.id === id);
+            if (!item) return acc;
+            const n = nutriProduit(item, quantite);
+            return {
+              kcal: acc.kcal + n.kcal,
+              glucides: acc.glucides + n.glucides,
+              eau: acc.eau + n.eauMl
+            };
+          }, {kcal: 0, glucides: 0, eau: 0});
+          
+          return (
+            <div key={zi} style={{...card,padding:16,marginBottom:12,opacity:isAutonome?0.7:1}}>
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:15,fontWeight:600,color:C.inkLight,marginBottom:4}}>
+                  {zi === 0 ? "🏁" : "📍"} {z.label} — {z.toLbl} · {z.dist.toFixed(1)} km
+                  {isAutonome && <span style={{fontSize:11,fontWeight:500,color:C.muted,marginLeft:8,padding:"2px 8px",background:C.stone,borderRadius:6}}>⚠️ Autonome</span>}
+                </div>
+                <div style={{fontSize:11,color:C.muted,marginBottom:2}}>
+                  <strong>Besoin :</strong> {z.besoin.kcal} kcal · {z.besoin.glucides}g glucides · {(z.besoin.eau/1000).toFixed(1)}L eau
+                  {isAutonome && <span style={{marginLeft:8,fontStyle:"italic"}}>· Tout transporter</span>}
+                </div>
+                <div style={{fontSize:11,color:C.inkLight}}>
+                  <strong>Plan :</strong> {Math.round(planZone.kcal)} kcal 
+                  <span style={{color:planZone.kcal>=z.besoin.kcal*0.9&&planZone.kcal<=z.besoin.kcal*1.3?C.green:C.yellow,fontWeight:600,marginLeft:4}}>
+                    ({z.besoin.kcal>0?Math.round(planZone.kcal/z.besoin.kcal*100):0}%)
+                  </span> · 
+                  {Math.round(planZone.glucides)}g glucides
+                  <span style={{color:planZone.glucides>=z.besoin.glucides*0.9&&planZone.glucides<=z.besoin.glucides*1.3?C.green:C.yellow,fontWeight:600,marginLeft:4}}>
+                    ({z.besoin.glucides>0?Math.round(planZone.glucides/z.besoin.glucides*100):0}%)
+                  </span> · 
+                  {(planZone.eau/1000).toFixed(1)}L eau
+                  <span style={{color:planZone.eau>=z.besoin.eau*0.8?C.green:C.yellow,fontWeight:600,marginLeft:4}}>
+                    ({z.besoin.eau>0?Math.round(planZone.eau/z.besoin.eau*100):0}%)
+                  </span>
+                </div>
+              </div>
+
+              {isAutonome ? (
+                <div style={{padding:"12px 16px",background:C.stone,borderRadius:8,fontSize:12,color:C.muted,fontStyle:"italic",textAlign:"center"}}>
+                  Ravito autonome — Nutrition à transporter depuis le départ ou ravito précédent
+                </div>
+              ) : (
+                allBibItems.map(item => {
+                  const existing = ravitoProds.find(p => p.id === item.id);
+                  const qte = existing?.quantite || 0;
+                  const isProd = item.itemType === "produit";
+                  const macros = isProd ? item : item.macros;
+                  
+                  return (
+                    <div key={item.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                      padding:"8px 12px",background:C.stone,borderRadius:8,marginBottom:6}}>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:500,color:C.inkLight}}>{item.nom}</div>
+                        <div style={{fontSize:11,color:C.muted}}>
+                          {Math.round(macros?.kcal||0)} kcal · {Math.round(macros?.glucides||0)}g gluc. / {isProd?"100g":"portion"}
+                        </div>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <button onClick={() => updateRavitoQte(ravitoId, item.id, -1)}
+                          style={{width:28,height:28,borderRadius:6,border:`1px solid ${C.border}`,
+                            background:C.white,cursor:"pointer",fontSize:16,color:C.inkLight}}>−</button>
+                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:14,fontWeight:500,minWidth:30,textAlign:"center"}}>{qte}</span>
+                        <button onClick={() => updateRavitoQte(ravitoId, item.id, 1)}
+                          style={{width:28,height:28,borderRadius:6,border:`1px solid ${C.border}`,
+                            background:C.white,cursor:"pointer",fontSize:16,color:C.inkLight}}>+</button>
                       </div>
                     </div>
                   );
-                })}
-              </div>
+                })
+              )}
             </div>
-          )}
-        </div>
-      )}
+          );
+        })}
+      </div>
 
-      {/* ── PLAN RAVITAILLEMENT ── */}
-      {view==="plan"&&(
-        <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
-          <div style={{fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:6}}>Plan ravitaillement</div>
-          <div style={{fontSize:13}}>Fonctionnalité à venir</div>
-        </div>
-      )}
-
-      {/* ── MODAL PRODUIT ── */}
-      <Modal open={prodModal} onClose={()=>setProdModal(false)} title={editProdId?"Modifier le produit":"Créer un produit"} width={600}>
+      {/* ── MODAUX (repris version actuelle) ── */}
+      <Modal open={prodModal} onClose={()=>setProdModal(false)} title={editProdId?"Modifier produit":"Créer produit"} width={600}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <Field label="Nom" full>
             <input value={prodForm.nom} onChange={e=>updP("nom",e.target.value)} placeholder="ex: Banane" style={{width:"100%"}}/>
@@ -532,8 +998,7 @@ export default function NutritionView({
         </div>
       </Modal>
 
-      {/* ── MODAL RECETTE ── */}
-      <Modal open={recModal} onClose={()=>setRecModal(false)} title={editRecId?"Modifier la recette":"Créer une recette"} width={700}>
+      <Modal open={recModal} onClose={()=>setRecModal(false)} title={editRecId?"Modifier recette":"Créer recette"} width={700}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
           <Field label="Nom" full>
             <input value={recForm.nom} onChange={e=>updR("nom",e.target.value)} placeholder="ex: Energy balls" style={{width:"100%"}}/>
@@ -550,7 +1015,7 @@ export default function NutritionView({
           <div style={{...lbl,marginBottom:8}}>Ingrédients</div>
           {recForm.ingredients.length===0?(
             <div style={{textAlign:"center",padding:"20px",background:C.stone,borderRadius:8,color:C.muted,fontSize:13}}>
-              Aucun ingrédient ajouté
+              Aucun ingrédient
             </div>
           ):(
             <div style={{display:"grid",gap:6}}>
@@ -572,17 +1037,8 @@ export default function NutritionView({
             </div>
           )}
           <div style={{display:"flex",gap:8,marginTop:10}}>
-            <select value="" onChange={e=>{if(e.target.value)addIngredientFromProduit(e.target.value)}}
-              style={{flex:1,padding:"6px 10px",fontSize:13,borderRadius:7,border:`1px solid ${C.border}`,cursor:"pointer"}}>
-              <option value="">+ Ingrédient...</option>
-              <optgroup label="Bibliothèque course">
-                {bibliotheque.produits.map(p=><option key={p.id} value={p.id}>{p.nom}</option>)}
-              </optgroup>
-              <optgroup label="Mes produits entraînement">
-                {produits.map(p=><option key={p.id} value={p.id}>{p.nom}</option>)}
-              </optgroup>
-            </select>
-            <Btn variant="soft" size="sm" onClick={()=>setIngCiqualModal(true)}>🔍 CIQUAL</Btn>
+            <Btn variant="soft" onClick={()=>setIngCiqualModal(true)}>🔍 Base CIQUAL</Btn>
+            <Btn variant="soft" onClick={()=>setIngMesProduitsModal(true)}>🥕 Mes produits</Btn>
           </div>
         </div>
 
@@ -601,8 +1057,36 @@ export default function NutritionView({
           );
         })()}
 
+        <div style={{marginBottom:16}}>
+          <div style={{...lbl,marginBottom:8}}>Type de recette</div>
+          <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:recForm.boisson?C.bluePale:C.stone,
+            border:`1px solid ${recForm.boisson?C.blue+"40":C.border}`,borderRadius:10,cursor:"pointer"}}
+            onClick={()=>updR("boisson",!recForm.boisson)}>
+            <div style={{width:44,height:24,borderRadius:12,background:recForm.boisson?C.blue:C.border,position:"relative",transition:"all 0.2s"}}>
+              <div style={{width:20,height:20,borderRadius:"50%",background:C.white,position:"absolute",top:2,
+                left:recForm.boisson?22:2,transition:"left 0.2s",boxShadow:"0 2px 4px rgba(0,0,0,0.1)"}}/>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:600,fontSize:13,color:recForm.boisson?C.blue:C.inkLight}}>
+                {recForm.boisson?"Recette boisson 💧":"Recette solide"}
+              </div>
+              <div style={{fontSize:11,color:C.muted,marginTop:2}}>
+                {recForm.boisson?"Compte dans l'hydratation":"Ne compte pas dans l'hydratation"}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {recForm.boisson&&(
+          <Field label="Volume par portion (ml)" style={{marginBottom:16}}>
+            <input type="number" min="0" step="10" value={recForm.volumeMlParPortion||""} 
+              onChange={e=>updR("volumeMlParPortion",e.target.value)}
+              placeholder="ex: 500 (ml par portion)" style={{width:"100%"}}/>
+          </Field>
+        )}
+
         <Field label="Notes">
-          <textarea value={recForm.notes||""} onChange={e=>updR("notes",e.target.value)} placeholder="Instructions, remarques..." style={{width:"100%",minHeight:60}}/>
+          <textarea value={recForm.notes||""} onChange={e=>updR("notes",e.target.value)} placeholder="Instructions..." style={{width:"100%",minHeight:60}}/>
         </Field>
 
         <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:20}}>
@@ -611,16 +1095,14 @@ export default function NutritionView({
         </div>
       </Modal>
 
-      {/* ── MODAL CIQUAL ── */}
-      <Modal open={ciqualModal} onClose={()=>setCiqualModal(false)} title="Base alimentaire CIQUAL" width={800}>
+      <Modal open={ciqualModal} onClose={()=>setCiqualModal(false)} title="Base CIQUAL" width={800}>
         <div style={{marginBottom:16}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,marginBottom:12}}>
             <input value={ciqualSearch} onChange={e=>setCiqualSearch(e.target.value)}
-              placeholder="Rechercher un aliment..."
-              style={{fontSize:13,padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`,width:"100%"}}/>
+              placeholder="Rechercher..." style={{fontSize:13,padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`,width:"100%"}}/>
             <select value={ciqualCat} onChange={e=>setCiqualCat(e.target.value)}
               style={{padding:"8px 12px",fontSize:13,borderRadius:8,border:`1px solid ${C.border}`,minWidth:180}}>
-              <option value="Toutes">Toutes catégories</option>
+              <option value="Toutes">Toutes</option>
               {CIQUAL_CATEGORIES.map(cat=><option key={cat} value={cat}>{cat}</option>)}
             </select>
           </div>
@@ -645,28 +1127,23 @@ export default function NutritionView({
                     <span style={{color:"#7F77DD"}}>{(alim.l||0).toFixed(1)}g lip.</span>
                   </div>
                 </div>
-                <Btn size="sm" onClick={()=>addFromCiqual(alim)}>＋ Ajouter</Btn>
+                <Btn size="sm" onClick={()=>addFromCiqual(alim)}>＋</Btn>
               </div>
             ))
           )}
         </div>
       </Modal>
 
-      {/* ── MODAL CIQUAL INGRÉDIENTS ── */}
-      <Modal open={ingCiqualModal} onClose={()=>setIngCiqualModal(false)} title="Ajouter ingrédient depuis CIQUAL" width={800}>
+      <Modal open={ingCiqualModal} onClose={()=>setIngCiqualModal(false)} title="Ajouter ingrédient CIQUAL" width={800}>
         <div style={{marginBottom:16}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,marginBottom:12}}>
             <input value={ingCiqualSearch} onChange={e=>setIngCiqualSearch(e.target.value)}
-              placeholder="Rechercher un aliment..."
-              style={{fontSize:13,padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`,width:"100%"}}/>
+              placeholder="Rechercher..." style={{fontSize:13,padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`,width:"100%"}}/>
             <select value={ingCiqualCat} onChange={e=>setIngCiqualCat(e.target.value)}
               style={{padding:"8px 12px",fontSize:13,borderRadius:8,border:`1px solid ${C.border}`,minWidth:180}}>
-              <option value="Toutes">Toutes catégories</option>
+              <option value="Toutes">Toutes</option>
               {CIQUAL_CATEGORIES.map(cat=><option key={cat} value={cat}>{cat}</option>)}
             </select>
-          </div>
-          <div style={{fontSize:12,color:C.muted}}>
-            {filteredIngCiqual.length} résultat{filteredIngCiqual.length>1?"s":""} {filteredIngCiqual.length===50&&"(max 50)"}
           </div>
         </div>
         <div style={{maxHeight:400,overflowY:"auto",border:`1px solid ${C.border}`,borderRadius:8}}>
@@ -679,41 +1156,62 @@ export default function NutritionView({
                 <div style={{flex:1}}>
                   <div style={{fontSize:14,fontWeight:500,color:C.inkLight,marginBottom:2}}>{alim.n}</div>
                   <div style={{fontSize:11,color:C.muted}}>{alim.c}</div>
-                  <div style={{display:"flex",gap:10,fontSize:11,marginTop:4}}>
-                    <span style={{color:"#e65100"}}>{Math.round(alim.e||0)} kcal</span>
-                    <span style={{color:"#1d9e75"}}>{(alim.g||0).toFixed(1)}g gluc.</span>
-                    <span style={{color:"#185FA5"}}>{(alim.p||0).toFixed(1)}g prot.</span>
-                    <span style={{color:"#7F77DD"}}>{(alim.l||0).toFixed(1)}g lip.</span>
-                  </div>
                 </div>
-                <Btn size="sm" onClick={()=>addIngredientFromCiqual(alim)}>＋ Ajouter</Btn>
+                <Btn size="sm" onClick={()=>addIngredientFromCiqual(alim)}>＋</Btn>
               </div>
             ))
           )}
         </div>
       </Modal>
 
-      {/* ── MODAL MES RECETTES ENTRAÎNEMENT ── */}
+      <Modal open={ingMesProduitsModal} onClose={()=>{setIngMesProduitsModal(false);setIngMesProduitsSearch("");}} title="Mes produits" width={700}>
+        <div style={{marginBottom:16}}>
+          <input value={ingMesProduitsSearch} onChange={e=>setIngMesProduitsSearch(e.target.value)}
+            placeholder="Rechercher un produit..." style={{fontSize:13,padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`,width:"100%"}}/>
+        </div>
+        <div style={{maxHeight:400,overflowY:"auto",border:`1px solid ${C.border}`,borderRadius:8}}>
+          {(() => {
+            const filtered = allProduitsForIngredients.filter(p => {
+              const terms = ingMesProduitsSearch.toLowerCase().split(" ").filter(Boolean);
+              return terms.every(t => (p.nom||"").toLowerCase().includes(t));
+            });
+            if (filtered.length === 0) return (
+              <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>Aucun résultat</div>
+            );
+            return filtered.map(p => (
+              <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                padding:"10px 14px",borderBottom:`1px solid ${C.border}`,gap:12}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:14,fontWeight:500,color:C.inkLight,marginBottom:2}}>
+                    {p.nom}
+                    {p.fromStride&&<span style={{fontSize:11,color:C.muted,marginLeft:6}}>(entraînement)</span>}
+                  </div>
+                  {p.categorie&&<div style={{fontSize:11,color:C.muted}}>{p.categorie}</div>}
+                </div>
+                <Btn size="sm" onClick={()=>{addIngredientFromProduit(p.id);setIngMesProduitsModal(false);setIngMesProduitsSearch("");}}>＋ Ajouter</Btn>
+              </div>
+            ));
+          })()}
+        </div>
+      </Modal>
+
       <Modal open={strideRecModal} onClose={()=>setStrideRecModal(false)} title="Mes recettes entraînement" width={700}>
         {recettes.length===0?(
-          <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>
-            <div style={{fontSize:14,marginBottom:8}}>Aucune recette entraînement</div>
-            <div style={{fontSize:12}}>Crée des recettes dans la section Entraînement → Nutrition</div>
-          </div>
+          <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>Aucune recette</div>
         ):(
           <div style={{maxHeight:500,overflowY:"auto"}}>
             {recettes.map(r=>{
-              const alreadyAdded = bibliotheque.recettes.some(br=>br.nom===r.nom);
+              const added = bibliotheque.recettes.some(br=>br.nom===r.nom);
               return (
                 <div key={r.id} style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <div style={{flex:1}}>
                     <div style={{fontSize:14,fontWeight:500,color:C.inkLight}}>{r.nom}</div>
                     <div style={{fontSize:12,color:C.muted}}>{r.description||"—"}</div>
                   </div>
-                  {alreadyAdded?(
+                  {added?(
                     <span style={{fontSize:12,color:C.muted}}>✓ Ajoutée</span>
                   ):(
-                    <Btn size="sm" onClick={()=>addFromStrideRecettes([r.id])}>＋ Ajouter</Btn>
+                    <Btn size="sm" onClick={()=>addFromStrideRecettes([r.id])}>＋</Btn>
                   )}
                 </div>
               );
@@ -722,27 +1220,23 @@ export default function NutritionView({
         )}
       </Modal>
 
-      {/* ── MODAL MES PRODUITS ENTRAÎNEMENT ── */}
       <Modal open={strideProdModal} onClose={()=>setStrideProdModal(false)} title="Mes produits entraînement" width={700}>
         {produits.length===0?(
-          <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>
-            <div style={{fontSize:14,marginBottom:8}}>Aucun produit entraînement</div>
-            <div style={{fontSize:12}}>Ajoute des produits dans la section Entraînement → Nutrition</div>
-          </div>
+          <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>Aucun produit</div>
         ):(
           <div style={{maxHeight:500,overflowY:"auto"}}>
             {produits.map(p=>{
-              const alreadyAdded = bibliotheque.produits.some(bp=>bp.nom===p.nom);
+              const added = bibliotheque.produits.some(bp=>bp.nom===p.nom);
               return (
                 <div key={p.id} style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <div style={{flex:1}}>
                     <div style={{fontSize:14,fontWeight:500,color:C.inkLight}}>{p.nom}</div>
                     {p.categorie&&<div style={{fontSize:11,color:C.muted}}>{p.categorie}</div>}
                   </div>
-                  {alreadyAdded?(
+                  {added?(
                     <span style={{fontSize:12,color:C.muted}}>✓ Ajouté</span>
                   ):(
-                    <Btn size="sm" onClick={()=>addFromStrideProduits([p.id])}>＋ Ajouter</Btn>
+                    <Btn size="sm" onClick={()=>addFromStrideProduits([p.id])}>＋</Btn>
                   )}
                 </div>
               );
@@ -753,7 +1247,7 @@ export default function NutritionView({
 
       <ConfirmDialog 
         open={!!confirmId} 
-        message={`Supprimer ${confirmType==="produit"?"ce produit":"cette recette"} de la bibliothèque ?`}
+        message={`Supprimer ${confirmType==="produit"?"ce produit":"cette recette"} ?`}
         onConfirm={()=>confirmType==="produit"?delProduit(confirmId):delRecette(confirmId)} 
         onCancel={()=>{setConfirmId(null);setConfirmType(null);}}
       />
