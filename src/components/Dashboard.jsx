@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { C, localDate, daysUntil, isRunning, actColor, actShort, actColorPale, fmtDate } from "../constants.js";
 import { Btn } from "../atoms.jsx";
-function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, setView }) {
+function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, setView, profilType, setProfilType }) {
   const today   = localDate(new Date());
   const nowMkey = today.slice(0,7);
 
@@ -555,6 +555,40 @@ function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, set
           </div>
         </div>
       )}
+
+      {/* Bloc sélection profil */}
+      <div style={{...card(),padding:"20px 24px",marginTop:14}}>
+        <div style={{...lbl}}>Choix du profil</div>
+        <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>
+          Personnalise l'affichage des onglets selon ton utilisation principale
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))",gap:12}}>
+          {[
+            {type:"full",icon:"📊",label:"Entraînement + Course",desc:"Tous les onglets visibles",color:C.forest},
+            {type:"training_only",icon:"🏃",label:"Entraînement uniquement",desc:"Masque onglets Course",color:C.summit},
+            {type:"course_prep",icon:"🏔️",label:"Préparer une course",desc:"Focus Course + essentiels",color:"#8b4513"},
+            {type:"team",icon:"👥",label:"Suivre un coureur",desc:"Mode Team simplifié",color:C.sky}
+          ].map(p=>(
+            <div key={p.type} onClick={()=>setProfilType(p.type)}
+              style={{
+                padding:16,
+                border:`2px solid ${profilType===p.type?p.color:C.border}`,
+                borderRadius:12,
+                cursor:"pointer",
+                transition:"all .2s",
+                background:profilType===p.type?`${p.color}08`:C.white
+              }}
+              onMouseEnter={e=>{if(profilType!==p.type){e.currentTarget.style.borderColor=p.color;e.currentTarget.style.background=C.stone}}}
+              onMouseLeave={e=>{if(profilType!==p.type){e.currentTarget.style.borderColor=C.border;e.currentTarget.style.background=C.white}}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                <span style={{fontSize:24}}>{p.icon}</span>
+                <div style={{fontWeight:600,fontSize:14,color:profilType===p.type?p.color:C.inkLight}}>{p.label}</div>
+              </div>
+              <div style={{fontSize:12,color:C.muted,lineHeight:1.4}}>{p.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

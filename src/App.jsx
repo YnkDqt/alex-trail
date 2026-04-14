@@ -186,7 +186,7 @@ const TEAL = "#1D9E75";
 const TEAL_PALE = "#e8f5f0";
 
 // ─── ACCUEIL (page d'accueil unifiée) ────────────────────────────────────────
-function Accueil({ setView, seances, vfcData, sommeil, poids, objectifs, race, settings }) {
+function Accueil({ setView, seances, vfcData, sommeil, poids, objectifs, race, settings, profilType, setProfilType }) {
   const today = localDate(new Date());
   const lastVFC     = useMemo(()=>[...vfcData].sort((a,b)=>new Date(b.date)-new Date(a.date))[0]||null,[vfcData]);
   const lastSommeil = useMemo(()=>[...sommeil].sort((a,b)=>new Date(b.date)-new Date(a.date))[0]||null,[sommeil]);
@@ -415,6 +415,40 @@ function Accueil({ setView, seances, vfcData, sommeil, poids, objectifs, race, s
           </button>
         </div>
       )}
+
+      {/* Bloc sélection profil */}
+      <div style={{...card,padding:"20px 24px",marginTop:14}}>
+        <span style={lbl}>Choix du profil</span>
+        <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>
+          Personnalise l'affichage des onglets selon ton utilisation principale
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4, 1fr)",gap:12}}>
+          {[
+            {type:"full",icon:"📊",label:"Entraînement + Course",desc:"Tous les onglets visibles",color:C.forest},
+            {type:"training_only",icon:"🏃",label:"Entraînement uniquement",desc:"Masque onglets Course",color:C.summit},
+            {type:"course_prep",icon:"🏔️",label:"Préparer une course",desc:"Focus Course + essentiels",color:ALEX_C.primary},
+            {type:"team",icon:"👥",label:"Suivre un coureur",desc:"Mode Team simplifié",color:C.sky}
+          ].map(p=>(
+            <div key={p.type} onClick={()=>setProfilType(p.type)}
+              style={{
+                padding:16,
+                border:`2px solid ${profilType===p.type?p.color:C.border}`,
+                borderRadius:12,
+                cursor:"pointer",
+                transition:"all .2s",
+                background:profilType===p.type?`${p.color}08`:C.white
+              }}
+              onMouseEnter={e=>{if(profilType!==p.type){e.currentTarget.style.borderColor=p.color;e.currentTarget.style.background=C.stone}}}
+              onMouseLeave={e=>{if(profilType!==p.type){e.currentTarget.style.borderColor=C.border;e.currentTarget.style.background=C.white}}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                <span style={{fontSize:24}}>{p.icon}</span>
+                <div style={{fontWeight:600,fontSize:14,color:profilType===p.type?p.color:C.inkLight}}>{p.label}</div>
+              </div>
+              <div style={{fontSize:12,color:C.muted,lineHeight:1.4}}>{p.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -677,15 +711,15 @@ Annuler = tout effacer.`);if(ok)saveCourse();}
           <Section title="Course">
             <ToggleRow icon="🗺️" label="Section Course"
               desc="Masque entièrement la section dans la navigation"
-              active={features._section!==false}
+              active={alexFeatures._section!==false}
               onToggle={()=>toggleFeature("_section")}
               color={ALEX_C.primary}
             />
-            {features._section!==false&&(
+            {alexFeatures._section!==false&&(
               <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8,paddingLeft:16,borderLeft:`2px solid ${ALEX_C.primary}30`}}>
                 {FEATURE_LABELS.map(({key,label,icon,desc})=>(
                   <ToggleRow key={key} icon={icon} label={label} desc={desc}
-                    active={features[key]}
+                    active={alexFeatures[key]}
                     onToggle={()=>toggleFeature(key)}
                     color={ALEX_C.primary}
                   />
@@ -737,13 +771,13 @@ Annuler = tout effacer.`);if(ok)saveCourse();}
             </div>
           </Section>
 
-          <Section title="Stockage local">
+          <Section title="Stockage des données">
             <div style={{background:C.stone,borderRadius:12,padding:"16px",fontSize:12,color:C.muted,lineHeight:1.6}}>
-              <div style={{marginBottom:8,fontWeight:600,color:C.inkLight}}>État actuel</div>
-              <div>• Entraînement → localStorage <code>stride_v2</code></div>
-              <div>• Stratégie course → IndexedDB <code>alex-trail</code></div>
-              <div>• Profil → localStorage <code>profil</code></div>
-              <div style={{marginTop:8,color:C.stoneDeep}}>Migration Supabase prévue — données conservées à la transition.</div>
+              <div style={{marginBottom:8,fontWeight:600,color:C.inkLight}}>✅ Stockage Supabase actif</div>
+              <div>• Toutes tes données (profil, activités, forme, courses) sont synchronisées sur Supabase (EU - Paris)</div>
+              <div>• Accès depuis n'importe quel appareil après connexion</div>
+              <div>• Sauvegarde automatique en temps réel</div>
+              <div style={{marginTop:8,color:C.stoneDeep}}>Tes données restent privées et sont conformes RGPD.</div>
             </div>
           </Section>
         </div>
@@ -770,6 +804,7 @@ function AppLayout({
   navigate, hasRace, isStandalone, installDone, handleInstall, showInstallGuide, setShowInstallGuide,
   features, toggleFeature, FEATURE_LABELS, NAVS_ACTIVE,
   strideFeatures, toggleStrideFeature, STRIDE_FEATURE_LABELS,
+  profilType, setProfilType,
   saveAllData,
   sharedMode, installPrompt,
   signOut,
@@ -789,26 +824,31 @@ function AppLayout({
 
   const isDark = settings?.darkMode || false;
 
-  // Navigation unifiée
+  // Navigation unifiée avec filtrage selon profilType
   const NAV_GROUPS = [
     { label: null, color: null, items: [
       { id:"accueil", label:"Tableau de bord", icon:"◉" },
     ]},
-    ...(strideFeatures._section!==false ? [{ label: "Entraînement", color: TEAL, items: [
+    // Section Entraînement
+    // Visible si : full, training_only (masquée si course_prep ou team)
+    ...( (strideFeatures._section!==false && profilType !== 'course_prep' && profilType !== 'team') ? [{ label: "Entraînement", color: TEAL, items: [
       { id:"entrainement", label:"Programme",  icon:"↑", feat:"programme" },
       { id:"activites",    label:"Activités",  icon:"▣", feat:"activites" },
       { id:"forme",        label:"Forme",      icon:"♡", feat:"forme" },
       { id:"objectifs",    label:"Objectifs",  icon:"🏔", feat:"objectifs" },
     ].filter(n=>strideFeatures[n.feat]!==false)}] : []),
-    ...(features._section!==false ? [{ label: "Course", color: ALEX_C.primary, items: [
-      { id:"profil_course",  label:"Profil de course",   icon:"🗺️" },
-      { id:"strategie",      label:"Stratégie",          icon:"🎯" },
-      ...(features.nutrition  ? [{ id:"nutrition_alex",  label:"Nutrition",   icon:"🍌" }] : []),
-      ...(features.equipement ? [{ id:"equipement",      label:"Équipement",  icon:"🎒" }] : []),
-      ...(features.analyse    ? [{ id:"analyse",         label:"Analyse",     icon:"📊" }] : []),
-      ...(features.team       ? [{ id:"team",            label:"Team",        icon:"👥" }] : []),
-      ...(features.courses    ? [{ id:"mes_courses",     label:"Mes courses", icon:"📚" }] : []),
-    ]}] : []),
+    // Section Course
+    // Visible si : full, course_prep (masquée si training_only)
+    // Si team : afficher uniquement Team
+    ...( (features._section!==false && profilType !== 'training_only') ? [{ label: "Course", color: ALEX_C.primary, items: [
+      ...(profilType === 'team' ? [] : [{ id:"profil_course", label:"Profil de course", icon:"🗺️" }]),
+      ...(profilType === 'team' ? [] : [{ id:"strategie", label:"Stratégie", icon:"🎯" }]),
+      ...(profilType === 'team' ? [] : features.nutrition  ? [{ id:"nutrition_alex",  label:"Nutrition",   icon:"🍌" }] : []),
+      ...(profilType === 'team' ? [] : features.equipement ? [{ id:"equipement",      label:"Équipement",  icon:"🎒" }] : []),
+      ...(profilType === 'team' ? [] : features.analyse ? [{ id:"analyse", label:"Analyse", icon:"📊" }] : []),
+      ...(features.team ? [{ id:"team", label:"Team", icon:"👥" }] : []),
+      ...(profilType === 'team' ? [] : features.courses ? [{ id:"mes_courses", label:"Mes courses", icon:"📚" }] : []),
+    ].filter(Boolean)}] : []),
   ];
 
   const allViews = NAV_GROUPS.flatMap(g=>g.items).map(i=>i.id);
@@ -1018,7 +1058,7 @@ function AppLayout({
         {/* Contenu principal */}
         <div className="alex-scope" style={{flex:1,overflowY:"auto",paddingTop:isMobile?mobileTopH:0,background:isDark?"#14100C":undefined}}>
           {/* Vues Stride */}
-          {view==="accueil" && <Accueil setView={setView} seances={seances} vfcData={vfcData} sommeil={sommeil} poids={poids} objectifs={objectifs} race={race} settings={settings}/>}
+          {view==="accueil" && <Accueil setView={setView} seances={seances} vfcData={vfcData} sommeil={sommeil} poids={poids} objectifs={objectifs} race={race} settings={settings} profilType={profilType} setProfilType={setProfilType}/>}
           {view==="objectifs" && <Objectifs objectifs={objectifs} setObjectifs={setObjectifs} seances={seances} activites={activites} vfcData={vfcData} poids={poids} profil={profil} produits={produits} recettes={recettes} allData={allData}/>}
           {view==="coach" && <MonCoachIA seances={seances} setSeances={setSeances} activites={activites} sommeil={sommeil} vfcData={vfcData} poids={poids} objectifs={objectifs} planningType={planningType} produits={produits} recettes={recettes} journalNutri={journalNutri} activityTypes={activityTypes}/>}
           {view==="activites" && <Activites activites={activites} setActivites={setActivites} seances={seances} setSeances={setSeances}/>}
@@ -1046,7 +1086,7 @@ function AppLayout({
             </div>
           )}
           {/* Vues Alex Course */}
-          {view==="profil_course"&&<div style={{padding:"24px 32px"}}><ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profilDetail={features.profilDetail} profil={profil}/></div>}
+          {view==="profil_course"&&<div style={{padding:"24px 32px"}}><ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profilDetail={alexFeatures.profilDetail} profil={profil}/></div>}
           {view==="strategie"&&<div style={{padding:"24px 32px"}}><StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profil={profil}/></div>}
           {view==="nutrition_alex"&&<div style={{padding:"24px 32px"}}><NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} isMobile={isMobile} onNavigate={setView} profil={profil} poids={poids} recettes={recettes} produits={produits}/></div>}
           {view==="equipement"&&<div style={{padding:"24px 32px"}}><EquipementView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} isMobile={isMobile}/></div>}
@@ -1110,117 +1150,70 @@ export default function App() {
   }));
   const migrateActivites = aa=>aa.map(a=>({...a,type:GARMIN_TO_STRIDE[a.type]||TYPE_MIGRATION[a.type]||a.type}));
 
-  const [seances,       setSeances]      = useState(()=>migrateSeances(lsRead("seances",[])));
-  const [activites,     setActivites]    = useState(()=>migrateActivites(lsRead("activites",[])));
-  const [sommeil,       setSommeil]      = useState(()=>lsRead("sommeil",[]));
-  const [vfcData,       setVfcData]      = useState(()=>lsRead("vfcData",[]));
-  const [poids,         setPoids]        = useState(()=>lsRead("poids",[]));
-  const [objectifs,     setObjectifs]    = useState(()=>lsRead("objectifs",[]));
-  const [planningType,  setPlanningType] = useState(()=>lsRead("planningType",DEFAULT_PLANNING));
-  const [activityTypes, setActivityTypes]= useState(()=>lsRead("activityTypes",ACTIVITY_TYPES.filter(t=>t)));
-  const [journalNutri,  setJournalNutri] = useState(()=>lsRead("journalNutri",[]));
-  const [produits,      setProduits]     = useState(()=>lsRead("produits",[]));
-  const [recettes,      setRecettes]     = useState(()=>lsRead("recettes",[]));
-  const [profil,        setProfil]       = useState(()=>lsRead("profil",{sexe:"Homme",taille:180}));
+  // ── Stride states (chargés depuis Supabase) ────────────────────────────────
+  const [seances,       setSeances]      = useState([]);
+  const [activites,     setActivites]    = useState([]);
+  const [sommeil,       setSommeil]      = useState([]);
+  const [vfcData,       setVfcData]      = useState([]);
+  const [poids,         setPoids]        = useState([]);
+  const [objectifs,     setObjectifs]    = useState([]);
+  const [planningType,  setPlanningType] = useState(DEFAULT_PLANNING);
+  const [activityTypes, setActivityTypes]= useState(ACTIVITY_TYPES.filter(t=>t));
+  const [journalNutri,  setJournalNutri] = useState([]);
+  const [produits,      setProduits]     = useState([]);
+  const [recettes,      setRecettes]     = useState([]);
+  const [profil,        setProfil]       = useState({sexe:"Homme",taille:180});
+  const [profilType,    setProfilType]   = useState(null); // null = premier lancement
+  
+  // ── Feature toggles (chargés depuis Supabase) ──────────────────────────────
+  const STRIDE_FEATURES_DEFAULT = {programme:true,activites:true,forme:true,objectifs:true,coach:true};
+  const ALEX_FEATURES_DEFAULT = {nutrition:true,equipement:true,analyse:true,team:true,courses:true,profilDetail:true};
+  const [strideFeatures, setStrideFeatures] = useState(STRIDE_FEATURES_DEFAULT);
+  const [alexFeatures, setAlexFeatures] = useState(ALEX_FEATURES_DEFAULT);
+  
   const [confirmReset,  setConfirmReset] = useState(false);
+  const [dataLoaded,    setDataLoaded]   = useState(false);
 
-  useEffect(()=>{
-    lsWrite({seances,activites,sommeil,vfcData,poids,objectifs,planningType,activityTypes,journalNutri,produits,recettes,profil});
-  },[seances,activites,sommeil,vfcData,poids,objectifs,planningType,activityTypes,journalNutri,produits,recettes,profil]);
-
-  // Load activités depuis Supabase au mount
-  useEffect(()=>{
-    if (!user?.id) return;
-    loadActivities(user.id).then(data => {
-      if (data && data.length > 0) {
-        setActivites(data);
+  // ── Load ALL data from Supabase at login ───────────────────────────────────
+  useEffect(() => {
+    if (!user?.id || dataLoaded) return;
+    
+    Promise.all([
+      loadAthleteProfile(user.id),
+      loadActivities(user.id),
+      loadSeances(user.id),
+      loadSommeil(user.id),
+      loadVFC(user.id),
+      loadPoids(user.id),
+      loadObjectifs(user.id),
+      loadNutrition(user.id),
+      loadStrideSettings(user.id),
+    ]).then(([profile, acts, seances, som, vfc, pds, objs, nutr, settings]) => {
+      if (profile) setProfil(profile);
+      if (acts?.length) setActivites(migrateActivites(acts));
+      if (seances?.length) setSeances(migrateSeances(seances));
+      if (som?.length) setSommeil(som);
+      if (vfc?.length) setVfcData(vfc);
+      if (pds?.length) setPoids(pds);
+      if (objs?.length) setObjectifs(objs);
+      if (nutr) {
+        if (nutr.journalNutri?.length) setJournalNutri(nutr.journalNutri);
+        if (nutr.produits?.length) setProduits(nutr.produits.map(p => ({ ...p, type: p.type || 'produit' })));
+        if (nutr.recettes?.length) setRecettes(nutr.recettes.map(r => ({ ...r, type: r.type || 'recette' })));
       }
-    }).catch(err => console.error('Erreur load activités:', err));
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Load séances depuis Supabase au mount
-  useEffect(()=>{
-    if (!user?.id) return;
-    loadSeances(user.id).then(data => {
-      if (data && data.length > 0) {
-        setSeances(data);
+      if (settings) {
+        if (settings.planningType) setPlanningType(settings.planningType);
+        if (settings.activityTypes?.length) setActivityTypes(settings.activityTypes);
+        if (settings.strideFeatures) setStrideFeatures(settings.strideFeatures);
+        if (settings.alexFeatures) setAlexFeatures(settings.alexFeatures);
+        if (settings.profilType !== undefined) setProfilType(settings.profilType);
       }
-    }).catch(err => console.error('Erreur load séances:', err));
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Load sommeil depuis Supabase au mount
-  useEffect(()=>{
-    if (!user?.id) return;
-    loadSommeil(user.id).then(data => {
-      if (data && data.length > 0) setSommeil(data);
-    }).catch(err => console.error('Erreur load sommeil:', err));
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Load VFC depuis Supabase au mount
-  useEffect(()=>{
-    if (!user?.id) return;
-    loadVFC(user.id).then(data => {
-      if (data && data.length > 0) setVfcData(data);
-    }).catch(err => console.error('Erreur load VFC:', err));
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Load poids depuis Supabase au mount
-  useEffect(()=>{
-    if (!user?.id) return;
-    loadPoids(user.id).then(data => {
-      if (data && data.length > 0) setPoids(data);
-    }).catch(err => console.error('Erreur load poids:', err));
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Load objectifs depuis Supabase au mount
-  useEffect(()=>{
-    if (!user?.id) return;
-    loadObjectifs(user.id).then(data => {
-      if (data && data.length > 0) setObjectifs(data);
-    }).catch(err => console.error('Erreur load objectifs:', err));
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Load nutrition depuis Supabase au mount
-  useEffect(()=>{
-    if (!user?.id) return;
-    loadNutrition(user.id).then(data => {
-      let needsSave = false;
-      
-      // Migration: ajouter type aux produits/recettes existants
-      if (data.produits && data.produits.length > 0) {
-        const migratedProduits = data.produits.map(p => {
-          if (!p.type) needsSave = true;
-          return { ...p, type: p.type || 'produit' };
-        });
-        setProduits(migratedProduits);
-        
-        // Sauvegarder immédiatement si migration effectuée
-        if (needsSave) {
-          saveNutrition(user.id, data.journalNutri || [], migratedProduits, data.recettes || [])
-            .catch(err => console.error('Erreur save migration:', err));
-        }
-      }
-      
-      if (data.recettes && data.recettes.length > 0) {
-        const migratedRecettes = data.recettes.map(r => ({
-          ...r,
-          type: r.type || 'recette'
-        }));
-        setRecettes(migratedRecettes);
-      }
-      
-      if (data.journalNutri && data.journalNutri.length > 0) setJournalNutri(data.journalNutri);
-    }).catch(err => console.error('Erreur load nutrition:', err));
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Load stride settings (planningType, activityTypes) depuis Supabase au mount
-  useEffect(()=>{
-    if (!user?.id) return;
-    loadStrideSettings(user.id).then(data => {
-      if (data.planningType) setPlanningType(data.planningType);
-      if (data.activityTypes && data.activityTypes.length > 0) setActivityTypes(data.activityTypes);
-    }).catch(err => console.error('Erreur load stride settings:', err));
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+      setDataLoaded(true);
+    }).catch(err => {
+      console.error('Erreur chargement données:', err);
+      setDataLoaded(true);
+    });
+  }, [user?.id, dataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-save activités vers Supabase (debounced 2s)
   useEffect(()=>{
@@ -1286,14 +1279,14 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [journalNutri, produits, recettes, user?.id]);
 
-  // Auto-save stride settings vers Supabase (debounced 2s)
+  // Auto-save stride settings + features vers Supabase (debounced 2s)
   useEffect(()=>{
-    if (!user?.id) return;
+    if (!user?.id || !dataLoaded) return;
     const timer = setTimeout(() => {
-      saveStrideSettings(user.id, planningType, activityTypes).catch(err => console.error('Erreur save stride settings:', err));
+      saveStrideSettings(user.id, planningType, activityTypes, strideFeatures, alexFeatures, profilType).catch(err => console.error('Erreur save stride settings:', err));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [planningType, activityTypes, user?.id]);
+  }, [planningType, activityTypes, strideFeatures, alexFeatures, profilType, user?.id, dataLoaded]);
 
   // Init profil.taille depuis dernier poids si vide (mount uniquement)
   useEffect(()=>{
@@ -1336,16 +1329,7 @@ export default function App() {
   const [installDone,  setInstallDone]  = useState(false);
   const [showInstallGuide,setShowInstallGuide]=useState(false);
 
-  // Features Alex (Course)
-  const FEATURES_DEFAULT={nutrition:true,equipement:true,analyse:true,team:true,courses:true,profilDetail:true};
-  // Features Stride (Entraînement)
-  const STRIDE_FEATURES_DEFAULT={programme:true,activites:true,forme:true,objectifs:true,coach:true};
-  const [strideFeatures, setStrideFeatures] = useState(()=>{
-    try{const s=localStorage.getItem("stride-features");return s?{...STRIDE_FEATURES_DEFAULT,...JSON.parse(s)}:STRIDE_FEATURES_DEFAULT;}catch{return STRIDE_FEATURES_DEFAULT;}
-  });
-  const toggleStrideFeature=key=>{
-    setStrideFeatures(prev=>{const next={...prev,[key]:!prev[key]};try{localStorage.setItem("stride-features",JSON.stringify(next));}catch{}return next;});
-  };
+  // Features labels (Stride)
   const STRIDE_FEATURE_LABELS=[
     {key:"programme",label:"Programme",icon:"↑",desc:"Planification des séances, suivi hebdomadaire"},
     {key:"activites",label:"Activités",icon:"▣",desc:"Historique activités Garmin importées"},
@@ -1353,12 +1337,20 @@ export default function App() {
     {key:"objectifs",label:"Objectifs",icon:"🏔",desc:"Courses cibles, planification compétitions"},
     {key:"coach",label:"Coach IA",icon:"✦",desc:"Conseils personnalisés basés sur tes données"},
   ];
-  const [features, setFeatures] = useState(()=>{
-    try{const s=localStorage.getItem("alex-features");return s?{...FEATURES_DEFAULT,...JSON.parse(s)}:FEATURES_DEFAULT;}catch{return FEATURES_DEFAULT;}
-  });
-  const toggleFeature=key=>{
-    setFeatures(prev=>{const next={...prev,[key]:!prev[key]};try{localStorage.setItem("alex-features",JSON.stringify(next));}catch{}return next;});
+  
+  // Toggle Stride features → auto-save vers Supabase
+  const toggleStrideFeature=key=>{
+    setStrideFeatures(prev=>{
+      const next={...prev,[key]:!prev[key]};
+      if (user?.id) {
+        saveStrideSettings(user.id, planningType, activityTypes, next, alexFeatures, profilType)
+          .catch(err => console.error('Erreur save stride features:', err));
+      }
+      return next;
+    });
   };
+  
+  // Features labels (Alex)
   const FEATURE_LABELS=[
     {key:"profilDetail",label:"Profil détaillé",icon:"🗺️",desc:"Répartition rythme, calibration Garmin, FC"},
     {key:"nutrition",label:"Nutrition",icon:"🍌",desc:"Plan nutritionnel par ravito, bibliothèque produits"},
@@ -1367,12 +1359,26 @@ export default function App() {
     {key:"team",label:"Team",icon:"👥",desc:"Partage avec l'équipe d'assistance"},
     {key:"courses",label:"Mes courses",icon:"📚",desc:"Historique et sauvegarde des stratégies"},
   ];
+  
+  // Toggle Alex features → auto-save vers Supabase
+  const toggleFeature=key=>{
+    setAlexFeatures(prev=>{
+      const next={...prev,[key]:!prev[key]};
+      if (user?.id) {
+        saveStrideSettings(user.id, planningType, activityTypes, strideFeatures, next, profilType)
+          .catch(err => console.error('Erreur save alex features:', err));
+      }
+      return next;
+    });
+  };
+  
+  // Navigation Alex filtrée selon features actives
   const NAVS_ACTIVE=ALEX_NAVS.filter(n=>{
-    if(n.id==="nutrition")return features.nutrition;
-    if(n.id==="parametres")return features.equipement;
-    if(n.id==="analyse")return features.analyse;
-    if(n.id==="team")return features.team;
-    if(n.id==="courses")return features.courses;
+    if(n.id==="nutrition")return alexFeatures.nutrition;
+    if(n.id==="parametres")return alexFeatures.equipement;
+    if(n.id==="analyse")return alexFeatures.analyse;
+    if(n.id==="team")return alexFeatures.team;
+    if(n.id==="courses")return alexFeatures.courses;
     return true;
   });
 
@@ -1602,8 +1608,9 @@ export default function App() {
       navigate={navigate} hasRace={hasRace}
       isStandalone={isStandalone} installDone={installDone}
       handleInstall={handleInstall} showInstallGuide={showInstallGuide} setShowInstallGuide={setShowInstallGuide}
-      features={features} toggleFeature={toggleFeature} FEATURE_LABELS={FEATURE_LABELS} NAVS_ACTIVE={NAVS_ACTIVE}
+      features={alexFeatures} toggleFeature={toggleFeature} FEATURE_LABELS={FEATURE_LABELS} NAVS_ACTIVE={NAVS_ACTIVE}
       strideFeatures={strideFeatures} toggleStrideFeature={toggleStrideFeature} STRIDE_FEATURE_LABELS={STRIDE_FEATURE_LABELS}
+      profilType={profilType} setProfilType={setProfilType}
       saveAllData={saveAllData}
       sharedMode={sharedMode} installPrompt={installPrompt}
       signOut={signOut}

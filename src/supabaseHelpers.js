@@ -513,19 +513,28 @@ export async function loadStrideSettings(userId) {
   
   if (error && error.code !== 'PGRST116') throw error
   
+  const STRIDE_FEATURES_DEFAULT = {programme:true,activites:true,forme:true,objectifs:true,coach:true}
+  const ALEX_FEATURES_DEFAULT = {nutrition:true,equipement:true,analyse:true,team:true,courses:true,profilDetail:true}
+  
   return {
     planningType: data?.planning_type || null,
-    activityTypes: data?.activity_types || []
+    activityTypes: data?.activity_types || [],
+    strideFeatures: data?.stride_features || STRIDE_FEATURES_DEFAULT,
+    alexFeatures: data?.alex_features || ALEX_FEATURES_DEFAULT,
+    profilType: data?.profil_type !== undefined ? data.profil_type : null
   }
 }
 
-export async function saveStrideSettings(userId, planningType, activityTypes) {
+export async function saveStrideSettings(userId, planningType, activityTypes, strideFeatures, alexFeatures, profilType) {
   const { error } = await supabase
     .from('stride_settings')
     .upsert({
       user_id: userId,
       planning_type: planningType,
       activity_types: activityTypes,
+      stride_features: strideFeatures,
+      alex_features: alexFeatures,
+      profil_type: profilType,
       updated_at: new Date().toISOString()
     }, {
       onConflict: 'user_id'

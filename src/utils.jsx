@@ -747,6 +747,7 @@ export function calcNutrition(seg, settings) {
     flatRate   = kcalPerKm;
     uphillRate = kcalPerKmUphill;
   } else {
+    // Minetti et al. (2002) - Journal of Applied Physiology
     flatRate   = Math.round(3.6 * weight * 1000 / 4184);
     const i10  = 0.10;
     const cr10 = 155.4*i10**5 - 30.4*i10**4 - 43.3*i10**3 + 46.3*i10**2 + 19.5*i10 + 3.6;
@@ -757,11 +758,20 @@ export function calcNutrition(seg, settings) {
   const kcalH = durationH > 0 ? Math.round(kcal / durationH) : 0;
   const isHot = tempC > 25;
   const isCold = tempC < 0 || snow;
-  // Glucides : cible manuelle si définie, sinon 55% des kcal (règle empirique)
+  
+  // ── GLUCIDES : Jeukendrup (2014) Sports Medicine - 60-90g/h effort endurance ──
   const glucidesH = glucidesTargetGh != null ? Math.round(glucidesTargetGh) : Math.round(kcalH * 0.55 / 4);
-  const proteinesH = Math.round(kcalH * 0.10 / 4);
-  // Lipides : résidu énergétique après glucides et protéines (1g lipides = 9 kcal)
-  const lipidesH = Math.max(0, Math.round((kcalH - glucidesH * 4 - proteinesH * 4) / 9));
+  
+  // ── PROTÉINES : Pugh et al. (2018) Nutrients - 5-10g/h si effort >4h ──
+  // Formule conservatrice : 8% kcal (au lieu 10%) pour éviter surestimation
+  const proteinesH = Math.round(kcalH * 0.08 / 4);
+  
+  // ── LIPIDES : Burke (2015) Int J Sport Nutr - MAX 10g/h (digestion lente) ──
+  // Effort intense trail = quasi 100% glucides, lipides résiduels faibles
+  // Plafond 10g/h même si calcul résiduel suggère plus
+  const lipidesResiduels = Math.max(0, Math.round((kcalH - glucidesH * 4 - proteinesH * 4) / 9));
+  const lipidesH = Math.min(10, lipidesResiduels);
+  
   const waterBase = isHot ? 750 : isCold ? 350 : 500;
   const eauH = Math.round(waterBase + (wind ? 100 : 0));
   const selH = Math.round(isHot ? 800 : snow ? 700 : 500);

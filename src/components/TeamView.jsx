@@ -15,7 +15,7 @@ export default function TeamView({ race, setRace, segments, setSegments, setting
   const [gpsCoords, setGpsCoords] = useState(null);
 
 
-  const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km).filter(rv => rv.assistancePresente !== false);
+  const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km);
   const { times: passingTimes } = calcPassingTimes(segments, settings.startTime);
 
   // Map segIndex → ravito pour retrouver les heures théoriques
@@ -430,9 +430,10 @@ export default function TeamView({ race, setRace, segments, setSegments, setting
             const isOpen   = activeRavito === rv.id;
             const realVal  = realTimes[rv.id] || "";
             const night    = theoSec ? isNight(adjSec || theoSec) : false;
+            const isAutonome = rv.assistancePresente === false;
 
             return (
-              <Card key={rv.id} style={{ borderLeft: `4px solid ${isOpen ? C.primary : C.green}` }}>
+              <Card key={rv.id} style={{ borderLeft: `4px solid ${isOpen ? C.primary : C.green}`, opacity: isAutonome ? 0.6 : 1 }}>
                 {/* En-tête ravito */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setActiveRavito(isOpen ? null : rv.id)}>
@@ -441,6 +442,7 @@ export default function TeamView({ race, setRace, segments, setSegments, setting
                         🥤 {rv.name}
                       </span>
                       <span className="badge badge-sage" style={{ fontSize: 12 }}>km {rv.km}</span>
+                      {isAutonome && <span style={{fontSize:11,padding:"2px 8px",background:C.stone,borderRadius:6,color:C.muted,fontWeight:500}}>⚠️ Autonome</span>}
                       {night && <span style={{ fontSize: 12 }}>🌙</span>}
                     </div>
                     <div style={{ display: "flex", gap: 16, fontSize: 13, color: "var(--muted-c)", flexWrap: "wrap" }}>
@@ -506,10 +508,17 @@ export default function TeamView({ race, setRace, segments, setSegments, setting
                     )}
 
                     {/* Ravito à préparer */}
-                    {(() => {
-                      const pointKey = String(rv.id);
-                      const items = (race.planNutrition?.[pointKey] || []);
-                      const produits = settings.produits || [];
+                    {isAutonome ? (
+                      <div style={{ padding: "12px 16px", background: C.stone, borderRadius: 12, fontSize: 13, color: C.muted, fontStyle: "italic" }}>
+                        ⚠️ Ravito autonome — Rien à préparer (tout transporter depuis le départ ou ravito précédent)
+                      </div>
+                    ) : (() => {
+                      const items = rv.produits || [];
+                      console.log(`[TeamView] Ravito ${rv.name} (${rv.km}km) - produits:`, items);
+                      const bibProduits = (race.bibliotheque?.produits || []);
+                      const bibRecettes = (race.bibliotheque?.recettes || []);
+                      const allItems = [...bibProduits, ...bibRecettes];
+                      
                       if (!items.length) return (
                         <div style={{ padding: "12px 16px", background: "var(--surface-2)", borderRadius: 12, fontSize: 13, color: "var(--muted-c)", fontStyle: "italic" }}>
                           Aucun produit planifié — configure le plan dans l'onglet Nutrition.
@@ -519,16 +528,24 @@ export default function TeamView({ race, setRace, segments, setSegments, setting
                         <div style={{ padding: "14px 16px", background: "var(--surface-2)", borderRadius: 12 }}>
                           <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 13 }}>Ravito à préparer</div>
                           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                            {items.map(({ produitId, quantite }) => {
-                              const p = produits.find(x => x.id === produitId);
+                            {items.map(({ id, quantite }) => {
+                              const p = allItems.find(x => x.id === id);
                               if (!p) return null;
+                              
+                              const kcal = p.ingredients 
+                                ? (p.ingredients || []).reduce((acc, ing) => {
+                                    const ingProd = allItems.find(ip => ip.id === ing.produitId);
+                                    return acc + ((ingProd?.kcal || 0) * (ing.quantite || 0) / 100);
+                                  }, 0)
+                                : (p.kcal || 0);
+                              
                               return (
-                                <div key={produitId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", background: "var(--surface)", borderRadius: 8, fontSize: 13 }}>
+                                <div key={id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", background: "var(--surface)", borderRadius: 8, fontSize: 13 }}>
                                   <span style={{ fontWeight: 600 }}>{p.nom}</span>
                                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                                     <span style={{ color: "var(--muted-c)", fontSize: 12 }}>× {quantite}</span>
                                     <span style={{ color: C.red, fontWeight: 600, fontSize: 12 }}>
-                                      {p.par100g ? Math.round(p.kcal * p.poids * quantite / 100) : Math.round(p.kcal * quantite)} kcal
+                                      {Math.round(kcal * quantite)} kcal
                                     </span>
                                   </div>
                                 </div>

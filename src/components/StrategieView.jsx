@@ -186,10 +186,15 @@ export default function StrategieView({ race, segments, setSegments, settings, s
                   return segments.map((seg, i) => {
                     if (seg.type === "ravito") {
                       const t = passingTimes[i]; const night = isNight(t);
+                      const rv = race.ravitos?.find(r => r.id === seg.ravitoId);
+                      const isAutonome = rv?.assistancePresente === false;
                       return (
-                        <tr key={seg.id} style={{ background: C.green + "10", cursor: "default" }}>
+                        <tr key={seg.id} style={{ background: C.green + "10", cursor: "default", opacity: isAutonome ? 0.6 : 1 }}>
                           <td style={{ color: "var(--muted-c)", fontSize: 16 }}>🥤</td>
-                          <td style={{ fontWeight: 600, color: C.green }}>{seg.label}</td>
+                          <td style={{ fontWeight: 600, color: C.green }}>
+                            {seg.label}
+                            {isAutonome && <span style={{fontSize:10,marginLeft:6,padding:"1px 6px",background:C.stone,borderRadius:4,color:C.muted,fontWeight:500}}>⚠️ Autonome</span>}
+                          </td>
                           <td style={{ color: "var(--muted-c)", fontSize: 12 }}>km {seg.startKm}</td>
                           <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 13 }}>{seg.dureeMin} min — {fmtTime(seg.dureeMin * 60)}</td>
                           <td colSpan={4} style={{ color: "var(--muted-c)", fontSize: 12, fontStyle: "italic" }}>Arrêt ravitaillement · pas de distance</td>
