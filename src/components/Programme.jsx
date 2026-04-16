@@ -202,6 +202,9 @@ function EntrainementProgramme({ seances, setSeances, activites, setActivites, o
   };
   const updE = (k,v) => setEditForm(f=>({...f,[k]:v}));
   const delSeance = (id) => { setSeances(ss=>ss.filter(s=>s.id!==id)); setConfirmId(null); setEditModal(false); };
+  const updateField = (id,field,val) => {
+    setSeances(ss=>ss.map(s=>s.id===id?{...s,[field]:val}:s));
+  };
 
   // Couleur fond ligne par statut
   const rowBg = (st) => ({
@@ -210,7 +213,7 @@ function EntrainementProgramme({ seances, setSeances, activites, setActivites, o
   }[st]||"transparent");
 
   // Colonnes de la grille
-  const GRID = "88px 110px 140px 140px minmax(80px,1fr) 36px 36px 36px 36px 36px 70px 68px 58px 58px 50px 70px 68px 58px 58px 50px";
+  const GRID = "88px 110px 140px 140px minmax(80px,1fr) 70px 68px 58px 58px 48px 50px 70px 68px 58px 58px 48px 50px 36px 36px 36px 36px 36px";
 
   // Dates et mois de course pour mise en avant visuelle
   const raceDates  = useMemo(()=>new Set(objectifs.map(o=>o.date).filter(Boolean)),[objectifs]);
@@ -326,9 +329,9 @@ function EntrainementProgramme({ seances, setSeances, activites, setActivites, o
                     padding:"4px 16px",gap:0,overflowX:"auto",minWidth:900}}>
                     {/* Groupe info */}
                     <div style={{gridColumn:"1/6",fontSize:9,fontWeight:500,textTransform:"uppercase",letterSpacing:".05em",color:C.muted,padding:"4px 0"}}>Date · Activité · Commentaire</div>
-                    <div style={{gridColumn:"6/11",fontSize:9,fontWeight:500,color:"#534AB7",textAlign:"center",padding:"4px 0",borderLeft:`1.5px solid #7F77DD44`}}>Zones FC %</div>
-                    <div style={{gridColumn:"11/16",fontSize:9,fontWeight:500,color:C.forest,textAlign:"center",padding:"4px 0",borderLeft:`1.5px solid ${C.forest}33`}}>— Prévu —</div>
-                    <div style={{gridColumn:"16/21",fontSize:9,fontWeight:500,color:"#BA7517",textAlign:"center",padding:"4px 0",borderLeft:`1.5px solid #BA751744`}}>— Réalisé —</div>
+                    <div style={{gridColumn:"6/12",fontSize:9,fontWeight:500,color:C.forest,textAlign:"center",padding:"4px 0",borderLeft:`1.5px solid ${C.forest}33`}}>— Prévu —</div>
+                    <div style={{gridColumn:"12/18",fontSize:9,fontWeight:500,color:"#BA7517",textAlign:"center",padding:"4px 0",borderLeft:`1.5px solid #BA751744`}}>— Réalisé —</div>
+                    <div style={{gridColumn:"18/23",fontSize:9,fontWeight:500,color:"#534AB7",textAlign:"center",padding:"4px 0",borderLeft:`1.5px solid #7F77DD44`}}>Zones FC %</div>
                   </div>
                   <div style={{display:"grid",gridTemplateColumns:GRID,
                     padding:"0 16px",gap:0,borderTop:`0.5px solid ${C.border}`,minWidth:900}}>
@@ -337,9 +340,9 @@ function EntrainementProgramme({ seances, setSeances, activites, setActivites, o
                     <div style={{padding:"3px 0",fontSize:9,color:C.muted}}>Activité prévue</div>
                     <div style={{padding:"3px 0",fontSize:9,color:C.muted}}>Activité réalisée</div>
                     <div style={{padding:"3px 0",fontSize:9,color:C.muted}}>Commentaire</div>
+                    {["Durée","Km","D+","Allure","Ratio","FC"].map(h=><div key={h} style={{padding:"3px 4px",fontSize:9,color:C.forest,textAlign:"right",borderLeft:h==="Durée"?`1.5px solid ${C.forest}33`:"none"}}>{h}</div>)}
+                    {["Durée","Km","D+","Allure","Ratio","FC"].map(h=><div key={h+"r"} style={{padding:"3px 4px",fontSize:9,color:"#BA7517",textAlign:"right",borderLeft:h==="Durée"?"1.5px solid #BA751744":"none"}}>{h}</div>)}
                     {["Z1","Z2","Z3","Z4","Z5"].map((z,i)=><div key={z} style={{padding:"3px 2px",fontSize:9,textAlign:"center",borderLeft:i===0?"1.5px solid #7F77DD44":"none",color:["#378ADD","#639922","#BA7517","#D85A30","#A32D2D"][i]}}>{z}</div>)}
-                    {["Durée","Km","D+","Allure","FC"].map(h=><div key={h} style={{padding:"3px 4px",fontSize:9,color:C.forest,textAlign:"right",borderLeft:h==="Durée"?`1.5px solid ${C.forest}33`:"none"}}>{h}</div>)}
-                    {["Durée","Km","D+","Allure","FC"].map(h=><div key={h+"r"} style={{padding:"3px 4px",fontSize:9,color:"#BA7517",textAlign:"right",borderLeft:h==="Durée"?"1.5px solid #BA751744":"none"}}>{h}</div>)}
                   </div>
 
                   {/* Lignes */}
@@ -349,7 +352,9 @@ function EntrainementProgramme({ seances, setSeances, activites, setActivites, o
                     const st=s?.statut||"Planifié";
                     const isDone=st==="Effectué"||st==="Partiel"||st==="Remplacé";
                     const actPrev=s?.activite||defaultType;
-                    const actReal=s?.statut==="Remplacé"&&s?.garminTitre ? (activites.find(a=>a.dateHeure===s?._garminId)?.type||actPrev) : (isDone?actPrev:null);
+                    const actReal=s?._garminId 
+                      ? (activites.find(a=>a.dateHeure===s._garminId)?.type || actPrev)
+                      : (isDone ? actPrev : null);
                     return (
                       <div key={dateStr+slot} onClick={()=>s&&openEdit(s)}
                         style={{display:"grid",gridTemplateColumns:GRID,
@@ -360,7 +365,26 @@ function EntrainementProgramme({ seances, setSeances, activites, setActivites, o
                           opacity:st==="Annulé"?0.45:1,minWidth:900}}>
                         {/* Statut */}
                         <div style={{padding:"8px 4px 8px 0",display:"flex",alignItems:"center"}}>
-                          {s?<StatusBadge statut={st}/>:<span style={{fontSize:10,color:C.stoneDeep}}>○ Planifié</span>}
+                          {s ? (
+                            <select
+                              value={st}
+                              onChange={e => updateField(s.id, "statut", e.target.value)}
+                              onClick={e => e.stopPropagation()}
+                              style={{
+                                fontSize:10,
+                                padding:"2px 6px",
+                                borderRadius:5,
+                                border:`1px solid ${C.border}`,
+                                background:C.bg,
+                                cursor:"pointer",
+                                width:"100%",
+                                maxWidth:90
+                              }}>
+                              {STATUT_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
+                            </select>
+                          ) : (
+                            <span style={{fontSize:10,color:C.stoneDeep}}>○ Planifié</span>
+                          )}
                         </div>
                         {/* Date + Créneau */}
                         <div style={{padding:"8px 4px",display:"flex",flexDirection:"column",gap:1}}>
@@ -377,12 +401,6 @@ function EntrainementProgramme({ seances, setSeances, activites, setActivites, o
                         <div style={{padding:"8px 4px",display:"flex",alignItems:"center",overflow:"hidden"}}>
                           <span style={{fontSize:11,color:C.muted,fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s?.commentaire||""}</span>
                         </div>
-                        {/* Zones FC — après commentaire */}
-                        {["z1","z2","z3","z4","z5"].map((z,i)=>(
-                          <div key={z} style={{padding:"8px 2px",display:"flex",alignItems:"center",justifyContent:"center",borderLeft:i===0?"1.5px solid #7F77DD44":"none"}}>
-                            {isDone&&s?.[z]?<span style={{fontSize:11,fontFamily:"'DM Mono',monospace",fontWeight:500,color:["#378ADD","#639922","#BA7517","#D85A30","#A32D2D"][i]}}>{s[z]}</span>:<span style={{fontSize:10,color:C.stoneDeep}}>—</span>}
-                          </div>
-                        ))}
                         {/* Prévu */}
                         <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end",borderLeft:`1.5px solid ${C.forest}22`}}>
                           <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:C.stoneDeep}}>{s?.dureeObj||"—"}</span>
@@ -395,6 +413,16 @@ function EntrainementProgramme({ seances, setSeances, activites, setActivites, o
                         </div>
                         <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
                           {(()=>{const a=calcAllure(s?.dureeObj,s?.kmObj);return <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:a?C.sky:C.stoneDeep}}>{a?`${a}/km`:"—"}</span>;})()}
+                        </div>
+                        {/* Ratio Prévu (D+/km) */}
+                        <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
+                          {(()=>{
+                            const dp=parseFloat(s?.dpObj);
+                            const km=parseFloat(s?.kmObj);
+                            if(!dp||!km||km===0) return <span style={{fontSize:11,color:C.stoneDeep}}>—</span>;
+                            const ratio=Math.round(dp/km);
+                            return <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:C.stoneDeep}}>{ratio}</span>;
+                          })()}
                         </div>
                         <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
                           <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:C.stoneDeep}}>{s?.fcObj||"—"}</span>
@@ -413,9 +441,30 @@ function EntrainementProgramme({ seances, setSeances, activites, setActivites, o
                           {isDone&&(()=>{const a=calcAllure(s?.dureeGarmin,s?.kmGarmin);const ap=calcAllure(s?.dureeObj,s?.kmObj);if(!a) return <span style={{fontSize:11,color:C.stoneDeep}}>—</span>;const col=!ap?C.summit:a<ap?C.green:a>ap?C.red:C.muted;return <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:col,fontWeight:500}}>{a}/km</span>;})()}
                           {!isDone&&<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
                         </div>
+                        {/* Ratio Réalisé (D+/km) */}
+                        <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
+                          {isDone&&(()=>{
+                            const dp=parseFloat(s?.dpGarmin);
+                            const km=parseFloat(s?.kmGarmin);
+                            const dpPlan=parseFloat(s?.dpObj);
+                            const kmPlan=parseFloat(s?.kmObj);
+                            if(!dp||!km||km===0) return <span style={{fontSize:11,color:C.stoneDeep}}>—</span>;
+                            const ratio=Math.round(dp/km);
+                            const ratioPlan=(dpPlan&&kmPlan&&kmPlan>0)?Math.round(dpPlan/kmPlan):null;
+                            const col=!ratioPlan?C.summit:ratio>ratioPlan?C.red:ratio<ratioPlan?C.green:C.muted;
+                            return <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:col,fontWeight:500}}>{ratio}</span>;
+                          })()}
+                          {!isDone&&<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
+                        </div>
                         <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
                           {isDone?<span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:C.forest}}>{s?.fcMoy||"—"}</span>:<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
                         </div>
+                        {/* Zones FC — après Réalisé */}
+                        {["z1","z2","z3","z4","z5"].map((z,i)=>(
+                          <div key={z} style={{padding:"8px 2px",display:"flex",alignItems:"center",justifyContent:"center",borderLeft:i===0?"1.5px solid #7F77DD44":"none"}}>
+                            {isDone&&s?.[z]?<span style={{fontSize:11,fontFamily:"'DM Mono',monospace",fontWeight:500,color:["#378ADD","#639922","#BA7517","#D85A30","#A32D2D"][i]}}>{s[z]}</span>:<span style={{fontSize:10,color:C.stoneDeep}}>—</span>}
+                          </div>
+                        ))}
                       </div>
                     );
                   })}
@@ -754,7 +803,21 @@ function ProgrammeView({ seances, setSeances, objectifs, activityTypes }) {
                         {s.fcObj?`${s.fcObj}bpm`:"—"}
                       </span>
                       <div style={{display:"flex",justifyContent:"flex-end"}}>
-                        {statusBadge(s.statut)}
+                        <select
+                          value={s.statut || "Planifié"}
+                          onChange={e => updateField(s.id, "statut", e.target.value)}
+                          onClick={e => e.stopPropagation()}
+                          style={{
+                            fontSize:11,
+                            padding:"2px 6px",
+                            borderRadius:5,
+                            border:`1px solid ${C.border}`,
+                            background:C.bg,
+                            cursor:"pointer",
+                            width:"100%"
+                          }}>
+                          {STATUT_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
+                        </select>
                       </div>
                     </div>
                   );
@@ -810,7 +873,23 @@ function ProgrammeView({ seances, setSeances, objectifs, activityTypes }) {
                     {isDone&&s.dpGarmin&&<><span style={{color:C.muted}}> / </span><span style={{color:C.forest}}>{s.dpGarmin}</span>{diffCell(s.dpGarmin,s.dpObj)}</>}
                   </span>
                   <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,textAlign:"right",color:C.muted}}>{s.fcObj||"—"}</span>
-                  <div>{statusBadge(s.statut)}</div>
+                  <div>
+                    <select
+                      value={s.statut || "Planifié"}
+                      onChange={e => updateField(s.id, "statut", e.target.value)}
+                      onClick={e => e.stopPropagation()}
+                      style={{
+                        fontSize:11,
+                        padding:"2px 6px",
+                        borderRadius:5,
+                        border:`1px solid ${C.border}`,
+                        background:C.bg,
+                        cursor:"pointer",
+                        width:"100%"
+                      }}>
+                      {STATUT_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
+                    </select>
+                  </div>
                   <button onClick={e=>{e.stopPropagation();setConfirmId(s.id);}}
                     style={{background:"none",border:"none",cursor:"pointer",color:C.stoneDark,fontSize:12,padding:0}}>✕</button>
                 </div>
@@ -947,7 +1026,9 @@ function Programme({ seances, setSeances, objectifs, planningType, activites, se
   };
 
 
-  const updateField = (id,field,val) => setSeances(ss=>ss.map(s=>s.id===id?{...s,[field]:val}:s));
+  const updateField = (id,field,val) => {
+    setSeances(ss=>ss.map(s=>s.id===id?{...s,[field]:val}:s));
+  };
   const deleteSeance = (id) => setSeances(ss=>ss.filter(s=>s.id!==id));
 
 
@@ -1263,8 +1344,7 @@ function Programme({ seances, setSeances, objectifs, planningType, activites, se
                                 const pasteInputRef = React.createRef();
                                 // Helpers comparaison prévu→réel
                                 const linked = seance?._garminId;
-                                const isRepos = seance?.activite === "Repos";
-                                const readOnly = linked || isRepos;
+                                const readOnly = linked; // Seules les lignes liées à Garmin sont readonly
                                 const diffVal = (real, plan) => {
                                   const r = parseFloat(real); const p = parseFloat(plan);
                                   if (!real || !plan || isNaN(r) || isNaN(p)) return null;
@@ -1322,7 +1402,23 @@ function Programme({ seances, setSeances, objectifs, planningType, activites, se
 
                                     {/* Statut */}
                                     <div style={{width:80,flexShrink:0}}>
-                                      {seance?statusBadge(seance.statut):null}
+                                      {seance ? (
+                                        <select
+                                          value={seance.statut || "Planifié"}
+                                          onChange={ev => updateField(seance.id, "statut", ev.target.value)}
+                                          disabled={readOnly}
+                                          style={{
+                                            fontSize:11,
+                                            padding:"2px 6px",
+                                            borderRadius:5,
+                                            border:`1px solid ${C.border}`,
+                                            width:"100%",
+                                            background:readOnly?C.stone:C.bg,
+                                            cursor:readOnly?"not-allowed":"pointer"
+                                          }}>
+                                          {STATUT_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
+                                        </select>
+                                      ) : null}
                                     </div>
 
                                     {/* Commentaire */}

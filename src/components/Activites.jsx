@@ -183,6 +183,12 @@ function LinkModal({ linkAct, seances, setSeances, onClose }) {
     .filter(s=>s.date===dateAct)
     .sort((a,b)=>a.demiJournee.localeCompare(b.demiJournee));
   const doLink=(sid)=>{
+    const seance = seances.find(s => s.id === sid);
+    const activityMatch = linkAct.type === seance?.activite;
+    const newStatut = seance?.statut === "Planifié" 
+      ? (activityMatch ? "Effectué" : "Remplacé")
+      : seance?.statut;
+    
     setSeances(ss=>ss.map(s=>s.id!==sid?s:{...s,
       _garminId:linkAct.dateHeure,garminTitre:linkAct.titre||"",
       dureeGarmin:linkAct.duree||"",kmGarmin:linkAct.distance||"",
@@ -190,13 +196,14 @@ function LinkModal({ linkAct, seances, setSeances, onClose }) {
       cal:linkAct.calories||"",allure:linkAct.gapMoy||linkAct.allure||"",
       z1:linkAct.z1||"",z2:linkAct.z2||"",z3:linkAct.z3||"",
       z4:linkAct.z4||"",z5:linkAct.z5||"",
-      statut:s.statut==="Planifié"?"Effectué":s.statut}));
+      statut:newStatut}));
     onClose();
   };
   const doUnlink=(sid)=>{
     setSeances(ss=>ss.map(s=>s.id!==sid?s:{...s,
       _garminId:"",garminTitre:"",dureeGarmin:"",kmGarmin:"",dpGarmin:"",
-      fcMoy:"",fcMax:"",cal:"",allure:"",z1:"",z2:"",z3:"",z4:"",z5:""}));
+      fcMoy:"",fcMax:"",cal:"",allure:"",z1:"",z2:"",z3:"",z4:"",z5:"",
+      statut:(s.statut==="Effectué"||s.statut==="Remplacé")?"Planifié":s.statut}));
   };
   return (
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(28,25,22,0.5)",
