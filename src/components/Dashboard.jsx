@@ -312,6 +312,18 @@ function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, set
   return (
     <div className="anim" style={{padding:"24px 40px 80px"}}>
 
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* BANDEAU TEST VERSION 2.0 - SI TU VOIS ÇA, LE CODE EST CHARGÉ */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      <div style={{
+        position:"fixed",top:0,left:0,right:0,zIndex:99999,
+        background:"#ff0000",color:"#fff",padding:"20px",
+        fontSize:"24px",fontWeight:"bold",textAlign:"center",
+        border:"10px solid #ffff00"
+      }}>
+        🚨 VERSION 2.0 CHARGÉE - NOUVEAU CODE ACTIF 🚨
+      </div>
+
       {/* ── FORME DU JOUR ── */}
       <div style={{...card(),background:formePale,border:`1.5px solid ${formeColor}33`,padding:"20px 28px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap"}}>
         <div>
