@@ -62,6 +62,15 @@ function Activites({ activites, setActivites, seances, setSeances }) {
 
   return (
     <div className="anim" style={{padding:"24px 40px 80px"}}>
+      <style>{`
+        @media (max-width: 768px) {
+          .act-header, .act-row { 
+            grid-template-columns: 60px 140px 100px 1fr 70px 80px 60px 40px !important; 
+            min-width: 650px !important;
+          }
+          .act-hide-mobile { display: none !important; }
+        }
+      `}</style>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:8}}>
         <div>
           <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight}}>Activités</h1>
@@ -83,13 +92,16 @@ function Activites({ activites, setActivites, seances, setSeances }) {
       <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
         <div style={{overflowX:"auto"}}>
           {/* Header */}
-          <div style={{display:"grid",gridTemplateColumns:"70px 90px 180px 120px 200px 90px 110px 80px 80px 70px 70px 68px 68px 68px 68px 68px 40px",minWidth:1580,borderBottom:`1px solid ${C.border}`}}>
-            {[["","Statut"],["","Lier"],["dateHeure","ID (date + heure)"],["type","Type"],["titre","Titre"],["distance","Dist."],["duree","Durée"],["fcMoy","FC Ø"],["fcMax","FC Max"],["dp","D+"],["calories","Cal."],["","Z0%"],["z1","Z1%"],["z2","Z2%"],["z3","Z3%"],["z4","Z4%"],["z5","Z5%"],["",""]].map(([k,l],idx)=>(
-              <div key={k||`col-${idx}`} style={{...thStyle(k)}} onClick={()=>k&&sort(k)}>{l}{sortKey===k?sortDir>0?" ↑":" ↓":""}</div>
-            ))}
+          <div className="act-header" style={{display:"grid",gridTemplateColumns:"60px 140px 100px 1fr 70px 80px 60px 60px 60px 70px 48px 48px 48px 48px 48px 40px",minWidth:1200,borderBottom:`1px solid ${C.border}`}}>
+            {[["","Statut"],["dateHeure","ID (date + heure)"],["type","Type"],["titre","Titre"],["distance","Dist."],["duree","Durée"],["fcMoy","FC Ø"],["fcMax","FC Max"],["dp","D+"],["calories","Cal."],["z1","Z1%"],["z2","Z2%"],["z3","Z3%"],["z4","Z4%"],["z5","Z5%"],["",""]].map(([k,l],idx)=>{
+              const hideMobile = idx >= 7 && idx <= 14; // FC Max, D+, Cal, Z1-Z5
+              return (
+                <div key={k||`col-${idx}`} className={hideMobile?"act-hide-mobile":""} style={{...thStyle(k)}} onClick={()=>k&&sort(k)}>{l}{sortKey===k?sortDir>0?" ↑":" ↓":""}</div>
+              );
+            })}
           </div>
           {/* Rows */}
-          <div style={{maxHeight:500,overflowY:"auto"}}>
+          <div style={{maxHeight:800,overflowY:"auto"}}>
             {filtered.length===0 && (
               <div style={{padding:"32px",textAlign:"center",color:C.muted,fontSize:13}}>Aucune activité · Importer un fichier Activities.csv depuis Garmin Connect</div>
             )}
@@ -97,62 +109,53 @@ function Activites({ activites, setActivites, seances, setSeances }) {
               const showZ=true; // zones FC pour toutes les activités
               const isCopied=copied===a.dateHeure;
               return (
-                <div key={a.id} style={{display:"grid",gridTemplateColumns:"70px 90px 180px 120px 200px 90px 110px 80px 80px 70px 70px 68px 68px 68px 68px 68px 40px",borderTop:`1px solid ${C.border}`,alignItems:"center",minWidth:1580,background:"transparent"}}>
-                  {/* Statut lié */}
-                  <div style={{padding:"4px 6px",display:"flex",justifyContent:"center",borderRight:`1px solid ${C.border}`}}>
+                <div key={a.id} className="act-row" style={{display:"grid",gridTemplateColumns:"60px 140px 100px 1fr 70px 80px 60px 60px 60px 70px 48px 48px 48px 48px 48px 40px",borderTop:`1px solid ${C.border}`,alignItems:"center",minWidth:1200,background:"transparent",transition:"background .15s"}}
+                  onMouseEnter={e=>e.currentTarget.style.background=C.stone+"30"}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  {/* Statut lié + bouton lier */}
+                  <div style={{padding:"8px 6px",display:"flex",flexDirection:"column",gap:4,alignItems:"center",borderRight:`1px solid ${C.border}`}}>
                     <span style={{
                       fontSize:9,fontWeight:600,padding:"2px 6px",borderRadius:4,whiteSpace:"nowrap",
                       background:liees.has(a.dateHeure)?C.forestPale:C.stone,
                       color:liees.has(a.dateHeure)?C.forest:C.stoneDeep,
                     }}>
-                      {liees.has(a.dateHeure)?"✓ Lié":"— Libre"}
+                      {liees.has(a.dateHeure)?"✓ Lié":"Libre"}
                     </span>
-                  </div>
-                  {/* Bouton Lier — col 2 */}
-                  <div style={{padding:"4px 8px",display:"flex",justifyContent:"center",borderRight:`1px solid ${C.border}`}}>
                     <button onClick={()=>setLinkAct(a)}
-                      style={{fontSize:11,padding:"3px 10px",borderRadius:6,cursor:"pointer",fontWeight:500,
-                        border:`0.5px solid ${liees.has(a.dateHeure)?C.forest:C.border}`,
-                        background:liees.has(a.dateHeure)?C.forestPale:C.stone,
+                      style={{fontSize:9,padding:"2px 6px",borderRadius:4,cursor:"pointer",fontWeight:500,
+                        border:`0.5px solid ${liees.has(a.dateHeure)?C.forest:C.sky}`,
+                        background:liees.has(a.dateHeure)?C.forestPale:C.skyPale,
                         color:liees.has(a.dateHeure)?C.forest:C.sky,whiteSpace:"nowrap"}}>
-                      {liees.has(a.dateHeure)?"✓ Lié":"→ Lier"}
+                      {liees.has(a.dateHeure)?"→":"Lier"}
                     </button>
                   </div>
                   {/* ID cliquable */}
                   <div
                     onClick={()=>copyID(a.dateHeure)}
                     title="Cliquer pour copier l'ID"
-                    style={{padding:"5px 6px",cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:10,
+                    style={{padding:"8px 6px",cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:10,
                       color:isCopied?C.green:C.sky,background:isCopied?C.greenPale:C.skyPale+"66",
                       borderRight:`1px solid ${C.border}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
                       display:"flex",alignItems:"center",gap:4}}>
                     <span style={{fontSize:9,flexShrink:0}}>{isCopied?"✓":"⎘"}</span>
                     {isCopied?"Copié !" : a.dateHeure}
                   </div>
-                  <div style={{padding:"5px 6px",fontSize:10,color:C.inkLight,borderRight:`1px solid ${C.border}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                    <span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:actColor(a.type||"Trail"),marginRight:4,verticalAlign:"middle",flexShrink:0}}/>
+                  <div style={{padding:"8px 6px",fontSize:11,color:C.inkLight,borderRight:`1px solid ${C.border}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4}}>
+                    <span style={{display:"inline-block",width:7,height:7,borderRadius:2,background:actColor(a.type||"Trail"),flexShrink:0}}/>
                     {a.type||"—"}
                   </div>
-                  <div style={{padding:"5px 6px",fontSize:10,color:C.inkLight,borderRight:`1px solid ${C.border}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={a.titre}>{a.titre||"—"}</div>
+                  <div style={{padding:"8px 6px",fontSize:11,color:C.inkLight,borderRight:`1px solid ${C.border}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={a.titre}>{a.titre||"—"}</div>
                   {[
-                    {k:"distance",u:"km"},{k:"duree",u:""},{k:"fcMoy",u:""},{k:"fcMax",u:""},{k:"dp",u:"m"},{k:"calories",u:""},
-                  ].map(({k,u})=>(
-                    <div key={k} style={{padding:"3px 4px",borderRight:`1px solid ${C.border}`}}>
-                      <input value={(a[k]||"").toString().replace(/,/g,'')} onChange={e=>updAct(a.id,k,e.target.value)}
-                        style={{fontSize:10,padding:"1px 3px",border:`1px solid ${C.border}`,borderRadius:4,width:"100%",background:C.bg,fontFamily:"'DM Mono',monospace",textAlign:"right"}}/>
+                    {k:"distance",u:"km",hide:false},{k:"duree",u:"",hide:false},{k:"fcMoy",u:"",hide:false},{k:"fcMax",u:"",hide:true},{k:"dp",u:"m",hide:true},{k:"calories",u:"",hide:true},
+                  ].map(({k,u,hide})=>(
+                    <div key={k} className={hide?"act-hide-mobile":""} style={{padding:"8px 4px",borderRight:`1px solid ${C.border}`}}>
+                      <input value={a[k]||""} onChange={e=>updAct(a.id,k,e.target.value)}
+                        style={{fontSize:11,padding:"2px 4px",border:`1px solid ${C.border}`,borderRadius:4,width:"100%",background:C.bg,fontFamily:"'DM Mono',monospace",textAlign:"right"}}/>
                     </div>
                   ))}
-                  {/* Z0 calculée */}
-                  <div style={{padding:"3px 4px",borderRight:`1px solid ${C.border}`}}>
-                    {showZ&&(a.z1||a.z2||a.z3||a.z4||a.z5) ? (
-                      <div style={{fontSize:11,padding:"2px 4px",border:`1px solid ${C.border}`,borderRadius:4,width:"100%",textAlign:"center",background:C.stone,fontFamily:"'DM Mono',monospace",color:C.muted}}>
-                        {Math.max(0,100-["z1","z2","z3","z4","z5"].reduce((s,k)=>s+(parseFloat(a[k])||0),0))}
-                      </div>
-                    ) : <span style={{fontSize:9,color:C.stoneDark,textAlign:"center",display:"block"}}>—</span>}
-                  </div>
                   {/* Zones FC */}
                   {["z1","z2","z3","z4","z5"].map(z=>(
-                    <div key={z} style={{padding:"3px 4px",borderRight:`1px solid ${C.border}`}}>
+                    <div key={z} className="act-hide-mobile" style={{padding:"8px 4px",borderRight:`1px solid ${C.border}`}}>
                       {showZ
                         ? <input type="number" min="0" max="100" step="1" value={a[z] != null ? a[z] : ""}
                             onChange={e=>updAct(a.id,z,e.target.value)}
@@ -161,7 +164,7 @@ function Activites({ activites, setActivites, seances, setSeances }) {
                       }
                     </div>
                   ))}
-                  <div style={{padding:"3px 4px",display:"flex",justifyContent:"center"}}>
+                  <div style={{padding:"8px 4px",display:"flex",justifyContent:"center"}}>
                     <button onClick={()=>delAct(a.id)} style={{background:"none",border:"none",cursor:"pointer",color:C.stoneDark,fontSize:11,padding:0}}>✕</button>
                   </div>
                 </div>

@@ -835,6 +835,7 @@ function AppLayout({
       { id:"entrainement", label:"Programme",  icon:"↑", feat:"programme" },
       { id:"activites",    label:"Activités",  icon:"▣", feat:"activites" },
       { id:"forme",        label:"Forme",      icon:"♡", feat:"forme" },
+      { id:"gut_training", label:"Gut Training", icon:"🍽️", feat:"gut_training" },
       { id:"objectifs",    label:"Objectifs",  icon:"🏔", feat:"objectifs" },
     ].filter(n=>strideFeatures[n.feat]!==false)}] : []),
     // Section Course
@@ -1062,14 +1063,14 @@ function AppLayout({
           {view==="objectifs" && <Objectifs objectifs={objectifs} setObjectifs={setObjectifs} seances={seances} activites={activites} vfcData={vfcData} poids={poids} profil={profil} produits={produits} recettes={recettes} allData={allData}/>}
           {view==="coach" && <MonCoachIA seances={seances} setSeances={setSeances} activites={activites} sommeil={sommeil} vfcData={vfcData} poids={poids} objectifs={objectifs} planningType={planningType} produits={produits} recettes={recettes} journalNutri={journalNutri} activityTypes={activityTypes}/>}
           {view==="activites" && <Activites activites={activites} setActivites={setActivites} seances={seances} setSeances={setSeances}/>}
+          {view==="gut_training" && <Nutrition produits={produits} setProduits={setProduits} recettes={recettes} setRecettes={setRecettes} seances={seances} setSeances={setSeances} activites={activites}/>}
           {view==="entrainement" && (
             <div>
               <div style={{padding:"10px 24px",borderBottom:`1px solid ${C.border}`,background:C.white,display:"flex",gap:6,flexWrap:"wrap"}}>
-                {[{id:"programme",l:"Programme"},{id:"nutrition",l:"Nutrition entraînement"},{id:"planning",l:"Semaine type"}]
+                {[{id:"programme",l:"Programme"},{id:"planning",l:"Semaine type"}]
                   .map(({id,l})=>subNavBtn(id,l,subView.entrainement===id,()=>setSubV("entrainement",id)))}
               </div>
               {subView.entrainement==="programme"&&<EntrainementProgramme seances={seances} setSeances={setSeances} activites={activites} setActivites={setActivites} objectifs={objectifs} planningType={planningType} setPlanningType={setPlanningType} activityTypes={activityTypes} setActivityTypes={setActivityTypes} allData={allData} loadData={loadStrideData} resetAll={resetAll} setView={setView}/>}
-              {subView.entrainement==="nutrition"&&<Nutrition produits={produits} setProduits={setProduits} recettes={recettes} setRecettes={setRecettes} seances={seances} setSeances={setSeances} activites={activites}/>}
               {subView.entrainement==="planning"&&<SemaineType planningType={planningType} setPlanningType={setPlanningType} seances={seances} setSeances={setSeances} activityTypes={activityTypes}/>}
             </div>
           )}
@@ -1086,7 +1087,7 @@ function AppLayout({
             </div>
           )}
           {/* Vues Alex Course */}
-          {view==="profil_course"&&<div style={{padding:"24px 32px"}}><ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profilDetail={alexFeatures.profilDetail} profil={profil}/></div>}
+          {view==="profil_course"&&<div style={{padding:"24px 32px"}}><ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profilDetail={features.profilDetail} profil={profil}/></div>}
           {view==="strategie"&&<div style={{padding:"24px 32px"}}><StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profil={profil}/></div>}
           {view==="nutrition_alex"&&<div style={{padding:"24px 32px"}}><NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} isMobile={isMobile} onNavigate={setView} profil={profil} poids={poids} recettes={recettes} produits={produits}/></div>}
           {view==="equipement"&&<div style={{padding:"24px 32px"}}><EquipementView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} isMobile={isMobile}/></div>}
@@ -1166,7 +1167,7 @@ export default function App() {
   const [profilType,    setProfilType]   = useState(null); // null = premier lancement
   
   // ── Feature toggles (chargés depuis Supabase) ──────────────────────────────
-  const STRIDE_FEATURES_DEFAULT = {programme:true,activites:true,forme:true,objectifs:true,coach:true};
+  const STRIDE_FEATURES_DEFAULT = {programme:true,activites:true,forme:true,gut_training:true,objectifs:true,coach:true};
   const ALEX_FEATURES_DEFAULT = {nutrition:true,equipement:true,analyse:true,team:true,courses:true,profilDetail:true};
   const [strideFeatures, setStrideFeatures] = useState(STRIDE_FEATURES_DEFAULT);
   const [alexFeatures, setAlexFeatures] = useState(ALEX_FEATURES_DEFAULT);
@@ -1202,7 +1203,9 @@ export default function App() {
         if (nutr.recettes?.length) setRecettes(nutr.recettes.map(r => ({ ...r, type: r.type || 'recette' })));
       }
       if (settings) {
-        if (settings.planningType) setPlanningType(settings.planningType);
+        if (settings.planningType && Object.keys(settings.planningType).length > 0) {
+          setPlanningType(settings.planningType);
+        }
         if (settings.activityTypes?.length) setActivityTypes(settings.activityTypes);
         if (settings.strideFeatures) setStrideFeatures(settings.strideFeatures);
         if (settings.alexFeatures) setAlexFeatures(settings.alexFeatures);
@@ -1334,6 +1337,7 @@ export default function App() {
     {key:"programme",label:"Programme",icon:"↑",desc:"Planification des séances, suivi hebdomadaire"},
     {key:"activites",label:"Activités",icon:"▣",desc:"Historique activités Garmin importées"},
     {key:"forme",label:"Forme",icon:"♡",desc:"VFC, sommeil, poids, journal nutritionnel"},
+    {key:"gut_training",label:"Gut Training",icon:"🍽️",desc:"Nutrition entraînement : produits, recettes, historique"},
     {key:"objectifs",label:"Objectifs",icon:"🏔",desc:"Courses cibles, planification compétitions"},
     {key:"coach",label:"Coach IA",icon:"✦",desc:"Conseils personnalisés basés sur tes données"},
   ];

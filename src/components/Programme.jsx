@@ -6,11 +6,11 @@ import { Btn, Modal, Field, FormGrid, ConfirmDialog, statusBadge } from "../atom
 // ─── ENTRAÎNEMENT PROGRAMME (vue principale fusionnée) ───────────────────────
 // Statuts enrichis
 const STATUTS = [
-  {id:"Planifié", icon:"○", bg:"#E6F1FB", col:"#0C447C"},
-  {id:"Effectué", icon:"✓", bg:"#E1F5EE", col:"#085041"},
-  {id:"Partiel",  icon:"◑", bg:"#FAEEDA", col:"#633806"},
-  {id:"Remplacé", icon:"⇄", bg:"#EEEDFE", col:"#3C3489"},
-  {id:"Annulé",   icon:"✕", bg:"#F1EFE8", col:"#5F5E5A"},
+  {id:"Planifié", icon:"○"},
+  {id:"Effectué", icon:"✓"},
+  {id:"Partiel",  icon:"◑"},
+  {id:"Remplacé", icon:"⇄"},
+  {id:"Annulé",   icon:"✕"},
 ];
 const statutCfg = (st) => STATUTS.find(s=>s.id===st)||STATUTS[0];
 
@@ -77,9 +77,8 @@ function DiffSpan({real, plan, unit="", isDuration=false}) {
 }
 
 function EntrainementProgramme({ seances, setSeances, activites, setActivites, objectifs,
-  planningType, activityTypes, journalNutri, produits, recettes, setView,
-  setSommeil, setVfcData, setPoids, setObjectifs, setPlanningType, setActivityTypes,
-  setJournalNutri, setProduits, setRecettes, allData, loadData, resetAll }) {
+  planningType, activityTypes, setView, allData, loadData, resetAll,
+  setPlanningType, setActivityTypes }) {
 
   const today = localDate(new Date());
   const currentYear = new Date().getFullYear();

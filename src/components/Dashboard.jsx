@@ -507,13 +507,8 @@ function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, set
 
         {/* 12 semaines : km + D+ + VFC */}
         <div style={{...card(),padding:"20px 24px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
-            <div>
-              <div style={{...lbl,marginBottom:0}}>Charge trail · 12 semaines</div>
-              <div style={{fontSize:10,color:C.muted,marginTop:2}}>
-                {Math.round(twelveWeeks.reduce((s,w)=>s+w.km,0)*10)/10} km total · {Math.round(twelveWeeks.reduce((s,w)=>s+w.dp,0))} m D+
-              </div>
-            </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+            <div style={{...lbl,marginBottom:0}}>Charge trail · 12 semaines</div>
             <div style={{display:"flex",gap:10,fontSize:10,color:C.muted,flexWrap:"wrap"}}>
               {[{c:"#378ADD",l:"Fondamental"},{c:"#e65100",l:"Spécifique"},{c:"#A32D2D",l:"Affûtage"}].map(({c,l})=>(
                 <span key={l} style={{display:"flex",alignItems:"center",gap:3}}>
@@ -531,6 +526,9 @@ function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, set
           </div>
           <div style={{position:"relative",height:200}}>
             <canvas ref={chartRef12}/>
+          </div>
+          <div style={{fontSize:11,color:C.muted,marginTop:10,textAlign:"center",fontFamily:"'DM Mono',monospace"}}>
+            Total : {Math.round(twelveWeeks.reduce((s,w)=>s+w.km,0)*10)/10} km · {Math.round(twelveWeeks.reduce((s,w)=>s+w.dp,0))} m D+
           </div>
         </div>
 

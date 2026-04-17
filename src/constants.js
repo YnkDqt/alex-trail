@@ -231,6 +231,9 @@ export const parseCSVActivities = (text) => {
   const lines = text.trim().split("\n");
   const headers = parseCSVLine(lines[0]);
   
+  // Nettoie les nombres (supprime virgules et espaces de séparation)
+  const cleanNum = (v) => (v||"").toString().replace(/[,\s]/g, "");
+  
   return lines.slice(1).map(line => {
     const vals = parseCSVLine(line);
     const o = {}; 
@@ -239,17 +242,24 @@ export const parseCSVActivities = (text) => {
     const activity = {
       id: Date.now()+Math.random(), date: o["Date"]?.slice(0,10)||"",
       dateHeure: o["Date"]||"", type: o["Type d'activité"]||"Trail",
-      titre: o["Titre"]||"", distance: o["Distance"]||"", calories: o["Calories"]||"",
-      duree: o["Durée"]||"", fcMoy: o["Fréquence cardiaque moyenne"]||"",
-      fcMax: o["Fréquence cardiaque maximale"]||"",
-      dp: o["Ascension totale"]||o["D+ Réalisé"]||"",
-      tss: o["Training Stress Score® (TSS®)"]||"",
+      titre: o["Titre"]||"", 
+      distance: cleanNum(o["Distance"]), 
+      calories: cleanNum(o["Calories"]),
+      duree: o["Durée"]||"", 
+      fcMoy: cleanNum(o["Fréquence cardiaque moyenne"]),
+      fcMax: cleanNum(o["Fréquence cardiaque maximale"]),
+      dp: cleanNum(o["Ascension totale"]||o["D+ Réalisé"]||""),
+      tss: cleanNum(o["Training Stress Score® (TSS®)"]||""),
       allure: o["Allure moyenne"]||o["Vitesse moyenne"]||"",
       teAero: o["TE aérobie"]||"", gapMoy: o["GAP moyen"]||"",
-      cadence: o["Cadence moyenne"]||"", bodyBattery: o["Body Battery"]||"",
-      z0: o["% en dessous de Z1"]||"", z1: o["% Z1"]||"",
-      z2: o["% Z2"]||"", z3: o["% Z3"]||"",
-      z4: o["% Z4"]||"", z5: o["% Z5"]||"",
+      cadence: cleanNum(o["Cadence moyenne"]||""), 
+      bodyBattery: cleanNum(o["Body Battery"]||""),
+      z0: cleanNum(o["% en dessous de Z1"]||""), 
+      z1: cleanNum(o["% Z1"]||""),
+      z2: cleanNum(o["% Z2"]||""), 
+      z3: cleanNum(o["% Z3"]||""),
+      z4: cleanNum(o["% Z4"]||""), 
+      z5: cleanNum(o["% Z5"]||""),
     };
     
     return activity;
