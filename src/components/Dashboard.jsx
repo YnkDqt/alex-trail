@@ -1,3 +1,4 @@
+/* Build: 2026-04-17T11:30:00Z - Dashboard totaux repositionnés */
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { C, localDate, daysUntil, isRunning, actColor, actShort, actColorPale, fmtDate } from "../constants.js";
 import { Btn } from "../atoms.jsx";
