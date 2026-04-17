@@ -25,7 +25,7 @@ import { C, LS_KEY, ACTIVITY_TYPES, STATUT_OPTIONS, ACT_ICON,
   parseCSVActivities, parseCSVSommeil, parseCSVVFC,
   emptySeance, emptyObjectif, emptyPoids, emptyVFC, emptySommeil } from './constants.js';
 import { Btn, Modal, Field, FormGrid, ConfirmDialog, statusBadge } from './atoms.jsx';
-import Dashboard from './components/Dashboard.jsx';
+import Dashboard from './components/DashboardV2.jsx';
 import { StatusBadge, ActCell, DiffSpan, EntrainementProgramme, ProgrammeView, Programme } from './components/Programme.jsx';
 import { FormeVFC, FormeSommeil, FormePoids, Forme } from './components/Forme.jsx';
 import { Activites, LinkModal } from './components/Activites.jsx';
