@@ -503,28 +503,33 @@ function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, set
       </div>
 
       {/* ── GRAPHIQUES CROISÉS ── */}
-      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:16,marginBottom:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:16,marginBottom:16,marginTop:16}}>
 
         {/* 12 semaines : km + D+ + VFC */}
         <div style={{...card(),padding:"20px 24px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <div style={{...lbl,marginBottom:0}}>12 semaines · km trail · D+ · VFC</div>
-            <div style={{display:"flex",gap:12,fontSize:11,color:C.muted}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+            <div>
+              <div style={{...lbl,marginBottom:0}}>Charge trail · 12 semaines</div>
+              <div style={{fontSize:10,color:C.muted,marginTop:2}}>
+                {Math.round(twelveWeeks.reduce((s,w)=>s+w.km,0)*10)/10} km total · {Math.round(twelveWeeks.reduce((s,w)=>s+w.dp,0))} m D+
+              </div>
+            </div>
+            <div style={{display:"flex",gap:10,fontSize:10,color:C.muted,flexWrap:"wrap"}}>
               {[{c:"#378ADD",l:"Fondamental"},{c:"#e65100",l:"Spécifique"},{c:"#A32D2D",l:"Affûtage"}].map(({c,l})=>(
-                <span key={l} style={{display:"flex",alignItems:"center",gap:4}}>
-                  <span style={{width:10,height:10,borderRadius:2,background:c,display:"inline-block"}}/>
+                <span key={l} style={{display:"flex",alignItems:"center",gap:3}}>
+                  <span style={{width:8,height:8,borderRadius:2,background:c,display:"inline-block"}}/>
                   {l}
                 </span>
               ))}
-              <span style={{display:"flex",alignItems:"center",gap:4}}>
-                <span style={{width:10,height:2,background:"#e65100",display:"inline-block",borderTop:"2px dashed #e65100"}}/> D+
+              <span style={{display:"flex",alignItems:"center",gap:3}}>
+                <span style={{width:8,height:2,background:"#e65100",display:"inline-block",borderTop:"2px dashed #e65100"}}/> D+
               </span>
-              <span style={{display:"flex",alignItems:"center",gap:4}}>
-                <span style={{width:10,height:2,background:"#185FA5",display:"inline-block"}}/> VFC
+              <span style={{display:"flex",alignItems:"center",gap:3}}>
+                <span style={{width:8,height:2,background:"#185FA5",display:"inline-block"}}/> VFC
               </span>
             </div>
           </div>
-          <div style={{position:"relative",height:180}}>
+          <div style={{position:"relative",height:200}}>
             <canvas ref={chartRef12}/>
           </div>
         </div>
@@ -536,7 +541,7 @@ function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, set
             <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:2,background:"#e65100",display:"inline-block"}}/> Aiguë</span>
             <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:2,background:"#185FA5",display:"inline-block",borderTop:"2px dashed #185FA5"}}/> Chronique</span>
           </div>
-          <div style={{position:"relative",height:152}}>
+          <div style={{position:"relative",height:172}}>
             <canvas ref={chartRefCharge}/>
           </div>
           <div style={{fontSize:10,color:C.muted,marginTop:6}}>Zone optimale ratio : 0.8 – 1.3</div>
@@ -550,7 +555,7 @@ function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, set
           <div style={{fontSize:11,color:C.muted,marginBottom:10}}>
             Si la VFC baisse quand le D+ monte, le dénivelé génère de la fatigue. Chaque point = 1 semaine.
           </div>
-          <div style={{position:"relative",height:180}}>
+          <div style={{position:"relative",height:200}}>
             <canvas ref={chartRefScatter}/>
           </div>
         </div>
