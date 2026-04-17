@@ -148,49 +148,48 @@ function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, set
       const sun=new Date(mon); sun.setDate(mon.getDate()+6);
       const monStr=localDate(mon); const sunStr=localDate(sun);
       const wVfc=vfcData.filter(v=>v.date>=monStr&&v.date<=sunStr);
+      const vfcMoy=wVfc.length?Math.round(wVfc.reduce((s,v)=>s+(parseInt(v.vfc)||0),0)/wVfc.length):0;
       const wSom=sommeil.filter(s=>s.date>=monStr&&s.date<=sunStr);
-      const vfcMoy=wVfc.length?wVfc.reduce((s,v)=>s+(parseInt(v.vfc)||0),0)/wVfc.length:0;
-      const somMoy=wSom.length?wSom.reduce((s,v)=>s+(parseInt(v.score)||0),0)/wSom.length:0;
+      const somMoy=wSom.length?Math.round(wSom.reduce((s,e)=>s+(parseInt(e.score)||0),0)/wSom.length):0;
       const wRatio=lastVFC?.chargeAigue&&lastVFC?.chargeChronique?parseInt(lastVFC.chargeAigue)/parseInt(lastVFC.chargeChronique):1;
       let sc=0;
-      if(vfcMoy>70)sc+=2;else if(vfcMoy>60)sc+=1;
-      if(somMoy>80)sc+=2;else if(somMoy>65)sc+=1;
-      if(w===0&&wRatio<=1.2)sc+=1;
-      const lbl=w===0?"Cette sem.":`S-${w}`;
-      result.push({lbl,sc,vfcMoy:Math.round(vfcMoy),somMoy:Math.round(somMoy)});
+      if(vfcMoy>=70)sc+=2;else if(vfcMoy>=60)sc+=1;
+      if(somMoy>=80)sc+=2;else if(somMoy>=65)sc+=1;
+      if(wRatio<=1.2)sc+=1;else if(wRatio>1.4)sc-=1;
+      const lbl=w===0?"Cette sem.":w===1?"Sem. -1":w===2?"Sem. -2":"Sem. -3";
+      result.push({lbl,sc,vfcMoy,somMoy});
     }
     return result;
   },[vfcData,sommeil,lastVFC]);
 
-  // ── Manqués ─────────────────────────────────────────────────────
+  // ── Séances manquées 7j ─────────────────────────────────────────
   const manques=useMemo(()=>{
-    const since=localDate(new Date(Date.now()-7*86400000));
-    return seances.filter(s=>s.date>=since&&s.date<today&&s.statut==="Planifié"&&s.activite!=="Repos");
+    const d7=new Date(); d7.setDate(d7.getDate()-7);
+    const d7Str=localDate(d7);
+    return seances.filter(s=>s.date>=d7Str&&s.date<today&&s.statut==="Planifié"&&s.activite!=="Repos");
   },[seances,today]);
 
-  // ── Refs charts ─────────────────────────────────────────────────
-  const chartRef12=useRef(null); const chartRefScatter=useRef(null);
-  const chartRefCharge=useRef(null); const chartInst12=useRef(null);
-  const chartInstScatter=useRef(null); const chartInstCharge=useRef(null);
+  // ── Chart.js ────────────────────────────────────────────────────
+  const chartRef12 = useRef();
+  const chartRefCharge = useRef();
+  const chartRefScatter = useRef();
+  const chartInst12 = useRef();
+  const chartInstCharge = useRef();
+  const chartInstScatter = useRef();
 
   useEffect(()=>{
-    const loadChart = () => {
-      if(typeof Chart!=="undefined"){
-        runCharts();
-        return;
-      }
-      const s=document.createElement("script");
-      s.src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
-      s.onload=runCharts;
-      document.head.appendChild(s);
-    };
-    const runCharts = () => {
-    if(typeof Chart==="undefined") return;
-    const isDark=window.matchMedia("(prefers-color-scheme:dark)").matches;
-    const gc=isDark?"rgba(255,255,255,.07)":"rgba(0,0,0,.06)";
-    const tc=isDark?"#9c9a92":"#73726c";
-    const phaseColors=["#378ADD","#BA7517","#A32D2D","#7F77DD"];
-    const phasePales=["#B5D4F4","#FAC775","#F09595","#EEEDFE"];
+    const loadChart=async()=>{
+    if(typeof window!=="undefined"&&!window.Chart){
+      const m=await import("chart.js/auto");
+      window.Chart=m.default||m.Chart;
+    }
+    if(!window.Chart) return;
+    const Chart=window.Chart;
+    const isDark=false;
+    const gc=isDark?"#333":"#e0e0e0";
+    const tc=isDark?"#bbb":"#777";
+    const phaseColors=["#378ADD","#e65100","#A32D2D","#185FA5"];
+    const phasePales=["#378ADD33","#e6510033","#A32D2D33","#185FA533"];
 
     // Graphique 12 semaines
     if(chartRef12.current&&twelveWeeks.length){
@@ -285,19 +284,15 @@ function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, set
         data:{
           labels:chargeWeeks,
           datasets:[
-            {label:"Charge aiguë",data:chargeA,borderColor:"#e65100",
-             backgroundColor:"#e6510015",pointRadius:3,pointBackgroundColor:"#e65100",
-             tension:.4,fill:true,borderWidth:2},
-            {label:"Charge chronique",data:chargeC,borderColor:"#185FA5",
-             backgroundColor:"transparent",pointRadius:3,pointBackgroundColor:"#185FA5",
-             tension:.4,borderDash:[4,3],borderWidth:2}
+            {label:"Aiguë",data:chargeA,borderColor:"#e65100",backgroundColor:"transparent",
+              pointBackgroundColor:"#e65100",pointRadius:3,tension:.4,borderWidth:2},
+            {label:"Chronique",data:chargeC,borderColor:"#185FA5",backgroundColor:"transparent",
+              pointBackgroundColor:"#185FA5",pointRadius:3,tension:.4,borderWidth:2,borderDash:[4,3]}
           ]
         },
         options:{
           responsive:true,maintainAspectRatio:false,
-          plugins:{legend:{display:false},tooltip:{callbacks:{
-            label:ctx=>ctx.dataset.label+": "+(ctx.parsed.y||"—")
-          }}},
+          plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+": "+ctx.parsed.y}}},
           scales:{
             x:{grid:{color:gc},ticks:{color:tc,font:{size:10},maxRotation:0,autoSkip:false}},
             y:{grid:{color:gc},ticks:{color:tc,font:{size:10}},min:0}
@@ -562,32 +557,22 @@ function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, set
       {/* Bloc sélection profil */}
       <div style={{...card(),padding:"20px 24px",marginTop:14}}>
         <div style={{...lbl}}>Choix du profil</div>
-        <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>
-          Personnalise l'affichage des onglets selon ton utilisation principale
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))",gap:12}}>
+        <div style={{fontSize:12,color:C.muted,marginBottom:14}}>Personnalise l'affichage des onglets selon ton utilisation principale</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:12}}>
           {[
-            {type:"full",icon:"📊",label:"Entraînement + Course",desc:"Tous les onglets visibles",color:C.forest},
-            {type:"training_only",icon:"🏃",label:"Entraînement uniquement",desc:"Masque onglets Course",color:C.summit},
-            {type:"course_prep",icon:"🏔️",label:"Préparer une course",desc:"Focus Course + essentiels",color:"#8b4513"},
-            {type:"team",icon:"👥",label:"Suivre un coureur",desc:"Mode Team simplifié",color:C.sky}
-          ].map(p=>(
-            <div key={p.type} onClick={()=>setProfilType(p.type)}
-              style={{
-                padding:16,
-                border:`2px solid ${profilType===p.type?p.color:C.border}`,
-                borderRadius:12,
-                cursor:"pointer",
-                transition:"all .2s",
-                background:profilType===p.type?`${p.color}08`:C.white
-              }}
-              onMouseEnter={e=>{if(profilType!==p.type){e.currentTarget.style.borderColor=p.color;e.currentTarget.style.background=C.stone}}}
-              onMouseLeave={e=>{if(profilType!==p.type){e.currentTarget.style.borderColor=C.border;e.currentTarget.style.background=C.white}}}>
-              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-                <span style={{fontSize:24}}>{p.icon}</span>
-                <div style={{fontWeight:600,fontSize:14,color:profilType===p.type?p.color:C.inkLight}}>{p.label}</div>
-              </div>
-              <div style={{fontSize:12,color:C.muted,lineHeight:1.4}}>{p.desc}</div>
+            {id:"entrainement+course",icon:"📊",title:"Entraînement + Course",desc:"Tous les onglets visibles"},
+            {id:"entrainement",icon:"🏃",title:"Entraînement uniquement",desc:"Masque onglets Course"},
+            {id:"course",icon:"🏔",title:"Préparer une course",desc:"Focus Course + essentiels"},
+            {id:"team",icon:"👥",title:"Suivre un coureur",desc:"Mode Team simplifié"},
+          ].map(({id,icon,title,desc})=>(
+            <div key={id} onClick={()=>setProfilType(id)}
+              style={{padding:"16px 18px",borderRadius:12,cursor:"pointer",
+                background:profilType===id?C.forestPale:C.white,
+                border:`1.5px solid ${profilType===id?C.forest:C.border}`,
+                transition:"all .2s ease"}}>
+              <div style={{fontSize:20,marginBottom:8}}>{icon}</div>
+              <div style={{fontSize:13,fontWeight:500,color:profilType===id?C.forest:C.inkLight,marginBottom:4}}>{title}</div>
+              <div style={{fontSize:11,color:C.muted}}>{desc}</div>
             </div>
           ))}
         </div>
@@ -595,6 +580,4 @@ function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, set
     </div>
   );
 }
-
-
 export default Dashboard;
