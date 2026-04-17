@@ -1,4 +1,4 @@
-/* Build: 2026-04-17T11:30:00Z - Dashboard totaux repositionnés */
+/* Build: 2026-04-17T16:45:00Z - Dashboard layout final */
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { C, localDate, daysUntil, isRunning, actColor, actShort, actColorPale, fmtDate } from "../constants.js";
 import { Btn } from "../atoms.jsx";
@@ -515,7 +515,7 @@ function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, set
 
         {/* 12 semaines : km + D+ + VFC */}
         <div style={{...card(),padding:"20px 24px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
             <div style={{...lbl,marginBottom:0}}>Charge trail · 12 semaines</div>
             <div style={{display:"flex",gap:10,fontSize:10,color:C.muted,flexWrap:"wrap"}}>
               {[{c:"#378ADD",l:"Fondamental"},{c:"#e65100",l:"Spécifique"},{c:"#A32D2D",l:"Affûtage"}].map(({c,l})=>(
@@ -532,10 +532,10 @@ function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, set
               </span>
             </div>
           </div>
-          <div style={{position:"relative",height:200}}>
+          <div style={{position:"relative",height:220,marginTop:16}}>
             <canvas ref={chartRef12}/>
           </div>
-          <div style={{fontSize:11,color:C.muted,marginTop:10,textAlign:"center",fontFamily:"'DM Mono',monospace"}}>
+          <div style={{fontSize:12,color:C.inkLight,marginTop:14,textAlign:"center",fontFamily:"'DM Mono',monospace",fontWeight:500}}>
             Total : {Math.round(twelveWeeks.reduce((s,w)=>s+w.km,0)*10)/10} km · {Math.round(twelveWeeks.reduce((s,w)=>s+w.dp,0))} m D+
           </div>
         </div>
