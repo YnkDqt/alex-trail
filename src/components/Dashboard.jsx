@@ -1,5 +1,12 @@
 import React, { useMemo } from "react";
-import { C, ALEX_C, localDate, daysUntil, isRunning, actColor } from "../constants.js";
+import { C, localDate, daysUntil, isRunning, actColor } from "../constants.js";
+
+// Palette Alex (pour le bloc "Stratégie en cours")
+const ALEX_C = { 
+  primary: "#7C5C3E", 
+  primaryPale: "#F0E8DC", 
+  primaryDeep: "#4E3726" 
+};
 
 function Dashboard({ setView, seances, vfcData, sommeil, poids, objectifs, race, settings, profilType, setProfilType }) {
   const today = localDate(new Date());
