@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Alex — Trail Strategy</title>
-    <meta name="description" content="Stratégie de trail : profil GPX, segments, nutrition, team." />
+    <title>Stride + Alex — Trail Running</title>
+    <meta name="description" content="Suite d'entraînement trail : suivi activités, VFC, nutrition, stratégie course." />
     <meta name="theme-color" content="#8B5E3C" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -19,19 +19,13 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
+      // Désinstaller tout Service Worker existant (fix cache agressif)
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').then(reg => {
-            // Vérifier les mises à jour toutes les 60s
-            setInterval(() => reg.update(), 60000);
-          }).catch(() => {});
-
-          // Recharger la page quand le SW signale une mise à jour
-          navigator.serviceWorker.addEventListener('message', e => {
-            if (e.data?.type === 'SW_UPDATED') {
-              window.location.reload();
-            }
-          });
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          registrations.forEach(reg => reg.unregister());
+        });
+        caches.keys().then(keys => {
+          keys.forEach(key => caches.delete(key));
         });
       }
     </script>
