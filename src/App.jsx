@@ -363,36 +363,21 @@ function Accueil({ setView, seances, vfcData, sommeil, poids, objectifs, race, s
       </div>
 
       {/* Graphique km 12 semaines */}
-      <div style={{...card,padding:"16px 20px",marginBottom:14}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-          <span style={{...lbl,marginBottom:0}}>Charge trail · 12 semaines</span>
-          <div style={{display:"flex",gap:16,fontSize:11,color:C.muted}}>
-            <span><b style={{color:C.inkLight}}>{weeklyKm.reduce((s,w)=>s+w.km,0).toFixed(0)} km</b> total</span>
-            <span><b style={{color:C.inkLight}}>{weeklyKm.reduce((s,w)=>s+w.dp,0).toLocaleString()} m</b> D+</span>
-          </div>
-        </div>
-        <div style={{display:"flex",gap:3,alignItems:"flex-end",height:80}}>
-          {weeklyKm.map((w,i)=>{
-            const h=Math.max(3,Math.round((w.km/maxKm)*82));
-            const isLast=i===11;
-            return (
-              <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-                <div style={{fontSize:8,color:C.muted,fontFamily:"'DM Mono',monospace",opacity:w.km>0?1:0}}>
-                  {w.km>0?w.km:""}
-                </div>
-                <div title={`${w.km} km · ${w.dp}m D+`}
-                  style={{width:"100%",height:h,borderRadius:"3px 3px 0 0",
-                    background:isLast?C.forest:w.km>0?C.forestPale:C.stone,
-                    border:isLast?`1px solid ${C.forest}`:"none",
-                    cursor:"default",transition:"height .3s"}}/>
-                <div style={{fontSize:8,color:isLast?C.forest:C.stoneDeep,fontWeight:isLast?600:400,
-                  minHeight:10,textAlign:"center",whiteSpace:"nowrap"}}>
-                  {i===0||i===5||i===11?w.label:""}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* TEST CACHE - SI CE BLOC VERT APPARAÎT = CACHE RÉSOLU          */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      <div style={{
+        background:"#00ff00",
+        padding:"60px 40px",
+        textAlign:"center",
+        fontSize:"42px",
+        fontWeight:"bold",
+        color:"#000",
+        border:"15px solid #ff0000",
+        marginBottom:14,
+        boxShadow:"0 0 30px rgba(0,255,0,0.5)"
+      }}>
+        🟢 NOUVEAU CODE CHARGÉ - GRAPHIQUE SUPPRIMÉ POUR TEST 🟢
       </div>
 
       {/* Stratégie course active */}
