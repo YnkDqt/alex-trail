@@ -1183,7 +1183,7 @@ function Programme({ seances, setSeances, objectifs, planningType, activites, se
       {/* Header */}
       <div style={{padding:"14px 16px 0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
         <div>
-          <h1 style={{fontFamily:"'Fraunces',serif",fontSize:20,fontWeight:500,color:C.inkLight}}>Journal de bord</h1>
+          <h1 style={{fontFamily:"'Fraunces',serif",fontSize:20,fontWeight:500,color:C.inkLight}}>🔴 TEST MODIFICATION 🔴 Journal de bord</h1>
           <p style={{fontSize:11,color:C.muted}}>Timeline annuelle · tout est éditable sur la ligne</p>
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -1379,9 +1379,9 @@ function Programme({ seances, setSeances, objectifs, planningType, activites, se
                                     }}
                                     onClick={ev=>ev.stopPropagation()}>
 
-                                    {/* AM/PM + dot */}
-                                    <div style={{display:"flex",alignItems:"center",gap:5,width:42,flexShrink:0}}>
-                                      <span style={{fontSize:11,color:C.stoneDeep,width:22}}>{half}</span>
+                                    {/* Jour + AM/PM + dot */}
+                                    <div style={{display:"flex",alignItems:"center",gap:5,width:65,flexShrink:0}}>
+                                      <span style={{fontSize:11,color:C.stoneDeep,width:45}}>{dayName.slice(0,3)} {half}</span>
                                       <div style={{width:8,height:8,borderRadius:2,background:color,opacity:seance?1:0.25}}/>
                                     </div>
 
