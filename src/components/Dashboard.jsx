@@ -76,7 +76,7 @@ function Dashboard({ setView, seances, vfcData, sommeil, poids, objectifs, race,
   const lbl={fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",color:C.muted,marginBottom:8,display:"block"};
 
   return (
-    <div style={{maxWidth:980,margin:"0 auto",padding:"28px 24px 60px"}}>
+    <div style={{maxWidth:1180,margin:"0 auto",padding:"28px 24px 60px"}}>
       <div style={{marginBottom:24}}>
         <h1 style={{fontFamily:"'Fraunces',serif",fontSize:26,fontWeight:500,color:C.inkLight,letterSpacing:"-0.02em",lineHeight:1.2}}>
           Tableau de bord
@@ -193,9 +193,9 @@ function Dashboard({ setView, seances, vfcData, sommeil, poids, objectifs, race,
             <span><b style={{color:C.inkLight}}>{weeklyKm.reduce((s,w)=>s+w.dp,0).toLocaleString()} m</b> D+</span>
           </div>
         </div>
-        <div style={{display:"flex",gap:3,alignItems:"flex-end",height:120}}>
+        <div style={{display:"flex",gap:3,alignItems:"flex-end",height:140}}>
           {weeklyKm.map((w,i)=>{
-            const h=Math.max(3,Math.round((w.km/maxKm)*110));
+            const h=Math.max(3,Math.round((w.km/maxKm)*130));
             const isLast=i===11;
             return (
               <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
