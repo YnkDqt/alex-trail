@@ -1,4 +1,3 @@
-/* Build: 2026-04-17T16:45:00Z - Dashboard layout final */
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { C, localDate, daysUntil, isRunning, actColor, actShort, actColorPale, fmtDate } from "../constants.js";
 import { Btn } from "../atoms.jsx";
@@ -313,18 +312,6 @@ function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, set
   return (
     <div className="anim" style={{padding:"24px 40px 80px"}}>
 
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {/* BANDEAU TEST VERSION 2.0 - SI TU VOIS ÇA, LE CODE EST CHARGÉ */}
-      {/* ══════════════════════════════════════════════════════════════ */}
-      <div style={{
-        position:"fixed",top:0,left:0,right:0,zIndex:99999,
-        background:"#ff0000",color:"#fff",padding:"20px",
-        fontSize:"24px",fontWeight:"bold",textAlign:"center",
-        border:"10px solid #ffff00"
-      }}>
-        🚨 VERSION 2.0 CHARGÉE - NOUVEAU CODE ACTIF 🚨
-      </div>
-
       {/* ── FORME DU JOUR ── */}
       <div style={{...card(),background:formePale,border:`1.5px solid ${formeColor}33`,padding:"20px 28px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,flexWrap:"wrap"}}>
         <div>
@@ -510,48 +497,21 @@ function Dashboard({ seances, objectifs, sommeil, vfcData, poids, activites, set
         </div>
       </div>
 
-      {/* ── GRAPHIQUES CROISÉS ── */}
-      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:16,marginBottom:16,marginTop:16}}>
-
-        {/* 12 semaines : km + D+ + VFC */}
-        <div style={{...card(),padding:"20px 24px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
-            <div style={{...lbl,marginBottom:0}}>Charge trail · 12 semaines</div>
-            <div style={{display:"flex",gap:10,fontSize:10,color:C.muted,flexWrap:"wrap"}}>
-              {[{c:"#378ADD",l:"Fondamental"},{c:"#e65100",l:"Spécifique"},{c:"#A32D2D",l:"Affûtage"}].map(({c,l})=>(
-                <span key={l} style={{display:"flex",alignItems:"center",gap:3}}>
-                  <span style={{width:8,height:8,borderRadius:2,background:c,display:"inline-block"}}/>
-                  {l}
-                </span>
-              ))}
-              <span style={{display:"flex",alignItems:"center",gap:3}}>
-                <span style={{width:8,height:2,background:"#e65100",display:"inline-block",borderTop:"2px dashed #e65100"}}/> D+
-              </span>
-              <span style={{display:"flex",alignItems:"center",gap:3}}>
-                <span style={{width:8,height:2,background:"#185FA5",display:"inline-block"}}/> VFC
-              </span>
-            </div>
-          </div>
-          <div style={{position:"relative",height:220,marginTop:16}}>
-            <canvas ref={chartRef12}/>
-          </div>
-          <div style={{fontSize:12,color:C.inkLight,marginTop:14,textAlign:"center",fontFamily:"'DM Mono',monospace",fontWeight:500}}>
-            Total : {Math.round(twelveWeeks.reduce((s,w)=>s+w.km,0)*10)/10} km · {Math.round(twelveWeeks.reduce((s,w)=>s+w.dp,0))} m D+
-          </div>
-        </div>
-
-        {/* Charge aiguë/chronique */}
-        <div style={{...card(),padding:"20px 24px"}}>
-          <div style={{...lbl}}>Charge aiguë / chronique</div>
-          <div style={{display:"flex",gap:12,fontSize:11,color:C.muted,marginBottom:8}}>
-            <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:2,background:"#e65100",display:"inline-block"}}/> Aiguë</span>
-            <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:10,height:2,background:"#185FA5",display:"inline-block",borderTop:"2px dashed #185FA5"}}/> Chronique</span>
-          </div>
-          <div style={{position:"relative",height:172}}>
-            <canvas ref={chartRefCharge}/>
-          </div>
-          <div style={{fontSize:10,color:C.muted,marginTop:6}}>Zone optimale ratio : 0.8 – 1.3</div>
-        </div>
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* TEST CACHE - SI CE BLOC DISPARAÎT = CACHE RÉSOLU              */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      <div style={{
+        background:"#00ff00",
+        padding:"40px",
+        textAlign:"center",
+        fontSize:"32px",
+        fontWeight:"bold",
+        color:"#000",
+        border:"10px solid #ff0000",
+        marginBottom:16,
+        marginTop:16
+      }}>
+        🟢 NOUVEAU CODE CHARGÉ - GRAPHIQUES SUPPRIMÉS POUR TEST 🟢
       </div>
 
       {/* ── Nuage D+ × VFC ── */}
