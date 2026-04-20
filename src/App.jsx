@@ -908,22 +908,59 @@ export default function App() {
   
   const [confirmReset,  setConfirmReset] = useState(false);
   const [dataLoaded,    setDataLoaded]   = useState(false);
+  const [loadError,     setLoadError]    = useState(false);
+  const [loadAttempt,   setLoadAttempt]  = useState(0);
 
-  // ── Load ALL data from Supabase at login ───────────────────────────────────
+  // ── Load ALL data from Supabase at login (avec timeout + retry) ───────────
   useEffect(() => {
     if (!user?.id || dataLoaded) return;
-    
-    Promise.all([
-      loadAthleteProfile(user.id),
-      loadActivities(user.id),
-      loadSeances(user.id),
-      loadSommeil(user.id),
-      loadVFC(user.id),
-      loadPoids(user.id),
-      loadObjectifs(user.id),
-      loadNutrition(user.id),
-      loadStrideSettings(user.id),
-    ]).then(([profile, acts, seances, som, vfc, pds, objs, nutr, settings]) => {
+
+    let cancelled = false;
+
+    // Timeout wrapper : rejette si la promesse ne résout pas en `ms` ms
+    const withTimeout = (promise, ms, label) => Promise.race([
+      promise,
+      new Promise((_, rej) => setTimeout(() => rej(new Error(`Timeout ${label} (${ms}ms)`)), ms)),
+    ]);
+
+    // Retry wrapper : jusqu'à `maxAttempts` tentatives avec backoff exponentiel
+    const loadWithRetry = async () => {
+      const maxAttempts = 3;
+      const timeoutMs = 10000;
+      let lastError = null;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const results = await withTimeout(
+            Promise.all([
+              loadAthleteProfile(user.id),
+              loadActivities(user.id),
+              loadSeances(user.id),
+              loadSommeil(user.id),
+              loadVFC(user.id),
+              loadPoids(user.id),
+              loadObjectifs(user.id),
+              loadNutrition(user.id),
+              loadStrideSettings(user.id),
+            ]),
+            timeoutMs,
+            `tentative ${attempt}`
+          );
+          return results;
+        } catch (err) {
+          lastError = err;
+          console.warn(`Chargement échoué (tentative ${attempt}/${maxAttempts}):`, err.message);
+          if (attempt < maxAttempts) {
+            await new Promise(r => setTimeout(r, 500 * Math.pow(2, attempt - 1)));
+          }
+        }
+      }
+      throw lastError;
+    };
+
+    loadWithRetry().then((results) => {
+      if (cancelled) return;
+      const [profile, acts, seances, som, vfc, pds, objs, nutr, settings] = results;
       if (profile) setProfil(profile);
       if (acts?.length) setActivites(migrateActivites(acts));
       if (seances?.length) setSeances(migrateSeances(seances));
@@ -945,76 +982,80 @@ export default function App() {
         if (settings.alexFeatures) setAlexFeatures(settings.alexFeatures);
         if (settings.profilType !== undefined) setProfilType(settings.profilType);
       }
+      setLoadError(false);
       setDataLoaded(true);
     }).catch(err => {
-      console.error('Erreur chargement données:', err);
-      setDataLoaded(true);
+      if (cancelled) return;
+      console.error('Erreur chargement données (toutes tentatives échouées):', err);
+      setLoadError(true);
+      // IMPORTANT : on NE passe PAS dataLoaded à true → aucune écriture ne pourra partir
     });
-  }, [user?.id, dataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    return () => { cancelled = true; };
+  }, [user?.id, dataLoaded, loadAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-save activités vers Supabase (debounced 2s)
   useEffect(()=>{
-    if (!user?.id || activites.length === 0) return;
+    if (!user?.id || !dataLoaded) return;
     const timer = setTimeout(() => {
       saveActivities(user.id, activites).catch(err => console.error('Erreur save activités:', err));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [activites, user?.id]);
+  }, [activites, user?.id, dataLoaded]);
 
   // Auto-save séances vers Supabase (debounced 2s)
   useEffect(()=>{
-    if (!user?.id || seances.length === 0) return;
+    if (!user?.id || !dataLoaded) return;
     const timer = setTimeout(() => {
       saveSeances(user.id, seances).catch(err => console.error('Erreur save séances:', err));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [seances, user?.id]);
+  }, [seances, user?.id, dataLoaded]);
 
   // Auto-save sommeil vers Supabase (debounced 2s)
   useEffect(()=>{
-    if (!user?.id || sommeil.length === 0) return;
+    if (!user?.id || !dataLoaded) return;
     const timer = setTimeout(() => {
       saveSommeil(user.id, sommeil).catch(err => console.error('Erreur save sommeil:', err));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [sommeil, user?.id]);
+  }, [sommeil, user?.id, dataLoaded]);
 
   // Auto-save VFC vers Supabase (debounced 2s)
   useEffect(()=>{
-    if (!user?.id || vfcData.length === 0) return;
+    if (!user?.id || !dataLoaded) return;
     const timer = setTimeout(() => {
       saveVFC(user.id, vfcData).catch(err => console.error('Erreur save VFC:', err));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [vfcData, user?.id]);
+  }, [vfcData, user?.id, dataLoaded]);
 
   // Auto-save poids vers Supabase (debounced 2s)
   useEffect(()=>{
-    if (!user?.id || poids.length === 0) return;
+    if (!user?.id || !dataLoaded) return;
     const timer = setTimeout(() => {
       savePoids(user.id, poids).catch(err => console.error('Erreur save poids:', err));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [poids, user?.id]);
+  }, [poids, user?.id, dataLoaded]);
 
   // Auto-save objectifs vers Supabase (debounced 2s)
   useEffect(()=>{
-    if (!user?.id || objectifs.length === 0) return;
+    if (!user?.id || !dataLoaded) return;
     const timer = setTimeout(() => {
       saveObjectifs(user.id, objectifs).catch(err => console.error('Erreur save objectifs:', err));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [objectifs, user?.id]);
+  }, [objectifs, user?.id, dataLoaded]);
 
   // Auto-save nutrition vers Supabase (debounced 2s)
   useEffect(()=>{
-    if (!user?.id) return;
-    if (journalNutri.length === 0 && produits.length === 0 && recettes.length === 0) return;
+    if (!user?.id || !dataLoaded) return;
     const timer = setTimeout(() => {
       saveNutrition(user.id, journalNutri, produits, recettes).catch(err => console.error('Erreur save nutrition:', err));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [journalNutri, produits, recettes, user?.id]);
+  }, [journalNutri, produits, recettes, user?.id, dataLoaded]);
 
   // Auto-save stride settings + features vers Supabase (debounced 2s)
   useEffect(()=>{
@@ -1320,6 +1361,38 @@ export default function App() {
   // Auth guard
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'DM Sans, sans-serif' }}>Chargement...</div>;
   if (!user) return <Login />;
+
+  // Data load guard — bloque l'app tant que les données ne sont pas chargées
+  // Si le chargement a échoué : écran d'erreur avec bouton Réessayer (empêche tout écrasement)
+  if (loadError) {
+    return (
+      <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F5F3EF', padding:'2rem', fontFamily:'DM Sans, sans-serif' }}>
+        <div style={{ maxWidth:480, textAlign:'center', background:'#FFFFFF', padding:'2rem', borderRadius:12, border:'1px solid #DDD9D1' }}>
+          <div style={{ fontSize:18, fontWeight:700, color:'#1C1916', marginBottom:12 }}>Impossible de charger tes données</div>
+          <div style={{ fontSize:14, color:'#7A7268', lineHeight:1.5, marginBottom:20 }}>
+            La connexion à la base de données a échoué. Tes données sont en sécurité — l'app est bloquée en écriture pour ne rien écraser. Vérifie ta connexion internet et réessaie.
+          </div>
+          <button
+            onClick={() => { setLoadError(false); setLoadAttempt(a => a + 1); }}
+            style={{ padding:'10px 20px', background:'#2D5A3D', color:'#FFFFFF', border:'none', borderRadius:8, fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}
+          >
+            Réessayer
+          </button>
+          <div style={{ marginTop:16 }}>
+            <button
+              onClick={() => signOut()}
+              style={{ padding:'6px 12px', background:'transparent', color:'#7A7268', border:'none', fontSize:12, cursor:'pointer', fontFamily:'inherit', textDecoration:'underline' }}
+            >
+              Se déconnecter
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (!dataLoaded) {
+    return <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'DM Sans, sans-serif' }}>Chargement de tes données...</div>;
+  }
 
   return (
     <AppLayout
