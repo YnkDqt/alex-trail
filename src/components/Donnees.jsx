@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { C, exportJSON, lsRead, parseCSVActivities, parseCSVSommeil, parseCSVVFC,
+import { C, exportJSON, parseCSVActivities, parseCSVSommeil, parseCSVVFC,
   localDate, fmtDate, daysUntil, actColor, actShort, isRunning,
   DAY_NAMES, DEFAULT_PLANNING, ACTIVITY_TYPES, emptyObjectif, emptySeance } from "../constants.js";
 import { Btn, Field, ConfirmDialog } from "../atoms.jsx";

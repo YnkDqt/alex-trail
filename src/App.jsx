@@ -18,9 +18,9 @@ import Confidentialite from './components/Confidentialite.jsx';
 import { CIQUAL, CIQUAL_CATEGORIES } from './data/ciqual.js';
 
 // ─── STRIDE IMPORTS ───────────────────────────────────────────────────────────
-import { C, LS_KEY, ACTIVITY_TYPES, STATUT_OPTIONS, ACT_ICON,
+import { C, ACTIVITY_TYPES, STATUT_OPTIONS, ACT_ICON,
   GARMIN_TO_STRIDE, TYPE_MIGRATION, DEFAULT_PLANNING,
-  isRunning, lsRead, lsWrite, exportJSON, localDate, fmtDate, daysUntil,
+  isRunning, exportJSON, localDate, fmtDate, daysUntil,
   actColor, actColorPale, actIcon, actShort,
   parseCSVActivities, parseCSVSommeil, parseCSVVFC,
   emptySeance, emptyObjectif, emptyPoids, emptyVFC, emptySommeil } from './constants.js';
@@ -1192,7 +1192,10 @@ export default function App() {
         if(data.segments)setSegmentsRaw(data.segments);
         if(data.settings)setSettingsRaw({...EMPTY_SETTINGS,...data.settings});
         setSharedMode(true);setView("team");
-        idbSave({race:data.race,segments:data.segments,settings:{...EMPTY_SETTINGS,...data.settings}});
+        if (user?.id) {
+          saveCurrentRace(user.id, data.race, data.segments, {...EMPTY_SETTINGS,...data.settings})
+            .catch(err => console.error('Erreur save stratégie partagée:', err));
+        }
         window.history.replaceState({},"",window.location.pathname);
         return;
       }
@@ -1287,25 +1290,6 @@ export default function App() {
     };
     reader.readAsText(file);
   };
-
-  // IDB
-  const IDB_NAME="alex-trail",IDB_STORE="state",IDB_COURSES="courses",IDB_KEY="current";
-  const openDB=()=>new Promise((res,rej)=>{
-    const req=indexedDB.open(IDB_NAME,3);
-    req.onupgradeneeded=e=>{
-      const db=e.target.result;
-      if(!db.objectStoreNames.contains(IDB_STORE))db.createObjectStore(IDB_STORE);
-      if(!db.objectStoreNames.contains(IDB_COURSES))db.createObjectStore(IDB_COURSES,{keyPath:"id"});
-      if(!db.objectStoreNames.contains("stride"))db.createObjectStore("stride");
-    };
-    req.onsuccess=e=>res(e.target.result);
-    req.onerror=rej;
-  });
-  const idbSave=async data=>{try{const db=await openDB();db.transaction(IDB_STORE,"readwrite").objectStore(IDB_STORE).put(data,IDB_KEY);}catch{}};
-  const idbLoad=async()=>{try{const db=await openDB();return new Promise(res=>{const req=db.transaction(IDB_STORE,"readonly").objectStore(IDB_STORE).get(IDB_KEY);req.onsuccess=e=>res(e.target.result);req.onerror=()=>res(null);});}catch{return null;}};
-  const idbSaveCourse=async(id,data)=>{try{const db=await openDB();db.transaction(IDB_COURSES,"readwrite").objectStore(IDB_COURSES).put({id,...data});}catch{}};
-  const idbLoadCourses=async()=>{try{const db=await openDB();return new Promise(res=>{const req=db.transaction(IDB_COURSES,"readonly").objectStore(IDB_COURSES).getAll();req.onsuccess=e=>res(e.target.result||[]);req.onerror=()=>res([]);});}catch{return[];}};
-  const idbDeleteCourse=async id=>{try{const db=await openDB();db.transaction(IDB_COURSES,"readwrite").objectStore(IDB_COURSES).delete(id);}catch{}};
 
   const saveCourseFn=()=>{
     const id=crypto.randomUUID();

@@ -47,7 +47,6 @@ export const C = {
 export const CS = C;
 
 // ─── CONSTANTES STRIDE ───────────────────────────────────────────────────────
-export const LS_KEY = "stride_v2";
 export const DAY_NAMES = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
 export const DAY_SHORT = ["Lu","Ma","Me","Je","Ve","Sa","Di"];
 export const MOIS_FR = ["","Jan","Fév","Mar","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"];
@@ -178,8 +177,6 @@ export const TERRAIN_TYPES = [
 
 // ─── HELPERS STRIDE ──────────────────────────────────────────────────────────
 export const isRunning = (a) => RUNNING_TYPES.includes(TYPE_MIGRATION[a]||a);
-export const lsRead  = (k, fb) => { try { const r = localStorage.getItem(LS_KEY); if (!r) return fb; return JSON.parse(r)[k] ?? fb; } catch { return fb; } };
-export const lsWrite = (data) => { try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch {} };
 export const exportJSON = (data, name) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type:"application/json"})); a.download = name; a.click(); };
 export const localDate = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 export const fmtDate = (s) => { if (!s) return "—"; const [y,m,d] = s.split("-"); return `${d}/${m}/${y}`; };
