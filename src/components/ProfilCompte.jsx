@@ -1,6 +1,11 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useAuth } from '../AuthContext';
-import { loadAthleteProfile, saveAthleteProfile } from '../supabaseHelpers';
+import {
+  loadAthleteProfile, saveAthleteProfile,
+  loadActivities, loadSeances, loadSommeil, loadVFC, loadPoids,
+  loadObjectifs, loadNutrition, loadStrideSettings,
+  loadCurrentRace, loadCourses,
+} from '../supabaseHelpers';
 import { C } from '../constants.js';
 
 // ─── ProfilCompte ─────────────────────────────────────────────────────────────
@@ -68,7 +73,7 @@ const SectionTitle = ({ children }) => (
 );
 
 export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
-  const { user } = useAuth();
+  const { user, deleteAccount } = useAuth();
   const p = profil;
 
   // Load profil from Supabase on mount
@@ -295,16 +300,16 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
             // Charger toutes les données depuis Supabase
             const [profile, activities, seances, sommeil, vfc, poids, objectifs, nutrition, settings, currentRace, courses] = await Promise.all([
               loadAthleteProfile(user.id),
-              import('../supabaseHelpers').then(m => m.loadActivities(user.id)),
-              import('../supabaseHelpers').then(m => m.loadSeances(user.id)),
-              import('../supabaseHelpers').then(m => m.loadSommeil(user.id)),
-              import('../supabaseHelpers').then(m => m.loadVFC(user.id)),
-              import('../supabaseHelpers').then(m => m.loadPoids(user.id)),
-              import('../supabaseHelpers').then(m => m.loadObjectifs(user.id)),
-              import('../supabaseHelpers').then(m => m.loadNutrition(user.id)),
-              import('../supabaseHelpers').then(m => m.loadStrideSettings(user.id)),
-              import('../supabaseHelpers').then(m => m.loadCurrentRace(user.id)),
-              import('../supabaseHelpers').then(m => m.loadCourses(user.id)),
+              loadActivities(user.id),
+              loadSeances(user.id),
+              loadSommeil(user.id),
+              loadVFC(user.id),
+              loadPoids(user.id),
+              loadObjectifs(user.id),
+              loadNutrition(user.id),
+              loadStrideSettings(user.id),
+              loadCurrentRace(user.id),
+              loadCourses(user.id),
             ]);
 
             const exportData = {
@@ -370,11 +375,15 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
             alert("Email incorrect. Suppression annulée.");
             return;
           }
-          
+
           try {
-            const { deleteAccount } = await import('../AuthContext');
-            await deleteAccount();
-            alert("Compte supprimé. Tu vas être déconnecté.");
+            const { error } = await deleteAccount();
+            if (error) {
+              console.error('Erreur suppression:', error);
+              alert(`Erreur lors de la suppression : ${error.message || 'erreur inconnue'}`);
+              return;
+            }
+            alert("Compte et données supprimés définitivement. Tu vas être déconnecté.");
           } catch (err) {
             console.error('Erreur suppression:', err);
             alert('Erreur lors de la suppression');
@@ -394,7 +403,7 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
           fontSize:11, color:C.stoneDeep, lineHeight:1.6 }}>
           <strong>Poids et taille</strong> sont gérés dans <strong>Suivi corporel</strong> (Entraînement → Forme).<br/>
           Zones FC modifiables manuellement pour s'adapter à tes données Garmin/montre.<br/>
-          Migration Supabase prévue — pour l'instant stockées localement.
+          Données stockées sur Supabase (région UE — Paris), chiffrées au repos et en transit.
         </div>
 
       </div>

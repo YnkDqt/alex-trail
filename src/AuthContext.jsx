@@ -28,11 +28,23 @@ export function AuthProvider({ children }) {
   
   const deleteAccount = async () => {
     if (!user?.id) return { error: new Error('No user') }
-    
+
     try {
-      // Supprimer toutes les données utilisateur (RLS CASCADE les supprimera automatiquement)
-      // Supabase auth.admin.deleteUser() nécessite service_role key côté serveur
-      // Pour l'instant, on utilise signOut() - suppression complète via SQL trigger à ajouter
+      // Récupère le token JWT de l'utilisateur connecté
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        return { error: new Error('No active session') }
+      }
+
+      // Appelle l'Edge Function qui supprime le compte auth + données (via trigger SQL)
+      const { data, error } = await supabase.functions.invoke('delete-account', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+
+      if (error) return { error }
+      if (data?.error) return { error: new Error(data.error) }
+
+      // Déconnexion locale (le compte auth n'existe plus de toute façon)
       await supabase.auth.signOut()
       return { error: null }
     } catch (error) {
