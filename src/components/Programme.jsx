@@ -6,11 +6,11 @@ import { Btn, Modal, Field, FormGrid, ConfirmDialog, statusBadge } from "../atom
 // ─── ENTRAÎNEMENT PROGRAMME (vue principale fusionnée) ───────────────────────
 // Statuts enrichis
 const STATUTS = [
-  {id:"Planifié", icon:"○"},
-  {id:"Effectué", icon:"✓"},
-  {id:"Partiel",  icon:"◑"},
-  {id:"Remplacé", icon:"⇄"},
-  {id:"Annulé",   icon:"✕"},
+  {id:"Planifié",  icon:"●", col:C.sky,    bg:C.skyPale},
+  {id:"Effectué",  icon:"■", col:C.forest, bg:C.forestPale},
+  {id:"Partiel",   icon:"◆", col:"#BA7517", bg:"#FFF3E0"},
+  {id:"Remplacé",  icon:"▲", col:"#D85A30", bg:"#FEE8E1"},
+  {id:"Annulé",    icon:"✕", col:C.red,    bg:C.redPale},
 ];
 const statutCfg = (st) => STATUTS.find(s=>s.id===st)||STATUTS[0];
 
@@ -76,7 +76,7 @@ function DiffSpan({real, plan, unit="", isDuration=false}) {
   );
 }
 
-function EntrainementProgramme({ seances, setSeances, activites, setActivites, objectifs,
+function EntrainementProgrammeV2({ seances, setSeances, activites, setActivites, objectifs,
   planningType, activityTypes, setView, allData, loadData, resetAll,
   setPlanningType, setActivityTypes }) {
 
@@ -373,22 +373,24 @@ function EntrainementProgramme({ seances, setSeances, activites, setActivites, o
                                 fontSize:10,
                                 padding:"2px 6px",
                                 borderRadius:5,
-                                border:`1px solid ${C.border}`,
-                                background:C.bg,
+                                border:`1px solid ${statutCfg(st).col}44`,
+                                background:statutCfg(st).bg,
+                                color:statutCfg(st).col,
+                                fontWeight:500,
                                 cursor:"pointer",
                                 width:"100%",
                                 maxWidth:90
                               }}>
-                              {STATUT_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
+                              {STATUTS.map(s => <option key={s.id} value={s.id}>{s.icon} {s.id}</option>)}
                             </select>
                           ) : (
-                            <span style={{fontSize:10,color:C.stoneDeep}}>○ Planifié</span>
+                            <span style={{fontSize:10,color:C.sky}}>● Planifié</span>
                           )}
                         </div>
                         {/* Date + Créneau */}
                         <div style={{padding:"8px 4px",display:"flex",flexDirection:"column",gap:1}}>
                           <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",fontWeight:500,color:raceDates.has(dateStr)?C.summit:s?.date===today?C.forest:C.inkLight}}>{fmtDate(dateStr)}{raceDates.has(dateStr)&&<span style={{marginLeft:4}}>🏔</span>}</span>
-                          <span style={{fontSize:10,color:C.muted}}>{half}</span>
+                          <span style={{fontSize:10,color:C.muted}}>{dayName.slice(0,3)} {half}</span>
                         </div>
                         {/* Activité prévue */}
                         <div style={{padding:"8px 4px",display:"flex",alignItems:"center"}}><ActCell type={actPrev}/></div>
@@ -810,12 +812,14 @@ function ProgrammeView({ seances, setSeances, objectifs, activityTypes }) {
                             fontSize:11,
                             padding:"2px 6px",
                             borderRadius:5,
-                            border:`1px solid ${C.border}`,
-                            background:C.bg,
+                            border:`1px solid ${statutCfg(s.statut || "Planifié").col}44`,
+                            background:statutCfg(s.statut || "Planifié").bg,
+                            color:statutCfg(s.statut || "Planifié").col,
+                            fontWeight:500,
                             cursor:"pointer",
                             width:"100%"
                           }}>
-                          {STATUT_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
+                          {STATUTS.map(st => <option key={st.id} value={st.id}>{st.icon} {st.id}</option>)}
                         </select>
                       </div>
                     </div>
@@ -881,12 +885,14 @@ function ProgrammeView({ seances, setSeances, objectifs, activityTypes }) {
                         fontSize:11,
                         padding:"2px 6px",
                         borderRadius:5,
-                        border:`1px solid ${C.border}`,
-                        background:C.bg,
+                        border:`1px solid ${statutCfg(s.statut || "Planifié").col}44`,
+                        background:statutCfg(s.statut || "Planifié").bg,
+                        color:statutCfg(s.statut || "Planifié").col,
+                        fontWeight:500,
                         cursor:"pointer",
                         width:"100%"
                       }}>
-                      {STATUT_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
+                      {STATUTS.map(st => <option key={st.id} value={st.id}>{st.icon} {st.id}</option>)}
                     </select>
                   </div>
                   <button onClick={e=>{e.stopPropagation();setConfirmId(s.id);}}
@@ -1410,12 +1416,14 @@ function Programme({ seances, setSeances, objectifs, planningType, activites, se
                                             fontSize:11,
                                             padding:"2px 6px",
                                             borderRadius:5,
-                                            border:`1px solid ${C.border}`,
+                                            border:`1px solid ${statutCfg(seance.statut || "Planifié").col}44`,
+                                            background:readOnly?C.stone:statutCfg(seance.statut || "Planifié").bg,
+                                            color:statutCfg(seance.statut || "Planifié").col,
+                                            fontWeight:500,
                                             width:"100%",
-                                            background:readOnly?C.stone:C.bg,
                                             cursor:readOnly?"not-allowed":"pointer"
                                           }}>
-                                          {STATUT_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
+                                          {STATUTS.map(st => <option key={st.id} value={st.id}>{st.icon} {st.id}</option>)}
                                         </select>
                                       ) : null}
                                     </div>
@@ -1592,4 +1600,4 @@ function Programme({ seances, setSeances, objectifs, planningType, activites, se
 }
 
 
-export { StatusBadge, ActCell, DiffSpan, EntrainementProgramme, ProgrammeView, Programme };
+export { StatusBadge, ActCell, DiffSpan, EntrainementProgrammeV2, ProgrammeView, Programme };
