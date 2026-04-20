@@ -76,7 +76,7 @@ function DiffSpan({real, plan, unit="", isDuration=false}) {
   );
 }
 
-function EntrainementProgrammeV2({ seances, setSeances, activites, setActivites, objectifs,
+function EntrainementProgramme({ seances, setSeances, activites, setActivites, objectifs,
   planningType, activityTypes, setView, allData, loadData, resetAll,
   setPlanningType, setActivityTypes }) {
 
@@ -1600,4 +1600,4 @@ function Programme({ seances, setSeances, objectifs, planningType, activites, se
 }
 
 
-export { StatusBadge, ActCell, DiffSpan, EntrainementProgrammeV2, ProgrammeView, Programme };
+export { StatusBadge, ActCell, DiffSpan, EntrainementProgramme, ProgrammeView, Programme };
