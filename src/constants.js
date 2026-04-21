@@ -1,7 +1,7 @@
 // ─── PALETTE UNIFIÉE ─────────────────────────────────────────────────────────
-// Fusion Alex (C) + Stride (CS) — palette unique pour toute l'app
+// Palette unique pour toute l'app Alex (sections Entraînement + Course)
 export const C = {
-  // Neutres base (Stride)
+  // Neutres base
   bg:          "#F5F3EF",
   white:       "#FFFFFF",
   stone:       "#EAE6DF",
@@ -12,17 +12,17 @@ export const C = {
   muted:       "#7A7268",
   border:      "#DDD9D1",
   
-  // Couleurs primaires (Stride forest + Alex primary)
+  // Couleurs primaires (Entraînement forest + Course primary)
   forest:      "#2D5A3D",
   forestLight: "#4A8C5C",
   forestPale:  "#E8F2EC",
-  primary:     "#7C5C3E",      // Alex primary conservé
+  primary:     "#7C5C3E",      // Course primary
   primaryLight:"#9E7A58",
   primaryPale: "#F0E8DC",
   primaryDeep: "#4E3726",
   
   // Couleurs secondaires
-  secondary:    "#5C7A5C",     // Alex secondary
+  secondary:    "#5C7A5C",     // Course secondary
   secondaryPale:"#E8F0E8",
   secondaryDark:"#3D5C3D",
   summit:      "#C4521A",
@@ -39,14 +39,14 @@ export const C = {
   yellowPale:  "#FDF6E3",
   red:         "#B03A2A",
   redPale:     "#FAE9E7",
-  blue:        "#4A7A9B",      // Alex blue
+  blue:        "#4A7A9B",
   bluePale:    "#E8F2F8",
 };
 
-// Alias pour compatibilité Stride (sera supprimé progressivement)
+// Alias de compatibilité (ex-Stride)
 export const CS = C;
 
-// ─── CONSTANTES STRIDE ───────────────────────────────────────────────────────
+// ─── CONSTANTES ENTRAINEMENT ─────────────────────────────────────────────────
 export const DAY_NAMES = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
 export const DAY_SHORT = ["Lu","Ma","Me","Je","Ve","Sa","Di"];
 export const MOIS_FR = ["","Jan","Fév","Mar","Avr","Mai","Juin","Juil","Août","Sep","Oct","Nov","Déc"];
@@ -62,7 +62,7 @@ export const ACT_ICON = {
   "Musculation":"▣","Mobilité / Gainage":"◈","Hyrox":"⊕","Vélo":"⊙","Repos":"·",
 };
 
-export const GARMIN_TO_STRIDE = {
+export const GARMIN_TO_ACTIVITE = {
   "Trail":"Trail","Course à pied sur tapis roulant":"Course à pied",
   "Marche à pied":"Marche à pied","Musculation":"Musculation",
   "Autre":"Hyrox","Cyclisme":"Vélo","Vélo d'intérieur":"Vélo","Cardio":"Course à pied",
@@ -84,7 +84,7 @@ export const DEFAULT_PLANNING = {
   "Dimanche AM":"Repos","Dimanche PM":"Repos",
 };
 
-// ─── CONSTANTES ALEX ─────────────────────────────────────────────────────────
+// ─── CONSTANTES COURSE ───────────────────────────────────────────────────────
 export const DEFAULT_FLAT_SPEED = 9.5;
 export const DEFAULT_EQUIPMENT = [
   { id: 1,  cat: "Équipement",     label: "Gilet de trail",           checked: false, actif: true,  emporte: true,  poidsG: 400 },
@@ -175,7 +175,7 @@ export const TERRAIN_TYPES = [
   { key: "trestech",  label: "Très technique", coeff: 0.68, desc: "Éboulis, hors-sentier, passages engagés" },
 ];
 
-// ─── HELPERS STRIDE ──────────────────────────────────────────────────────────
+// ─── HELPERS ENTRAINEMENT ────────────────────────────────────────────────────
 export const isRunning = (a) => RUNNING_TYPES.includes(TYPE_MIGRATION[a]||a);
 export const exportJSON = (data, name) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type:"application/json"})); a.download = name; a.click(); };
 export const localDate = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;

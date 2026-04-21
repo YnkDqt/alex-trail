@@ -69,8 +69,8 @@ export default function NutritionView({
   const [prodModal, setProdModal] = useState(false);
   const [recModal, setRecModal] = useState(false);
   const [ciqualModal, setCiqualModal] = useState(false);
-  const [strideRecModal, setStrideRecModal] = useState(false);
-  const [strideProdModal, setStrideProdModal] = useState(false);
+  const [entrainementRecModal, setEntrainementRecModal] = useState(false);
+  const [entrainementProdModal, setEntrainementProdModal] = useState(false);
   const [editProdId, setEditProdId] = useState(null);
   const [editRecId, setEditRecId] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
@@ -235,11 +235,11 @@ export default function NutritionView({
     setCiqualSearch("");
   };
 
-  const addFromStrideProduits = (selectedIds) => {
+  const addFromEntrainementProduits = (selectedIds) => {
     const selected = produits.filter(p=>selectedIds.includes(p.id));
-    const newProds = selected.map(p=>({ ...p, id: Date.now()+Math.random(), source: "stride" }));
+    const newProds = selected.map(p=>({ ...p, id: Date.now()+Math.random(), source: "entrainement" }));
     updBibliotheque({ ...bibliotheque, produits: [...bibliotheque.produits, ...newProds] });
-    setStrideProdModal(false);
+    setEntrainementProdModal(false);
   };
 
   const openNewRec = () => {
@@ -271,16 +271,16 @@ export default function NutritionView({
     setConfirmId(null);
   };
 
-  const addFromStrideRecettes = (selectedIds) => {
+  const addFromEntrainementRecettes = (selectedIds) => {
     const selected = recettes.filter(r=>selectedIds.includes(r.id));
-    const newRecs = selected.map(r=>({ ...r, id: Date.now()+Math.random(), source: "stride" }));
+    const newRecs = selected.map(r=>({ ...r, id: Date.now()+Math.random(), source: "entrainement" }));
     updBibliotheque({ ...bibliotheque, recettes: [...bibliotheque.recettes, ...newRecs] });
-    setStrideRecModal(false);
+    setEntrainementRecModal(false);
   };
 
   const allProduitsForIngredients = useMemo(() => [
     ...bibliotheque.produits,
-    ...produits.map(p=>({...p, fromStride: true}))
+    ...produits.map(p=>({...p, fromEntrainement: true}))
   ], [bibliotheque.produits, produits]);
 
   const addIngredientFromProduit = (produitId) => {
@@ -288,8 +288,8 @@ export default function NutritionView({
     if(exists) return;
     
     const prod = allProduitsForIngredients.find(p=>p.id===produitId);
-    if(prod?.fromStride) {
-      const newProd = { ...prod, id: Date.now()+Math.random(), fromStride: undefined, source: "stride" };
+    if(prod?.fromEntrainement) {
+      const newProd = { ...prod, id: Date.now()+Math.random(), fromEntrainement: undefined, source: "entrainement" };
       updBibliotheque({ ...bibliotheque, produits: [...bibliotheque.produits, newProd] });
       setRecForm(f=>({ ...f, ingredients: [...f.ingredients, {produitId: newProd.id, quantite: 100}] }));
     } else {
@@ -717,8 +717,8 @@ export default function NutritionView({
             <div style={{fontSize:11,color:C.muted,alignSelf:"center",fontStyle:"italic"}}>
               Modifs depuis Entraînement = rechargez la page
             </div>
-            <Btn variant="soft" size="sm" onClick={()=>setStrideRecModal(true)}>📚 Mes recettes</Btn>
-            <Btn variant="soft" size="sm" onClick={()=>setStrideProdModal(true)}>🥕 Mes produits</Btn>
+            <Btn variant="soft" size="sm" onClick={()=>setEntrainementRecModal(true)}>📚 Mes recettes</Btn>
+            <Btn variant="soft" size="sm" onClick={()=>setEntrainementProdModal(true)}>🥕 Mes produits</Btn>
             <Btn variant="soft" size="sm" onClick={()=>setCiqualModal(true)}>🔍 CIQUAL</Btn>
             <Btn size="sm" onClick={openNewProd}>+ Produit</Btn>
             <Btn size="sm" onClick={openNewRec}>+ Recette</Btn>
@@ -1025,7 +1025,7 @@ export default function NutritionView({
                   <div key={idx} style={{display:"flex",gap:8,alignItems:"center",padding:8,background:C.stone,borderRadius:6}}>
                     <span style={{flex:1,fontSize:13,color:C.inkLight}}>
                       {prod?.nom||"Produit inconnu"}
-                      {prod?.fromStride&&<span style={{fontSize:11,color:C.muted,marginLeft:6}}>(entraînement)</span>}
+                      {prod?.fromEntrainement&&<span style={{fontSize:11,color:C.muted,marginLeft:6}}>(entraînement)</span>}
                     </span>
                     <input type="number" min="0" step="1" value={ing.quantite} onChange={e=>updateIngredientQte(idx,e.target.value)}
                       style={{width:80,padding:"4px 8px",fontSize:12,borderRadius:6,border:`1px solid ${C.border}`,textAlign:"right"}}/>
@@ -1184,7 +1184,7 @@ export default function NutritionView({
                 <div style={{flex:1}}>
                   <div style={{fontSize:14,fontWeight:500,color:C.inkLight,marginBottom:2}}>
                     {p.nom}
-                    {p.fromStride&&<span style={{fontSize:11,color:C.muted,marginLeft:6}}>(entraînement)</span>}
+                    {p.fromEntrainement&&<span style={{fontSize:11,color:C.muted,marginLeft:6}}>(entraînement)</span>}
                   </div>
                   {p.categorie&&<div style={{fontSize:11,color:C.muted}}>{p.categorie}</div>}
                 </div>
@@ -1195,7 +1195,7 @@ export default function NutritionView({
         </div>
       </Modal>
 
-      <Modal open={strideRecModal} onClose={()=>setStrideRecModal(false)} title="Mes recettes entraînement" width={700}>
+      <Modal open={entrainementRecModal} onClose={()=>setEntrainementRecModal(false)} title="Mes recettes entraînement" width={700}>
         {recettes.length===0?(
           <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>Aucune recette</div>
         ):(
@@ -1211,7 +1211,7 @@ export default function NutritionView({
                   {added?(
                     <span style={{fontSize:12,color:C.muted}}>✓ Ajoutée</span>
                   ):(
-                    <Btn size="sm" onClick={()=>addFromStrideRecettes([r.id])}>＋</Btn>
+                    <Btn size="sm" onClick={()=>addFromEntrainementRecettes([r.id])}>＋</Btn>
                   )}
                 </div>
               );
@@ -1220,7 +1220,7 @@ export default function NutritionView({
         )}
       </Modal>
 
-      <Modal open={strideProdModal} onClose={()=>setStrideProdModal(false)} title="Mes produits entraînement" width={700}>
+      <Modal open={entrainementProdModal} onClose={()=>setEntrainementProdModal(false)} title="Mes produits entraînement" width={700}>
         {produits.length===0?(
           <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>Aucun produit</div>
         ):(
@@ -1236,7 +1236,7 @@ export default function NutritionView({
                   {added?(
                     <span style={{fontSize:12,color:C.muted}}>✓ Ajouté</span>
                   ):(
-                    <Btn size="sm" onClick={()=>addFromStrideProduits([p.id])}>＋</Btn>
+                    <Btn size="sm" onClick={()=>addFromEntrainementProduits([p.id])}>＋</Btn>
                   )}
                 </div>
               );

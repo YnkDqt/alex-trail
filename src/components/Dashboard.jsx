@@ -1,8 +1,8 @@
 import React, { useMemo } from "react";
 import { C, localDate, daysUntil, isRunning, actColor } from "../constants.js";
 
-// Palette Alex (pour le bloc "Stratégie en cours")
-const ALEX_C = { 
+// Palette Course (pour le bloc "Stratégie en cours")
+const COURSE_C = { 
   primary: "#7C5C3E", 
   primaryPale: "#F0E8DC", 
   primaryDeep: "#4E3726" 
@@ -219,9 +219,9 @@ function Dashboard({ setView, seances, vfcData, sommeil, poids, objectifs, race,
 
       {/* Stratégie course active */}
       {hasRaceGpx&&(
-        <div style={{...card,padding:"16px 20px",borderLeft:`3px solid ${ALEX_C.primary}`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+        <div style={{...card,padding:"16px 20px",borderLeft:`3px solid ${COURSE_C.primary}`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
           <div>
-            <span style={{...lbl,color:ALEX_C.primary}}>Stratégie en cours</span>
+            <span style={{...lbl,color:COURSE_C.primary}}>Stratégie en cours</span>
             <div style={{fontFamily:"'Fraunces',serif",fontSize:16,fontWeight:500,color:C.inkLight}}>
               {settings?.raceName||race?.name||"Course sans nom"}
             </div>
@@ -231,8 +231,8 @@ function Dashboard({ setView, seances, vfcData, sommeil, poids, objectifs, race,
             </div>
           </div>
           <button onClick={()=>setView("profil_course")}
-            style={{fontSize:13,padding:"8px 16px",borderRadius:10,border:`1px solid ${ALEX_C.primary}`,
-              background:ALEX_C.primaryPale,color:ALEX_C.primaryDeep,cursor:"pointer",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap"}}>
+            style={{fontSize:13,padding:"8px 16px",borderRadius:10,border:`1px solid ${COURSE_C.primary}`,
+              background:COURSE_C.primaryPale,color:COURSE_C.primaryDeep,cursor:"pointer",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap"}}>
             Voir la stratégie →
           </button>
         </div>
@@ -248,7 +248,7 @@ function Dashboard({ setView, seances, vfcData, sommeil, poids, objectifs, race,
           {[
             {type:"full",icon:"📊",label:"Entraînement + Course",desc:"Tous les onglets visibles",color:C.forest},
             {type:"training_only",icon:"🏃",label:"Entraînement uniquement",desc:"Masque onglets Course",color:C.summit},
-            {type:"course_prep",icon:"🏔️",label:"Préparer une course",desc:"Focus Course + essentiels",color:ALEX_C.primary},
+            {type:"course_prep",icon:"🏔️",label:"Préparer une course",desc:"Focus Course + essentiels",color:COURSE_C.primary},
             {type:"team",icon:"👥",label:"Suivre un coureur",desc:"Mode Team simplifié",color:C.sky}
           ].map(p=>(
             <div key={p.type} onClick={()=>setProfilType(p.type)}

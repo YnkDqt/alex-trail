@@ -3,7 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer }
 import { C, localDate, fmtDate, daysUntil, isRunning, exportJSON, emptyObjectif } from "../constants.js";
 import { Btn, Modal, Field, FormGrid, ConfirmDialog } from "../atoms.jsx";
 // ─── OBJECTIFS ───────────────────────────────────────────────────────────────
-function Objectifs({ objectifs, setObjectifs, seances, activites, vfcData, poids, profil, produits, recettes, allData }) {
+function Objectifs({ objectifs, setObjectifs, seances, activites, vfcData, poids, profil, produits, recettes, allData, setView }) {
   const [modalObj,     setModalObj]     = useState(false);
   const [formObj,      setFormObj]      = useState(emptyObjectif());
   const [editObjId,    setEditObjId]    = useState(null);
@@ -98,8 +98,8 @@ function Objectifs({ objectifs, setObjectifs, seances, activites, vfcData, poids
     return { score, indicators, longRunMax, longRunCible, volHebdoMoy, dpHebdoMoy };
   };
 
-  // ── Export Alex pour une course ─────────────────────────────────────────────
-  const exportAlex = (obj) => {
+  // ── Export Course pour une course ───────────────────────────────────────────
+  const exportCourse = (obj) => {
     const lastV  = [...vfcData].sort((a,b)=>b.date.localeCompare(a.date))[0];
     const lastS  = [...(allData.sommeil||[])].sort((a,b)=>b.date.localeCompare(a.date))[0];
     const lastP  = [...poids].sort((a,b)=>b.date.localeCompare(a.date))[0];
@@ -117,7 +117,7 @@ function Objectifs({ objectifs, setObjectifs, seances, activites, vfcData, poids
     const z3Kmh = null; // non calculable directement
 
     const data = {
-      _version: "stride-alex-1.0",
+      _version: "alex-course-1.0",
       _date: today,
       profil: {
         sexe: profil?.sexe||"Homme",
@@ -178,7 +178,7 @@ function Objectifs({ objectifs, setObjectifs, seances, activites, vfcData, poids
         };
       }),
     };
-    exportJSON(data, `stride-alex-${obj.nom.replace(/\s+/g,"-").toLowerCase()}-${today}.json`);
+    exportJSON(data, `alex-course-${obj.nom.replace(/\s+/g,"-").toLowerCase()}-${today}.json`);
   };
 
   // ── Couleurs par priorité ────────────────────────────────────────────────────
@@ -337,13 +337,11 @@ function Objectifs({ objectifs, setObjectifs, seances, activites, vfcData, poids
                   </div>
                 )}
 
-                {/* Section Alex */}
+                {/* Section Course */}
                 <div style={{padding:"10px 16px",background:C.stone,display:"flex",gap:8,alignItems:"center"}}>
-                  <span style={{fontSize:11,color:C.muted,flex:1}}>Stratégie de course avec Alex</span>
-                  <a href="https://alex-trail.vercel.app" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none"}}>
-                    <Btn variant="summit" size="sm">Ouvrir Alex →</Btn>
-                  </a>
-                  <Btn variant="sage" size="sm" onClick={()=>exportAlex(obj)}>⬇ Export</Btn>
+                  <span style={{fontSize:11,color:C.muted,flex:1}}>Stratégie de course</span>
+                  <Btn variant="summit" size="sm" onClick={()=>setView&&setView("strategie")}>Ouvrir Course →</Btn>
+                  <Btn variant="sage" size="sm" onClick={()=>exportCourse(obj)}>⬇ Export</Btn>
                 </div>
 
               </div>
@@ -352,16 +350,14 @@ function Objectifs({ objectifs, setObjectifs, seances, activites, vfcData, poids
         </div>
       )}
 
-      {/* Bandeau Alex */}
+      {/* Bandeau Course */}
       <div style={{background:C.white,border:`1px solid ${C.summitPale||"#FAF0E8"}`,borderRadius:12,padding:"14px 20px",display:"flex",alignItems:"center",gap:16}}>
         <div style={{width:36,height:36,borderRadius:8,background:"#FAF0E8",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🏔</div>
         <div style={{flex:1}}>
-          <div style={{fontSize:13,fontWeight:500,color:C.inkLight,marginBottom:2}}>Préparer une course avec Alex</div>
-          <div style={{fontSize:11,color:C.muted}}>Alex analyse ton GPX, calcule ta stratégie de pace et gère ta nutrition de course. Exporte tes données Stride pour qu'Alex personnalise ses recommandations.</div>
+          <div style={{fontSize:13,fontWeight:500,color:C.inkLight,marginBottom:2}}>Préparer une course</div>
+          <div style={{fontSize:11,color:C.muted}}>La section Course analyse ton GPX, calcule ta stratégie de pace et gère ta nutrition de course.</div>
         </div>
-        <a href="https://alex-trail.vercel.app" target="_blank" rel="noopener noreferrer" style={{textDecoration:"none",flexShrink:0}}>
-          <Btn variant="summit">Ouvrir Alex →</Btn>
-        </a>
+        <Btn variant="summit" onClick={()=>setView&&setView("strategie")}>Ouvrir Course →</Btn>
       </div>
 
       <ConfirmDialog open={!!confirmObjId} message="Supprimer cet objectif ?" onConfirm={()=>{setObjectifs(oo=>oo.filter(o=>o.id!==confirmObjId));setConfirmObjId(null);}} onCancel={()=>setConfirmObjId(null)}/>

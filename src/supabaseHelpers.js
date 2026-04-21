@@ -503,37 +503,37 @@ export async function saveNutrition(userId, journalNutri, produits, recettes) {
   if (error) throw error
 }
 
-// ─── STRIDE SETTINGS ──────────────────────────────────────────────────────────
-export async function loadStrideSettings(userId) {
+// ─── ENTRAINEMENT SETTINGS ────────────────────────────────────────────────────
+export async function loadEntrainementSettings(userId) {
   const { data, error } = await supabase
-    .from('stride_settings')
+    .from('entrainement_settings')
     .select('*')
     .eq('user_id', userId)
     .single()
   
   if (error && error.code !== 'PGRST116') throw error
   
-  const STRIDE_FEATURES_DEFAULT = {programme:true,activites:true,forme:true,objectifs:true,coach:true}
-  const ALEX_FEATURES_DEFAULT = {nutrition:true,equipement:true,analyse:true,team:true,courses:true,profilDetail:true}
+  const ENTRAINEMENT_FEATURES_DEFAULT = {programme:true,activites:true,forme:true,objectifs:true,coach:true}
+  const COURSE_FEATURES_DEFAULT = {nutrition:true,equipement:true,analyse:true,team:true,courses:true,profilDetail:true}
   
   return {
     planningType: data?.planning_type || null,
     activityTypes: data?.activity_types || [],
-    strideFeatures: data?.stride_features || STRIDE_FEATURES_DEFAULT,
-    alexFeatures: data?.alex_features || ALEX_FEATURES_DEFAULT,
+    entrainementFeatures: data?.entrainement_features || ENTRAINEMENT_FEATURES_DEFAULT,
+    courseFeatures: data?.course_features || COURSE_FEATURES_DEFAULT,
     profilType: data?.profil_type !== undefined ? data.profil_type : null
   }
 }
 
-export async function saveStrideSettings(userId, planningType, activityTypes, strideFeatures, alexFeatures, profilType) {
+export async function saveEntrainementSettings(userId, planningType, activityTypes, entrainementFeatures, courseFeatures, profilType) {
   const { error } = await supabase
-    .from('stride_settings')
+    .from('entrainement_settings')
     .upsert({
       user_id: userId,
       planning_type: planningType,
       activity_types: activityTypes,
-      stride_features: strideFeatures,
-      alex_features: alexFeatures,
+      entrainement_features: entrainementFeatures,
+      course_features: courseFeatures,
       profil_type: profilType,
       updated_at: new Date().toISOString()
     }, {
@@ -543,7 +543,7 @@ export async function saveStrideSettings(userId, planningType, activityTypes, st
   if (error) throw error
 }
 
-// ─── COURSES (Alex) ───────────────────────────────────────────────────────────
+// ─── COURSES ──────────────────────────────────────────────────────────────────
 export async function loadCourses(userId) {
   const { data, error } = await supabase
     .from('courses')
@@ -640,7 +640,7 @@ export async function loadAllUserData(userId) {
     poids,
     objectifs,
     nutrition,
-    strideSettings,
+    entrainementSettings,
     courses,
     currentRace
   ] = await Promise.all([
@@ -652,7 +652,7 @@ export async function loadAllUserData(userId) {
     loadPoids(userId),
     loadObjectifs(userId),
     loadNutrition(userId),
-    loadStrideSettings(userId),
+    loadEntrainementSettings(userId),
     loadCourses(userId),
     loadCurrentRace(userId)
   ])
@@ -666,7 +666,7 @@ export async function loadAllUserData(userId) {
     poids,
     objectifs,
     ...nutrition,
-    ...strideSettings,
+    ...entrainementSettings,
     courses,
     currentRace
   }

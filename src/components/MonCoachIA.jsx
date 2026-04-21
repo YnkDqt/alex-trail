@@ -18,7 +18,7 @@ function MonCoachIA({ seances, setSeances, activites, sommeil, vfcData, poids, o
     r.onload=(ev)=>{
       try{
         const data=JSON.parse(ev.target.result);
-        if(!data._stride_programme&&!data.seances){alert("Format non reconnu.");return;}
+        if(!data._alex_programme&&!data.seances){alert("Format non reconnu.");return;}
         const toImport=(data.seances||[]).map(s=>({...emptySeance(),...s,id:Date.now()+Math.random()}));
         const existingKeys=new Set(seances.map(s=>s.date+"|"+s.demiJournee));
         const news=toImport.filter(s=>!existingKeys.has(s.date+"|"+s.demiJournee));
@@ -98,7 +98,7 @@ ${ACTIVITY_TYPES.filter(t=>t).join(", ")}
 == FORMAT JSON POUR GÉNÉRER UN PROGRAMME ==
 Quand je te demande un programme, réponds UNIQUEMENT avec ce format JSON :
 {
-  "_stride_programme": "1.0",
+  "_alex_programme": "1.0",
   "seances": [
     {
       "date": "YYYY-MM-DD",
@@ -190,7 +190,7 @@ ${lastV?.vo2max?`VO2max : ${lastV.vo2max} mL/kg/min`:""}
 
 == DEMANDE ==
 Génère un programme pour les 4 prochaines semaines (du ${fmtDate(daysAhead(1))} au ${fmtDate(daysAhead(28))}).
-Respecte strictement ma semaine type et le format JSON Stride défini dans tes instructions.
+Respecte strictement ma semaine type et le format JSON Alex défini dans tes instructions.
 Adapte la charge progressive en fonction de mes objectifs.`;
   };
 
@@ -277,8 +277,8 @@ Aide-moi à construire ma stratégie de ravitaillement pour cette course : fréq
       return localDate(dt);
     };
     const gabarit = {
-      "_stride_programme": "1.0",
-      "_info": "Gabarit — remplace les valeurs par celles générées par ton Coach IA. Importe ce fichier dans Stride > Mon coach IA.",
+      "_alex_programme": "1.0",
+      "_info": "Gabarit — remplace les valeurs par celles générées par ton Coach IA. Importe ce fichier dans Alex > Mon coach IA.",
       "seances": [
         { "date": d(1),  "demiJournee": "Lundi AM",    "activite": "Musculation",        "statut": "Planifié", "commentaire": "Full body / Upper", "dureeObj": "1h00", "kmObj": "",   "dpObj": "",    "fcObj": "" },
         { "date": d(1),  "demiJournee": "Lundi PM",    "activite": "Repos",              "statut": "Planifié", "commentaire": "",                  "dureeObj": "",     "kmObj": "",   "dpObj": "",    "fcObj": "" },
@@ -291,14 +291,14 @@ Aide-moi à construire ma stratégie de ravitaillement pour cette course : fréq
         { "date": d(7),  "demiJournee": "Dimanche AM", "activite": "Repos",              "statut": "Planifié", "commentaire": "Récupération active","dureeObj": "",    "kmObj": "",   "dpObj": "",    "fcObj": "" }
       ]
     };
-    exportJSON(gabarit, "stride-gabarit-programme.json");
+    exportJSON(gabarit, "alex-gabarit-programme.json");
   };
 
   const exportLightFromCoach = () => {
     const daysAgo60 = daysAgo(60); const daysAgo30 = daysAgo(30); const days30 = daysAhead(30);
     const pick = (obj, keys) => Object.fromEntries(keys.filter(k=>k in obj).map(k=>[k,obj[k]]));
     const data = {
-      _stride_export:"light", _date:today,
+      _alex_export:"light", _date:today,
       activites: activites.filter(a=>a.dateHeure?.slice(0,10)>=daysAgo60).map(a=>pick(a,["date","dateHeure","type","titre","duree","distance","dp","fcMoy","fcMax","z1","z2","z3","z4","z5","tss","gapMoy","cal"])),
       sommeil: sommeil.filter(s=>s.date>=daysAgo60).map(s=>pick(s,["date","score","qualite","duree","bodyBatteryMatin","vfc","fcRepos"])),
       vfcData: vfcData.filter(v=>v.date>=daysAgo60).map(v=>pick(v,["date","vfc","moy7j","vo2max","chargeAigue","chargeChronique","z1fin","z2fin","z3fin","z4fin","fcMax"])),
@@ -306,7 +306,7 @@ Aide-moi à construire ma stratégie de ravitaillement pour cette course : fréq
       poids: poids.map(p=>pick(p,["date","poids","ventre","taille_cm","hanche","cuisse","bras"])),
       seances: seances.filter(s=>s.date>=daysAgo30&&s.date<=days30).map(s=>pick(s,["date","demiJournee","activite","statut","commentaire","dureeObj","kmObj","dpObj","fcObj","dureeGarmin","kmGarmin","fcMoy","fcMax","z2","z3"])),
     };
-    exportJSON(data, `stride-coach-${today}.json`);
+    exportJSON(data, `alex-coach-${today}.json`);
   };
 
   // ── Styles ───────────────────────────────────────────────────────────────────

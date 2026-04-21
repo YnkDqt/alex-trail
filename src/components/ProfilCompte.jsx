@@ -3,13 +3,13 @@ import { useAuth } from '../AuthContext';
 import {
   loadAthleteProfile, saveAthleteProfile,
   loadActivities, loadSeances, loadSommeil, loadVFC, loadPoids,
-  loadObjectifs, loadNutrition, loadStrideSettings,
+  loadObjectifs, loadNutrition, loadEntrainementSettings,
   loadCurrentRace, loadCourses,
 } from '../supabaseHelpers';
 import { C } from '../constants.js';
 
 // ─── ProfilCompte ─────────────────────────────────────────────────────────────
-// Page profil unifiée — lue par Stride ET Alex
+// Page profil unifiée — lue par les sections Entraînement et Course
 // Props : profil, setProfil, onClose (optionnel, si ouvert en overlay)
 // Champs : prénom, sexe, dateNaissance, taille, poids référence,
 //          fcRepos, fcMax, zonesFC (auto-Karvonen), alluresZ2/Z3
@@ -307,7 +307,7 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
               loadPoids(user.id),
               loadObjectifs(user.id),
               loadNutrition(user.id),
-              loadStrideSettings(user.id),
+              loadEntrainementSettings(user.id),
               loadCurrentRace(user.id),
               loadCourses(user.id),
             ]);

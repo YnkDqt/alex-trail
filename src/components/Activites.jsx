@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from "react";
 import { C, localDate, fmtDate, actColor, actIcon, actShort,
-  TYPE_MIGRATION, GARMIN_TO_STRIDE, parseCSVActivities } from "../constants.js";
+  TYPE_MIGRATION, parseCSVActivities } from "../constants.js";
 import { Btn, Modal, Field, ConfirmDialog } from "../atoms.jsx";
 // ─── ACTIVITÉS ────────────────────────────────────────────────────────────────
 const AVEC_ZONES = ["Trailrunning","Cardio","Marche à pied","Trail","Course à pied sur tapis roulant"];

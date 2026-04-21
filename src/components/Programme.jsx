@@ -105,7 +105,7 @@ function EntrainementProgramme({ seances, setSeances, activites, setActivites, o
     r.onload=(ev)=>{
       try {
         const data=JSON.parse(ev.target.result);
-        if(!data._stride_programme&&!data.seances){alert("Format non reconnu. Attendu : _stride_programme + seances[]");return;}
+        if(!data._alex_programme&&!data.seances){alert("Format non reconnu. Attendu : _alex_programme + seances[]");return;}
         const toImport=(data.seances||[]).map(s=>({
           ...emptySeance(),...s,
           id:Date.now()+Math.random(),
@@ -617,7 +617,7 @@ function ProgrammeView({ seances, setSeances, objectifs, activityTypes }) {
     r.onload=(ev)=>{
       try {
         const data=JSON.parse(ev.target.result);
-        if(!data._stride_programme&&!data.seances){alert("Format non reconnu. Attendu : _stride_programme + seances[]");return;}
+        if(!data._alex_programme&&!data.seances){alert("Format non reconnu. Attendu : _alex_programme + seances[]");return;}
         const toImport=(data.seances||[]).map(s=>({...emptySeance(),...s,id:Date.now()+Math.random()}));
         // Merge : ne pas écraser les séances déjà Effectuées
         const existingKeys=new Set(seances.map(s=>s.date+"|"+s.demiJournee));

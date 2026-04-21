@@ -78,15 +78,15 @@ function Forme({ sommeil, setSommeil, vfcData, setVfcData, poids, setPoids, acti
     return Math.round((495/(1.0324-0.19077*Math.log10(ab-neck)+0.15456*Math.log10(h))-450)*10)/10;
   };
 
-  // Export Alex
-  const exportAlex = () => {
+  // Export vers Course
+  const exportCourse = () => {
     const lv=lastVFC; const ls=lastSommeil; const lp=lastPoids;
     const bf=calcBF(lp);
     const ratio=lv?.chargeAigue&&lv?.chargeChronique?Math.round(parseInt(lv.chargeAigue)/parseInt(lv.chargeChronique)*100)/100:null;
     const recent=activites.filter(a=>new Date(a.date)>=new Date(Date.now()-28*86400000)&&(a.z1||a.z2));
     const avgZ=(k)=>recent.length?Math.round(recent.reduce((s,a)=>s+(parseFloat(a[k])||0),0)/recent.length*100)/100:null;
     const zones=lv?{z1:[parseInt(lv.z1debut)||null,parseInt(lv.z1fin)||null],z2:[parseInt(lv.z2debut)||null,parseInt(lv.z2fin)||null],z3:[parseInt(lv.z3debut)||null,parseInt(lv.z3fin)||null],z4:[parseInt(lv.z4debut)||null,parseInt(lv.z4fin)||null],z5:[null,null],fcMax:parseInt(lv.fcMax)||null}:null;
-    exportJSON({date:localDate(new Date()),vfc:lv?parseInt(lv.vfc)||null:null,vfcBaseline:lv?.baseline||null,vfcMoy7j:lv?parseInt(lv.moy7j)||null:null,sommeilScore:ls?parseInt(ls.score)||null:null,poids:lp?parseFloat(lp.poids)||null:null,pcMG:bf,vo2max:lv?parseInt(lv.vo2max)||null:null,ratioCharge:ratio,chargeAigue:lv?parseInt(lv.chargeAigue)||null:null,chargeChronique:lv?parseInt(lv.chargeChronique)||null:null,zonesFC:zones,tempsParZone:{z1:avgZ("z1")/100||null,z2:avgZ("z2")/100||null,z3:avgZ("z3")/100||null,z4:avgZ("z4")/100||null,z5:avgZ("z5")/100||null}},`stride-profil-${localDate(new Date())}.json`);
+    exportJSON({date:localDate(new Date()),vfc:lv?parseInt(lv.vfc)||null:null,vfcBaseline:lv?.baseline||null,vfcMoy7j:lv?parseInt(lv.moy7j)||null:null,sommeilScore:ls?parseInt(ls.score)||null:null,poids:lp?parseFloat(lp.poids)||null:null,pcMG:bf,vo2max:lv?parseInt(lv.vo2max)||null:null,ratioCharge:ratio,chargeAigue:lv?parseInt(lv.chargeAigue)||null:null,chargeChronique:lv?parseInt(lv.chargeChronique)||null:null,zonesFC:zones,tempsParZone:{z1:avgZ("z1")/100||null,z2:avgZ("z2")/100||null,z3:avgZ("z3")/100||null,z4:avgZ("z4")/100||null,z5:avgZ("z5")/100||null}},`alex-profil-${localDate(new Date())}.json`);
   };
 
   // Inline update helpers
@@ -112,7 +112,7 @@ function Forme({ sommeil, setSommeil, vfcData, setVfcData, poids, setPoids, acti
           <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight}}>Forme</h1>
           <p style={{fontSize:11,color:C.muted}}>VFC · Sommeil · Poids · Récupération</p>
         </div>
-        <Btn variant="summit" size="sm" onClick={exportAlex}>→ Alex</Btn>
+        <Btn variant="summit" size="sm" onClick={exportCourse}>→ Course</Btn>
       </div>
 
       {/* KPIs */}
