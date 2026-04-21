@@ -1,35 +1,20 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useAuth } from '../AuthContext';
-import { loadAthleteProfile, saveAthleteProfile } from '../supabaseHelpers';
+import {
+  loadAthleteProfile, saveAthleteProfile,
+  loadActivities, loadSeances, loadSommeil, loadVFC, loadPoids,
+  loadObjectifs, loadNutrition, loadEntrainementSettings,
+  loadCurrentRace, loadCourses,
+} from '../supabaseHelpers';
+import { C } from '../constants.js';
 
 // ─── ProfilCompte ─────────────────────────────────────────────────────────────
-// Page profil unifiée — lue par Stride ET Alex
+// Page profil unifiée — lue par les sections Entraînement et Course
 // Props : profil, setProfil, onClose (optionnel, si ouvert en overlay)
 // Champs : prénom, sexe, dateNaissance, taille, poids référence,
 //          fcRepos, fcMax, zonesFC (auto-Karvonen), alluresZ2/Z3
-// Stockage : dans le state parent (localStorage stride_v2 via lsWrite)
+// Stockage : Supabase (table athlete_profile) via saveAthleteProfile
 // ─────────────────────────────────────────────────────────────────────────────
-
-const C = {
-  bg:          "#F5F3EF",
-  white:       "#FFFFFF",
-  stone:       "#EAE6DF",
-  stoneDark:   "#D4CEC4",
-  stoneDeep:   "#9A9189",
-  ink:         "#1C1916",
-  inkLight:    "#3D3830",
-  muted:       "#7A7268",
-  border:      "#DDD9D1",
-  forest:      "#2D5A3D",
-  forestLight: "#4A8C5C",
-  forestPale:  "#E8F2EC",
-  summit:      "#C4521A",
-  summitPale:  "#FAF0E8",
-  green:       "#2D7A4A",
-  greenPale:   "#E6F4EC",
-  red:         "#B03A2A",
-  redPale:     "#FAE9E7",
-};
 
 // Karvonen : zone = fcRepos + (fcMax - fcRepos) * [lo, hi]
 const KARVONEN_ZONES = [
@@ -88,7 +73,7 @@ const SectionTitle = ({ children }) => (
 );
 
 export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
-  const { user } = useAuth();
+  const { user, deleteAccount } = useAuth();
   const p = profil;
 
   // Load profil from Supabase on mount
@@ -104,15 +89,11 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
   const set = (k, v) => {
     const updated = { ...p, [k]: v };
     setProfil(prev => ({ ...prev, [k]: v }));
-    
+
     // Auto-save to Supabase
-    console.log('🔍 Tentative save Supabase:', { userId: user?.id, field: k, value: v, profil: updated });
     if (user?.id) {
       saveAthleteProfile(user.id, updated)
-        .then(() => console.log('✅ Save Supabase OK'))
-        .catch(err => console.error('❌ Erreur save profil:', err));
-    } else {
-      console.warn('⚠️ Pas de user.id, save Supabase ignoré');
+        .catch(err => console.error('Erreur save profil:', err));
     }
   };
 
@@ -319,16 +300,16 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
             // Charger toutes les données depuis Supabase
             const [profile, activities, seances, sommeil, vfc, poids, objectifs, nutrition, settings, currentRace, courses] = await Promise.all([
               loadAthleteProfile(user.id),
-              import('../supabaseHelpers').then(m => m.loadActivities(user.id)),
-              import('../supabaseHelpers').then(m => m.loadSeances(user.id)),
-              import('../supabaseHelpers').then(m => m.loadSommeil(user.id)),
-              import('../supabaseHelpers').then(m => m.loadVFC(user.id)),
-              import('../supabaseHelpers').then(m => m.loadPoids(user.id)),
-              import('../supabaseHelpers').then(m => m.loadObjectifs(user.id)),
-              import('../supabaseHelpers').then(m => m.loadNutrition(user.id)),
-              import('../supabaseHelpers').then(m => m.loadStrideSettings(user.id)),
-              import('../supabaseHelpers').then(m => m.loadCurrentRace(user.id)),
-              import('../supabaseHelpers').then(m => m.loadCourses(user.id)),
+              loadActivities(user.id),
+              loadSeances(user.id),
+              loadSommeil(user.id),
+              loadVFC(user.id),
+              loadPoids(user.id),
+              loadObjectifs(user.id),
+              loadNutrition(user.id),
+              loadEntrainementSettings(user.id),
+              loadCurrentRace(user.id),
+              loadCourses(user.id),
             ]);
 
             const exportData = {
@@ -394,11 +375,15 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
             alert("Email incorrect. Suppression annulée.");
             return;
           }
-          
+
           try {
-            const { deleteAccount } = await import('../AuthContext');
-            await deleteAccount();
-            alert("Compte supprimé. Tu vas être déconnecté.");
+            const { error } = await deleteAccount();
+            if (error) {
+              console.error('Erreur suppression:', error);
+              alert(`Erreur lors de la suppression : ${error.message || 'erreur inconnue'}`);
+              return;
+            }
+            alert("Compte et données supprimés définitivement. Tu vas être déconnecté.");
           } catch (err) {
             console.error('Erreur suppression:', err);
             alert('Erreur lors de la suppression');
@@ -418,7 +403,7 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
           fontSize:11, color:C.stoneDeep, lineHeight:1.6 }}>
           <strong>Poids et taille</strong> sont gérés dans <strong>Suivi corporel</strong> (Entraînement → Forme).<br/>
           Zones FC modifiables manuellement pour s'adapter à tes données Garmin/montre.<br/>
-          Migration Supabase prévue — pour l'instant stockées localement.
+          Données stockées sur Supabase (région UE — Paris), chiffrées au repos et en transit.
         </div>
 
       </div>

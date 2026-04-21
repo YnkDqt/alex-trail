@@ -6,11 +6,11 @@ import { Btn, Modal, Field, FormGrid, ConfirmDialog, statusBadge } from "../atom
 // ─── ENTRAÎNEMENT PROGRAMME (vue principale fusionnée) ───────────────────────
 // Statuts enrichis
 const STATUTS = [
-  {id:"Planifié", icon:"○"},
-  {id:"Effectué", icon:"✓"},
-  {id:"Partiel",  icon:"◑"},
-  {id:"Remplacé", icon:"⇄"},
-  {id:"Annulé",   icon:"✕"},
+  {id:"Planifié",  icon:"●", col:C.sky,    bg:C.skyPale},
+  {id:"Effectué",  icon:"■", col:C.forest, bg:C.forestPale},
+  {id:"Partiel",   icon:"◆", col:"#BA7517", bg:"#FFF3E0"},
+  {id:"Remplacé",  icon:"▲", col:"#D85A30", bg:"#FEE8E1"},
+  {id:"Annulé",    icon:"✕", col:C.red,    bg:C.redPale},
 ];
 const statutCfg = (st) => STATUTS.find(s=>s.id===st)||STATUTS[0];
 
@@ -105,7 +105,7 @@ function EntrainementProgramme({ seances, setSeances, activites, setActivites, o
     r.onload=(ev)=>{
       try {
         const data=JSON.parse(ev.target.result);
-        if(!data._stride_programme&&!data.seances){alert("Format non reconnu. Attendu : _stride_programme + seances[]");return;}
+        if(!data._alex_programme&&!data.seances){alert("Format non reconnu. Attendu : _alex_programme + seances[]");return;}
         const toImport=(data.seances||[]).map(s=>({
           ...emptySeance(),...s,
           id:Date.now()+Math.random(),
@@ -373,22 +373,24 @@ function EntrainementProgramme({ seances, setSeances, activites, setActivites, o
                                 fontSize:10,
                                 padding:"2px 6px",
                                 borderRadius:5,
-                                border:`1px solid ${C.border}`,
-                                background:C.bg,
+                                border:`1px solid ${statutCfg(st).col}44`,
+                                background:statutCfg(st).bg,
+                                color:statutCfg(st).col,
+                                fontWeight:500,
                                 cursor:"pointer",
                                 width:"100%",
                                 maxWidth:90
                               }}>
-                              {STATUT_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
+                              {STATUTS.map(s => <option key={s.id} value={s.id}>{s.icon} {s.id}</option>)}
                             </select>
                           ) : (
-                            <span style={{fontSize:10,color:C.stoneDeep}}>○ Planifié</span>
+                            <span style={{fontSize:10,color:C.sky}}>● Planifié</span>
                           )}
                         </div>
                         {/* Date + Créneau */}
                         <div style={{padding:"8px 4px",display:"flex",flexDirection:"column",gap:1}}>
                           <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",fontWeight:500,color:raceDates.has(dateStr)?C.summit:s?.date===today?C.forest:C.inkLight}}>{fmtDate(dateStr)}{raceDates.has(dateStr)&&<span style={{marginLeft:4}}>🏔</span>}</span>
-                          <span style={{fontSize:10,color:C.muted}}>{half}</span>
+                          <span style={{fontSize:10,color:C.muted}}>{dayName.slice(0,3)} {half}</span>
                         </div>
                         {/* Activité prévue */}
                         <div style={{padding:"8px 4px",display:"flex",alignItems:"center"}}><ActCell type={actPrev}/></div>
@@ -615,7 +617,7 @@ function ProgrammeView({ seances, setSeances, objectifs, activityTypes }) {
     r.onload=(ev)=>{
       try {
         const data=JSON.parse(ev.target.result);
-        if(!data._stride_programme&&!data.seances){alert("Format non reconnu. Attendu : _stride_programme + seances[]");return;}
+        if(!data._alex_programme&&!data.seances){alert("Format non reconnu. Attendu : _alex_programme + seances[]");return;}
         const toImport=(data.seances||[]).map(s=>({...emptySeance(),...s,id:Date.now()+Math.random()}));
         // Merge : ne pas écraser les séances déjà Effectuées
         const existingKeys=new Set(seances.map(s=>s.date+"|"+s.demiJournee));
@@ -810,12 +812,14 @@ function ProgrammeView({ seances, setSeances, objectifs, activityTypes }) {
                             fontSize:11,
                             padding:"2px 6px",
                             borderRadius:5,
-                            border:`1px solid ${C.border}`,
-                            background:C.bg,
+                            border:`1px solid ${statutCfg(s.statut || "Planifié").col}44`,
+                            background:statutCfg(s.statut || "Planifié").bg,
+                            color:statutCfg(s.statut || "Planifié").col,
+                            fontWeight:500,
                             cursor:"pointer",
                             width:"100%"
                           }}>
-                          {STATUT_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
+                          {STATUTS.map(st => <option key={st.id} value={st.id}>{st.icon} {st.id}</option>)}
                         </select>
                       </div>
                     </div>
@@ -881,12 +885,14 @@ function ProgrammeView({ seances, setSeances, objectifs, activityTypes }) {
                         fontSize:11,
                         padding:"2px 6px",
                         borderRadius:5,
-                        border:`1px solid ${C.border}`,
-                        background:C.bg,
+                        border:`1px solid ${statutCfg(s.statut || "Planifié").col}44`,
+                        background:statutCfg(s.statut || "Planifié").bg,
+                        color:statutCfg(s.statut || "Planifié").col,
+                        fontWeight:500,
                         cursor:"pointer",
                         width:"100%"
                       }}>
-                      {STATUT_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
+                      {STATUTS.map(st => <option key={st.id} value={st.id}>{st.icon} {st.id}</option>)}
                     </select>
                   </div>
                   <button onClick={e=>{e.stopPropagation();setConfirmId(s.id);}}
@@ -1183,7 +1189,7 @@ function Programme({ seances, setSeances, objectifs, planningType, activites, se
       {/* Header */}
       <div style={{padding:"14px 16px 0",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
         <div>
-          <h1 style={{fontFamily:"'Fraunces',serif",fontSize:20,fontWeight:500,color:C.inkLight}}>Journal de bord</h1>
+          <h1 style={{fontFamily:"'Fraunces',serif",fontSize:20,fontWeight:500,color:C.inkLight}}>🔴 TEST MODIFICATION 🔴 Journal de bord</h1>
           <p style={{fontSize:11,color:C.muted}}>Timeline annuelle · tout est éditable sur la ligne</p>
         </div>
         <div style={{display:"flex",gap:8}}>
@@ -1379,9 +1385,9 @@ function Programme({ seances, setSeances, objectifs, planningType, activites, se
                                     }}
                                     onClick={ev=>ev.stopPropagation()}>
 
-                                    {/* AM/PM + dot */}
-                                    <div style={{display:"flex",alignItems:"center",gap:5,width:42,flexShrink:0}}>
-                                      <span style={{fontSize:11,color:C.stoneDeep,width:22}}>{half}</span>
+                                    {/* Jour + AM/PM + dot */}
+                                    <div style={{display:"flex",alignItems:"center",gap:5,width:65,flexShrink:0}}>
+                                      <span style={{fontSize:11,color:C.stoneDeep,width:45}}>{dayName.slice(0,3)} {half}</span>
                                       <div style={{width:8,height:8,borderRadius:2,background:color,opacity:seance?1:0.25}}/>
                                     </div>
 
@@ -1410,12 +1416,14 @@ function Programme({ seances, setSeances, objectifs, planningType, activites, se
                                             fontSize:11,
                                             padding:"2px 6px",
                                             borderRadius:5,
-                                            border:`1px solid ${C.border}`,
+                                            border:`1px solid ${statutCfg(seance.statut || "Planifié").col}44`,
+                                            background:readOnly?C.stone:statutCfg(seance.statut || "Planifié").bg,
+                                            color:statutCfg(seance.statut || "Planifié").col,
+                                            fontWeight:500,
                                             width:"100%",
-                                            background:readOnly?C.stone:C.bg,
                                             cursor:readOnly?"not-allowed":"pointer"
                                           }}>
-                                          {STATUT_OPTIONS.map(st => <option key={st} value={st}>{st}</option>)}
+                                          {STATUTS.map(st => <option key={st.id} value={st.id}>{st.icon} {st.id}</option>)}
                                         </select>
                                       ) : null}
                                     </div>

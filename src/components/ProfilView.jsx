@@ -667,7 +667,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                         <span>Partir vite</span><span>Partir lentement</span>
                       </div>
                     </div>}
-                    {/* GAP moyenne depuis activités Stride */}
+                    {/* GAP moyenne depuis activités Entraînement */}
                     {settings.garminStats?.avgGapKmh && (
                       <div style={{ padding: "10px 12px", background: "var(--surface-2)", borderRadius: 9, border: `1px solid ${C.primary}30` }}>
                         <div style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>

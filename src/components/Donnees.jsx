@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { C, exportJSON, lsRead, parseCSVActivities, parseCSVSommeil, parseCSVVFC,
+import { C, exportJSON, parseCSVActivities, parseCSVSommeil, parseCSVVFC,
   localDate, fmtDate, daysUntil, actColor, actShort, isRunning,
   DAY_NAMES, DEFAULT_PLANNING, ACTIVITY_TYPES, emptyObjectif, emptySeance } from "../constants.js";
 import { Btn, Field, ConfirmDialog } from "../atoms.jsx";
@@ -34,17 +34,17 @@ function Donnees({ activites, setActivites, sommeil, setSommeil, vfcData, setVfc
   };
   const handleProgramme = (e) => {
     const file=e.target.files?.[0]; if(!file) return;
-    const r=new FileReader(); r.onload=(ev)=>{try{const data=JSON.parse(ev.target.result);if(!data._stride_programme&&!data.seances){alert("Format non reconnu.");return;}const toImport=(data.seances||[]).map(s=>({...emptySeance(),...s,id:Date.now()+Math.random()}));const existingKeys=new Set(seances.map(s=>s.date+"|"+s.demiJournee));const news=toImport.filter(s=>!existingKeys.has(s.date+"|"+s.demiJournee));setSeances(ss=>{const u=ss.map(s=>{const m=toImport.find(u=>u.date===s.date&&u.demiJournee===s.demiJournee&&s.statut==="Planifié");return m?{...s,...m,id:s.id}:s;});return [...u,...news];});setMsg("prog",`✓ ${news.length} séance(s) importée(s)`);}catch{alert("Erreur JSON");}}; r.readAsText(file); e.target.value="";
+    const r=new FileReader(); r.onload=(ev)=>{try{const data=JSON.parse(ev.target.result);if(!data._alex_programme&&!data.seances){alert("Format non reconnu.");return;}const toImport=(data.seances||[]).map(s=>({...emptySeance(),...s,id:Date.now()+Math.random()}));const existingKeys=new Set(seances.map(s=>s.date+"|"+s.demiJournee));const news=toImport.filter(s=>!existingKeys.has(s.date+"|"+s.demiJournee));setSeances(ss=>{const u=ss.map(s=>{const m=toImport.find(u=>u.date===s.date&&u.demiJournee===s.demiJournee&&s.statut==="Planifié");return m?{...s,...m,id:s.id}:s;});return [...u,...news];});setMsg("prog",`✓ ${news.length} séance(s) importée(s)`);}catch{alert("Erreur JSON");}}; r.readAsText(file); e.target.value="";
   };
 
   const openCoachClaude = () => {
     const planStr=Object.entries(planningType||DEFAULT_PLANNING).map(([s,t])=>`  ${s}: ${t}`).join("\n");
     const objStr=objectifs.length>0?objectifs.map(o=>`- ${o.nom} le ${o.date} (${o.distance}km, ${o.dp}m D+)`).join("\n"):"- Aucun objectif défini";
-    const prompt=`Je prépare mon programme ultra-trail avec l'app Stride.\n\nCourses objectifs :\n${objStr}\n\nPlanning hebdomadaire type :\n${planStr}\n\nGénère un programme sur les prochaines semaines au format JSON Stride :\n{\n  "_stride_programme": "1.0",\n  "seances": [\n    { "date": "YYYY-MM-DD", "demiJournee": "Lundi AM", "activite": "Trailrunning", "statut": "Planifié", "commentaire": "Description", "kmObj": "15", "dpObj": "400", "dureeObj": "1h30" }\n  ]\n}\nValeurs activite : ${ACTIVITY_TYPES.filter(t=>t).join(", ")}`;
+    const prompt=`Je prépare mon programme ultra-trail avec l'app Alex.\n\nCourses objectifs :\n${objStr}\n\nPlanning hebdomadaire type :\n${planStr}\n\nGénère un programme sur les prochaines semaines au format JSON Alex :\n{\n  "_alex_programme": "1.0",\n  "seances": [\n    { "date": "YYYY-MM-DD", "demiJournee": "Lundi AM", "activite": "Trailrunning", "statut": "Planifié", "commentaire": "Description", "kmObj": "15", "dpObj": "400", "dureeObj": "1h30" }\n  ]\n}\nValeurs activite : ${ACTIVITY_TYPES.filter(t=>t).join(", ")}`;
     window.open(`https://claude.ai/new?q=${encodeURIComponent(prompt)}`,"_blank");
   };
 
-  const saveBackup = () => { exportJSON(allData,`stride-data-${localDate(new Date())}.json`); setSaved(true); setTimeout(()=>setSaved(false),2500); };
+  const saveBackup = () => { exportJSON(allData,`alex-data-${localDate(new Date())}.json`); setSaved(true); setTimeout(()=>setSaved(false),2500); };
 
   const exportLight = () => {
     const today = new Date();
@@ -55,7 +55,7 @@ function Donnees({ activites, setActivites, sommeil, setSommeil, vfcData, setVfc
     const pick = (obj, keys) => Object.fromEntries(keys.filter(k=>k in obj).map(k=>[k,obj[k]]));
 
     const data = {
-      _stride_export: "light",
+      _alex_export: "light",
       _date: localDate(today),
       _periode: "60j passés + 30j à venir pour séances",
 
@@ -83,7 +83,7 @@ function Donnees({ activites, setActivites, sommeil, setSommeil, vfcData, setVfc
         .map(s=>pick(s,["date","demiJournee","activite","statut","commentaire","dureeObj","kmObj","dpObj","fcObj","dureeGarmin","kmGarmin","fcMoy","fcMax","z2","z3"])),
     };
 
-    exportJSON(data, `stride-coach-${localDate(today)}.json`);
+    exportJSON(data, `alex-coach-${localDate(today)}.json`);
   };
   const handleLoad = (e) => { const file=e.target.files?.[0]; if(!file) return; const r=new FileReader(); r.onload=(ev)=>{try{loadData(JSON.parse(ev.target.result));}catch{alert("JSON invalide");}}; r.readAsText(file); e.target.value=""; };
 

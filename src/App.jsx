@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useAuth } from './AuthContext';
-import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse, loadNutrition, saveNutrition, loadStrideSettings, saveStrideSettings } from './supabaseHelpers';
+import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse, loadNutrition, saveNutrition, loadEntrainementSettings, saveEntrainementSettings } from './supabaseHelpers';
 import Login from './Login';
 
-// ─── ALEX IMPORTS ─────────────────────────────────────────────────────────────
+// ─── COURSE IMPORTS ───────────────────────────────────────────────────────────
 import { EMPTY_SETTINGS, DEFAULT_EQUIPMENT, DEFAULT_FLAT_SPEED } from './constants.js';
 import ProfilView     from './components/ProfilView.jsx';
 import StrategieView  from './components/StrategieView.jsx';
@@ -17,15 +17,15 @@ import ProfilCompte   from './components/ProfilCompte.jsx';
 import Confidentialite from './components/Confidentialite.jsx';
 import { CIQUAL, CIQUAL_CATEGORIES } from './data/ciqual.js';
 
-// ─── STRIDE IMPORTS ───────────────────────────────────────────────────────────
-import { C, LS_KEY, ACTIVITY_TYPES, STATUT_OPTIONS, ACT_ICON,
-  GARMIN_TO_STRIDE, TYPE_MIGRATION, DEFAULT_PLANNING,
-  isRunning, lsRead, lsWrite, exportJSON, localDate, fmtDate, daysUntil,
+// ─── ENTRAINEMENT IMPORTS ─────────────────────────────────────────────────────
+import { C, ACTIVITY_TYPES, STATUT_OPTIONS, ACT_ICON,
+  GARMIN_TO_ACTIVITE, TYPE_MIGRATION, DEFAULT_PLANNING,
+  isRunning, exportJSON, localDate, fmtDate, daysUntil,
   actColor, actColorPale, actIcon, actShort,
   parseCSVActivities, parseCSVSommeil, parseCSVVFC,
   emptySeance, emptyObjectif, emptyPoids, emptyVFC, emptySommeil } from './constants.js';
 import { Btn, Modal, Field, FormGrid, ConfirmDialog, statusBadge } from './atoms.jsx';
-import Dashboard from './components/DashboardV2.jsx';
+import Dashboard from './components/Dashboard.jsx';
 import { StatusBadge, ActCell, DiffSpan, EntrainementProgramme, ProgrammeView, Programme } from './components/Programme.jsx';
 import { FormeVFC, FormeSommeil, FormePoids, Forme } from './components/Forme.jsx';
 import { Activites, LinkModal } from './components/Activites.jsx';
@@ -95,8 +95,8 @@ function decodeStrategy(encoded) {
   } catch { return null; }
 }
 
-// ─── ALEX NAVS ───────────────────────────────────────────────────────────────
-const ALEX_NAVS = [
+// ─── COURSE NAVS ─────────────────────────────────────────────────────────────
+const COURSE_NAVS = [
   { id: "profil",      label: "Profil de course",   icon: "🗺️", group: "Préparation" },
   { id: "preparation", label: "Stratégie de course", icon: "🎯", group: "Préparation" },
   { id: "nutrition",   label: "Nutrition",           icon: "🍌", group: "Préparation" },
@@ -106,21 +106,21 @@ const ALEX_NAVS = [
   { id: "courses",     label: "Mes courses",         icon: "📚", group: "Historique" },
 ];
 
-// ─── ALEX STYLES (styles.jsx exact) ──────────────────────────────────────────
-const ALEX_C = { bg:"#F4F0EA", white:"#FDFCFA", sand:"#EDE8DF", sandDark:"#DDD5C8", primary:"#7C5C3E", primaryLight:"#9E7A58", primaryPale:"#F0E8DC", primaryDeep:"#4E3726", secondary:"#5C7A5C", secondaryPale:"#E8F0E8", secondaryDark:"#3D5C3D", text:"#2A2218", muted:"#8C7B6A", border:"#D8CEC0", green:"#5C8C6A", greenPale:"#E6F2EA", yellow:"#B8863A", yellowPale:"#FBF3E2", red:"#B84A3A", redPale:"#FBECEB", blue:"#4A7A9B", bluePale:"#E8F2F8" };
-const ALEX_G = `
+// ─── COURSE STYLES (styles.jsx exact) ────────────────────────────────────────
+const COURSE_C = { bg:"#F4F0EA", white:"#FDFCFA", sand:"#EDE8DF", sandDark:"#DDD5C8", primary:"#7C5C3E", primaryLight:"#9E7A58", primaryPale:"#F0E8DC", primaryDeep:"#4E3726", secondary:"#5C7A5C", secondaryPale:"#E8F0E8", secondaryDark:"#3D5C3D", text:"#2A2218", muted:"#8C7B6A", border:"#D8CEC0", green:"#5C8C6A", greenPale:"#E6F2EA", yellow:"#B8863A", yellowPale:"#FBF3E2", red:"#B84A3A", redPale:"#FBECEB", blue:"#4A7A9B", bluePale:"#E8F2F8" };
+const COURSE_G = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
-  .alex-scope *, .alex-scope *::before, .alex-scope *::after { box-sizing: border-box; }
-  .alex-scope { background: var(--bg); font-family: 'DM Sans', sans-serif; color: var(--text-c); font-size: 14px; line-height: 1.5; }
+  .course-scope *, .course-scope *::before, .course-scope *::after { box-sizing: border-box; }
+  .course-scope { background: var(--bg); font-family: 'DM Sans', sans-serif; color: var(--text-c); font-size: 14px; line-height: 1.5; }
   :root {
-    --bg: ${ALEX_C.bg};
-    --surface: ${ALEX_C.white};
-    --surface-2: ${ALEX_C.sand};
-    --surface-3: ${ALEX_C.sandDark};
-    --border-c: ${ALEX_C.border};
-    --text-c: ${ALEX_C.text};
-    --muted-c: ${ALEX_C.muted};
-    --primary: ${ALEX_C.primary};
+    --bg: ${COURSE_C.bg};
+    --surface: ${COURSE_C.white};
+    --surface-2: ${COURSE_C.sand};
+    --surface-3: ${COURSE_C.sandDark};
+    --border-c: ${COURSE_C.border};
+    --text-c: ${COURSE_C.text};
+    --muted-c: ${COURSE_C.muted};
+    --primary: ${COURSE_C.primary};
   }
   :root.dark {
     --bg: #14100C;
@@ -130,328 +130,61 @@ const ALEX_G = `
     --border-c: #3C3028;
     --text-c: #F0EAE0;
     --muted-c: #9A8870;
-    --primary: ${ALEX_C.primaryLight};
+    --primary: ${COURSE_C.primaryLight};
   }
-  .alex-scope input, .alex-scope select, .alex-scope textarea {
+  .course-scope input, .course-scope select, .course-scope textarea {
     font-family: 'DM Sans', sans-serif; font-size: 14px;
     background: var(--surface-2); color: var(--text-c);
     border: 1px solid var(--border-c); border-radius: 10px;
     padding: 9px 12px; width: 100%; outline: none;
     transition: border 0.2s, box-shadow 0.2s;
   }
-  .alex-scope input:focus, .alex-scope select:focus, .alex-scope textarea:focus {
-    border-color: ${ALEX_C.primary};
-    box-shadow: 0 0 0 3px ${ALEX_C.primaryPale};
+  .course-scope input:focus, .course-scope select:focus, .course-scope textarea:focus {
+    border-color: ${COURSE_C.primary};
+    box-shadow: 0 0 0 3px ${COURSE_C.primaryPale};
   }
-  .alex-scope input[type="range"] { background: transparent; border: none; padding: 0; box-shadow: none; accent-color: ${ALEX_C.primary}; }
-  .alex-scope table { border-collapse: collapse; width: 100%; }
-  .alex-scope thead th { font-weight: 600; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted-c); background: var(--surface-2); padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border-c); }
-  .alex-scope tbody tr { border-bottom: 1px solid var(--border-c); transition: background 0.15s; cursor: pointer; }
-  .alex-scope tbody tr:hover { background: var(--surface-2); }
-  .alex-scope tbody td { padding: 10px 14px; }
-  .alex-scope .tbl-wrap { overflow-x: auto; border-radius: 16px; border: 1px solid var(--border-c); }
-  .alex-scope .anim { animation: alexFadeUp 0.35s ease both; }
-  @keyframes alexFadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-  .alex-scope .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .alex-scope .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-  .alex-scope .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
-  .alex-scope .badge-green  { background: ${ALEX_C.greenPale};      color: ${ALEX_C.green}; }
-  .alex-scope .badge-yellow { background: ${ALEX_C.yellowPale};     color: ${ALEX_C.yellow}; }
-  .alex-scope .badge-red    { background: ${ALEX_C.redPale};        color: ${ALEX_C.red}; }
-  .alex-scope .badge-blue   { background: ${ALEX_C.bluePale};       color: ${ALEX_C.blue}; }
-  .alex-scope .badge-brown  { background: ${ALEX_C.primaryPale};    color: ${ALEX_C.primaryDeep}; }
-  .alex-scope .badge-sage   { background: ${ALEX_C.secondaryPale};  color: ${ALEX_C.secondaryDark}; }
+  .course-scope input[type="range"] { background: transparent; border: none; padding: 0; box-shadow: none; accent-color: ${COURSE_C.primary}; }
+  .course-scope table { border-collapse: collapse; width: 100%; }
+  .course-scope thead th { font-weight: 600; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted-c); background: var(--surface-2); padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border-c); }
+  .course-scope tbody tr { border-bottom: 1px solid var(--border-c); transition: background 0.15s; cursor: pointer; }
+  .course-scope tbody tr:hover { background: var(--surface-2); }
+  .course-scope tbody td { padding: 10px 14px; }
+  .course-scope .tbl-wrap { overflow-x: auto; border-radius: 16px; border: 1px solid var(--border-c); }
+  .course-scope .anim { animation: courseFadeUp 0.35s ease both; }
+  @keyframes courseFadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+  .course-scope .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .course-scope .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .course-scope .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+  .course-scope .badge-green  { background: ${COURSE_C.greenPale};      color: ${COURSE_C.green}; }
+  .course-scope .badge-yellow { background: ${COURSE_C.yellowPale};     color: ${COURSE_C.yellow}; }
+  .course-scope .badge-red    { background: ${COURSE_C.redPale};        color: ${COURSE_C.red}; }
+  .course-scope .badge-blue   { background: ${COURSE_C.bluePale};       color: ${COURSE_C.blue}; }
+  .course-scope .badge-brown  { background: ${COURSE_C.primaryPale};    color: ${COURSE_C.primaryDeep}; }
+  .course-scope .badge-sage   { background: ${COURSE_C.secondaryPale};  color: ${COURSE_C.secondaryDark}; }
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); backdrop-filter: blur(4px); z-index: 200; display: flex; align-items: center; justify-content: center; }
   .modal-box { background: var(--surface); border-radius: 20px; border: 1px solid var(--border-c); max-width: 680px; width: 94vw; max-height: 88vh; overflow-y: auto; padding: 32px; box-shadow: 0 24px 60px rgba(0,0,0,0.18); }
   .confirm-box { background: var(--surface); border-radius: 16px; border: 1px solid var(--border-c); max-width: 400px; width: 90vw; padding: 28px; text-align: center; box-shadow: 0 16px 40px rgba(0,0,0,0.15); }
   .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; cursor: pointer; transition: background 0.15s, color 0.15s; font-weight: 500; color: var(--muted-c); font-size: 14px; user-select: none; }
   .nav-item:hover { background: var(--surface-2); color: var(--text-c); }
-  .nav-item.active { background: ${ALEX_C.primaryPale}; color: ${ALEX_C.primaryDeep}; }
-  :root.dark .nav-item.active { background: #3A2C1E; color: ${ALEX_C.primaryLight}; }
+  .nav-item.active { background: ${COURSE_C.primaryPale}; color: ${COURSE_C.primaryDeep}; }
+  :root.dark .nav-item.active { background: #3A2C1E; color: ${COURSE_C.primaryLight}; }
   @media (max-width: 768px) {
-    .alex-scope .grid-2col { grid-template-columns: 1fr; }
-    .alex-scope .form-grid { grid-template-columns: repeat(2, 1fr); }
+    .course-scope .grid-2col { grid-template-columns: 1fr; }
+    .course-scope .form-grid { grid-template-columns: repeat(2, 1fr); }
     .modal-overlay { align-items: flex-end; }
     .modal-box { border-radius: 20px 20px 0 0; max-height: 90vh; width: 100vw; padding: 24px; }
   }
-  /* Dark mode Stride — override couleurs inline */
-  :root.dark .stride-view { background: #1a1714 !important; color: #e8e4de !important; }
-  :root.dark .stride-view .card-white { background: #242018 !important; border-color: #3a342c !important; }
-  :root.dark .stride-view input,
-  :root.dark .stride-view select,
-  :root.dark .stride-view textarea { background: #2a231c !important; color: #e8e4de !important; border-color: #3a342c !important; }
+  /* Dark mode Entraînement — override couleurs inline */
+  :root.dark .entrainement-scope { background: #1a1714 !important; color: #e8e4de !important; }
+  :root.dark .entrainement-scope .card-white { background: #242018 !important; border-color: #3a342c !important; }
+  :root.dark .entrainement-scope input,
+  :root.dark .entrainement-scope select,
+  :root.dark .entrainement-scope textarea { background: #2a231c !important; color: #e8e4de !important; border-color: #3a342c !important; }
 `;
-// ─── COULEURS STRIDE ────────────────────────────────────────────────────────
+// ─── COULEURS ENTRAINEMENT ──────────────────────────────────────────────────
 const TEAL = "#1D9E75";
-const TEAL_PALE = "#e8f5f0";
 
 // ─── ACCUEIL (page d'accueil unifiée) ────────────────────────────────────────
-function Accueil({ setView, seances, vfcData, sommeil, poids, objectifs, race, settings, profilType, setProfilType }) {
-  const today = localDate(new Date());
-  const lastVFC     = useMemo(()=>[...vfcData].sort((a,b)=>new Date(b.date)-new Date(a.date))[0]||null,[vfcData]);
-  const lastSommeil = useMemo(()=>[...sommeil].sort((a,b)=>new Date(b.date)-new Date(a.date))[0]||null,[sommeil]);
-  const lastPoids   = useMemo(()=>[...poids].sort((a,b)=>new Date(b.date)-new Date(a.date))[0]||null,[poids]);
-  const nextObj     = useMemo(()=>[...objectifs].filter(o=>o.date>=today).sort((a,b)=>new Date(a.date)-new Date(b.date))[0]||null,[objectifs,today]);
-
-  const formeScore = useMemo(()=>{
-    const vfc=lastVFC?parseInt(lastVFC.vfc)||0:0;
-    const base=lastVFC?.baseline?parseInt(lastVFC.baseline.match(/(\d+)ms/)?.[1]||70):70;
-    const som=lastSommeil?parseInt(lastSommeil.score)||0:0;
-    const bb=lastSommeil?parseInt(lastSommeil.bodyBatteryMatin)||0:0;
-    const ratio=lastVFC?.chargeAigue&&lastVFC?.chargeChronique?parseInt(lastVFC.chargeAigue)/parseInt(lastVFC.chargeChronique):1;
-    let s=0;
-    if(vfc>=base*0.9)s+=2;else if(vfc>=base*0.75)s+=1;
-    if(som>=80)s+=2;else if(som>=65)s+=1;
-    if(bb>=70)s+=2;else if(bb>=45)s+=1;
-    if(ratio<=1.2)s+=1;else if(ratio>1.4)s-=1;
-    return s;
-  },[lastVFC,lastSommeil]);
-
-  const formeColor = formeScore>=5?C.green:formeScore>=3?C.yellow:C.red;
-  const formeLabel = formeScore>=5?"Bonne forme":formeScore>=3?"Forme moyenne":"Récupération";
-  const j     = nextObj?daysUntil(nextObj.date):null;
-  const phase = j===null?null:j>90?"Fondamental":j>42?"Spécifique":j>14?"Affûtage":j>0?"Tapering":"Course !";
-  const phaseColor = j===null?C.muted:j>90?C.sky:j>42?"#e65100":j>14?C.yellow:j>0?C.summit:C.green;
-  const ratio = lastVFC?.chargeAigue&&lastVFC?.chargeChronique
-    ?Math.round(parseInt(lastVFC.chargeAigue)/parseInt(lastVFC.chargeChronique)*100)/100:null;
-
-  const weeklyKm = useMemo(()=>{
-    const now=new Date(); const dow=(now.getDay()+6)%7;
-    const thisMon=new Date(now); thisMon.setDate(now.getDate()-dow);
-    return Array.from({length:12},(_,i)=>{
-      const mon=new Date(thisMon); mon.setDate(thisMon.getDate()-(11-i)*7);
-      const sun=new Date(mon); sun.setDate(mon.getDate()+6);
-      const monStr=localDate(mon); const sunStr=localDate(sun);
-      const ws=seances.filter(s=>s.date>=monStr&&s.date<=sunStr&&s.statut==="Effectué"&&isRunning(s.activite));
-      return {
-        label:i===11?"Sem.":i===5?"S-6":`S-${11-i}`,
-        km:Math.round(ws.reduce((s,a)=>s+(parseFloat(a.kmGarmin)||0),0)*10)/10,
-        dp:Math.round(ws.reduce((s,a)=>s+(parseFloat(a.dpGarmin)||0),0)),
-      };
-    });
-  },[seances]);
-  const maxKm=Math.max(...weeklyKm.map(w=>w.km),1);
-
-  const prepScore = useMemo(()=>{
-    if(!nextObj||j===null) return null;
-    const raceKm=parseFloat(nextObj.distance)||0;
-    const raceDp=parseFloat(nextObj.dp)||0;
-    const longMax=Math.max(0,...seances.filter(s=>s.statut==="Effectué"&&isRunning(s.activite)).map(s=>parseFloat(s.kmGarmin)||0));
-    const last8=weeklyKm.slice(-8);
-    const dpMoy=last8.length?Math.round(last8.reduce((s,w)=>s+w.dp,0)/last8.length):0;
-    const dpCible=raceDp>0?Math.round(raceDp/8):0;
-    let score=0;
-    if(raceKm>0) score+=(longMax>=raceKm*0.7?1:longMax>=raceKm*0.5?0.5:0);
-    if(raceDp>0) score+=(dpMoy>=dpCible*0.8?1:dpMoy>=dpCible*0.5?0.5:0);
-    score+=formeScore>=5?1:formeScore>=3?0.5:0;
-    const pct=Math.round(score/3*100);
-    return {pct,longMax,raceKm,dpMoy,dpCible,label:pct>=75?"En bonne voie":pct>=50?"À surveiller":"Insuffisant"};
-  },[nextObj,j,seances,weeklyKm,formeScore]);
-
-  const todaySeances=seances.filter(s=>s.date===today&&s.activite!=="Repos");
-  const hasRaceGpx=!!(race?.gpxPoints?.length);
-  const card={background:C.white,border:`1px solid ${C.border}`,borderRadius:14};
-  const lbl={fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",color:C.muted,marginBottom:8,display:"block"};
-
-  return (
-    <div style={{maxWidth:980,margin:"0 auto",padding:"28px 24px 60px"}}>
-      <div style={{marginBottom:24}}>
-        <h1 style={{fontFamily:"'Fraunces',serif",fontSize:26,fontWeight:500,color:C.inkLight,letterSpacing:"-0.02em",lineHeight:1.2}}>
-          Tableau de bord
-        </h1>
-        {nextObj&&j!==null&&(
-          <div style={{fontSize:13,color:C.muted,marginTop:4}}>
-            <span style={{fontWeight:600,color:phaseColor}}>{phase}</span>
-            {" · "}{nextObj.nom} dans{" "}
-            <span style={{fontWeight:600,color:C.inkLight}}>{j} jour{j>1?"s":""}</span>
-          </div>
-        )}
-      </div>
-
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:14}}>
-        {/* Forme */}
-        <div style={{...card,padding:"16px 18px",borderTop:`3px solid ${formeColor}`}}>
-          <span style={lbl}>Forme du jour</span>
-          <div style={{fontFamily:"'Fraunces',serif",fontSize:20,fontWeight:500,color:formeColor,marginBottom:10}}>{formeLabel}</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-            {[{l:"VFC",v:lastVFC?.vfc,u:"ms"},{l:"Sommeil",v:lastSommeil?.score,u:"/100"},{l:"Charge",v:ratio,u:""},{l:"Poids",v:lastPoids?.poids,u:"kg"}].map(({l,v,u})=>(
-              <div key={l} style={{background:C.bg,borderRadius:8,padding:"7px 10px"}}>
-                <div style={{fontSize:10,color:C.muted,marginBottom:2}}>{l}</div>
-                <div style={{fontFamily:"'DM Mono',monospace",fontSize:13,fontWeight:500,color:v?C.inkLight:C.stoneDark}}>
-                  {v||"—"}{v&&u?<span style={{fontSize:10,color:C.muted}}> {u}</span>:""}
-                </div>
-              </div>
-            ))}
-          </div>
-          {!lastVFC&&!lastSommeil&&(
-            <div style={{marginTop:10,fontSize:12,color:C.muted}}>
-              <span onClick={()=>setView("forme")} style={{color:C.forest,cursor:"pointer",fontWeight:500}}>Importer les données Garmin →</span>
-            </div>
-          )}
-        </div>
-
-        {/* Course countdown */}
-        <div style={{...card,padding:"16px 18px",borderTop:`3px solid ${phaseColor}`}}>
-          <span style={lbl}>Prochaine course</span>
-          {nextObj?(
-            <>
-              <div style={{fontFamily:"'Fraunces',serif",fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:4}}>{nextObj.nom||"Course"}</div>
-              <div style={{fontFamily:"'DM Mono',monospace",fontSize:32,fontWeight:500,color:phaseColor,lineHeight:1,marginBottom:6}}>J-{j}</div>
-              <div style={{fontSize:12,color:C.muted,marginBottom:10}}>
-                {nextObj.distance&&`${nextObj.distance} km`}{nextObj.dp&&` · ${nextObj.dp} m D+`}
-              </div>
-              <div style={{display:"flex",gap:2,height:5,borderRadius:3,overflow:"hidden",marginBottom:4}}>
-                {[{max:180,min:90,col:C.sky},{max:90,min:42,col:"#e65100"},{max:42,min:14,col:C.yellow},{max:14,min:0,col:C.summit}].map(({max,min,col})=>{
-                  const active=j!==null&&j<=max&&j>min;
-                  return <div key={min} style={{flex:max-min,background:active?col:col+"33",borderRadius:2}}/>;
-                })}
-              </div>
-              <div style={{fontSize:10,color:phaseColor,fontWeight:600,marginBottom:10}}>{phase}</div>
-              <button onClick={()=>setView("objectifs")}
-                style={{fontSize:11,padding:"4px 10px",borderRadius:7,border:`1px solid ${C.border}`,
-                  background:"transparent",color:C.muted,cursor:"pointer",fontFamily:"inherit",marginBottom:8}}>
-                Gérer les objectifs →
-              </button>
-              {prepScore&&(
-                <div>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:C.muted,marginBottom:4}}>
-                    <span>Préparation</span><span style={{fontWeight:600,color:prepScore.pct>=75?C.green:prepScore.pct>=50?C.yellow:C.red}}>{prepScore.pct}%</span>
-                  </div>
-                  <div style={{height:5,borderRadius:3,background:C.stone}}>
-                    <div style={{height:"100%",borderRadius:3,width:`${prepScore.pct}%`,
-                      background:prepScore.pct>=75?C.green:prepScore.pct>=50?C.yellow:C.red,transition:"width .4s"}}/>
-                  </div>
-                  <div style={{fontSize:11,color:C.muted,marginTop:4}}>{prepScore.label}</div>
-                </div>
-              )}
-            </>
-          ):(
-            <div>
-              <div style={{fontSize:13,color:C.muted,fontStyle:"italic",marginBottom:12}}>Aucune course planifiée</div>
-              <button onClick={()=>setView("objectifs")}
-                style={{fontSize:12,padding:"6px 12px",borderRadius:8,border:`1px solid ${C.border}`,
-                  background:"transparent",color:C.inkLight,cursor:"pointer",fontFamily:"inherit"}}>
-                Ajouter un objectif →
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Aujourd'hui */}
-        <div style={{...card,padding:"16px 18px",borderTop:`3px solid ${C.forest}`}}>
-          <span style={lbl}>Aujourd'hui</span>
-          {todaySeances.length>0?(
-            <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:10}}>
-              {todaySeances.slice(0,3).map(s=>(
-                <div key={s.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,background:C.bg}}>
-                  <div style={{width:7,height:7,borderRadius:"50%",background:actColor(s.activite),flexShrink:0}}/>
-                  <div style={{flex:1,fontSize:12,fontWeight:500,color:C.inkLight,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.activite}</div>
-                  <span style={{fontSize:10,padding:"2px 6px",borderRadius:6,background:s.statut==="Effectué"?C.greenPale:C.stone,color:s.statut==="Effectué"?C.green:C.muted,fontWeight:500}}>{s.statut}</span>
-                </div>
-              ))}
-              {todaySeances.length>3&&<div style={{fontSize:11,color:C.muted,textAlign:"center"}}>+{todaySeances.length-3} autres</div>}
-            </div>
-          ):(
-            <div style={{fontSize:13,color:C.muted,fontStyle:"italic",marginBottom:12}}>Repos ou journée libre</div>
-          )}
-          <button onClick={()=>setView("entrainement")}
-            style={{fontSize:12,padding:"6px 12px",borderRadius:8,border:`1px solid ${C.border}`,
-              background:"transparent",color:"#1D9E75",cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
-            Voir le programme →
-          </button>
-        </div>
-      </div>
-
-      {/* Graphique km 12 semaines */}
-      <div style={{...card,padding:"16px 20px",marginBottom:14}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-          <span style={{...lbl,marginBottom:0}}>Charge trail · 12 semaines</span>
-          <div style={{display:"flex",gap:16,fontSize:11,color:C.muted}}>
-            <span><b style={{color:C.inkLight}}>{weeklyKm.reduce((s,w)=>s+w.km,0).toFixed(0)} km</b> total</span>
-            <span><b style={{color:C.inkLight}}>{weeklyKm.reduce((s,w)=>s+w.dp,0).toLocaleString()} m</b> D+</span>
-          </div>
-        </div>
-        <div style={{display:"flex",gap:3,alignItems:"flex-end",height:80}}>
-          {weeklyKm.map((w,i)=>{
-            const h=Math.max(3,Math.round((w.km/maxKm)*82));
-            const isLast=i===11;
-            return (
-              <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-                <div style={{fontSize:8,color:C.muted,fontFamily:"'DM Mono',monospace",opacity:w.km>0?1:0}}>
-                  {w.km>0?w.km:""}
-                </div>
-                <div title={`${w.km} km · ${w.dp}m D+`}
-                  style={{width:"100%",height:h,borderRadius:"3px 3px 0 0",
-                    background:isLast?C.forest:w.km>0?C.forestPale:C.stone,
-                    border:isLast?`1px solid ${C.forest}`:"none",
-                    cursor:"default",transition:"height .3s"}}/>
-                <div style={{fontSize:8,color:isLast?C.forest:C.stoneDeep,fontWeight:isLast?600:400,
-                  minHeight:10,textAlign:"center",whiteSpace:"nowrap"}}>
-                  {i===0||i===5||i===11?w.label:""}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Stratégie course active */}
-      {hasRaceGpx&&(
-        <div style={{...card,padding:"16px 20px",borderLeft:`3px solid ${ALEX_C.primary}`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
-          <div>
-            <span style={{...lbl,color:ALEX_C.primary}}>Stratégie en cours</span>
-            <div style={{fontFamily:"'Fraunces',serif",fontSize:16,fontWeight:500,color:C.inkLight}}>
-              {settings?.raceName||race?.name||"Course sans nom"}
-            </div>
-            <div style={{fontSize:12,color:C.muted,marginTop:2}}>
-              {race.totalDistance?.toFixed(1)} km · {Math.round(race.totalElevPos||0)} m D+
-              {settings?.startTime&&` · Départ ${settings.startTime}`}
-            </div>
-          </div>
-          <button onClick={()=>setView("profil_course")}
-            style={{fontSize:13,padding:"8px 16px",borderRadius:10,border:`1px solid ${ALEX_C.primary}`,
-              background:ALEX_C.primaryPale,color:ALEX_C.primaryDeep,cursor:"pointer",fontFamily:"inherit",fontWeight:500,whiteSpace:"nowrap"}}>
-            Voir la stratégie →
-          </button>
-        </div>
-      )}
-
-      {/* Bloc sélection profil */}
-      <div style={{...card,padding:"20px 24px",marginTop:14}}>
-        <span style={lbl}>Choix du profil</span>
-        <div style={{fontSize:13,color:C.muted,marginBottom:16,lineHeight:1.5}}>
-          Personnalise l'affichage des onglets selon ton utilisation principale
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4, 1fr)",gap:12}}>
-          {[
-            {type:"full",icon:"📊",label:"Entraînement + Course",desc:"Tous les onglets visibles",color:C.forest},
-            {type:"training_only",icon:"🏃",label:"Entraînement uniquement",desc:"Masque onglets Course",color:C.summit},
-            {type:"course_prep",icon:"🏔️",label:"Préparer une course",desc:"Focus Course + essentiels",color:ALEX_C.primary},
-            {type:"team",icon:"👥",label:"Suivre un coureur",desc:"Mode Team simplifié",color:C.sky}
-          ].map(p=>(
-            <div key={p.type} onClick={()=>setProfilType(p.type)}
-              style={{
-                padding:16,
-                border:`2px solid ${profilType===p.type?p.color:C.border}`,
-                borderRadius:12,
-                cursor:"pointer",
-                transition:"all .2s",
-                background:profilType===p.type?`${p.color}08`:C.white
-              }}
-              onMouseEnter={e=>{if(profilType!==p.type){e.currentTarget.style.borderColor=p.color;e.currentTarget.style.background=C.stone}}}
-              onMouseLeave={e=>{if(profilType!==p.type){e.currentTarget.style.borderColor=C.border;e.currentTarget.style.background=C.white}}}>
-              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-                <span style={{fontSize:24}}>{p.icon}</span>
-                <div style={{fontWeight:600,fontSize:14,color:profilType===p.type?p.color:C.inkLight}}>{p.label}</div>
-              </div>
-              <div style={{fontSize:12,color:C.muted,lineHeight:1.4}}>{p.desc}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 
 // ─── DONNÉES & PARAMS VIEW ────────────────────────────────────────────────────
@@ -461,9 +194,9 @@ function DonneesParamsView({
   handleInstall, setView, setDrawerOpen,
   seances, setSeances, activites, setActivites, sommeil, setSommeil,
   vfcData, setVfcData, poids, setPoids, planningType, objectifs,
-  allData, loadStrideData, resetAll, journalNutri, confirmReset, setConfirmReset,
+  allData, loadEntrainementData, resetAll, journalNutri, confirmReset, setConfirmReset,
   features, toggleFeature, FEATURE_LABELS,
-  strideFeatures, toggleStrideFeature, STRIDE_FEATURE_LABELS,
+  entrainementFeatures, toggleEntrainementFeature, ENTRAINEMENT_FEATURE_LABELS,
   user,
 }) {
   const [tab, setTab] = useState("sauvegarde");
@@ -568,7 +301,7 @@ function DonneesParamsView({
                     loadPoids(user.id),
                     loadObjectifs(user.id),
                     loadNutrition(user.id),
-                    loadStrideSettings(user.id),
+                    loadEntrainementSettings(user.id),
                     loadCurrentRace(user.id),
                     loadCourses(user.id),
                   ]);
@@ -628,7 +361,7 @@ function DonneesParamsView({
                         data.poids && savePoids(user.id, data.poids),
                         data.objectifs && saveObjectifs(user.id, data.objectifs),
                         data.nutrition && saveNutrition(user.id, data.nutrition),
-                        data.settings && saveStrideSettings(user.id, data.settings),
+                        data.settings && saveEntrainementSettings(user.id, data.settings),
                         raceData && saveCurrentRace(user.id, raceData.race, raceData.segments, raceData.settings),
                       ]);
                       alert('✅ Import réussi ! Recharge la page.');
@@ -691,16 +424,16 @@ Annuler = tout effacer.`);if(ok)saveCourse();}
           <Section title="Entraînement">
             <ToggleRow icon="↑" label="Section Entraînement"
               desc="Masque entièrement la section dans la navigation"
-              active={strideFeatures._section!==false}
-              onToggle={()=>toggleStrideFeature("_section")}
+              active={entrainementFeatures._section!==false}
+              onToggle={()=>toggleEntrainementFeature("_section")}
               color={TEAL}
             />
-            {strideFeatures._section!==false&&(
+            {entrainementFeatures._section!==false&&(
               <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8,paddingLeft:16,borderLeft:`2px solid ${TEAL}30`}}>
-                {STRIDE_FEATURE_LABELS.map(({key,label,icon,desc})=>(
+                {ENTRAINEMENT_FEATURE_LABELS.map(({key,label,icon,desc})=>(
                   <ToggleRow key={key} icon={icon} label={label} desc={desc}
-                    active={strideFeatures[key]!==false}
-                    onToggle={()=>toggleStrideFeature(key)}
+                    active={entrainementFeatures[key]!==false}
+                    onToggle={()=>toggleEntrainementFeature(key)}
                     color={TEAL}
                   />
                 ))}
@@ -711,17 +444,17 @@ Annuler = tout effacer.`);if(ok)saveCourse();}
           <Section title="Course">
             <ToggleRow icon="🗺️" label="Section Course"
               desc="Masque entièrement la section dans la navigation"
-              active={alexFeatures._section!==false}
+              active={courseFeatures._section!==false}
               onToggle={()=>toggleFeature("_section")}
-              color={ALEX_C.primary}
+              color={COURSE_C.primary}
             />
-            {alexFeatures._section!==false&&(
-              <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8,paddingLeft:16,borderLeft:`2px solid ${ALEX_C.primary}30`}}>
+            {courseFeatures._section!==false&&(
+              <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8,paddingLeft:16,borderLeft:`2px solid ${COURSE_C.primary}30`}}>
                 {FEATURE_LABELS.map(({key,label,icon,desc})=>(
                   <ToggleRow key={key} icon={icon} label={label} desc={desc}
-                    active={alexFeatures[key]}
+                    active={courseFeatures[key]}
                     onToggle={()=>toggleFeature(key)}
-                    color={ALEX_C.primary}
+                    color={COURSE_C.primary}
                   />
                 ))}
               </div>
@@ -789,21 +522,21 @@ Annuler = tout effacer.`);if(ok)saveCourse();}
 // ─── APP LAYOUT UNIFIÉ ────────────────────────────────────────────────────────
 
 function AppLayout({
-  // Stride state
+  // Entrainement state
   seances, setSeances, activites, setActivites, sommeil, setSommeil,
   vfcData, setVfcData, poids, setPoids, objectifs, setObjectifs,
   planningType, setPlanningType, activityTypes, setActivityTypes,
   journalNutri, setJournalNutri, produits, setProduits, recettes, setRecettes,
-  allData, loadStrideData, resetAll, profil, setProfil,
+  allData, loadEntrainementData, resetAll, profil, setProfil,
   confirmReset, setConfirmReset, isMobile,
-  // Alex state (depuis CourseLayout inline)
+  // Course state (depuis CourseLayout inline)
   view, setView, race, setRace, segments, setSegments, settings, setSettings,
   hasUnsaved, autoSaved, courses, drawerOpen, setDrawerOpen,
   reposModal, setReposModal, reposForm, setReposForm, addRepos,
   saveData, loadData, saveCourse, loadCourse, deleteCourse, updateCourse, overwriteCourse,
   navigate, hasRace, isStandalone, installDone, handleInstall, showInstallGuide, setShowInstallGuide,
   features, toggleFeature, FEATURE_LABELS, NAVS_ACTIVE,
-  strideFeatures, toggleStrideFeature, STRIDE_FEATURE_LABELS,
+  entrainementFeatures, toggleEntrainementFeature, ENTRAINEMENT_FEATURE_LABELS,
   profilType, setProfilType,
   saveAllData,
   sharedMode, installPrompt,
@@ -831,20 +564,20 @@ function AppLayout({
     ]},
     // Section Entraînement
     // Visible si : full, training_only (masquée si course_prep ou team)
-    ...( (strideFeatures._section!==false && profilType !== 'course_prep' && profilType !== 'team') ? [{ label: "Entraînement", color: TEAL, items: [
+    ...( (entrainementFeatures._section!==false && profilType !== 'course_prep' && profilType !== 'team') ? [{ label: "Entraînement", color: TEAL, items: [
       { id:"entrainement", label:"Programme",  icon:"↑", feat:"programme" },
       { id:"activites",    label:"Activités",  icon:"▣", feat:"activites" },
       { id:"forme",        label:"Forme",      icon:"♡", feat:"forme" },
       { id:"gut_training", label:"Gut Training", icon:"🍽️", feat:"gut_training" },
       { id:"objectifs",    label:"Objectifs",  icon:"🏔", feat:"objectifs" },
-    ].filter(n=>strideFeatures[n.feat]!==false)}] : []),
+    ].filter(n=>entrainementFeatures[n.feat]!==false)}] : []),
     // Section Course
     // Visible si : full, course_prep (masquée si training_only)
     // Si team : afficher uniquement Team
-    ...( (features._section!==false && profilType !== 'training_only') ? [{ label: "Course", color: ALEX_C.primary, items: [
+    ...( (features._section!==false && profilType !== 'training_only') ? [{ label: "Course", color: COURSE_C.primary, items: [
       ...(profilType === 'team' ? [] : [{ id:"profil_course", label:"Profil de course", icon:"🗺️" }]),
       ...(profilType === 'team' ? [] : [{ id:"strategie", label:"Stratégie", icon:"🎯" }]),
-      ...(profilType === 'team' ? [] : features.nutrition  ? [{ id:"nutrition_alex",  label:"Nutrition",   icon:"🍌" }] : []),
+      ...(profilType === 'team' ? [] : features.nutrition  ? [{ id:"nutrition_course",  label:"Nutrition",   icon:"🍌" }] : []),
       ...(profilType === 'team' ? [] : features.equipement ? [{ id:"equipement",      label:"Équipement",  icon:"🎒" }] : []),
       ...(profilType === 'team' ? [] : features.analyse ? [{ id:"analyse", label:"Analyse", icon:"📊" }] : []),
       ...(features.team ? [{ id:"team", label:"Team", icon:"👥" }] : []),
@@ -890,7 +623,7 @@ function AppLayout({
                   <span style={{fontSize:13,opacity:active?1:.7}}>{n.icon}</span>
                   <span>{n.label}</span>
                   {n.id==="profil_course"&&hasRace&&(
-                    <span style={{marginLeft:"auto",width:6,height:6,borderRadius:"50%",background:ALEX_C.primary,flexShrink:0}}/>
+                    <span style={{marginLeft:"auto",width:6,height:6,borderRadius:"50%",background:COURSE_C.primary,flexShrink:0}}/>
                   )}
                 </div>
               );
@@ -933,7 +666,7 @@ function AppLayout({
         <span style={{fontSize:12,color:C.muted,fontWeight:500}}>{isDark?"🌙 Mode sombre":"☀️ Mode clair"}</span>
         <div onClick={()=>setSettings(s=>({...s,darkMode:!s.darkMode}))}
           style={{width:36,height:20,borderRadius:10,cursor:"pointer",position:"relative",
-            background:isDark?ALEX_C.primary:C.stoneDark,transition:"background .2s",flexShrink:0}}>
+            background:isDark?COURSE_C.primary:C.stoneDark,transition:"background .2s",flexShrink:0}}>
           <div style={{position:"absolute",top:2,left:isDark?18:2,width:16,height:16,
             borderRadius:"50%",background:"#fff",transition:"left .2s",boxShadow:"0 1px 3px rgba(0,0,0,.2)"}}/>
         </div>
@@ -976,7 +709,7 @@ function AppLayout({
   return (
     <>
       <style>{G}</style>
-      <style>{ALEX_G}</style>
+      <style>{COURSE_G}</style>
       {/* MODAL REPOS */}
       {reposModal&&(
         <div onClick={()=>setReposModal(false)} style={{position:"fixed",inset:0,background:"rgba(28,25,22,0.55)",backdropFilter:"blur(3px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -996,7 +729,7 @@ function AppLayout({
               </div>
               <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:4}}>
                 <button onClick={()=>setReposModal(false)} style={{padding:"9px 18px",borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",color:C.muted,cursor:"pointer",fontFamily:"inherit"}}>Annuler</button>
-                <button onClick={addRepos} style={{padding:"9px 20px",borderRadius:10,border:"none",background:ALEX_C.primary,color:"#fff",cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>Ajouter</button>
+                <button onClick={addRepos} style={{padding:"9px 20px",borderRadius:10,border:"none",background:COURSE_C.primary,color:"#fff",cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>Ajouter</button>
               </div>
             </div>
           </div>
@@ -1010,13 +743,13 @@ function AppLayout({
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
               {[{step:"1",text:"Ouvre le menu du navigateur (⋮ ou ···)"},{step:"2",text:"Cherche « Ajouter à l'écran d'accueil » ou « Installer »"},{step:"3",text:"Confirme l'installation"}].map(s=>(
                 <div key={s.step} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-                  <div style={{width:24,height:24,borderRadius:"50%",background:ALEX_C.primary,color:"#fff",fontWeight:700,fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{s.step}</div>
+                  <div style={{width:24,height:24,borderRadius:"50%",background:COURSE_C.primary,color:"#fff",fontWeight:700,fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{s.step}</div>
                   <span style={{fontSize:13,lineHeight:1.5}}>{s.text}</span>
                 </div>
               ))}
             </div>
             <div style={{marginTop:20,display:"flex",justifyContent:"flex-end"}}>
-              <button onClick={()=>setShowInstallGuide(false)} style={{background:ALEX_C.primary,color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Compris</button>
+              <button onClick={()=>setShowInstallGuide(false)} style={{background:COURSE_C.primary,color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Compris</button>
             </div>
           </div>
         </div>
@@ -1057,10 +790,10 @@ function AppLayout({
         )}
 
         {/* Contenu principal */}
-        <div className="alex-scope" style={{flex:1,overflowY:"auto",paddingTop:isMobile?mobileTopH:0,background:isDark?"#14100C":undefined}}>
-          {/* Vues Stride */}
-          {view==="accueil" && <Accueil setView={setView} seances={seances} vfcData={vfcData} sommeil={sommeil} poids={poids} objectifs={objectifs} race={race} settings={settings} profilType={profilType} setProfilType={setProfilType}/>}
-          {view==="objectifs" && <Objectifs objectifs={objectifs} setObjectifs={setObjectifs} seances={seances} activites={activites} vfcData={vfcData} poids={poids} profil={profil} produits={produits} recettes={recettes} allData={allData}/>}
+        <div className="course-scope" style={{flex:1,overflowY:"auto",paddingTop:isMobile?mobileTopH:0,background:isDark?"#14100C":undefined}}>
+          {/* Vues Entraînement */}
+          {view==="accueil" && <Dashboard setView={setView} seances={seances} vfcData={vfcData} sommeil={sommeil} poids={poids} objectifs={objectifs} race={race} settings={settings} profilType={profilType} setProfilType={setProfilType}/>}
+          {view==="objectifs" && <Objectifs objectifs={objectifs} setObjectifs={setObjectifs} seances={seances} activites={activites} vfcData={vfcData} poids={poids} profil={profil} produits={produits} recettes={recettes} allData={allData} setView={setView}/>}
           {view==="coach" && <MonCoachIA seances={seances} setSeances={setSeances} activites={activites} sommeil={sommeil} vfcData={vfcData} poids={poids} objectifs={objectifs} planningType={planningType} produits={produits} recettes={recettes} journalNutri={journalNutri} activityTypes={activityTypes}/>}
           {view==="activites" && <Activites activites={activites} setActivites={setActivites} seances={seances} setSeances={setSeances}/>}
           {view==="gut_training" && <Nutrition produits={produits} setProduits={setProduits} recettes={recettes} setRecettes={setRecettes} seances={seances} setSeances={setSeances} activites={activites}/>}
@@ -1070,7 +803,7 @@ function AppLayout({
                 {[{id:"programme",l:"Programme"},{id:"planning",l:"Semaine type"}]
                   .map(({id,l})=>subNavBtn(id,l,subView.entrainement===id,()=>setSubV("entrainement",id)))}
               </div>
-              {subView.entrainement==="programme"&&<EntrainementProgramme seances={seances} setSeances={setSeances} activites={activites} setActivites={setActivites} objectifs={objectifs} planningType={planningType} setPlanningType={setPlanningType} activityTypes={activityTypes} setActivityTypes={setActivityTypes} allData={allData} loadData={loadStrideData} resetAll={resetAll} setView={setView}/>}
+              {subView.entrainement==="programme"&&<EntrainementProgramme seances={seances} setSeances={setSeances} activites={activites} setActivites={setActivites} objectifs={objectifs} planningType={planningType} setPlanningType={setPlanningType} activityTypes={activityTypes} setActivityTypes={setActivityTypes} allData={allData} loadData={loadEntrainementData} resetAll={resetAll} setView={setView}/>}
               {subView.entrainement==="planning"&&<SemaineType planningType={planningType} setPlanningType={setPlanningType} seances={seances} setSeances={setSeances} activityTypes={activityTypes}/>}
             </div>
           )}
@@ -1086,10 +819,10 @@ function AppLayout({
               {subView.forme==="poids"&&<FormePoids sommeil={sommeil} setSommeil={setSommeil} vfcData={vfcData} setVfcData={setVfcData} poids={poids} setPoids={setPoids} activites={activites} profil={profil} setProfil={setProfil}/>}
             </div>
           )}
-          {/* Vues Alex Course */}
+          {/* Vues Course */}
           {view==="profil_course"&&<div style={{padding:"24px 32px"}}><ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profilDetail={features.profilDetail} profil={profil}/></div>}
           {view==="strategie"&&<div style={{padding:"24px 32px"}}><StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profil={profil}/></div>}
-          {view==="nutrition_alex"&&<div style={{padding:"24px 32px"}}><NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} isMobile={isMobile} onNavigate={setView} profil={profil} poids={poids} recettes={recettes} produits={produits}/></div>}
+          {view==="nutrition_course"&&<div style={{padding:"24px 32px"}}><NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} isMobile={isMobile} onNavigate={setView} profil={profil} poids={poids} recettes={recettes} produits={produits}/></div>}
           {view==="equipement"&&<div style={{padding:"24px 32px"}}><EquipementView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} isMobile={isMobile}/></div>}
           {view==="analyse"&&<div style={{padding:"24px 32px"}}><AnalyseView race={race} segments={segments} settings={settings} isMobile={isMobile} onNavigate={setView}/></div>}
           {view==="team"&&<div style={{padding:"24px 32px"}}><TeamView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} isMobile={isMobile} onLoadStrategy={data=>{
@@ -1108,10 +841,10 @@ function AppLayout({
             seances={seances} setSeances={setSeances} activites={activites} setActivites={setActivites}
             sommeil={sommeil} setSommeil={setSommeil} vfcData={vfcData} setVfcData={setVfcData}
             poids={poids} setPoids={setPoids} planningType={planningType} objectifs={objectifs}
-            allData={allData} loadStrideData={loadStrideData} resetAll={resetAll}
+            allData={allData} loadEntrainementData={loadEntrainementData} resetAll={resetAll}
             journalNutri={journalNutri} confirmReset={confirmReset} setConfirmReset={setConfirmReset}
             features={features} toggleFeature={toggleFeature} FEATURE_LABELS={FEATURE_LABELS}
-            strideFeatures={strideFeatures} toggleStrideFeature={toggleStrideFeature} STRIDE_FEATURE_LABELS={STRIDE_FEATURE_LABELS}
+            entrainementFeatures={entrainementFeatures} toggleEntrainementFeature={toggleEntrainementFeature} ENTRAINEMENT_FEATURE_LABELS={ENTRAINEMENT_FEATURE_LABELS}
             user={user}
           />}
           {/* Profil unifié */}
@@ -1144,14 +877,14 @@ export default function App() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   useEffect(()=>{ const h=()=>setIsMobile(window.innerWidth<=768); window.addEventListener("resize",h); return()=>window.removeEventListener("resize",h); },[]);
 
-  // ── Stride state ──────────────────────────────────────────────────────────
+  // ── Entrainement state ────────────────────────────────────────────────────
   const migrateSeances = ss=>ss.map(s=>({...s,
     activite:TYPE_MIGRATION[s.activite]||s.activite,
     statut:s.statut==="Planifié"?"Planifié":s.statut==="Effectué"?"Effectué":s.statut==="Annulé"?"Annulé":s.statut||"Planifié",
   }));
-  const migrateActivites = aa=>aa.map(a=>({...a,type:GARMIN_TO_STRIDE[a.type]||TYPE_MIGRATION[a.type]||a.type}));
+  const migrateActivites = aa=>aa.map(a=>({...a,type:GARMIN_TO_ACTIVITE[a.type]||TYPE_MIGRATION[a.type]||a.type}));
 
-  // ── Stride states (chargés depuis Supabase) ────────────────────────────────
+  // ── Entrainement states (chargés depuis Supabase) ─────────────────────────
   const [seances,       setSeances]      = useState([]);
   const [activites,     setActivites]    = useState([]);
   const [sommeil,       setSommeil]      = useState([]);
@@ -1167,29 +900,66 @@ export default function App() {
   const [profilType,    setProfilType]   = useState(null); // null = premier lancement
   
   // ── Feature toggles (chargés depuis Supabase) ──────────────────────────────
-  const STRIDE_FEATURES_DEFAULT = {programme:true,activites:true,forme:true,gut_training:true,objectifs:true,coach:true};
-  const ALEX_FEATURES_DEFAULT = {nutrition:true,equipement:true,analyse:true,team:true,courses:true,profilDetail:true};
-  const [strideFeatures, setStrideFeatures] = useState(STRIDE_FEATURES_DEFAULT);
-  const [alexFeatures, setAlexFeatures] = useState(ALEX_FEATURES_DEFAULT);
+  const ENTRAINEMENT_FEATURES_DEFAULT = {programme:true,activites:true,forme:true,gut_training:true,objectifs:true,coach:true};
+  const COURSE_FEATURES_DEFAULT = {nutrition:true,equipement:true,analyse:true,team:true,courses:true,profilDetail:true};
+  const [entrainementFeatures, setEntrainementFeatures] = useState(ENTRAINEMENT_FEATURES_DEFAULT);
+  const [courseFeatures, setCourseFeatures] = useState(COURSE_FEATURES_DEFAULT);
   
   const [confirmReset,  setConfirmReset] = useState(false);
   const [dataLoaded,    setDataLoaded]   = useState(false);
+  const [loadError,     setLoadError]    = useState(false);
+  const [loadAttempt,   setLoadAttempt]  = useState(0);
 
-  // ── Load ALL data from Supabase at login ───────────────────────────────────
+  // ── Load ALL data from Supabase at login (avec timeout + retry) ───────────
   useEffect(() => {
     if (!user?.id || dataLoaded) return;
-    
-    Promise.all([
-      loadAthleteProfile(user.id),
-      loadActivities(user.id),
-      loadSeances(user.id),
-      loadSommeil(user.id),
-      loadVFC(user.id),
-      loadPoids(user.id),
-      loadObjectifs(user.id),
-      loadNutrition(user.id),
-      loadStrideSettings(user.id),
-    ]).then(([profile, acts, seances, som, vfc, pds, objs, nutr, settings]) => {
+
+    let cancelled = false;
+
+    // Timeout wrapper : rejette si la promesse ne résout pas en `ms` ms
+    const withTimeout = (promise, ms, label) => Promise.race([
+      promise,
+      new Promise((_, rej) => setTimeout(() => rej(new Error(`Timeout ${label} (${ms}ms)`)), ms)),
+    ]);
+
+    // Retry wrapper : jusqu'à `maxAttempts` tentatives avec backoff exponentiel
+    const loadWithRetry = async () => {
+      const maxAttempts = 3;
+      const timeoutMs = 10000;
+      let lastError = null;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const results = await withTimeout(
+            Promise.all([
+              loadAthleteProfile(user.id),
+              loadActivities(user.id),
+              loadSeances(user.id),
+              loadSommeil(user.id),
+              loadVFC(user.id),
+              loadPoids(user.id),
+              loadObjectifs(user.id),
+              loadNutrition(user.id),
+              loadEntrainementSettings(user.id),
+            ]),
+            timeoutMs,
+            `tentative ${attempt}`
+          );
+          return results;
+        } catch (err) {
+          lastError = err;
+          console.warn(`Chargement échoué (tentative ${attempt}/${maxAttempts}):`, err.message);
+          if (attempt < maxAttempts) {
+            await new Promise(r => setTimeout(r, 500 * Math.pow(2, attempt - 1)));
+          }
+        }
+      }
+      throw lastError;
+    };
+
+    loadWithRetry().then((results) => {
+      if (cancelled) return;
+      const [profile, acts, seances, som, vfc, pds, objs, nutr, settings] = results;
       if (profile) setProfil(profile);
       if (acts?.length) setActivites(migrateActivites(acts));
       if (seances?.length) setSeances(migrateSeances(seances));
@@ -1207,89 +977,93 @@ export default function App() {
           setPlanningType(settings.planningType);
         }
         if (settings.activityTypes?.length) setActivityTypes(settings.activityTypes);
-        if (settings.strideFeatures) setStrideFeatures(settings.strideFeatures);
-        if (settings.alexFeatures) setAlexFeatures(settings.alexFeatures);
+        if (settings.entrainementFeatures) setEntrainementFeatures(settings.entrainementFeatures);
+        if (settings.courseFeatures) setCourseFeatures(settings.courseFeatures);
         if (settings.profilType !== undefined) setProfilType(settings.profilType);
       }
+      setLoadError(false);
       setDataLoaded(true);
     }).catch(err => {
-      console.error('Erreur chargement données:', err);
-      setDataLoaded(true);
+      if (cancelled) return;
+      console.error('Erreur chargement données (toutes tentatives échouées):', err);
+      setLoadError(true);
+      // IMPORTANT : on NE passe PAS dataLoaded à true → aucune écriture ne pourra partir
     });
-  }, [user?.id, dataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    return () => { cancelled = true; };
+  }, [user?.id, dataLoaded, loadAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-save activités vers Supabase (debounced 2s)
   useEffect(()=>{
-    if (!user?.id || activites.length === 0) return;
+    if (!user?.id || !dataLoaded) return;
     const timer = setTimeout(() => {
       saveActivities(user.id, activites).catch(err => console.error('Erreur save activités:', err));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [activites, user?.id]);
+  }, [activites, user?.id, dataLoaded]);
 
   // Auto-save séances vers Supabase (debounced 2s)
   useEffect(()=>{
-    if (!user?.id || seances.length === 0) return;
+    if (!user?.id || !dataLoaded) return;
     const timer = setTimeout(() => {
       saveSeances(user.id, seances).catch(err => console.error('Erreur save séances:', err));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [seances, user?.id]);
+  }, [seances, user?.id, dataLoaded]);
 
   // Auto-save sommeil vers Supabase (debounced 2s)
   useEffect(()=>{
-    if (!user?.id || sommeil.length === 0) return;
+    if (!user?.id || !dataLoaded) return;
     const timer = setTimeout(() => {
       saveSommeil(user.id, sommeil).catch(err => console.error('Erreur save sommeil:', err));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [sommeil, user?.id]);
+  }, [sommeil, user?.id, dataLoaded]);
 
   // Auto-save VFC vers Supabase (debounced 2s)
   useEffect(()=>{
-    if (!user?.id || vfcData.length === 0) return;
+    if (!user?.id || !dataLoaded) return;
     const timer = setTimeout(() => {
       saveVFC(user.id, vfcData).catch(err => console.error('Erreur save VFC:', err));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [vfcData, user?.id]);
+  }, [vfcData, user?.id, dataLoaded]);
 
   // Auto-save poids vers Supabase (debounced 2s)
   useEffect(()=>{
-    if (!user?.id || poids.length === 0) return;
+    if (!user?.id || !dataLoaded) return;
     const timer = setTimeout(() => {
       savePoids(user.id, poids).catch(err => console.error('Erreur save poids:', err));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [poids, user?.id]);
+  }, [poids, user?.id, dataLoaded]);
 
   // Auto-save objectifs vers Supabase (debounced 2s)
   useEffect(()=>{
-    if (!user?.id || objectifs.length === 0) return;
+    if (!user?.id || !dataLoaded) return;
     const timer = setTimeout(() => {
       saveObjectifs(user.id, objectifs).catch(err => console.error('Erreur save objectifs:', err));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [objectifs, user?.id]);
+  }, [objectifs, user?.id, dataLoaded]);
 
   // Auto-save nutrition vers Supabase (debounced 2s)
   useEffect(()=>{
-    if (!user?.id) return;
-    if (journalNutri.length === 0 && produits.length === 0 && recettes.length === 0) return;
+    if (!user?.id || !dataLoaded) return;
     const timer = setTimeout(() => {
       saveNutrition(user.id, journalNutri, produits, recettes).catch(err => console.error('Erreur save nutrition:', err));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [journalNutri, produits, recettes, user?.id]);
+  }, [journalNutri, produits, recettes, user?.id, dataLoaded]);
 
-  // Auto-save stride settings + features vers Supabase (debounced 2s)
+  // Auto-save entrainement settings + features vers Supabase (debounced 2s)
   useEffect(()=>{
     if (!user?.id || !dataLoaded) return;
     const timer = setTimeout(() => {
-      saveStrideSettings(user.id, planningType, activityTypes, strideFeatures, alexFeatures, profilType).catch(err => console.error('Erreur save stride settings:', err));
+      saveEntrainementSettings(user.id, planningType, activityTypes, entrainementFeatures, courseFeatures, profilType).catch(err => console.error('Erreur save entrainement settings:', err));
     }, 2000);
     return () => clearTimeout(timer);
-  }, [planningType, activityTypes, strideFeatures, alexFeatures, profilType, user?.id, dataLoaded]);
+  }, [planningType, activityTypes, entrainementFeatures, courseFeatures, profilType, user?.id, dataLoaded]);
 
   // Init profil.taille depuis dernier poids si vide (mount uniquement)
   useEffect(()=>{
@@ -1300,7 +1074,7 @@ export default function App() {
   },[]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const allData = {seances,activites,sommeil,vfcData,poids,objectifs,planningType,activityTypes,journalNutri,produits,recettes,profil};
-  const loadStrideData = data => {
+  const loadEntrainementData = data => {
     if(data.seances)       setSeances(data.seances);
     if(data.activites)     setActivites(data.activites);
     if(data.sommeil)       setSommeil(data.sommeil);
@@ -1316,7 +1090,7 @@ export default function App() {
   };
   const resetAll = ()=>{ setSeances([]); setActivites([]); setSommeil([]); setVfcData([]); setPoids([]); setObjectifs([]); };
 
-  // ── Alex state (ex-CourseLayout) ─────────────────────────────────────────
+  // ── Course state (ex-CourseLayout) ────────────────────────────────────────
   const [view,         setView]         = useState("accueil");
   const [raceRaw,      setRaceRaw]      = useState({});
   const [segmentsRaw,  setSegmentsRaw]  = useState([]);
@@ -1332,8 +1106,8 @@ export default function App() {
   const [installDone,  setInstallDone]  = useState(false);
   const [showInstallGuide,setShowInstallGuide]=useState(false);
 
-  // Features labels (Stride)
-  const STRIDE_FEATURE_LABELS=[
+  // Features labels (Entrainement)
+  const ENTRAINEMENT_FEATURE_LABELS=[
     {key:"programme",label:"Programme",icon:"↑",desc:"Planification des séances, suivi hebdomadaire"},
     {key:"activites",label:"Activités",icon:"▣",desc:"Historique activités Garmin importées"},
     {key:"forme",label:"Forme",icon:"♡",desc:"VFC, sommeil, poids, journal nutritionnel"},
@@ -1342,19 +1116,19 @@ export default function App() {
     {key:"coach",label:"Coach IA",icon:"✦",desc:"Conseils personnalisés basés sur tes données"},
   ];
   
-  // Toggle Stride features → auto-save vers Supabase
-  const toggleStrideFeature=key=>{
-    setStrideFeatures(prev=>{
+  // Toggle Entrainement features → auto-save vers Supabase
+  const toggleEntrainementFeature=key=>{
+    setEntrainementFeatures(prev=>{
       const next={...prev,[key]:!prev[key]};
       if (user?.id) {
-        saveStrideSettings(user.id, planningType, activityTypes, next, alexFeatures, profilType)
-          .catch(err => console.error('Erreur save stride features:', err));
+        saveEntrainementSettings(user.id, planningType, activityTypes, next, courseFeatures, profilType)
+          .catch(err => console.error('Erreur save entrainement features:', err));
       }
       return next;
     });
   };
   
-  // Features labels (Alex)
+  // Features labels (Course)
   const FEATURE_LABELS=[
     {key:"profilDetail",label:"Profil détaillé",icon:"🗺️",desc:"Répartition rythme, calibration Garmin, FC"},
     {key:"nutrition",label:"Nutrition",icon:"🍌",desc:"Plan nutritionnel par ravito, bibliothèque produits"},
@@ -1364,25 +1138,25 @@ export default function App() {
     {key:"courses",label:"Mes courses",icon:"📚",desc:"Historique et sauvegarde des stratégies"},
   ];
   
-  // Toggle Alex features → auto-save vers Supabase
+  // Toggle Course features → auto-save vers Supabase
   const toggleFeature=key=>{
-    setAlexFeatures(prev=>{
+    setCourseFeatures(prev=>{
       const next={...prev,[key]:!prev[key]};
       if (user?.id) {
-        saveStrideSettings(user.id, planningType, activityTypes, strideFeatures, next, profilType)
-          .catch(err => console.error('Erreur save alex features:', err));
+        saveEntrainementSettings(user.id, planningType, activityTypes, entrainementFeatures, next, profilType)
+          .catch(err => console.error('Erreur save course features:', err));
       }
       return next;
     });
   };
   
-  // Navigation Alex filtrée selon features actives
-  const NAVS_ACTIVE=ALEX_NAVS.filter(n=>{
-    if(n.id==="nutrition")return alexFeatures.nutrition;
-    if(n.id==="parametres")return alexFeatures.equipement;
-    if(n.id==="analyse")return alexFeatures.analyse;
-    if(n.id==="team")return alexFeatures.team;
-    if(n.id==="courses")return alexFeatures.courses;
+  // Navigation Course filtrée selon features actives
+  const NAVS_ACTIVE=COURSE_NAVS.filter(n=>{
+    if(n.id==="nutrition")return courseFeatures.nutrition;
+    if(n.id==="parametres")return courseFeatures.equipement;
+    if(n.id==="analyse")return courseFeatures.analyse;
+    if(n.id==="team")return courseFeatures.team;
+    if(n.id==="courses")return courseFeatures.courses;
     return true;
   });
 
@@ -1417,7 +1191,10 @@ export default function App() {
         if(data.segments)setSegmentsRaw(data.segments);
         if(data.settings)setSettingsRaw({...EMPTY_SETTINGS,...data.settings});
         setSharedMode(true);setView("team");
-        idbSave({race:data.race,segments:data.segments,settings:{...EMPTY_SETTINGS,...data.settings}});
+        if (user?.id) {
+          saveCurrentRace(user.id, data.race, data.segments, {...EMPTY_SETTINGS,...data.settings})
+            .catch(err => console.error('Erreur save stratégie partagée:', err));
+        }
         window.history.replaceState({},"",window.location.pathname);
         return;
       }
@@ -1467,10 +1244,10 @@ export default function App() {
   const saveAllData=()=>{
     const payload={
       _version:"1.0", _date:new Date().toISOString(),
-      // Stride
+      // Entrainement
       seances, activites, sommeil, vfcData, poids, objectifs,
       planningType, activityTypes, journalNutri, produits, recettes, profil,
-      // Alex
+      // Course
       race, segments,
       settings:{...settings, equipment:undefined, garminStats:undefined},
     };
@@ -1512,25 +1289,6 @@ export default function App() {
     };
     reader.readAsText(file);
   };
-
-  // IDB
-  const IDB_NAME="alex-trail",IDB_STORE="state",IDB_COURSES="courses",IDB_KEY="current";
-  const openDB=()=>new Promise((res,rej)=>{
-    const req=indexedDB.open(IDB_NAME,3);
-    req.onupgradeneeded=e=>{
-      const db=e.target.result;
-      if(!db.objectStoreNames.contains(IDB_STORE))db.createObjectStore(IDB_STORE);
-      if(!db.objectStoreNames.contains(IDB_COURSES))db.createObjectStore(IDB_COURSES,{keyPath:"id"});
-      if(!db.objectStoreNames.contains("stride"))db.createObjectStore("stride");
-    };
-    req.onsuccess=e=>res(e.target.result);
-    req.onerror=rej;
-  });
-  const idbSave=async data=>{try{const db=await openDB();db.transaction(IDB_STORE,"readwrite").objectStore(IDB_STORE).put(data,IDB_KEY);}catch{}};
-  const idbLoad=async()=>{try{const db=await openDB();return new Promise(res=>{const req=db.transaction(IDB_STORE,"readonly").objectStore(IDB_STORE).get(IDB_KEY);req.onsuccess=e=>res(e.target.result);req.onerror=()=>res(null);});}catch{return null;}};
-  const idbSaveCourse=async(id,data)=>{try{const db=await openDB();db.transaction(IDB_COURSES,"readwrite").objectStore(IDB_COURSES).put({id,...data});}catch{}};
-  const idbLoadCourses=async()=>{try{const db=await openDB();return new Promise(res=>{const req=db.transaction(IDB_COURSES,"readonly").objectStore(IDB_COURSES).getAll();req.onsuccess=e=>res(e.target.result||[]);req.onerror=()=>res([]);});}catch{return[];}};
-  const idbDeleteCourse=async id=>{try{const db=await openDB();db.transaction(IDB_COURSES,"readwrite").objectStore(IDB_COURSES).delete(id);}catch{}};
 
   const saveCourseFn=()=>{
     const id=crypto.randomUUID();
@@ -1587,6 +1345,38 @@ export default function App() {
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'DM Sans, sans-serif' }}>Chargement...</div>;
   if (!user) return <Login />;
 
+  // Data load guard — bloque l'app tant que les données ne sont pas chargées
+  // Si le chargement a échoué : écran d'erreur avec bouton Réessayer (empêche tout écrasement)
+  if (loadError) {
+    return (
+      <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F5F3EF', padding:'2rem', fontFamily:'DM Sans, sans-serif' }}>
+        <div style={{ maxWidth:480, textAlign:'center', background:'#FFFFFF', padding:'2rem', borderRadius:12, border:'1px solid #DDD9D1' }}>
+          <div style={{ fontSize:18, fontWeight:700, color:'#1C1916', marginBottom:12 }}>Impossible de charger tes données</div>
+          <div style={{ fontSize:14, color:'#7A7268', lineHeight:1.5, marginBottom:20 }}>
+            La connexion à la base de données a échoué. Tes données sont en sécurité — l'app est bloquée en écriture pour ne rien écraser. Vérifie ta connexion internet et réessaie.
+          </div>
+          <button
+            onClick={() => { setLoadError(false); setLoadAttempt(a => a + 1); }}
+            style={{ padding:'10px 20px', background:'#2D5A3D', color:'#FFFFFF', border:'none', borderRadius:8, fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}
+          >
+            Réessayer
+          </button>
+          <div style={{ marginTop:16 }}>
+            <button
+              onClick={() => signOut()}
+              style={{ padding:'6px 12px', background:'transparent', color:'#7A7268', border:'none', fontSize:12, cursor:'pointer', fontFamily:'inherit', textDecoration:'underline' }}
+            >
+              Se déconnecter
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (!dataLoaded) {
+    return <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'DM Sans, sans-serif' }}>Chargement de tes données...</div>;
+  }
+
   return (
     <AppLayout
       seances={seances} setSeances={setSeances} activites={activites} setActivites={setActivites}
@@ -1596,7 +1386,7 @@ export default function App() {
       activityTypes={activityTypes} setActivityTypes={setActivityTypes}
       journalNutri={journalNutri} setJournalNutri={setJournalNutri}
       produits={produits} setProduits={setProduits} recettes={recettes} setRecettes={setRecettes}
-      allData={allData} loadStrideData={loadStrideData} resetAll={resetAll}
+      allData={allData} loadEntrainementData={loadEntrainementData} resetAll={resetAll}
       profil={profil} setProfil={setProfil} confirmReset={confirmReset} setConfirmReset={setConfirmReset}
       isMobile={isMobile}
       view={view} setView={setView}
@@ -1612,8 +1402,8 @@ export default function App() {
       navigate={navigate} hasRace={hasRace}
       isStandalone={isStandalone} installDone={installDone}
       handleInstall={handleInstall} showInstallGuide={showInstallGuide} setShowInstallGuide={setShowInstallGuide}
-      features={alexFeatures} toggleFeature={toggleFeature} FEATURE_LABELS={FEATURE_LABELS} NAVS_ACTIVE={NAVS_ACTIVE}
-      strideFeatures={strideFeatures} toggleStrideFeature={toggleStrideFeature} STRIDE_FEATURE_LABELS={STRIDE_FEATURE_LABELS}
+      features={courseFeatures} toggleFeature={toggleFeature} FEATURE_LABELS={FEATURE_LABELS} NAVS_ACTIVE={NAVS_ACTIVE}
+      entrainementFeatures={entrainementFeatures} toggleEntrainementFeature={toggleEntrainementFeature} ENTRAINEMENT_FEATURE_LABELS={ENTRAINEMENT_FEATURE_LABELS}
       profilType={profilType} setProfilType={setProfilType}
       saveAllData={saveAllData}
       sharedMode={sharedMode} installPrompt={installPrompt}

@@ -514,7 +514,6 @@ export default function TeamView({ race, setRace, segments, setSegments, setting
                       </div>
                     ) : (() => {
                       const items = rv.produits || [];
-                      console.log(`[TeamView] Ravito ${rv.name} (${rv.km}km) - produits:`, items);
                       const bibProduits = (race.bibliotheque?.produits || []);
                       const bibRecettes = (race.bibliotheque?.recettes || []);
                       const allItems = [...bibProduits, ...bibRecettes];
