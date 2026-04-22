@@ -406,14 +406,6 @@ Annuler = tout effacer.`);if(ok)saveCourse();}
                 const ns={...EMPTY_SETTINGS,produits:settings.produits||[],equipment:settings.equipment||DEFAULT_EQUIPMENT,darkMode:settings.darkMode};
                 setRace({});setSegments([]);setSettings(ns);setView("profil_course");setDrawerOpen(false);
               }} icon="🔄" label="Nouvelle course"/>
-              {!isStandalone&&!installDone&&(
-                <ActionBtn onClick={handleInstall} icon="📲" label="Installer l'app"/>
-              )}
-              {isStandalone&&(
-                <div style={{fontSize:12,color:C.green,padding:"6px 0",display:"flex",alignItems:"center",gap:6}}>
-                  <span>✓</span><span>App installée</span>
-                </div>
-              )}
             </div>
           </Section>
         </div>
@@ -535,7 +527,7 @@ function AppLayout({
   hasUnsaved, autoSaved, courses, drawerOpen, setDrawerOpen,
   reposModal, setReposModal, reposForm, setReposForm, addRepos,
   saveData, loadData, saveCourse, loadCourse, deleteCourse, updateCourse, overwriteCourse,
-  navigate, hasRace, isStandalone, installDone, handleInstall, showInstallGuide, setShowInstallGuide,
+  navigate, hasRace, isStandalone, installDone, handleInstall,
   features, toggleFeature, FEATURE_LABELS, NAVS_ACTIVE,
   entrainementFeatures, toggleEntrainementFeature, ENTRAINEMENT_FEATURE_LABELS,
   profilType, setProfilType,
@@ -753,26 +745,6 @@ function AppLayout({
           </div>
         </div>
       )}
-      {/* GUIDE INSTALL */}
-      {showInstallGuide&&(
-        <div onClick={()=>setShowInstallGuide(false)} style={{position:"fixed",inset:0,background:"rgba(28,25,22,0.55)",backdropFilter:"blur(3px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:C.white,borderRadius:16,width:"100%",maxWidth:400,padding:28}}>
-            <div style={{fontFamily:"'Fraunces',serif",fontSize:20,fontWeight:600,marginBottom:16}}>Installer Alex</div>
-            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              {[{step:"1",text:"Ouvre le menu du navigateur (⋮ ou ···)"},{step:"2",text:"Cherche « Ajouter à l'écran d'accueil » ou « Installer »"},{step:"3",text:"Confirme l'installation"}].map(s=>(
-                <div key={s.step} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-                  <div style={{width:24,height:24,borderRadius:"50%",background:COURSE_C.primary,color:"#fff",fontWeight:700,fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{s.step}</div>
-                  <span style={{fontSize:13,lineHeight:1.5}}>{s.text}</span>
-                </div>
-              ))}
-            </div>
-            <div style={{marginTop:20,display:"flex",justifyContent:"flex-end"}}>
-              <button onClick={()=>setShowInstallGuide(false)} style={{background:COURSE_C.primary,color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Compris</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div style={{display:"flex",height:"100%",overflow:"hidden",background:C.bg}}>
         {/* Sidebar desktop */}
         {!isMobile&&(
@@ -1122,7 +1094,6 @@ export default function App() {
   const [reposForm,    setReposForm]    = useState({label:"",startKm:"",dureeMin:20});
   const [installPrompt,setInstallPrompt]= useState(null);
   const [installDone,  setInstallDone]  = useState(false);
-  const [showInstallGuide,setShowInstallGuide]=useState(false);
 
   // Features labels (Entrainement)
   const ENTRAINEMENT_FEATURE_LABELS=[
@@ -1193,8 +1164,10 @@ export default function App() {
   },[]);
 
   const handleInstall=async()=>{
-    if(installPrompt){installPrompt.prompt();const{outcome}=await installPrompt.userChoice;if(outcome==="accepted"){setInstallDone(true);setInstallPrompt(null);}}
-    else setShowInstallGuide(true);
+    if(!installPrompt)return;
+    installPrompt.prompt();
+    const{outcome}=await installPrompt.userChoice;
+    if(outcome==="accepted"){setInstallDone(true);setInstallPrompt(null);}
   };
 
   // Chargement initial
@@ -1419,7 +1392,7 @@ export default function App() {
       deleteCourse={deleteCourseFn} updateCourse={updateCourseFn} overwriteCourse={overwriteCourseFn}
       navigate={navigate} hasRace={hasRace}
       isStandalone={isStandalone} installDone={installDone}
-      handleInstall={handleInstall} showInstallGuide={showInstallGuide} setShowInstallGuide={setShowInstallGuide}
+      handleInstall={handleInstall}
       features={courseFeatures} toggleFeature={toggleFeature} FEATURE_LABELS={FEATURE_LABELS} NAVS_ACTIVE={NAVS_ACTIVE}
       entrainementFeatures={entrainementFeatures} toggleEntrainementFeature={toggleEntrainementFeature} ENTRAINEMENT_FEATURE_LABELS={ENTRAINEMENT_FEATURE_LABELS}
       profilType={profilType} setProfilType={setProfilType}
