@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useAuth } from '../AuthContext';
+import { Modal, Btn } from '../atoms.jsx';
 import {
   loadAthleteProfile, saveAthleteProfile,
   loadActivities, loadSeances, loadSommeil, loadVFC, loadPoids,
@@ -118,6 +119,37 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
 
   const [z2Str, setZ2Str] = useState(paceToStr(p.allureZ2));
   const [z3Str, setZ3Str] = useState(paceToStr(p.allureZ3));
+
+  // États de la modal de suppression de compte (RGPD)
+  const [deleteStep, setDeleteStep] = useState(0); // 0=fermé, 1=avertissement, 2=confirmation email
+  const [deleteEmail, setDeleteEmail] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const openDeleteFlow = () => { setDeleteStep(1); setDeleteEmail(""); setDeleteError(""); };
+  const closeDeleteFlow = () => { if (deleteLoading) return; setDeleteStep(0); setDeleteEmail(""); setDeleteError(""); };
+
+  const confirmDelete = async () => {
+    if (deleteEmail.trim().toLowerCase() !== (user?.email || "").trim().toLowerCase()) {
+      setDeleteError("Email incorrect.");
+      return;
+    }
+    setDeleteError("");
+    setDeleteLoading(true);
+    try {
+      const { error } = await deleteAccount();
+      if (error) {
+        setDeleteError(`Erreur : ${error.message || 'erreur inconnue'}`);
+        setDeleteLoading(false);
+        return;
+      }
+      // Succès : la déconnexion va déclencher un unmount, pas besoin de reset le state
+    } catch (err) {
+      console.error('Erreur suppression:', err);
+      setDeleteError('Une erreur est survenue. Réessaie.');
+      setDeleteLoading(false);
+    }
+  };
 
   const handlePaceBlur = (z, str, setStr) => {
     const val = strToPace(str);
@@ -352,43 +384,7 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
         </div>
 
         {/* Suppression compte */}
-        <button onClick={async () => {
-          const confirm = window.confirm(
-            "⚠️ ATTENTION\n\n" +
-            "Cette action est IRRÉVERSIBLE.\n\n" +
-            "Toutes tes données seront définitivement supprimées :\n" +
-            "• Profil athlète\n" +
-            "• Activités et séances\n" +
-            "• Données de forme (VFC, sommeil, poids)\n" +
-            "• Courses et stratégies\n" +
-            "• Nutrition\n\n" +
-            "Veux-tu vraiment supprimer ton compte ?"
-          );
-          
-          if (!confirm) return;
-          
-          const doubleConfirm = window.prompt(
-            "Pour confirmer, tape ton email :"
-          );
-          
-          if (doubleConfirm !== user?.email) {
-            alert("Email incorrect. Suppression annulée.");
-            return;
-          }
-
-          try {
-            const { error } = await deleteAccount();
-            if (error) {
-              console.error('Erreur suppression:', error);
-              alert(`Erreur lors de la suppression : ${error.message || 'erreur inconnue'}`);
-              return;
-            }
-            alert("Compte et données supprimés définitivement. Tu vas être déconnecté.");
-          } catch (err) {
-            console.error('Erreur suppression:', err);
-            alert('Erreur lors de la suppression');
-          }
-        }}
+        <button onClick={openDeleteFlow}
           style={{ width:"100%", padding:"12px 20px", borderRadius:10, border:`1px solid ${C.red}`,
             background:C.redPale, color:C.red, cursor:"pointer", fontFamily:"inherit",
             fontSize:14, fontWeight:500, marginBottom:8 }}>
@@ -407,6 +403,72 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
         </div>
 
       </div>
+
+      {/* Modal suppression compte (RGPD) */}
+      <Modal
+        open={deleteStep > 0}
+        onClose={closeDeleteFlow}
+        title={deleteStep === 1 ? "Supprimer ton compte" : "Confirmer la suppression"}
+        subtitle={deleteStep === 1 ? "Action irréversible" : "Dernière étape avant suppression"}
+        width={440}
+      >
+        {deleteStep === 1 && (
+          <div>
+            <div style={{ padding:14, background:C.redPale, border:`1px solid ${C.red}30`, borderRadius:10, marginBottom:16 }}>
+              <div style={{ fontSize:13, color:C.red, fontWeight:600, marginBottom:8 }}>⚠️ Cette action est irréversible</div>
+              <div style={{ fontSize:13, color:C.inkLight, lineHeight:1.6 }}>
+                Toutes tes données seront définitivement supprimées de nos serveurs :
+              </div>
+            </div>
+            <ul style={{ fontSize:13, color:C.inkLight, lineHeight:1.9, paddingLeft:18, marginBottom:20 }}>
+              <li>Profil athlète et zones FC</li>
+              <li>Activités, séances, programme d'entraînement</li>
+              <li>Données de forme (VFC, sommeil, poids)</li>
+              <li>Courses, stratégies et profils GPX</li>
+              <li>Nutrition (produits, recettes, journal)</li>
+            </ul>
+            <div style={{ fontSize:12, color:C.muted, marginBottom:20, lineHeight:1.6 }}>
+              Tu peux d'abord exporter tes données via le bouton « Exporter toutes mes données » si tu souhaites en garder une copie.
+            </div>
+            <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+              <Btn variant="ghost" onClick={closeDeleteFlow}>Annuler</Btn>
+              <Btn variant="danger" onClick={() => setDeleteStep(2)}>Continuer</Btn>
+            </div>
+          </div>
+        )}
+
+        {deleteStep === 2 && (
+          <div>
+            <div style={{ fontSize:13, color:C.inkLight, lineHeight:1.6, marginBottom:14 }}>
+              Pour confirmer, tape ton adresse email :
+            </div>
+            <div style={{ fontSize:12, color:C.muted, marginBottom:10, fontFamily:"monospace" }}>
+              {user?.email || "—"}
+            </div>
+            <input
+              type="email"
+              autoFocus
+              value={deleteEmail}
+              onChange={e => { setDeleteEmail(e.target.value); setDeleteError(""); }}
+              onKeyDown={e => { if (e.key === "Enter" && !deleteLoading) confirmDelete(); }}
+              placeholder="ton@email.com"
+              disabled={deleteLoading}
+              style={{ width:"100%", padding:"10px 12px", borderRadius:8,
+                border:`1px solid ${deleteError ? C.red : C.border}`, fontFamily:"inherit",
+                fontSize:14, marginBottom:deleteError ? 6 : 20, outline:"none" }}
+            />
+            {deleteError && (
+              <div style={{ fontSize:12, color:C.red, marginBottom:14 }}>{deleteError}</div>
+            )}
+            <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+              <Btn variant="ghost" onClick={closeDeleteFlow} disabled={deleteLoading}>Annuler</Btn>
+              <Btn variant="danger" onClick={confirmDelete} disabled={deleteLoading || !deleteEmail}>
+                {deleteLoading ? "Suppression…" : "Supprimer définitivement"}
+              </Btn>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

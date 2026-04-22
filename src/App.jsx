@@ -983,11 +983,34 @@ export default function App() {
     return () => { cancelled = true; };
   }, [user?.id, dataLoaded, loadAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Flush pending saves au beforeunload ──────────────────────────────────
+  // Chaque auto-save enregistre sa fonction de flush ici. Si l'utilisateur
+  // quitte la page pendant la fenêtre de debounce (2s), on déclenche toutes
+  // les saves pending immédiatement au lieu de les perdre.
+  const pendingSavesRef = useRef({});
+
+  useEffect(() => {
+    const handler = () => {
+      const pending = pendingSavesRef.current;
+      Object.keys(pending).forEach(key => {
+        try { pending[key](); } catch (e) { /* fire-and-forget */ }
+      });
+    };
+    window.addEventListener('beforeunload', handler);
+    window.addEventListener('pagehide', handler); // fiabilité mobile (Safari iOS)
+    return () => {
+      window.removeEventListener('beforeunload', handler);
+      window.removeEventListener('pagehide', handler);
+    };
+  }, []);
+
   // Auto-save activités vers Supabase (debounced 2s)
   useEffect(()=>{
     if (!user?.id || !dataLoaded) return;
+    pendingSavesRef.current.activites = () => saveActivities(user.id, activites).catch(()=>{});
     const timer = setTimeout(() => {
       saveActivities(user.id, activites).catch(err => console.error('Erreur save activités:', err));
+      delete pendingSavesRef.current.activites;
     }, 2000);
     return () => clearTimeout(timer);
   }, [activites, user?.id, dataLoaded]);
@@ -995,8 +1018,10 @@ export default function App() {
   // Auto-save séances vers Supabase (debounced 2s)
   useEffect(()=>{
     if (!user?.id || !dataLoaded) return;
+    pendingSavesRef.current.seances = () => saveSeances(user.id, seances).catch(()=>{});
     const timer = setTimeout(() => {
       saveSeances(user.id, seances).catch(err => console.error('Erreur save séances:', err));
+      delete pendingSavesRef.current.seances;
     }, 2000);
     return () => clearTimeout(timer);
   }, [seances, user?.id, dataLoaded]);
@@ -1004,8 +1029,10 @@ export default function App() {
   // Auto-save sommeil vers Supabase (debounced 2s)
   useEffect(()=>{
     if (!user?.id || !dataLoaded) return;
+    pendingSavesRef.current.sommeil = () => saveSommeil(user.id, sommeil).catch(()=>{});
     const timer = setTimeout(() => {
       saveSommeil(user.id, sommeil).catch(err => console.error('Erreur save sommeil:', err));
+      delete pendingSavesRef.current.sommeil;
     }, 2000);
     return () => clearTimeout(timer);
   }, [sommeil, user?.id, dataLoaded]);
@@ -1013,8 +1040,10 @@ export default function App() {
   // Auto-save VFC vers Supabase (debounced 2s)
   useEffect(()=>{
     if (!user?.id || !dataLoaded) return;
+    pendingSavesRef.current.vfc = () => saveVFC(user.id, vfcData).catch(()=>{});
     const timer = setTimeout(() => {
       saveVFC(user.id, vfcData).catch(err => console.error('Erreur save VFC:', err));
+      delete pendingSavesRef.current.vfc;
     }, 2000);
     return () => clearTimeout(timer);
   }, [vfcData, user?.id, dataLoaded]);
@@ -1022,8 +1051,10 @@ export default function App() {
   // Auto-save poids vers Supabase (debounced 2s)
   useEffect(()=>{
     if (!user?.id || !dataLoaded) return;
+    pendingSavesRef.current.poids = () => savePoids(user.id, poids).catch(()=>{});
     const timer = setTimeout(() => {
       savePoids(user.id, poids).catch(err => console.error('Erreur save poids:', err));
+      delete pendingSavesRef.current.poids;
     }, 2000);
     return () => clearTimeout(timer);
   }, [poids, user?.id, dataLoaded]);
@@ -1031,8 +1062,10 @@ export default function App() {
   // Auto-save objectifs vers Supabase (debounced 2s)
   useEffect(()=>{
     if (!user?.id || !dataLoaded) return;
+    pendingSavesRef.current.objectifs = () => saveObjectifs(user.id, objectifs).catch(()=>{});
     const timer = setTimeout(() => {
       saveObjectifs(user.id, objectifs).catch(err => console.error('Erreur save objectifs:', err));
+      delete pendingSavesRef.current.objectifs;
     }, 2000);
     return () => clearTimeout(timer);
   }, [objectifs, user?.id, dataLoaded]);
@@ -1040,8 +1073,10 @@ export default function App() {
   // Auto-save nutrition vers Supabase (debounced 2s)
   useEffect(()=>{
     if (!user?.id || !dataLoaded) return;
+    pendingSavesRef.current.nutrition = () => saveNutrition(user.id, journalNutri, produits, recettes).catch(()=>{});
     const timer = setTimeout(() => {
       saveNutrition(user.id, journalNutri, produits, recettes).catch(err => console.error('Erreur save nutrition:', err));
+      delete pendingSavesRef.current.nutrition;
     }, 2000);
     return () => clearTimeout(timer);
   }, [journalNutri, produits, recettes, user?.id, dataLoaded]);
@@ -1049,8 +1084,10 @@ export default function App() {
   // Auto-save entrainement settings + features vers Supabase (debounced 2s)
   useEffect(()=>{
     if (!user?.id || !dataLoaded) return;
+    pendingSavesRef.current.entrainementSettings = () => saveEntrainementSettings(user.id, planningType, activityTypes, entrainementFeatures, courseFeatures, profilType).catch(()=>{});
     const timer = setTimeout(() => {
       saveEntrainementSettings(user.id, planningType, activityTypes, entrainementFeatures, courseFeatures, profilType).catch(err => console.error('Erreur save entrainement settings:', err));
+      delete pendingSavesRef.current.entrainementSettings;
     }, 2000);
     return () => clearTimeout(timer);
   }, [planningType, activityTypes, entrainementFeatures, courseFeatures, profilType, user?.id, dataLoaded]);
