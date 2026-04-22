@@ -3,7 +3,7 @@ import { useAuth } from './AuthContext'
 import { C } from './constants'
 
 export default function Login() {
-  const { signIn, signUp, sendPasswordReset, setNewPassword, isRecovery } = useAuth()
+  const { signIn, signUp, sendPasswordReset, setNewPassword, isRecovery, clearRecovery, user } = useAuth()
 
   // Modes : 'signin' | 'signup' | 'forgot' | 'reset'
   const [mode, setMode] = useState('signin')
@@ -324,7 +324,12 @@ export default function Login() {
                 <LinkBtn onClick={() => switchMode('signin')}>← Retour à la connexion</LinkBtn>
               )}
               {mode === 'reset' && (
-                <span style={{ fontSize: '12px' }}>Après enregistrement, tu seras automatiquement connecté.</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px' }}>Après enregistrement, tu seras automatiquement connecté.</span>
+                  {user && (
+                    <LinkBtn onClick={clearRecovery}>Annuler et revenir à l'app</LinkBtn>
+                  )}
+                </div>
               )}
             </div>
           </div>

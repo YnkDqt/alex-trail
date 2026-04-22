@@ -65,8 +65,12 @@ export function AuthProvider({ children }) {
   // (la session de recovery est déjà active à ce stade)
   const setNewPassword = async (newPassword) => {
     const { error } = await supabase.auth.updateUser({ password: newPassword })
+    if (!error) setIsRecovery(false) // sortir du mode recovery → l'app prend le relais
     return { error }
   }
+
+  // Permet à Login de sortir du mode recovery si l'utilisateur annule
+  const clearRecovery = () => setIsRecovery(false)
   
   const deleteAccount = async () => {
     if (!user?.id) return { error: new Error('No user') }
@@ -95,7 +99,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, signUp, signIn, signOut, deleteAccount, updatePassword, sendPasswordReset, setNewPassword, isRecovery, loading }}>
+    <AuthContext.Provider value={{ user, signUp, signIn, signOut, deleteAccount, updatePassword, sendPasswordReset, setNewPassword, isRecovery, clearRecovery, loading }}>
       {children}
     </AuthContext.Provider>
   )

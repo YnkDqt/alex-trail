@@ -862,7 +862,7 @@ function AppLayout({
 
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, signOut, isRecovery } = useAuth();
   
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   useEffect(()=>{ const h=()=>setIsMobile(window.innerWidth<=768); window.addEventListener("resize",h); return()=>window.removeEventListener("resize",h); },[]);
@@ -1371,7 +1371,9 @@ export default function App() {
 
   // Auth guard
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'DM Sans, sans-serif' }}>Chargement...</div>;
-  if (!user) return <Login />;
+  // Afficher Login si pas connecté OU si on revient depuis un lien de réinitialisation
+  // (dans ce cas, user existe via la session de recovery, mais on veut montrer le formulaire "nouveau mdp")
+  if (!user || isRecovery) return <Login />;
 
   // Data load guard — bloque l'app tant que les données ne sont pas chargées
   // Si le chargement a échoué : écran d'erreur avec bouton Réessayer (empêche tout écrasement)
