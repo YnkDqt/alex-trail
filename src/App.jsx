@@ -662,6 +662,23 @@ function AppLayout({
 
       <div style={{height:1,background:C.border,margin:"0 14px"}}/>
 
+      {/* Installer l'app */}
+      {!isStandalone&&!installDone&&installPrompt&&(
+        <div onClick={handleInstall}
+          style={{margin:"10px 14px 0",padding:"10px 12px",borderRadius:9,
+            background:accentColor+"12",border:`1px solid ${accentColor}30`,
+            display:"flex",alignItems:"center",gap:10,cursor:"pointer",
+            transition:"background .15s"}}
+          onMouseEnter={e=>{e.currentTarget.style.background=accentColor+"20"}}
+          onMouseLeave={e=>{e.currentTarget.style.background=accentColor+"12"}}>
+          <span style={{fontSize:16}}>📲</span>
+          <div style={{flex:1,display:"flex",flexDirection:"column",gap:1}}>
+            <span style={{fontSize:12,fontWeight:600,color:accentColor}}>Installer l'app</span>
+            <span style={{fontSize:10,color:C.muted}}>Accès direct depuis l'écran d'accueil</span>
+          </div>
+        </div>
+      )}
+
       {/* Dark mode */}
       <div style={{padding:"10px 14px 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <span style={{fontSize:12,color:C.muted,fontWeight:500}}>{isDark?"🌙 Mode sombre":"☀️ Mode clair"}</span>
