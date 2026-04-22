@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useAuth } from './AuthContext';
-import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse, loadNutrition, saveNutrition, loadEntrainementSettings, saveEntrainementSettings } from './supabaseHelpers';
+import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse, loadNutrition, saveNutrition, loadEntrainementSettings, saveEntrainementSettings, getDataVersion, bumpDataVersion } from './supabaseHelpers';
 import Login from './Login';
 
 // ─── COURSE IMPORTS ───────────────────────────────────────────────────────────
@@ -183,6 +183,7 @@ const COURSE_G = `
 `;
 // ─── COULEURS ENTRAINEMENT ──────────────────────────────────────────────────
 const TEAL = "#1D9E75";
+const TEAL_PALE = "#e8f5f0";
 
 // ─── ACCUEIL (page d'accueil unifiée) ────────────────────────────────────────
 
@@ -352,6 +353,8 @@ function DonneesParamsView({
                       }
                       // Restaurer tout dans Supabase
                       const raceData = data.currentRace?.race?.race ? data.currentRace.race : data.currentRace;
+                      const nutr = data.nutrition || {};
+                      const stg  = data.settings  || {};
                       await Promise.all([
                         data.profile && saveAthleteProfile(user.id, data.profile),
                         data.activities && saveActivities(user.id, data.activities),
@@ -360,8 +363,8 @@ function DonneesParamsView({
                         data.vfc && saveVFC(user.id, data.vfc),
                         data.poids && savePoids(user.id, data.poids),
                         data.objectifs && saveObjectifs(user.id, data.objectifs),
-                        data.nutrition && saveNutrition(user.id, data.nutrition),
-                        data.settings && saveEntrainementSettings(user.id, data.settings),
+                        data.nutrition && saveNutrition(user.id, nutr.journalNutri || [], nutr.produits || [], nutr.recettes || []),
+                        data.settings && saveEntrainementSettings(user.id, stg.planningType, stg.activityTypes, stg.entrainementFeatures, stg.courseFeatures, stg.profilType),
                         raceData && saveCurrentRace(user.id, raceData.race, raceData.segments, raceData.settings),
                       ]);
                       alert('✅ Import réussi ! Recharge la page.');
@@ -405,14 +408,6 @@ Annuler = tout effacer.`);if(ok)saveCourse();}
                 const ns={...EMPTY_SETTINGS,produits:settings.produits||[],equipment:settings.equipment||DEFAULT_EQUIPMENT,darkMode:settings.darkMode};
                 setRace({});setSegments([]);setSettings(ns);setView("profil_course");setDrawerOpen(false);
               }} icon="🔄" label="Nouvelle course"/>
-              {!isStandalone&&!installDone&&(
-                <ActionBtn onClick={handleInstall} icon="📲" label="Installer l'app"/>
-              )}
-              {isStandalone&&(
-                <div style={{fontSize:12,color:C.green,padding:"6px 0",display:"flex",alignItems:"center",gap:6}}>
-                  <span>✓</span><span>App installée</span>
-                </div>
-              )}
             </div>
           </Section>
         </div>
@@ -534,7 +529,7 @@ function AppLayout({
   hasUnsaved, autoSaved, courses, drawerOpen, setDrawerOpen,
   reposModal, setReposModal, reposForm, setReposForm, addRepos,
   saveData, loadData, saveCourse, loadCourse, deleteCourse, updateCourse, overwriteCourse,
-  navigate, hasRace, isStandalone, installDone, handleInstall, showInstallGuide, setShowInstallGuide,
+  navigate, hasRace, isStandalone, installDone, handleInstall,
   features, toggleFeature, FEATURE_LABELS, NAVS_ACTIVE,
   entrainementFeatures, toggleEntrainementFeature, ENTRAINEMENT_FEATURE_LABELS,
   profilType, setProfilType,
@@ -661,6 +656,23 @@ function AppLayout({
 
       <div style={{height:1,background:C.border,margin:"0 14px"}}/>
 
+      {/* Installer l'app */}
+      {!isStandalone&&!installDone&&installPrompt&&(
+        <div onClick={handleInstall}
+          style={{margin:"10px 14px 0",padding:"10px 12px",borderRadius:9,
+            background:accentColor+"12",border:`1px solid ${accentColor}30`,
+            display:"flex",alignItems:"center",gap:10,cursor:"pointer",
+            transition:"background .15s"}}
+          onMouseEnter={e=>{e.currentTarget.style.background=accentColor+"20"}}
+          onMouseLeave={e=>{e.currentTarget.style.background=accentColor+"12"}}>
+          <span style={{fontSize:16}}>📲</span>
+          <div style={{flex:1,display:"flex",flexDirection:"column",gap:1}}>
+            <span style={{fontSize:12,fontWeight:600,color:accentColor}}>Installer l'app</span>
+            <span style={{fontSize:10,color:C.muted}}>Accès direct depuis l'écran d'accueil</span>
+          </div>
+        </div>
+      )}
+
       {/* Dark mode */}
       <div style={{padding:"10px 14px 0",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
         <span style={{fontSize:12,color:C.muted,fontWeight:500}}>{isDark?"🌙 Mode sombre":"☀️ Mode clair"}</span>
@@ -735,26 +747,6 @@ function AppLayout({
           </div>
         </div>
       )}
-      {/* GUIDE INSTALL */}
-      {showInstallGuide&&(
-        <div onClick={()=>setShowInstallGuide(false)} style={{position:"fixed",inset:0,background:"rgba(28,25,22,0.55)",backdropFilter:"blur(3px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:C.white,borderRadius:16,width:"100%",maxWidth:400,padding:28}}>
-            <div style={{fontFamily:"'Fraunces',serif",fontSize:20,fontWeight:600,marginBottom:16}}>Installer Alex</div>
-            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-              {[{step:"1",text:"Ouvre le menu du navigateur (⋮ ou ···)"},{step:"2",text:"Cherche « Ajouter à l'écran d'accueil » ou « Installer »"},{step:"3",text:"Confirme l'installation"}].map(s=>(
-                <div key={s.step} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-                  <div style={{width:24,height:24,borderRadius:"50%",background:COURSE_C.primary,color:"#fff",fontWeight:700,fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{s.step}</div>
-                  <span style={{fontSize:13,lineHeight:1.5}}>{s.text}</span>
-                </div>
-              ))}
-            </div>
-            <div style={{marginTop:20,display:"flex",justifyContent:"flex-end"}}>
-              <button onClick={()=>setShowInstallGuide(false)} style={{background:COURSE_C.primary,color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Compris</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div style={{display:"flex",height:"100%",overflow:"hidden",background:C.bg}}>
         {/* Sidebar desktop */}
         {!isMobile&&(
@@ -872,7 +864,7 @@ function AppLayout({
 
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, signOut, isRecovery } = useAuth();
   
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   useEffect(()=>{ const h=()=>setIsMobile(window.innerWidth<=768); window.addEventListener("resize",h); return()=>window.removeEventListener("resize",h); },[]);
@@ -910,6 +902,14 @@ export default function App() {
   const [loadError,     setLoadError]    = useState(false);
   const [loadAttempt,   setLoadAttempt]  = useState(0);
 
+  // ── Détection de conflit multi-sessions ─────────────────────────────────
+  // serverVersionRef : timestamp de la dernière version connue côté serveur
+  // (initialisée au load, mise à jour après chaque save réussi)
+  // Si avant un save on détecte que le serveur a une version plus récente
+  // → une autre session a modifié entre temps → on bloque tout.
+  const serverVersionRef = useRef(null);
+  const [conflictDetected, setConflictDetected] = useState(false);
+
   // ── Load ALL data from Supabase at login (avec timeout + retry) ───────────
   useEffect(() => {
     if (!user?.id || dataLoaded) return;
@@ -941,6 +941,7 @@ export default function App() {
               loadObjectifs(user.id),
               loadNutrition(user.id),
               loadEntrainementSettings(user.id),
+              getDataVersion(user.id),
             ]),
             timeoutMs,
             `tentative ${attempt}`
@@ -959,7 +960,8 @@ export default function App() {
 
     loadWithRetry().then((results) => {
       if (cancelled) return;
-      const [profile, acts, seances, som, vfc, pds, objs, nutr, settings] = results;
+      const [profile, acts, seances, som, vfc, pds, objs, nutr, settings, dataVersion] = results;
+      serverVersionRef.current = dataVersion;
       if (profile) setProfil(profile);
       if (acts?.length) setActivites(migrateActivites(acts));
       if (seances?.length) setSeances(migrateSeances(seances));
@@ -993,77 +995,143 @@ export default function App() {
     return () => { cancelled = true; };
   }, [user?.id, dataLoaded, loadAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-save activités vers Supabase (debounced 2s)
-  useEffect(()=>{
-    if (!user?.id || !dataLoaded) return;
-    const timer = setTimeout(() => {
-      saveActivities(user.id, activites).catch(err => console.error('Erreur save activités:', err));
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [activites, user?.id, dataLoaded]);
+  // ── Flush pending saves au beforeunload ──────────────────────────────────
+  // Chaque auto-save enregistre sa fonction de flush ici. Si l'utilisateur
+  // quitte la page pendant la fenêtre de debounce (2s), on déclenche toutes
+  // les saves pending immédiatement au lieu de les perdre.
+  const pendingSavesRef = useRef({});
 
-  // Auto-save séances vers Supabase (debounced 2s)
-  useEffect(()=>{
-    if (!user?.id || !dataLoaded) return;
-    const timer = setTimeout(() => {
-      saveSeances(user.id, seances).catch(err => console.error('Erreur save séances:', err));
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [seances, user?.id, dataLoaded]);
+  // ── Save sécurisé avec détection de conflit ────────────────────────────
+  // Avant chaque écriture, on relit la data_version côté serveur.
+  // - Si identique à notre référence locale → l'écriture est sûre, on bump
+  //   la version serveur et on mémorise le nouveau timestamp.
+  // - Si différente → une autre session a modifié entre temps. On bloque
+  //   tout via setConflictDetected(true) pour éviter l'écrasement.
+  const safeSave = useCallback(async (saveFn) => {
+    if (!user?.id) return;
+    if (conflictDetected) return; // sécurité : déjà en conflit, on ne tente rien
+    try {
+      const currentServerVersion = await getDataVersion(user.id);
+      // Cas particulier : pas encore de ligne entrainement_settings (premier save)
+      // → serverVersionRef.current est null ET currentServerVersion est null → OK
+      if (serverVersionRef.current && currentServerVersion && currentServerVersion !== serverVersionRef.current) {
+        console.warn('[conflict] version serveur a changé', { local: serverVersionRef.current, server: currentServerVersion });
+        setConflictDetected(true);
+        return;
+      }
+      await saveFn();
+      const newVersion = await bumpDataVersion(user.id);
+      serverVersionRef.current = newVersion;
+    } catch (err) {
+      console.error('[safeSave] erreur:', err);
+      // Ne pas bloquer l'app sur une erreur réseau ponctuelle — on laisse
+      // le prochain save réessayer. Le conflit, lui, est persistant.
+    }
+  }, [user?.id, conflictDetected]);
 
-  // Auto-save sommeil vers Supabase (debounced 2s)
-  useEffect(()=>{
-    if (!user?.id || !dataLoaded) return;
-    const timer = setTimeout(() => {
-      saveSommeil(user.id, sommeil).catch(err => console.error('Erreur save sommeil:', err));
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [sommeil, user?.id, dataLoaded]);
+  useEffect(() => {
+    const handler = () => {
+      if (conflictDetected) return; // ne pas flusher si on sait qu'on écraserait
+      const pending = pendingSavesRef.current;
+      Object.keys(pending).forEach(key => {
+        try { pending[key](); } catch (e) { /* fire-and-forget */ }
+      });
+    };
+    window.addEventListener('beforeunload', handler);
+    window.addEventListener('pagehide', handler); // fiabilité mobile (Safari iOS)
+    return () => {
+      window.removeEventListener('beforeunload', handler);
+      window.removeEventListener('pagehide', handler);
+    };
+  }, []);
 
-  // Auto-save VFC vers Supabase (debounced 2s)
+  // Auto-save activités vers Supabase (debounced 2s, protection conflit via safeSave)
   useEffect(()=>{
-    if (!user?.id || !dataLoaded) return;
+    if (!user?.id || !dataLoaded || conflictDetected) return;
+    pendingSavesRef.current.activites = () => safeSave(() => saveActivities(user.id, activites));
     const timer = setTimeout(() => {
-      saveVFC(user.id, vfcData).catch(err => console.error('Erreur save VFC:', err));
+      safeSave(() => saveActivities(user.id, activites));
+      delete pendingSavesRef.current.activites;
     }, 2000);
     return () => clearTimeout(timer);
-  }, [vfcData, user?.id, dataLoaded]);
+  }, [activites, user?.id, dataLoaded, conflictDetected, safeSave]);
 
-  // Auto-save poids vers Supabase (debounced 2s)
+  // Auto-save séances
   useEffect(()=>{
-    if (!user?.id || !dataLoaded) return;
+    if (!user?.id || !dataLoaded || conflictDetected) return;
+    pendingSavesRef.current.seances = () => safeSave(() => saveSeances(user.id, seances));
     const timer = setTimeout(() => {
-      savePoids(user.id, poids).catch(err => console.error('Erreur save poids:', err));
+      safeSave(() => saveSeances(user.id, seances));
+      delete pendingSavesRef.current.seances;
     }, 2000);
     return () => clearTimeout(timer);
-  }, [poids, user?.id, dataLoaded]);
+  }, [seances, user?.id, dataLoaded, conflictDetected, safeSave]);
 
-  // Auto-save objectifs vers Supabase (debounced 2s)
+  // Auto-save sommeil
   useEffect(()=>{
-    if (!user?.id || !dataLoaded) return;
+    if (!user?.id || !dataLoaded || conflictDetected) return;
+    pendingSavesRef.current.sommeil = () => safeSave(() => saveSommeil(user.id, sommeil));
     const timer = setTimeout(() => {
-      saveObjectifs(user.id, objectifs).catch(err => console.error('Erreur save objectifs:', err));
+      safeSave(() => saveSommeil(user.id, sommeil));
+      delete pendingSavesRef.current.sommeil;
     }, 2000);
     return () => clearTimeout(timer);
-  }, [objectifs, user?.id, dataLoaded]);
+  }, [sommeil, user?.id, dataLoaded, conflictDetected, safeSave]);
 
-  // Auto-save nutrition vers Supabase (debounced 2s)
+  // Auto-save VFC
   useEffect(()=>{
-    if (!user?.id || !dataLoaded) return;
+    if (!user?.id || !dataLoaded || conflictDetected) return;
+    pendingSavesRef.current.vfc = () => safeSave(() => saveVFC(user.id, vfcData));
     const timer = setTimeout(() => {
-      saveNutrition(user.id, journalNutri, produits, recettes).catch(err => console.error('Erreur save nutrition:', err));
+      safeSave(() => saveVFC(user.id, vfcData));
+      delete pendingSavesRef.current.vfc;
     }, 2000);
     return () => clearTimeout(timer);
-  }, [journalNutri, produits, recettes, user?.id, dataLoaded]);
+  }, [vfcData, user?.id, dataLoaded, conflictDetected, safeSave]);
 
-  // Auto-save entrainement settings + features vers Supabase (debounced 2s)
+  // Auto-save poids
   useEffect(()=>{
-    if (!user?.id || !dataLoaded) return;
+    if (!user?.id || !dataLoaded || conflictDetected) return;
+    pendingSavesRef.current.poids = () => safeSave(() => savePoids(user.id, poids));
     const timer = setTimeout(() => {
-      saveEntrainementSettings(user.id, planningType, activityTypes, entrainementFeatures, courseFeatures, profilType).catch(err => console.error('Erreur save entrainement settings:', err));
+      safeSave(() => savePoids(user.id, poids));
+      delete pendingSavesRef.current.poids;
     }, 2000);
     return () => clearTimeout(timer);
-  }, [planningType, activityTypes, entrainementFeatures, courseFeatures, profilType, user?.id, dataLoaded]);
+  }, [poids, user?.id, dataLoaded, conflictDetected, safeSave]);
+
+  // Auto-save objectifs
+  useEffect(()=>{
+    if (!user?.id || !dataLoaded || conflictDetected) return;
+    pendingSavesRef.current.objectifs = () => safeSave(() => saveObjectifs(user.id, objectifs));
+    const timer = setTimeout(() => {
+      safeSave(() => saveObjectifs(user.id, objectifs));
+      delete pendingSavesRef.current.objectifs;
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [objectifs, user?.id, dataLoaded, conflictDetected, safeSave]);
+
+  // Auto-save nutrition
+  useEffect(()=>{
+    if (!user?.id || !dataLoaded || conflictDetected) return;
+    pendingSavesRef.current.nutrition = () => safeSave(() => saveNutrition(user.id, journalNutri, produits, recettes));
+    const timer = setTimeout(() => {
+      safeSave(() => saveNutrition(user.id, journalNutri, produits, recettes));
+      delete pendingSavesRef.current.nutrition;
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [journalNutri, produits, recettes, user?.id, dataLoaded, conflictDetected, safeSave]);
+
+  // Auto-save entrainement settings + features
+  useEffect(()=>{
+    if (!user?.id || !dataLoaded || conflictDetected) return;
+    pendingSavesRef.current.entrainementSettings = () => safeSave(() => saveEntrainementSettings(user.id, planningType, activityTypes, entrainementFeatures, courseFeatures, profilType));
+    const timer = setTimeout(() => {
+      safeSave(() => saveEntrainementSettings(user.id, planningType, activityTypes, entrainementFeatures, courseFeatures, profilType));
+      delete pendingSavesRef.current.entrainementSettings;
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [planningType, activityTypes, entrainementFeatures, courseFeatures, profilType, user?.id, dataLoaded, conflictDetected, safeSave]);
 
   // Init profil.taille depuis dernier poids si vide (mount uniquement)
   useEffect(()=>{
@@ -1104,7 +1172,6 @@ export default function App() {
   const [reposForm,    setReposForm]    = useState({label:"",startKm:"",dureeMin:20});
   const [installPrompt,setInstallPrompt]= useState(null);
   const [installDone,  setInstallDone]  = useState(false);
-  const [showInstallGuide,setShowInstallGuide]=useState(false);
 
   // Features labels (Entrainement)
   const ENTRAINEMENT_FEATURE_LABELS=[
@@ -1175,8 +1242,10 @@ export default function App() {
   },[]);
 
   const handleInstall=async()=>{
-    if(installPrompt){installPrompt.prompt();const{outcome}=await installPrompt.userChoice;if(outcome==="accepted"){setInstallDone(true);setInstallPrompt(null);}}
-    else setShowInstallGuide(true);
+    if(!installPrompt)return;
+    installPrompt.prompt();
+    const{outcome}=await installPrompt.userChoice;
+    if(outcome==="accepted"){setInstallDone(true);setInstallPrompt(null);}
   };
 
   // Chargement initial
@@ -1343,7 +1412,9 @@ export default function App() {
 
   // Auth guard
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'DM Sans, sans-serif' }}>Chargement...</div>;
-  if (!user) return <Login />;
+  // Afficher Login si pas connecté OU si on revient depuis un lien de réinitialisation
+  // (dans ce cas, user existe via la session de recovery, mais on veut montrer le formulaire "nouveau mdp")
+  if (!user || isRecovery) return <Login />;
 
   // Data load guard — bloque l'app tant que les données ne sont pas chargées
   // Si le chargement a échoué : écran d'erreur avec bouton Réessayer (empêche tout écrasement)
@@ -1377,6 +1448,66 @@ export default function App() {
     return <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'DM Sans, sans-serif' }}>Chargement de tes données...</div>;
   }
 
+  // ── Écran bloquant : conflit multi-sessions détecté ───────────────────────
+  // Une autre session a modifié des données entre temps. On propose de
+  // télécharger l'état local actuel (pour éviter de perdre les changements
+  // non sauvegardés) avant de recharger la page.
+  if (conflictDetected) {
+    const downloadLocalSnapshot = () => {
+      const snapshot = {
+        format: "alex-conflict-snapshot-1.0",
+        exportDate: new Date().toISOString(),
+        userId: user.id,
+        userEmail: user.email,
+        note: "Snapshot local créé suite à un conflit multi-sessions. À réimporter manuellement après avoir fusionné avec les données de l'autre session.",
+        profile: profil,
+        activities: activites,
+        seances,
+        sommeil,
+        vfc: vfcData,
+        poids,
+        objectifs,
+        nutrition: { journalNutri, produits, recettes },
+        settings: { planningType, activityTypes, entrainementFeatures, courseFeatures, profilType },
+        currentRace: { race, segments, settings: settingsRaw },
+      };
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `alex-conflict-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    return (
+      <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F5F3EF', padding:'2rem', fontFamily:'DM Sans, sans-serif' }}>
+        <div style={{ maxWidth:520, background:'#FFFFFF', padding:'2rem', borderRadius:12, border:'1px solid #DDD9D1' }}>
+          <div style={{ fontSize:22, fontWeight:700, color:'#B5860A', marginBottom:10 }}>⚠ Données modifiées ailleurs</div>
+          <div style={{ fontSize:14, color:'#3D3830', lineHeight:1.6, marginBottom:20 }}>
+            Tes données ont été modifiées depuis une autre session (un autre onglet, un autre appareil, ou une PWA). Pour éviter d'écraser des changements récents, l'enregistrement automatique est suspendu.
+          </div>
+          <div style={{ padding:'12px 14px', background:'#FDF6E3', border:'1px solid #B5860A40', borderRadius:10, marginBottom:20, fontSize:13, color:'#3D3830', lineHeight:1.6 }}>
+            <strong>Avant de recharger :</strong> si tu as fait des modifications dans cette session que tu veux conserver, télécharge-les d'abord. Tu pourras les réimporter ensuite depuis <em>Données & Params → Import/Export</em>.
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            <button onClick={downloadLocalSnapshot}
+              style={{ padding:'11px 20px', background:'#FFFFFF', color:'#7C5C3E', border:'1px solid #7C5C3E', borderRadius:8, fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              💾 Télécharger cette session locale
+            </button>
+            <button onClick={() => window.location.reload()}
+              style={{ padding:'11px 20px', background:'#2D5A3D', color:'#FFFFFF', border:'none', borderRadius:8, fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              🔄 Recharger et récupérer la version à jour
+            </button>
+          </div>
+          <div style={{ marginTop:16, fontSize:11, color:'#7A7268', textAlign:'center' }}>
+            Pourquoi cet écran ? Alex refuse d'écraser des données d'une session plus récente — c'est ce qui garantit qu'aucune donnée ne peut disparaître silencieusement.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <AppLayout
       seances={seances} setSeances={setSeances} activites={activites} setActivites={setActivites}
@@ -1401,7 +1532,7 @@ export default function App() {
       deleteCourse={deleteCourseFn} updateCourse={updateCourseFn} overwriteCourse={overwriteCourseFn}
       navigate={navigate} hasRace={hasRace}
       isStandalone={isStandalone} installDone={installDone}
-      handleInstall={handleInstall} showInstallGuide={showInstallGuide} setShowInstallGuide={setShowInstallGuide}
+      handleInstall={handleInstall}
       features={courseFeatures} toggleFeature={toggleFeature} FEATURE_LABELS={FEATURE_LABELS} NAVS_ACTIVE={NAVS_ACTIVE}
       entrainementFeatures={entrainementFeatures} toggleEntrainementFeature={toggleEntrainementFeature} ENTRAINEMENT_FEATURE_LABELS={ENTRAINEMENT_FEATURE_LABELS}
       profilType={profilType} setProfilType={setProfilType}

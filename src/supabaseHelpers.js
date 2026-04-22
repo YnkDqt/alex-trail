@@ -671,3 +671,25 @@ export async function loadAllUserData(userId) {
     currentRace
   }
 }
+
+// ─── VERSIONING & CONFLICT DETECTION ─────────────────────────────────────────
+// Le timestamp data_version est incrémenté côté serveur à chaque save. Les
+// sessions clientes le mémorisent et le comparent avant chaque écriture pour
+// détecter qu'une autre session a modifié des données entre temps.
+
+export async function getDataVersion(userId) {
+  const { data, error } = await supabase
+    .from('entrainement_settings')
+    .select('data_version')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (error) throw error
+  return data?.data_version || null
+}
+
+export async function bumpDataVersion(userId) {
+  const { data, error } = await supabase.rpc('bump_data_version', { p_user_id: userId })
+  if (error) throw error
+  return data // nouveau timestamp
+}
