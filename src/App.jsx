@@ -353,6 +353,8 @@ function DonneesParamsView({
                       }
                       // Restaurer tout dans Supabase
                       const raceData = data.currentRace?.race?.race ? data.currentRace.race : data.currentRace;
+                      const nutr = data.nutrition || {};
+                      const stg  = data.settings  || {};
                       await Promise.all([
                         data.profile && saveAthleteProfile(user.id, data.profile),
                         data.activities && saveActivities(user.id, data.activities),
@@ -361,8 +363,8 @@ function DonneesParamsView({
                         data.vfc && saveVFC(user.id, data.vfc),
                         data.poids && savePoids(user.id, data.poids),
                         data.objectifs && saveObjectifs(user.id, data.objectifs),
-                        data.nutrition && saveNutrition(user.id, data.nutrition),
-                        data.settings && saveEntrainementSettings(user.id, data.settings),
+                        data.nutrition && saveNutrition(user.id, nutr.journalNutri || [], nutr.produits || [], nutr.recettes || []),
+                        data.settings && saveEntrainementSettings(user.id, stg.planningType, stg.activityTypes, stg.entrainementFeatures, stg.courseFeatures, stg.profilType),
                         raceData && saveCurrentRace(user.id, raceData.race, raceData.segments, raceData.settings),
                       ]);
                       alert('✅ Import réussi ! Recharge la page.');
