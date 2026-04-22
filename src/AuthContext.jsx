@@ -25,6 +25,29 @@ export function AuthProvider({ children }) {
   const signUp = (email, password) => supabase.auth.signUp({ email, password })
   const signIn = (email, password) => supabase.auth.signInWithPassword({ email, password })
   const signOut = () => supabase.auth.signOut()
+
+  // Changement de mot de passe avec re-vérification de l'actuel
+  // (Supabase updateUser se contente du JWT, on vérifie donc nous-mêmes)
+  const updatePassword = async (currentPassword, newPassword) => {
+    if (!user?.email) return { error: new Error('No user') }
+
+    // 1. Vérifier l'actuel via un signIn (sans changer la session active)
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    })
+    if (signInError) {
+      return { error: new Error('Mot de passe actuel incorrect') }
+    }
+
+    // 2. Mettre à jour le mot de passe
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
+    if (updateError) {
+      return { error: updateError }
+    }
+
+    return { error: null }
+  }
   
   const deleteAccount = async () => {
     if (!user?.id) return { error: new Error('No user') }
@@ -53,7 +76,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, signUp, signIn, signOut, deleteAccount, loading }}>
+    <AuthContext.Provider value={{ user, signUp, signIn, signOut, deleteAccount, updatePassword, loading }}>
       {children}
     </AuthContext.Provider>
   )

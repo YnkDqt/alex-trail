@@ -74,7 +74,7 @@ const SectionTitle = ({ children }) => (
 );
 
 export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
-  const { user, deleteAccount } = useAuth();
+  const { user, deleteAccount, updatePassword } = useAuth();
   const p = profil;
 
   // Load profil from Supabase on mount
@@ -148,6 +148,54 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
       console.error('Erreur suppression:', err);
       setDeleteError('Une erreur est survenue. Réessaie.');
       setDeleteLoading(false);
+    }
+  };
+
+  // États de la modal de changement de mot de passe
+  const [pwdOpen, setPwdOpen] = useState(false);
+  const [pwdCurrent, setPwdCurrent] = useState("");
+  const [pwdNew, setPwdNew] = useState("");
+  const [pwdConfirm, setPwdConfirm] = useState("");
+  const [pwdError, setPwdError] = useState("");
+  const [pwdSuccess, setPwdSuccess] = useState(false);
+  const [pwdLoading, setPwdLoading] = useState(false);
+
+  const openPwdFlow = () => {
+    setPwdOpen(true);
+    setPwdCurrent(""); setPwdNew(""); setPwdConfirm("");
+    setPwdError(""); setPwdSuccess(false);
+  };
+  const closePwdFlow = () => { if (pwdLoading) return; setPwdOpen(false); };
+
+  const confirmPwdChange = async () => {
+    if (!pwdCurrent || !pwdNew || !pwdConfirm) {
+      setPwdError("Tous les champs sont requis."); return;
+    }
+    if (pwdNew.length < 8) {
+      setPwdError("Le nouveau mot de passe doit faire au moins 8 caractères."); return;
+    }
+    if (pwdNew !== pwdConfirm) {
+      setPwdError("Les deux mots de passe ne correspondent pas."); return;
+    }
+    if (pwdNew === pwdCurrent) {
+      setPwdError("Le nouveau mot de passe doit être différent de l'actuel."); return;
+    }
+    setPwdError("");
+    setPwdLoading(true);
+    try {
+      const { error } = await updatePassword(pwdCurrent, pwdNew);
+      if (error) {
+        setPwdError(error.message || "Erreur inconnue.");
+        setPwdLoading(false);
+        return;
+      }
+      setPwdSuccess(true);
+      setPwdLoading(false);
+      setPwdCurrent(""); setPwdNew(""); setPwdConfirm("");
+    } catch (err) {
+      console.error('Erreur updatePassword:', err);
+      setPwdError("Une erreur est survenue. Réessaie.");
+      setPwdLoading(false);
     }
   };
 
@@ -324,6 +372,18 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
           </div>
         )}
 
+        {/* Sécurité */}
+        <SectionTitle>Sécurité</SectionTitle>
+        <button onClick={openPwdFlow}
+          style={{ width:"100%", padding:"12px 20px", borderRadius:10, border:`1px solid ${C.border}`,
+            background:C.white, color:C.inkLight, cursor:"pointer", fontFamily:"inherit",
+            fontSize:14, fontWeight:500, marginBottom:8 }}>
+          🔐 Changer mon mot de passe
+        </button>
+        <div style={{ fontSize:12, color:C.muted, marginBottom:32, lineHeight:1.6 }}>
+          Minimum 8 caractères. Déconnecte tes autres appareils après modification.
+        </div>
+
         {/* Export données RGPD */}
         <SectionTitle>Mes données</SectionTitle>
         <button onClick={async () => {
@@ -464,6 +524,87 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
               <Btn variant="ghost" onClick={closeDeleteFlow} disabled={deleteLoading}>Annuler</Btn>
               <Btn variant="danger" onClick={confirmDelete} disabled={deleteLoading || !deleteEmail}>
                 {deleteLoading ? "Suppression…" : "Supprimer définitivement"}
+              </Btn>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal changement mot de passe */}
+      <Modal
+        open={pwdOpen}
+        onClose={closePwdFlow}
+        title={pwdSuccess ? "Mot de passe modifié" : "Changer mon mot de passe"}
+        subtitle={pwdSuccess ? "C'est fait" : "Protège ton compte"}
+        width={420}
+      >
+        {pwdSuccess ? (
+          <div>
+            <div style={{ padding:14, background:C.greenPale, border:`1px solid ${C.green}30`, borderRadius:10, marginBottom:20 }}>
+              <div style={{ fontSize:13, color:C.green, fontWeight:600, marginBottom:6 }}>✓ Mot de passe mis à jour</div>
+              <div style={{ fontSize:13, color:C.inkLight, lineHeight:1.6 }}>
+                Utilise ton nouveau mot de passe lors de ta prochaine connexion.
+              </div>
+            </div>
+            <div style={{ display:"flex", justifyContent:"flex-end" }}>
+              <Btn variant="primary" onClick={closePwdFlow}>Fermer</Btn>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:16 }}>
+              <div>
+                <label style={{ display:"block", fontSize:12, color:C.muted, marginBottom:6, fontWeight:500 }}>
+                  Mot de passe actuel
+                </label>
+                <input
+                  type="password"
+                  autoFocus
+                  value={pwdCurrent}
+                  onChange={e => { setPwdCurrent(e.target.value); setPwdError(""); }}
+                  disabled={pwdLoading}
+                  style={{ width:"100%", padding:"10px 12px", borderRadius:8,
+                    border:`1px solid ${C.border}`, fontFamily:"inherit", fontSize:14, outline:"none" }}
+                />
+              </div>
+              <div>
+                <label style={{ display:"block", fontSize:12, color:C.muted, marginBottom:6, fontWeight:500 }}>
+                  Nouveau mot de passe
+                </label>
+                <input
+                  type="password"
+                  value={pwdNew}
+                  onChange={e => { setPwdNew(e.target.value); setPwdError(""); }}
+                  disabled={pwdLoading}
+                  style={{ width:"100%", padding:"10px 12px", borderRadius:8,
+                    border:`1px solid ${C.border}`, fontFamily:"inherit", fontSize:14, outline:"none" }}
+                />
+              </div>
+              <div>
+                <label style={{ display:"block", fontSize:12, color:C.muted, marginBottom:6, fontWeight:500 }}>
+                  Confirmer le nouveau mot de passe
+                </label>
+                <input
+                  type="password"
+                  value={pwdConfirm}
+                  onChange={e => { setPwdConfirm(e.target.value); setPwdError(""); }}
+                  onKeyDown={e => { if (e.key === "Enter" && !pwdLoading) confirmPwdChange(); }}
+                  disabled={pwdLoading}
+                  style={{ width:"100%", padding:"10px 12px", borderRadius:8,
+                    border:`1px solid ${C.border}`, fontFamily:"inherit", fontSize:14, outline:"none" }}
+                />
+              </div>
+            </div>
+            {pwdError && (
+              <div style={{ fontSize:12, color:C.red, marginBottom:14, padding:"8px 12px",
+                background:C.redPale, borderRadius:8 }}>
+                {pwdError}
+              </div>
+            )}
+            <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+              <Btn variant="ghost" onClick={closePwdFlow} disabled={pwdLoading}>Annuler</Btn>
+              <Btn variant="primary" onClick={confirmPwdChange} disabled={pwdLoading || !pwdCurrent || !pwdNew || !pwdConfirm}>
+                {pwdLoading ? "Enregistrement…" : "Valider"}
               </Btn>
             </div>
           </div>
