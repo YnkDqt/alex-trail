@@ -864,7 +864,7 @@ function AppLayout({
 
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const { user, loading, signOut, isRecovery } = useAuth();
+  const { user, loading, signOut, isRecovery, mfaGetAAL, mfaListFactors, mfaVerify } = useAuth();
   
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   useEffect(()=>{ const h=()=>setIsMobile(window.innerWidth<=768); window.addEventListener("resize",h); return()=>window.removeEventListener("resize",h); },[]);
@@ -909,6 +909,60 @@ export default function App() {
   // → une autre session a modifié entre temps → on bloque tout.
   const serverVersionRef = useRef(null);
   const [conflictDetected, setConflictDetected] = useState(false);
+
+  // ── Challenge 2FA après login ────────────────────────────────────────────
+  // Si l'utilisateur a enrôlé un facteur TOTP, Supabase le met en aal1 après
+  // le login par mdp. Il faut qu'il saisisse un code 6 chiffres pour passer
+  // en aal2 avant d'accéder à l'app.
+  const [mfaCheckDone, setMfaCheckDone] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaChallengeCode, setMfaChallengeCode] = useState("");
+  const [mfaChallengeError, setMfaChallengeError] = useState("");
+  const [mfaChallengeLoading, setMfaChallengeLoading] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) { setMfaCheckDone(false); setMfaRequired(false); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await mfaGetAAL();
+        if (cancelled) return;
+        // aal1 avec nextLevel aal2 = l'utilisateur doit compléter la 2FA
+        const needs = data?.currentLevel === 'aal1' && data?.nextLevel === 'aal2';
+        setMfaRequired(needs);
+      } catch (err) {
+        console.error('Erreur mfaGetAAL:', err);
+      } finally {
+        if (!cancelled) setMfaCheckDone(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const submitMfaChallenge = async () => {
+    if (!mfaChallengeCode || mfaChallengeCode.length !== 6) {
+      setMfaChallengeError("Entre les 6 chiffres affichés dans ton application"); return;
+    }
+    setMfaChallengeError(""); setMfaChallengeLoading(true);
+    try {
+      const { data: factors } = await mfaListFactors();
+      const totp = factors?.totp?.[0];
+      if (!totp) { setMfaChallengeError("Aucun facteur TOTP actif"); setMfaChallengeLoading(false); return; }
+      const { error } = await mfaVerify(totp.id, mfaChallengeCode.trim());
+      if (error) {
+        setMfaChallengeError("Code incorrect. Vérifie l'heure de ton téléphone et réessaie.");
+        setMfaChallengeLoading(false);
+        return;
+      }
+      setMfaRequired(false);
+      setMfaChallengeCode("");
+      setMfaChallengeLoading(false);
+    } catch (err) {
+      console.error('Erreur submit MFA:', err);
+      setMfaChallengeError("Une erreur est survenue.");
+      setMfaChallengeLoading(false);
+    }
+  };
 
   // ── Load ALL data from Supabase at login (avec timeout + retry) ───────────
   useEffect(() => {
@@ -1415,6 +1469,60 @@ export default function App() {
   // Afficher Login si pas connecté OU si on revient depuis un lien de réinitialisation
   // (dans ce cas, user existe via la session de recovery, mais on veut montrer le formulaire "nouveau mdp")
   if (!user || isRecovery) return <Login />;
+
+  // Challenge 2FA : si l'utilisateur a enrôlé un facteur TOTP, il doit
+  // saisir un code avant d'accéder à l'app (aal1 → aal2)
+  if (!mfaCheckDone) {
+    return <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'DM Sans, sans-serif' }}>Vérification…</div>;
+  }
+  if (mfaRequired) {
+    return (
+      <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F5F3EF', padding:'2rem', fontFamily:'DM Sans, sans-serif' }}>
+        <div style={{ maxWidth:400, width:'100%', background:'#FFFFFF', padding:'2rem', borderRadius:12, border:'1px solid #DDD9D1' }}>
+          <div style={{ fontSize:22, fontWeight:600, color:'#1C1916', marginBottom:8, fontFamily:"'Fraunces',serif" }}>Vérification en deux étapes</div>
+          <div style={{ fontSize:13, color:'#7A7268', lineHeight:1.6, marginBottom:20 }}>
+            Entre le code à 6 chiffres affiché dans ton application d'authentification.
+          </div>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            autoComplete="one-time-code"
+            autoFocus
+            value={mfaChallengeCode}
+            onChange={e => { setMfaChallengeCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setMfaChallengeError(""); }}
+            onKeyDown={e => { if (e.key === "Enter" && !mfaChallengeLoading) submitMfaChallenge(); }}
+            disabled={mfaChallengeLoading}
+            placeholder="000000"
+            style={{ width:'100%', padding:'12px 14px', borderRadius:8,
+              border:`1px solid ${mfaChallengeError ? '#B03A2A' : '#DDD9D1'}`, fontFamily:'monospace',
+              fontSize:22, letterSpacing:'0.3em', textAlign:'center', outline:'none', marginBottom:12 }}
+          />
+          {mfaChallengeError && (
+            <div style={{ fontSize:12, color:'#B03A2A', marginBottom:14, padding:'8px 12px',
+              background:'#FAE9E7', borderRadius:8 }}>
+              {mfaChallengeError}
+            </div>
+          )}
+          <button onClick={submitMfaChallenge} disabled={mfaChallengeLoading || mfaChallengeCode.length !== 6}
+            style={{ width:'100%', padding:'11px 20px', background:'#2D5A3D', color:'#FFFFFF',
+              border:'none', borderRadius:8, fontSize:14, fontWeight:600,
+              cursor: (mfaChallengeLoading || mfaChallengeCode.length !== 6) ? 'not-allowed' : 'pointer',
+              opacity: (mfaChallengeLoading || mfaChallengeCode.length !== 6) ? 0.6 : 1,
+              fontFamily:'inherit', marginBottom:16 }}>
+            {mfaChallengeLoading ? 'Vérification…' : 'Valider'}
+          </button>
+          <div style={{ textAlign:'center' }}>
+            <button onClick={() => signOut()}
+              style={{ background:'transparent', border:'none', color:'#7A7268', fontSize:12,
+                cursor:'pointer', fontFamily:'inherit', textDecoration:'underline' }}>
+              Se déconnecter
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Data load guard — bloque l'app tant que les données ne sont pas chargées
   // Si le chargement a échoué : écran d'erreur avec bouton Réessayer (empêche tout écrasement)

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useAuth } from '../AuthContext';
+import { Modal, Btn } from '../atoms.jsx';
 import {
   loadAthleteProfile, saveAthleteProfile,
   loadActivities, loadSeances, loadSommeil, loadVFC, loadPoids,
@@ -73,7 +74,7 @@ const SectionTitle = ({ children }) => (
 );
 
 export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
-  const { user, deleteAccount } = useAuth();
+  const { user, deleteAccount, updatePassword, mfaEnroll, mfaVerify, mfaUnenroll, mfaListFactors } = useAuth();
   const p = profil;
 
   // Load profil from Supabase on mount
@@ -118,6 +119,166 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
 
   const [z2Str, setZ2Str] = useState(paceToStr(p.allureZ2));
   const [z3Str, setZ3Str] = useState(paceToStr(p.allureZ3));
+
+  // États de la modal de suppression de compte (RGPD)
+  const [deleteStep, setDeleteStep] = useState(0); // 0=fermé, 1=avertissement, 2=confirmation email
+  const [deleteEmail, setDeleteEmail] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const openDeleteFlow = () => { setDeleteStep(1); setDeleteEmail(""); setDeleteError(""); };
+  const closeDeleteFlow = () => { if (deleteLoading) return; setDeleteStep(0); setDeleteEmail(""); setDeleteError(""); };
+
+  const confirmDelete = async () => {
+    if (deleteEmail.trim().toLowerCase() !== (user?.email || "").trim().toLowerCase()) {
+      setDeleteError("Email incorrect.");
+      return;
+    }
+    setDeleteError("");
+    setDeleteLoading(true);
+    try {
+      const { error } = await deleteAccount();
+      if (error) {
+        setDeleteError(`Erreur : ${error.message || 'erreur inconnue'}`);
+        setDeleteLoading(false);
+        return;
+      }
+      // Succès : la déconnexion va déclencher un unmount, pas besoin de reset le state
+    } catch (err) {
+      console.error('Erreur suppression:', err);
+      setDeleteError('Une erreur est survenue. Réessaie.');
+      setDeleteLoading(false);
+    }
+  };
+
+  // États de la modal de changement de mot de passe
+  const [pwdOpen, setPwdOpen] = useState(false);
+  const [pwdCurrent, setPwdCurrent] = useState("");
+  const [pwdNew, setPwdNew] = useState("");
+  const [pwdConfirm, setPwdConfirm] = useState("");
+  const [pwdError, setPwdError] = useState("");
+  const [pwdSuccess, setPwdSuccess] = useState(false);
+  const [pwdLoading, setPwdLoading] = useState(false);
+
+  // ── 2FA (MFA TOTP) ────────────────────────────────────────────────────────
+  const [mfaFactors, setMfaFactors] = useState([]);    // facteurs vérifiés actifs
+  const [mfaEnrollOpen, setMfaEnrollOpen] = useState(false);
+  const [mfaStep, setMfaStep] = useState(1);           // 1 = QR, 2 = saisie code
+  const [mfaFactorId, setMfaFactorId] = useState("");
+  const [mfaQr, setMfaQr] = useState("");
+  const [mfaSecret, setMfaSecret] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaError, setMfaError] = useState("");
+  const [mfaLoading, setMfaLoading] = useState(false);
+  const [mfaConfirmUnenroll, setMfaConfirmUnenroll] = useState(null); // id du facteur à supprimer
+
+  // Charger la liste des facteurs MFA au montage
+  useEffect(() => {
+    if (!user?.id) return;
+    mfaListFactors().then(({ data }) => {
+      if (data?.totp) setMfaFactors(data.totp);
+    }).catch(err => console.error('Erreur listFactors:', err));
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const refreshFactors = async () => {
+    const { data } = await mfaListFactors();
+    setMfaFactors(data?.totp || []);
+  };
+
+  // Démarrer l'enrôlement : récupère QR code + secret
+  const startMfaEnroll = async () => {
+    setMfaError(""); setMfaCode(""); setMfaStep(1); setMfaEnrollOpen(true); setMfaLoading(true);
+    const { data, error } = await mfaEnroll();
+    setMfaLoading(false);
+    if (error) {
+      setMfaError(error.message || "Erreur lors de l'initialisation de la 2FA");
+      return;
+    }
+    setMfaFactorId(data.id);
+    setMfaQr(data.totp.qr_code);
+    setMfaSecret(data.totp.secret);
+    setMfaStep(1);
+  };
+
+  const cancelMfaEnroll = async () => {
+    if (mfaLoading) return;
+    // Si un facteur non vérifié a été créé, le nettoyer
+    if (mfaFactorId) {
+      try { await mfaUnenroll(mfaFactorId); } catch (e) { /* best-effort */ }
+    }
+    setMfaEnrollOpen(false);
+    setMfaFactorId(""); setMfaQr(""); setMfaSecret(""); setMfaCode(""); setMfaError("");
+  };
+
+  const verifyMfaEnroll = async () => {
+    if (!mfaCode || mfaCode.length !== 6) {
+      setMfaError("Entre les 6 chiffres affichés dans ton application");
+      return;
+    }
+    setMfaError(""); setMfaLoading(true);
+    const { error } = await mfaVerify(mfaFactorId, mfaCode.trim());
+    setMfaLoading(false);
+    if (error) {
+      setMfaError("Code incorrect. Vérifie l'heure de ton téléphone et réessaie.");
+      return;
+    }
+    // Succès : rafraîchir la liste, fermer la modal
+    await refreshFactors();
+    setMfaEnrollOpen(false);
+    setMfaFactorId(""); setMfaQr(""); setMfaSecret(""); setMfaCode("");
+  };
+
+  const confirmMfaUnenroll = async () => {
+    if (!mfaConfirmUnenroll) return;
+    setMfaLoading(true);
+    const { error } = await mfaUnenroll(mfaConfirmUnenroll);
+    setMfaLoading(false);
+    if (error) {
+      alert("Erreur lors de la désactivation : " + error.message);
+      return;
+    }
+    await refreshFactors();
+    setMfaConfirmUnenroll(null);
+  };
+
+  const openPwdFlow = () => {
+    setPwdOpen(true);
+    setPwdCurrent(""); setPwdNew(""); setPwdConfirm("");
+    setPwdError(""); setPwdSuccess(false);
+  };
+  const closePwdFlow = () => { if (pwdLoading) return; setPwdOpen(false); };
+
+  const confirmPwdChange = async () => {
+    if (!pwdCurrent || !pwdNew || !pwdConfirm) {
+      setPwdError("Tous les champs sont requis."); return;
+    }
+    if (pwdNew.length < 8) {
+      setPwdError("Le nouveau mot de passe doit faire au moins 8 caractères."); return;
+    }
+    if (pwdNew !== pwdConfirm) {
+      setPwdError("Les deux mots de passe ne correspondent pas."); return;
+    }
+    if (pwdNew === pwdCurrent) {
+      setPwdError("Le nouveau mot de passe doit être différent de l'actuel."); return;
+    }
+    setPwdError("");
+    setPwdLoading(true);
+    try {
+      const { error } = await updatePassword(pwdCurrent, pwdNew);
+      if (error) {
+        setPwdError(error.message || "Erreur inconnue.");
+        setPwdLoading(false);
+        return;
+      }
+      setPwdSuccess(true);
+      setPwdLoading(false);
+      setPwdCurrent(""); setPwdNew(""); setPwdConfirm("");
+    } catch (err) {
+      console.error('Erreur updatePassword:', err);
+      setPwdError("Une erreur est survenue. Réessaie.");
+      setPwdLoading(false);
+    }
+  };
 
   const handlePaceBlur = (z, str, setStr) => {
     const val = strToPace(str);
@@ -292,6 +453,64 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
           </div>
         )}
 
+        {/* Sécurité */}
+        <SectionTitle>Sécurité</SectionTitle>
+        <button onClick={openPwdFlow}
+          style={{ width:"100%", padding:"12px 20px", borderRadius:10, border:`1px solid ${C.border}`,
+            background:C.white, color:C.inkLight, cursor:"pointer", fontFamily:"inherit",
+            fontSize:14, fontWeight:500, marginBottom:8 }}>
+          🔐 Changer mon mot de passe
+        </button>
+        <div style={{ fontSize:12, color:C.muted, marginBottom:20, lineHeight:1.6 }}>
+          Minimum 8 caractères. Déconnecte tes autres appareils après modification.
+        </div>
+
+        {/* 2FA */}
+        <div style={{ padding:"14px 16px", background:C.stone, borderRadius:10, marginBottom:8 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:mfaFactors.length ? 10 : 0 }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:C.inkLight, marginBottom:2 }}>
+                🛡 Authentification à deux facteurs
+                {mfaFactors.length > 0 && (
+                  <span style={{ marginLeft:8, fontSize:11, background:C.greenPale, color:C.green,
+                    padding:"2px 8px", borderRadius:10, fontWeight:600 }}>Activée</span>
+                )}
+              </div>
+              <div style={{ fontSize:12, color:C.muted }}>
+                {mfaFactors.length > 0
+                  ? "Un code est demandé à chaque connexion"
+                  : "Protection supplémentaire via une app comme Google Authenticator ou Authy"}
+              </div>
+            </div>
+            {mfaFactors.length === 0 && (
+              <button onClick={startMfaEnroll}
+                style={{ padding:"7px 14px", borderRadius:8, border:`1px solid ${C.forest}`,
+                  background:C.white, color:C.forest, cursor:"pointer", fontFamily:"inherit",
+                  fontSize:12, fontWeight:600, whiteSpace:"nowrap" }}>
+                Activer
+              </button>
+            )}
+          </div>
+          {mfaFactors.map(f => (
+            <div key={f.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+              padding:"8px 0", borderTop:`1px solid ${C.border}`, fontSize:12 }}>
+              <div>
+                <div style={{ color:C.inkLight, fontWeight:500 }}>{f.friendly_name || "Application authenticator"}</div>
+                <div style={{ color:C.muted, fontSize:11 }}>Ajoutée le {new Date(f.created_at).toLocaleDateString('fr-FR')}</div>
+              </div>
+              <button onClick={() => setMfaConfirmUnenroll(f.id)}
+                style={{ padding:"5px 10px", borderRadius:6, border:`1px solid ${C.red}40`,
+                  background:"transparent", color:C.red, cursor:"pointer", fontFamily:"inherit",
+                  fontSize:11, fontWeight:500 }}>
+                Désactiver
+              </button>
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize:12, color:C.muted, marginBottom:32, lineHeight:1.6 }}>
+          Si tu perds accès à ton application authenticator, contacte le support pour réinitialiser ton compte.
+        </div>
+
         {/* Export données RGPD */}
         <SectionTitle>Mes données</SectionTitle>
         <button onClick={async () => {
@@ -352,43 +571,7 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
         </div>
 
         {/* Suppression compte */}
-        <button onClick={async () => {
-          const confirm = window.confirm(
-            "⚠️ ATTENTION\n\n" +
-            "Cette action est IRRÉVERSIBLE.\n\n" +
-            "Toutes tes données seront définitivement supprimées :\n" +
-            "• Profil athlète\n" +
-            "• Activités et séances\n" +
-            "• Données de forme (VFC, sommeil, poids)\n" +
-            "• Courses et stratégies\n" +
-            "• Nutrition\n\n" +
-            "Veux-tu vraiment supprimer ton compte ?"
-          );
-          
-          if (!confirm) return;
-          
-          const doubleConfirm = window.prompt(
-            "Pour confirmer, tape ton email :"
-          );
-          
-          if (doubleConfirm !== user?.email) {
-            alert("Email incorrect. Suppression annulée.");
-            return;
-          }
-
-          try {
-            const { error } = await deleteAccount();
-            if (error) {
-              console.error('Erreur suppression:', error);
-              alert(`Erreur lors de la suppression : ${error.message || 'erreur inconnue'}`);
-              return;
-            }
-            alert("Compte et données supprimés définitivement. Tu vas être déconnecté.");
-          } catch (err) {
-            console.error('Erreur suppression:', err);
-            alert('Erreur lors de la suppression');
-          }
-        }}
+        <button onClick={openDeleteFlow}
           style={{ width:"100%", padding:"12px 20px", borderRadius:10, border:`1px solid ${C.red}`,
             background:C.redPale, color:C.red, cursor:"pointer", fontFamily:"inherit",
             fontSize:14, fontWeight:500, marginBottom:8 }}>
@@ -407,6 +590,247 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
         </div>
 
       </div>
+
+      {/* Modal suppression compte (RGPD) */}
+      <Modal
+        open={deleteStep > 0}
+        onClose={closeDeleteFlow}
+        title={deleteStep === 1 ? "Supprimer ton compte" : "Confirmer la suppression"}
+        subtitle={deleteStep === 1 ? "Action irréversible" : "Dernière étape avant suppression"}
+        width={440}
+      >
+        {deleteStep === 1 && (
+          <div>
+            <div style={{ padding:14, background:C.redPale, border:`1px solid ${C.red}30`, borderRadius:10, marginBottom:16 }}>
+              <div style={{ fontSize:13, color:C.red, fontWeight:600, marginBottom:8 }}>⚠️ Cette action est irréversible</div>
+              <div style={{ fontSize:13, color:C.inkLight, lineHeight:1.6 }}>
+                Toutes tes données seront définitivement supprimées de nos serveurs :
+              </div>
+            </div>
+            <ul style={{ fontSize:13, color:C.inkLight, lineHeight:1.9, paddingLeft:18, marginBottom:20 }}>
+              <li>Profil athlète et zones FC</li>
+              <li>Activités, séances, programme d'entraînement</li>
+              <li>Données de forme (VFC, sommeil, poids)</li>
+              <li>Courses, stratégies et profils GPX</li>
+              <li>Nutrition (produits, recettes, journal)</li>
+            </ul>
+            <div style={{ fontSize:12, color:C.muted, marginBottom:20, lineHeight:1.6 }}>
+              Tu peux d'abord exporter tes données via le bouton « Exporter toutes mes données » si tu souhaites en garder une copie.
+            </div>
+            <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+              <Btn variant="ghost" onClick={closeDeleteFlow}>Annuler</Btn>
+              <Btn variant="danger" onClick={() => setDeleteStep(2)}>Continuer</Btn>
+            </div>
+          </div>
+        )}
+
+        {deleteStep === 2 && (
+          <div>
+            <div style={{ fontSize:13, color:C.inkLight, lineHeight:1.6, marginBottom:14 }}>
+              Pour confirmer, tape ton adresse email :
+            </div>
+            <div style={{ fontSize:12, color:C.muted, marginBottom:10, fontFamily:"monospace" }}>
+              {user?.email || "—"}
+            </div>
+            <input
+              type="email"
+              autoFocus
+              value={deleteEmail}
+              onChange={e => { setDeleteEmail(e.target.value); setDeleteError(""); }}
+              onKeyDown={e => { if (e.key === "Enter" && !deleteLoading) confirmDelete(); }}
+              placeholder="ton@email.com"
+              disabled={deleteLoading}
+              style={{ width:"100%", padding:"10px 12px", borderRadius:8,
+                border:`1px solid ${deleteError ? C.red : C.border}`, fontFamily:"inherit",
+                fontSize:14, marginBottom:deleteError ? 6 : 20, outline:"none" }}
+            />
+            {deleteError && (
+              <div style={{ fontSize:12, color:C.red, marginBottom:14 }}>{deleteError}</div>
+            )}
+            <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+              <Btn variant="ghost" onClick={closeDeleteFlow} disabled={deleteLoading}>Annuler</Btn>
+              <Btn variant="danger" onClick={confirmDelete} disabled={deleteLoading || !deleteEmail}>
+                {deleteLoading ? "Suppression…" : "Supprimer définitivement"}
+              </Btn>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal changement mot de passe */}
+      <Modal
+        open={pwdOpen}
+        onClose={closePwdFlow}
+        title={pwdSuccess ? "Mot de passe modifié" : "Changer mon mot de passe"}
+        subtitle={pwdSuccess ? "C'est fait" : "Protège ton compte"}
+        width={420}
+      >
+        {pwdSuccess ? (
+          <div>
+            <div style={{ padding:14, background:C.greenPale, border:`1px solid ${C.green}30`, borderRadius:10, marginBottom:20 }}>
+              <div style={{ fontSize:13, color:C.green, fontWeight:600, marginBottom:6 }}>✓ Mot de passe mis à jour</div>
+              <div style={{ fontSize:13, color:C.inkLight, lineHeight:1.6 }}>
+                Utilise ton nouveau mot de passe lors de ta prochaine connexion.
+              </div>
+            </div>
+            <div style={{ display:"flex", justifyContent:"flex-end" }}>
+              <Btn variant="primary" onClick={closePwdFlow}>Fermer</Btn>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:16 }}>
+              <div>
+                <label style={{ display:"block", fontSize:12, color:C.muted, marginBottom:6, fontWeight:500 }}>
+                  Mot de passe actuel
+                </label>
+                <input
+                  type="password"
+                  autoFocus
+                  value={pwdCurrent}
+                  onChange={e => { setPwdCurrent(e.target.value); setPwdError(""); }}
+                  disabled={pwdLoading}
+                  style={{ width:"100%", padding:"10px 12px", borderRadius:8,
+                    border:`1px solid ${C.border}`, fontFamily:"inherit", fontSize:14, outline:"none" }}
+                />
+              </div>
+              <div>
+                <label style={{ display:"block", fontSize:12, color:C.muted, marginBottom:6, fontWeight:500 }}>
+                  Nouveau mot de passe
+                </label>
+                <input
+                  type="password"
+                  value={pwdNew}
+                  onChange={e => { setPwdNew(e.target.value); setPwdError(""); }}
+                  disabled={pwdLoading}
+                  style={{ width:"100%", padding:"10px 12px", borderRadius:8,
+                    border:`1px solid ${C.border}`, fontFamily:"inherit", fontSize:14, outline:"none" }}
+                />
+              </div>
+              <div>
+                <label style={{ display:"block", fontSize:12, color:C.muted, marginBottom:6, fontWeight:500 }}>
+                  Confirmer le nouveau mot de passe
+                </label>
+                <input
+                  type="password"
+                  value={pwdConfirm}
+                  onChange={e => { setPwdConfirm(e.target.value); setPwdError(""); }}
+                  onKeyDown={e => { if (e.key === "Enter" && !pwdLoading) confirmPwdChange(); }}
+                  disabled={pwdLoading}
+                  style={{ width:"100%", padding:"10px 12px", borderRadius:8,
+                    border:`1px solid ${C.border}`, fontFamily:"inherit", fontSize:14, outline:"none" }}
+                />
+              </div>
+            </div>
+            {pwdError && (
+              <div style={{ fontSize:12, color:C.red, marginBottom:14, padding:"8px 12px",
+                background:C.redPale, borderRadius:8 }}>
+                {pwdError}
+              </div>
+            )}
+            <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+              <Btn variant="ghost" onClick={closePwdFlow} disabled={pwdLoading}>Annuler</Btn>
+              <Btn variant="primary" onClick={confirmPwdChange} disabled={pwdLoading || !pwdCurrent || !pwdNew || !pwdConfirm}>
+                {pwdLoading ? "Enregistrement…" : "Valider"}
+              </Btn>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal enrôlement 2FA */}
+      <Modal
+        open={mfaEnrollOpen}
+        onClose={cancelMfaEnroll}
+        title="Activer la 2FA"
+        subtitle={mfaStep === 1 ? "Étape 1 sur 2 — Scanner le QR code" : "Étape 2 sur 2 — Vérification"}
+        width={440}
+      >
+        {mfaLoading && !mfaQr ? (
+          <div style={{ padding:40, textAlign:"center", color:C.muted }}>Chargement…</div>
+        ) : (
+          <div>
+            <div style={{ fontSize:13, color:C.inkLight, lineHeight:1.6, marginBottom:16 }}>
+              Utilise une application d'authentification comme <strong>Google Authenticator</strong>, <strong>Authy</strong> ou <strong>1Password</strong>.
+            </div>
+
+            {mfaQr && (
+              <div style={{ background:C.white, border:`1px solid ${C.border}`, borderRadius:10,
+                padding:16, display:"flex", justifyContent:"center", marginBottom:14 }}>
+                <img src={mfaQr} alt="QR code 2FA" style={{ width:200, height:200 }} />
+              </div>
+            )}
+
+            {mfaSecret && (
+              <div style={{ marginBottom:16 }}>
+                <div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>
+                  Ou saisis manuellement ce code dans ton app :
+                </div>
+                <div style={{ fontFamily:"monospace", fontSize:13, background:C.stone,
+                  padding:"8px 12px", borderRadius:8, wordBreak:"break-all", color:C.inkLight }}>
+                  {mfaSecret}
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginBottom:14 }}>
+              <label style={{ display:"block", fontSize:12, color:C.muted, marginBottom:6, fontWeight:500 }}>
+                Code à 6 chiffres affiché dans ton application
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                autoComplete="one-time-code"
+                value={mfaCode}
+                onChange={e => { setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setMfaError(""); }}
+                onKeyDown={e => { if (e.key === "Enter" && !mfaLoading) verifyMfaEnroll(); }}
+                disabled={mfaLoading}
+                placeholder="000000"
+                style={{ width:"100%", padding:"12px 14px", borderRadius:8,
+                  border:`1px solid ${mfaError ? C.red : C.border}`, fontFamily:"monospace",
+                  fontSize:20, letterSpacing:"0.3em", textAlign:"center", outline:"none" }}
+              />
+            </div>
+
+            {mfaError && (
+              <div style={{ fontSize:12, color:C.red, marginBottom:14, padding:"8px 12px",
+                background:C.redPale, borderRadius:8 }}>
+                {mfaError}
+              </div>
+            )}
+
+            <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+              <Btn variant="ghost" onClick={cancelMfaEnroll} disabled={mfaLoading}>Annuler</Btn>
+              <Btn variant="primary" onClick={verifyMfaEnroll} disabled={mfaLoading || mfaCode.length !== 6}>
+                {mfaLoading ? "Vérification…" : "Activer"}
+              </Btn>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal confirmation désactivation 2FA */}
+      <Modal
+        open={!!mfaConfirmUnenroll}
+        onClose={() => { if (!mfaLoading) setMfaConfirmUnenroll(null); }}
+        title="Désactiver la 2FA ?"
+        subtitle="Sécurité réduite"
+        width={400}
+      >
+        <div>
+          <div style={{ padding:14, background:C.yellowPale, border:`1px solid ${C.yellow}40`,
+            borderRadius:10, marginBottom:20, fontSize:13, color:C.inkLight, lineHeight:1.6 }}>
+            ⚠ Ton compte ne sera plus protégé que par ton mot de passe. Si celui-ci est compromis, quelqu'un pourra se connecter à ton compte.
+          </div>
+          <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+            <Btn variant="ghost" onClick={() => setMfaConfirmUnenroll(null)} disabled={mfaLoading}>Annuler</Btn>
+            <Btn variant="danger" onClick={confirmMfaUnenroll} disabled={mfaLoading}>
+              {mfaLoading ? "Désactivation…" : "Désactiver"}
+            </Btn>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
