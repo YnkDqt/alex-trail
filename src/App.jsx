@@ -439,15 +439,15 @@ Annuler = tout effacer.`);if(ok)saveCourse();}
           <Section title="Course">
             <ToggleRow icon="🗺️" label="Section Course"
               desc="Masque entièrement la section dans la navigation"
-              active={courseFeatures._section!==false}
+              active={features._section!==false}
               onToggle={()=>toggleFeature("_section")}
               color={COURSE_C.primary}
             />
-            {courseFeatures._section!==false&&(
+            {features._section!==false&&(
               <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8,paddingLeft:16,borderLeft:`2px solid ${COURSE_C.primary}30`}}>
                 {FEATURE_LABELS.map(({key,label,icon,desc})=>(
                   <ToggleRow key={key} icon={icon} label={label} desc={desc}
-                    active={courseFeatures[key]}
+                    active={features[key]}
                     onToggle={()=>toggleFeature(key)}
                     color={COURSE_C.primary}
                   />
