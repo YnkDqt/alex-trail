@@ -8,6 +8,7 @@ export const useAuth = () => useContext(AuthContext)
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [isRecovery, setIsRecovery] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -15,7 +16,10 @@ export function AuthProvider({ children }) {
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecovery(true)
+      }
       setUser(session?.user ?? null)
     })
 
@@ -48,6 +52,21 @@ export function AuthProvider({ children }) {
 
     return { error: null }
   }
+
+  // Envoi d'un email de réinitialisation de mot de passe
+  // Le lien renverra l'utilisateur vers l'app avec un token de recovery dans l'URL
+  const sendPasswordReset = async (email) => {
+    const redirectTo = `${window.location.origin}${window.location.pathname}`
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+    return { error }
+  }
+
+  // Définition du nouveau mot de passe après clic sur le lien de reset
+  // (la session de recovery est déjà active à ce stade)
+  const setNewPassword = async (newPassword) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    return { error }
+  }
   
   const deleteAccount = async () => {
     if (!user?.id) return { error: new Error('No user') }
@@ -76,7 +95,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, signUp, signIn, signOut, deleteAccount, updatePassword, loading }}>
+    <AuthContext.Provider value={{ user, signUp, signIn, signOut, deleteAccount, updatePassword, sendPasswordReset, setNewPassword, isRecovery, loading }}>
       {children}
     </AuthContext.Provider>
   )
