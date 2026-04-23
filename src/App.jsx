@@ -1076,6 +1076,8 @@ export default function App() {
   // quitte la page pendant la fenêtre de debounce (2s), on déclenche toutes
   // les saves pending immédiatement au lieu de les perdre.
   const pendingSavesRef = useRef({});
+  // Flag pour éviter qu'un conflit ne soit traité plusieurs fois par les auto-saves parallèles
+  const conflictHandlingRef = useRef(false);
 
   // ── Save sécurisé avec détection de conflit ────────────────────────────
   // Avant chaque écriture, on relit la data_version côté serveur.
@@ -1086,12 +1088,25 @@ export default function App() {
   const safeSave = useCallback(async (saveFn) => {
     if (!user?.id) return;
     if (conflictDetected) return; // sécurité : déjà en conflit, on ne tente rien
+    if (conflictHandlingRef.current) return; // un autre auto-save gère déjà le conflit
     try {
       const currentServerVersion = await getDataVersion(user.id);
       // Cas particulier : pas encore de ligne entrainement_settings (premier save)
       // → serverVersionRef.current est null ET currentServerVersion est null → OK
       if (serverVersionRef.current && currentServerVersion && currentServerVersion !== serverVersionRef.current) {
+        // Verrou : seul le premier appel en conflit traite la situation
+        if (conflictHandlingRef.current) return;
+        conflictHandlingRef.current = true;
         console.warn('[conflict] version serveur a changé', { local: serverVersionRef.current, server: currentServerVersion });
+        // Si aucune save en attente → reload silencieux (l'utilisateur n'avait rien de local à perdre)
+        // pendingSavesRef contient les callbacks des auto-saves débouncés non encore exécutés
+        const hasPendingLocalChanges = Object.keys(pendingSavesRef.current).length > 0;
+        if (!hasPendingLocalChanges) {
+          console.info('[conflict] aucune modif locale en attente → reload silencieux');
+          window.location.reload();
+          return;
+        }
+        // Sinon : écran bloquant classique pour permettre téléchargement local
         setConflictDetected(true);
         return;
       }
