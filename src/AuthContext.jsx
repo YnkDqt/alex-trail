@@ -138,24 +138,18 @@ export function AuthProvider({ children }) {
     return { error }
   }
 
-  // Utiliser un code de récupération (vérifie + marque used, désactive le facteur si valide)
+  // Utiliser un code de récupération → désactive le facteur via Edge Function (admin, sans contrainte AAL)
   const mfaUseRecoveryCode = async (code, factorId) => {
     if (!user?.id) return { error: new Error('No user') }
-    const hash = await _hashCode(code.trim().toUpperCase())
-    const { data: rows, error: fetchErr } = await supabase
-      .from('mfa_recovery_codes')
-      .select('id, used')
-      .eq('user_id', user.id)
-      .eq('code_hash', hash)
-      .limit(1)
-    if (fetchErr) return { error: fetchErr }
-    if (!rows?.length) return { error: new Error('Code invalide') }
-    if (rows[0].used) return { error: new Error('Code déjà utilisé') }
-    // Marquer comme utilisé
-    await supabase.from('mfa_recovery_codes').update({ used: true, used_at: new Date().toISOString() }).eq('id', rows[0].id)
-    // Désactiver le facteur TOTP
-    const { error } = await supabase.auth.mfa.unenroll({ factorId })
-    return { error }
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) return { error: new Error('No session') }
+    const { data, error } = await supabase.functions.invoke('disable-mfa', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      body: { recoveryCode: code, factorId },
+    })
+    if (error) return { error }
+    if (data?.error) return { error: new Error(data.error) }
+    return { error: null }
   }
 
   // Envoi d'un email de réinitialisation de mot de passe
