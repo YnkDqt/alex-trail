@@ -13,32 +13,23 @@ serve(async (req) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return new Response(JSON.stringify({ error: "Missing auth" }), { status: 401, headers: corsHeaders });
 
-    // Client user (pour identifier l'utilisateur)
-    const supabaseUser = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
-    // Client admin (pour unenroll sans contrainte AAL)
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Récupérer l'utilisateur depuis le JWT
-    const { data: { user }, error: userErr } = await supabaseUser.auth.getUser();
+    // Identifier l'utilisateur depuis le JWT
+    const { data: { user }, error: userErr } = await supabaseAdmin.auth.getUser(
+      authHeader.replace("Bearer ", "")
+    );
     if (userErr || !user) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
 
-    const { recoveryCode, factorId } = await req.json();
-    if (!recoveryCode || !factorId) {
-      return new Response(JSON.stringify({ error: "Missing recoveryCode or factorId" }), { status: 400, headers: corsHeaders });
-    }
+    const { recoveryCode } = await req.json();
+    if (!recoveryCode) return new Response(JSON.stringify({ error: "Missing recoveryCode" }), { status: 400, headers: corsHeaders });
 
-    // Hasher le code côté serveur (même algo que le client)
+    // Hasher le code
     const encoder = new TextEncoder();
-    const data = encoder.encode(recoveryCode.trim().toUpperCase());
-    const hashBuf = await crypto.subtle.digest("SHA-256", data);
+    const hashBuf = await crypto.subtle.digest("SHA-256", encoder.encode(recoveryCode.trim().toUpperCase()));
     const hashHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, "0")).join("");
 
     // Vérifier le code en base
@@ -53,18 +44,23 @@ serve(async (req) => {
     if (!rows?.length) return new Response(JSON.stringify({ error: "Code invalide" }), { status: 400, headers: corsHeaders });
     if (rows[0].used) return new Response(JSON.stringify({ error: "Code déjà utilisé" }), { status: 400, headers: corsHeaders });
 
-    // Marquer le code comme utilisé
+    // Trouver le facteur TOTP via admin
+    const { data: factors, error: factorsErr } = await supabaseAdmin.auth.admin.listFactors({ userId: user.id });
+    if (factorsErr) return new Response(JSON.stringify({ error: "Erreur récupération facteurs" }), { status: 500, headers: corsHeaders });
+    const totp = factors?.find((f: any) => f.factor_type === "totp" && f.status === "verified");
+    if (!totp) return new Response(JSON.stringify({ error: "Aucun facteur TOTP actif" }), { status: 400, headers: corsHeaders });
+
+    // Marquer le code utilisé
     await supabaseAdmin
       .from("mfa_recovery_codes")
       .update({ used: true, used_at: new Date().toISOString() })
       .eq("id", rows[0].id);
 
-    // Désactiver le facteur TOTP via admin (pas de contrainte AAL)
+    // Désactiver le facteur
     const { error: unenrollErr } = await supabaseAdmin.auth.admin.mfa.deleteFactor({
       userId: user.id,
-      id: factorId,
+      id: totp.id,
     });
-
     if (unenrollErr) return new Response(JSON.stringify({ error: unenrollErr.message }), { status: 500, headers: corsHeaders });
 
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });

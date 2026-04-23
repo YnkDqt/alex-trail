@@ -972,16 +972,13 @@ export default function App() {
     if (!code) { setRecoveryError("Entre ton code de récupération"); return; }
     setRecoveryError(""); setMfaChallengeLoading(true);
     try {
-      const { data: factors } = await mfaListFactors();
-      const totp = factors?.totp?.[0];
-      if (!totp) { setRecoveryError("Aucun facteur TOTP actif"); setMfaChallengeLoading(false); return; }
-      const { error } = await mfaUseRecoveryCode(code, totp.id);
+      // factorId résolu côté Edge Function (listFactors indisponible en aal1)
+      const { error } = await mfaUseRecoveryCode(code, null);
       if (error) {
         setRecoveryError(error.message || "Code invalide ou déjà utilisé.");
         setMfaChallengeLoading(false);
         return;
       }
-      // Code valide → 2FA désactivée, accès autorisé
       setMfaRequired(false);
       setRecoveryCode("");
       setMfaChallengeLoading(false);
