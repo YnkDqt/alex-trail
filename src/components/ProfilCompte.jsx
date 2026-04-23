@@ -74,7 +74,7 @@ const SectionTitle = ({ children }) => (
 );
 
 export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
-  const { user, deleteAccount, updatePassword, mfaEnroll, mfaVerify, mfaUnenroll, mfaListFactors } = useAuth();
+  const { user, deleteAccount, updatePassword, mfaEnroll, mfaVerify, mfaVerifyChallenge, mfaUnenroll, mfaListFactors, mfaSaveRecoveryCodes, mfaUseRecoveryCode } = useAuth();
   const p = profil;
 
   // Load profil from Supabase on mount
@@ -171,6 +171,13 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
   const [mfaError, setMfaError] = useState("");
   const [mfaLoading, setMfaLoading] = useState(false);
   const [mfaConfirmUnenroll, setMfaConfirmUnenroll] = useState(null); // id du facteur à supprimer
+  // Codes de récupération (affichage one-shot après enrôlement)
+  const [recoveryCodes, setRecoveryCodes] = useState([]);
+  const [recoveryCodesOpen, setRecoveryCodesOpen] = useState(false);
+  const [recoveryCopied, setRecoveryCopied] = useState(false);
+  // Désactivation sécurisée : saisie code TOTP
+  const [unenrollTotpCode, setUnenrollTotpCode] = useState("");
+  const [unenrollTotpError, setUnenrollTotpError] = useState("");
 
   // Charger la liste des facteurs MFA au montage
   useEffect(() => {
@@ -222,7 +229,17 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
       setMfaError("Code incorrect. Vérifie l'heure de ton téléphone et réessaie.");
       return;
     }
-    // Succès : rafraîchir la liste, fermer la modal
+    // Générer 10 codes de récupération
+    const codes = Array.from({ length: 10 }, () => {
+      const part = () => Math.random().toString(36).substring(2, 6).toUpperCase();
+      return `${part()}-${part()}`;
+    });
+    // Sauvegarder les hash en base (non bloquant sur l'UI)
+    mfaSaveRecoveryCodes(codes).catch(err => console.warn('Recovery codes save error:', err));
+    // Afficher les codes (one-shot)
+    setRecoveryCodes(codes);
+    setRecoveryCodesOpen(true);
+    // Fermer la modal d'enrôlement
     await refreshFactors();
     setMfaEnrollOpen(false);
     setMfaFactorId(""); setMfaQr(""); setMfaSecret(""); setMfaCode("");
@@ -230,15 +247,27 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
 
   const confirmMfaUnenroll = async () => {
     if (!mfaConfirmUnenroll) return;
-    setMfaLoading(true);
+    if (!unenrollTotpCode || unenrollTotpCode.length !== 6) {
+      setUnenrollTotpError("Entre les 6 chiffres de ton application d'authentification");
+      return;
+    }
+    setUnenrollTotpError(""); setMfaLoading(true);
+    // Vérifier le code TOTP avant de désactiver
+    const { error: verifyError } = await mfaVerifyChallenge(mfaConfirmUnenroll, unenrollTotpCode.trim());
+    if (verifyError) {
+      setMfaLoading(false);
+      setUnenrollTotpError("Code incorrect. Réessaie.");
+      return;
+    }
     const { error } = await mfaUnenroll(mfaConfirmUnenroll);
     setMfaLoading(false);
     if (error) {
-      alert("Erreur lors de la désactivation : " + error.message);
+      setUnenrollTotpError("Erreur lors de la désactivation : " + error.message);
       return;
     }
     await refreshFactors();
     setMfaConfirmUnenroll(null);
+    setUnenrollTotpCode(""); setUnenrollTotpError("");
   };
 
   const openPwdFlow = () => {
@@ -810,23 +839,86 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
         )}
       </Modal>
 
-      {/* Modal confirmation désactivation 2FA */}
+      {/* Modal confirmation désactivation 2FA — sécurisée par code TOTP */}
       <Modal
         open={!!mfaConfirmUnenroll}
-        onClose={() => { if (!mfaLoading) setMfaConfirmUnenroll(null); }}
+        onClose={() => { if (!mfaLoading) { setMfaConfirmUnenroll(null); setUnenrollTotpCode(""); setUnenrollTotpError(""); } }}
         title="Désactiver la 2FA ?"
-        subtitle="Sécurité réduite"
-        width={400}
+        subtitle="Confirmation par code requis"
+        width={420}
       >
         <div>
           <div style={{ padding:14, background:C.yellowPale, border:`1px solid ${C.yellow}40`,
             borderRadius:10, marginBottom:20, fontSize:13, color:C.inkLight, lineHeight:1.6 }}>
-            ⚠ Ton compte ne sera plus protégé que par ton mot de passe. Si celui-ci est compromis, quelqu'un pourra se connecter à ton compte.
+            ⚠ Pour confirmer la désactivation, entre le code à 6 chiffres de ton application d'authentification.
+          </div>
+          <div style={{ marginBottom:16 }}>
+            <div style={{ fontSize:12, fontWeight:600, color:"var(--muted-c)", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.05em" }}>Code de vérification</div>
+            <input
+              type="text" inputMode="numeric" autoComplete="one-time-code"
+              value={unenrollTotpCode}
+              onChange={e => { setUnenrollTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setUnenrollTotpError(""); }}
+              onKeyDown={e => { if (e.key === "Enter" && !mfaLoading) confirmMfaUnenroll(); }}
+              placeholder="000000"
+              disabled={mfaLoading}
+              style={{ width:"100%", padding:"12px 14px", borderRadius:8,
+                border:`1px solid ${unenrollTotpError ? C.red : C.border}`, fontFamily:"monospace",
+                fontSize:20, letterSpacing:"0.3em", textAlign:"center", outline:"none", boxSizing:"border-box" }}
+            />
+            {unenrollTotpError && (
+              <div style={{ fontSize:12, color:C.red, marginTop:8, padding:"8px 12px",
+                background:C.redPale, borderRadius:8 }}>
+                {unenrollTotpError}
+              </div>
+            )}
           </div>
           <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
-            <Btn variant="ghost" onClick={() => setMfaConfirmUnenroll(null)} disabled={mfaLoading}>Annuler</Btn>
-            <Btn variant="danger" onClick={confirmMfaUnenroll} disabled={mfaLoading}>
-              {mfaLoading ? "Désactivation…" : "Désactiver"}
+            <Btn variant="ghost" onClick={() => { setMfaConfirmUnenroll(null); setUnenrollTotpCode(""); setUnenrollTotpError(""); }} disabled={mfaLoading}>Annuler</Btn>
+            <Btn variant="danger" onClick={confirmMfaUnenroll} disabled={mfaLoading || unenrollTotpCode.length !== 6}>
+              {mfaLoading ? "Vérification…" : "Désactiver"}
+            </Btn>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal codes de récupération — one-shot après enrôlement 2FA */}
+      <Modal
+        open={recoveryCodesOpen}
+        onClose={() => {}} // non fermable sans action explicite
+        title="Codes de récupération"
+        subtitle="À sauvegarder maintenant — ne seront plus affichés"
+        width={480}
+      >
+        <div>
+          <div style={{ padding:14, background:C.redPale, border:`1px solid ${C.red}40`,
+            borderRadius:10, marginBottom:20, fontSize:13, color:C.red, lineHeight:1.6 }}>
+            Ces codes te permettent d'accéder à ton compte si tu perds ton téléphone. Chaque code ne peut être utilisé qu'une seule fois. <strong>Copie-les maintenant</strong> — ils ne seront plus affichés.
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:20 }}>
+            {recoveryCodes.map((code, i) => (
+              <div key={i} style={{
+                padding:"8px 14px", background:"var(--surface-2)", borderRadius:8,
+                fontFamily:"monospace", fontSize:15, letterSpacing:"0.1em",
+                textAlign:"center", border:"1px solid var(--border-c)", color:"var(--text-c)"
+              }}>
+                {code}
+              </div>
+            ))}
+          </div>
+          <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+            <Btn variant="ghost" onClick={() => {
+              const text = recoveryCodes.join("\n");
+              const blob = new Blob([`Codes de récupération 2FA — Alex Trail\nGénérés le ${new Date().toLocaleDateString("fr-FR")}\n\n${text}\n\nChaque code est utilisable une seule fois.`], { type: "text/plain" });
+              const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+              a.download = "alex-trail-recovery-codes.txt"; a.click();
+            }}>Télécharger .txt</Btn>
+            <Btn onClick={() => {
+              navigator.clipboard.writeText(recoveryCodes.join("\n")).then(() => {
+                setRecoveryCopied(true); setTimeout(() => setRecoveryCopied(false), 2000);
+              });
+            }}>{recoveryCopied ? "Copié !" : "Copier"}</Btn>
+            <Btn variant="primary" onClick={() => { setRecoveryCodesOpen(false); setRecoveryCodes([]); }}>
+              J'ai sauvegardé mes codes
             </Btn>
           </div>
         </div>

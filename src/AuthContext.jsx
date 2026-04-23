@@ -108,6 +108,56 @@ export function AuthProvider({ children }) {
     return { data, error }
   }
 
+  // Vérifier un code TOTP sans contexte d'enrôlement (pour désactivation sécurisée)
+  const mfaVerifyChallenge = async (factorId, code) => {
+    const { data: challenge, error: chErr } = await supabase.auth.mfa.challenge({ factorId })
+    if (chErr) return { error: chErr }
+    const { data, error } = await supabase.auth.mfa.verify({
+      factorId, challengeId: challenge.id, code,
+    })
+    return { data, error }
+  }
+
+  // Hasher un code de récupération (SHA-256, hex)
+  const _hashCode = async (code) => {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(code))
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('')
+  }
+
+  // Sauvegarder les codes de récupération hashés en base (remplace les anciens)
+  const mfaSaveRecoveryCodes = async (codes) => {
+    if (!user?.id) return { error: new Error('No user') }
+    // Supprimer les anciens codes
+    await supabase.from('mfa_recovery_codes').delete().eq('user_id', user.id)
+    // Hasher et insérer les nouveaux
+    const rows = await Promise.all(codes.map(async (code) => ({
+      user_id: user.id,
+      code_hash: await _hashCode(code),
+    })))
+    const { error } = await supabase.from('mfa_recovery_codes').insert(rows)
+    return { error }
+  }
+
+  // Utiliser un code de récupération (vérifie + marque used, désactive le facteur si valide)
+  const mfaUseRecoveryCode = async (code, factorId) => {
+    if (!user?.id) return { error: new Error('No user') }
+    const hash = await _hashCode(code.trim().toUpperCase())
+    const { data: rows, error: fetchErr } = await supabase
+      .from('mfa_recovery_codes')
+      .select('id, used')
+      .eq('user_id', user.id)
+      .eq('code_hash', hash)
+      .limit(1)
+    if (fetchErr) return { error: fetchErr }
+    if (!rows?.length) return { error: new Error('Code invalide') }
+    if (rows[0].used) return { error: new Error('Code déjà utilisé') }
+    // Marquer comme utilisé
+    await supabase.from('mfa_recovery_codes').update({ used: true, used_at: new Date().toISOString() }).eq('id', rows[0].id)
+    // Désactiver le facteur TOTP
+    const { error } = await supabase.auth.mfa.unenroll({ factorId })
+    return { error }
+  }
+
   // Envoi d'un email de réinitialisation de mot de passe
   // Le lien renverra l'utilisateur vers l'app avec un token de recovery dans l'URL
   const sendPasswordReset = async (email) => {
@@ -154,7 +204,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, signUp, signIn, signOut, deleteAccount, updatePassword, sendPasswordReset, setNewPassword, isRecovery, clearRecovery, mfaEnroll, mfaVerify, mfaUnenroll, mfaListFactors, mfaGetAAL, loading }}>
+    <AuthContext.Provider value={{ user, signUp, signIn, signOut, deleteAccount, updatePassword, sendPasswordReset, setNewPassword, isRecovery, clearRecovery, mfaEnroll, mfaVerify, mfaVerifyChallenge, mfaUnenroll, mfaListFactors, mfaGetAAL, mfaSaveRecoveryCodes, mfaUseRecoveryCode, loading }}>
       {children}
     </AuthContext.Provider>
   )
