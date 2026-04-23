@@ -864,7 +864,7 @@ function AppLayout({
 
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const { user, loading, signOut, isRecovery, mfaGetAAL, mfaListFactors, mfaVerify } = useAuth();
+  const { user, loading, signOut, isRecovery, mfaGetAAL, mfaListFactors, mfaVerify, mfaUseRecoveryCode } = useAuth();
   
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   useEffect(()=>{ const h=()=>setIsMobile(window.innerWidth<=768); window.addEventListener("resize",h); return()=>window.removeEventListener("resize",h); },[]);
@@ -919,6 +919,9 @@ export default function App() {
   const [mfaChallengeCode, setMfaChallengeCode] = useState("");
   const [mfaChallengeError, setMfaChallengeError] = useState("");
   const [mfaChallengeLoading, setMfaChallengeLoading] = useState(false);
+  const [mfaUseRecovery, setMfaUseRecovery] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [recoveryError, setRecoveryError] = useState("");
 
   useEffect(() => {
     if (!user?.id) { setMfaCheckDone(false); setMfaRequired(false); return; }
@@ -964,7 +967,29 @@ export default function App() {
     }
   };
 
-  // ── Load ALL data from Supabase at login (avec timeout + retry) ───────────
+  const submitRecoveryCode = async () => {
+    const code = recoveryCode.trim().toUpperCase();
+    if (!code) { setRecoveryError("Entre ton code de récupération"); return; }
+    setRecoveryError(""); setMfaChallengeLoading(true);
+    try {
+      const { data: factors } = await mfaListFactors();
+      const totp = factors?.totp?.[0];
+      if (!totp) { setRecoveryError("Aucun facteur TOTP actif"); setMfaChallengeLoading(false); return; }
+      const { error } = await mfaUseRecoveryCode(code, totp.id);
+      if (error) {
+        setRecoveryError(error.message || "Code invalide ou déjà utilisé.");
+        setMfaChallengeLoading(false);
+        return;
+      }
+      // Code valide → 2FA désactivée, accès autorisé
+      setMfaRequired(false);
+      setRecoveryCode("");
+      setMfaChallengeLoading(false);
+    } catch (err) {
+      setRecoveryError("Une erreur est survenue.");
+      setMfaChallengeLoading(false);
+    }
+  };
   useEffect(() => {
     if (!user?.id || dataLoaded) return;
 
@@ -1479,46 +1504,93 @@ export default function App() {
     return (
       <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F5F3EF', padding:'2rem', fontFamily:'DM Sans, sans-serif' }}>
         <div style={{ maxWidth:400, width:'100%', background:'#FFFFFF', padding:'2rem', borderRadius:12, border:'1px solid #DDD9D1' }}>
-          <div style={{ fontSize:22, fontWeight:600, color:'#1C1916', marginBottom:8, fontFamily:"'Fraunces',serif" }}>Vérification en deux étapes</div>
-          <div style={{ fontSize:13, color:'#7A7268', lineHeight:1.6, marginBottom:20 }}>
-            Entre le code à 6 chiffres affiché dans ton application d'authentification.
-          </div>
-          <input
-            type="text"
-            inputMode="numeric"
-            maxLength={6}
-            autoComplete="one-time-code"
-            autoFocus
-            value={mfaChallengeCode}
-            onChange={e => { setMfaChallengeCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setMfaChallengeError(""); }}
-            onKeyDown={e => { if (e.key === "Enter" && !mfaChallengeLoading) submitMfaChallenge(); }}
-            disabled={mfaChallengeLoading}
-            placeholder="000000"
-            style={{ width:'100%', padding:'12px 14px', borderRadius:8,
-              border:`1px solid ${mfaChallengeError ? '#B03A2A' : '#DDD9D1'}`, fontFamily:'monospace',
-              fontSize:22, letterSpacing:'0.3em', textAlign:'center', outline:'none', marginBottom:12 }}
-          />
-          {mfaChallengeError && (
-            <div style={{ fontSize:12, color:'#B03A2A', marginBottom:14, padding:'8px 12px',
-              background:'#FAE9E7', borderRadius:8 }}>
-              {mfaChallengeError}
-            </div>
+          {!mfaUseRecovery ? (
+            <>
+              <div style={{ fontSize:22, fontWeight:600, color:'#1C1916', marginBottom:8, fontFamily:"'Fraunces',serif" }}>Vérification en deux étapes</div>
+              <div style={{ fontSize:13, color:'#7A7268', lineHeight:1.6, marginBottom:20 }}>
+                Entre le code à 6 chiffres affiché dans ton application d'authentification.
+              </div>
+              <input
+                type="text" inputMode="numeric" maxLength={6} autoComplete="one-time-code" autoFocus
+                value={mfaChallengeCode}
+                onChange={e => { setMfaChallengeCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setMfaChallengeError(""); }}
+                onKeyDown={e => { if (e.key === "Enter" && !mfaChallengeLoading) submitMfaChallenge(); }}
+                disabled={mfaChallengeLoading}
+                placeholder="000000"
+                style={{ width:'100%', padding:'12px 14px', borderRadius:8,
+                  border:`1px solid ${mfaChallengeError ? '#B03A2A' : '#DDD9D1'}`, fontFamily:'monospace',
+                  fontSize:22, letterSpacing:'0.3em', textAlign:'center', outline:'none', marginBottom:12, boxSizing:'border-box' }}
+              />
+              {mfaChallengeError && (
+                <div style={{ fontSize:12, color:'#B03A2A', marginBottom:14, padding:'8px 12px', background:'#FAE9E7', borderRadius:8 }}>
+                  {mfaChallengeError}
+                </div>
+              )}
+              <button onClick={submitMfaChallenge} disabled={mfaChallengeLoading || mfaChallengeCode.length !== 6}
+                style={{ width:'100%', padding:'11px 20px', background:'#2D5A3D', color:'#FFFFFF',
+                  border:'none', borderRadius:8, fontSize:14, fontWeight:600,
+                  cursor: (mfaChallengeLoading || mfaChallengeCode.length !== 6) ? 'not-allowed' : 'pointer',
+                  opacity: (mfaChallengeLoading || mfaChallengeCode.length !== 6) ? 0.6 : 1,
+                  fontFamily:'inherit', marginBottom:12 }}>
+                {mfaChallengeLoading ? 'Vérification…' : 'Valider'}
+              </button>
+              <div style={{ textAlign:'center' }}>
+                <button onClick={() => { setMfaUseRecovery(true); setMfaChallengeError(""); setMfaChallengeCode(""); }}
+                  style={{ background:'transparent', border:'none', color:'#7A7268', fontSize:12,
+                    cursor:'pointer', fontFamily:'inherit', textDecoration:'underline', marginBottom:8, display:'block', width:'100%' }}>
+                  Je n'ai plus accès à mon application — utiliser un code de récupération
+                </button>
+                <button onClick={() => signOut()}
+                  style={{ background:'transparent', border:'none', color:'#7A7268', fontSize:12,
+                    cursor:'pointer', fontFamily:'inherit', textDecoration:'underline' }}>
+                  Se déconnecter
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize:22, fontWeight:600, color:'#1C1916', marginBottom:8, fontFamily:"'Fraunces',serif" }}>Code de récupération</div>
+              <div style={{ fontSize:13, color:'#7A7268', lineHeight:1.6, marginBottom:20 }}>
+                Entre l'un de tes codes de récupération (format <span style={{ fontFamily:'monospace' }}>XXXX-XXXX</span>). La 2FA sera désactivée après utilisation.
+              </div>
+              <input
+                type="text" autoFocus autoComplete="off" spellCheck={false}
+                value={recoveryCode}
+                onChange={e => { setRecoveryCode(e.target.value.toUpperCase()); setRecoveryError(""); }}
+                onKeyDown={e => { if (e.key === "Enter" && !mfaChallengeLoading) submitRecoveryCode(); }}
+                disabled={mfaChallengeLoading}
+                placeholder="XXXX-XXXX"
+                style={{ width:'100%', padding:'12px 14px', borderRadius:8,
+                  border:`1px solid ${recoveryError ? '#B03A2A' : '#DDD9D1'}`, fontFamily:'monospace',
+                  fontSize:18, letterSpacing:'0.15em', textAlign:'center', outline:'none', marginBottom:12, boxSizing:'border-box' }}
+              />
+              {recoveryError && (
+                <div style={{ fontSize:12, color:'#B03A2A', marginBottom:14, padding:'8px 12px', background:'#FAE9E7', borderRadius:8 }}>
+                  {recoveryError}
+                </div>
+              )}
+              <button onClick={submitRecoveryCode} disabled={mfaChallengeLoading || !recoveryCode.trim()}
+                style={{ width:'100%', padding:'11px 20px', background:'#2D5A3D', color:'#FFFFFF',
+                  border:'none', borderRadius:8, fontSize:14, fontWeight:600,
+                  cursor: (mfaChallengeLoading || !recoveryCode.trim()) ? 'not-allowed' : 'pointer',
+                  opacity: (mfaChallengeLoading || !recoveryCode.trim()) ? 0.6 : 1,
+                  fontFamily:'inherit', marginBottom:12 }}>
+                {mfaChallengeLoading ? 'Vérification…' : 'Accéder à mon compte'}
+              </button>
+              <div style={{ textAlign:'center' }}>
+                <button onClick={() => { setMfaUseRecovery(false); setRecoveryError(""); setRecoveryCode(""); }}
+                  style={{ background:'transparent', border:'none', color:'#7A7268', fontSize:12,
+                    cursor:'pointer', fontFamily:'inherit', textDecoration:'underline', marginBottom:8, display:'block', width:'100%' }}>
+                  Retour — utiliser mon application d'authentification
+                </button>
+                <button onClick={() => signOut()}
+                  style={{ background:'transparent', border:'none', color:'#7A7268', fontSize:12,
+                    cursor:'pointer', fontFamily:'inherit', textDecoration:'underline' }}>
+                  Se déconnecter
+                </button>
+              </div>
+            </>
           )}
-          <button onClick={submitMfaChallenge} disabled={mfaChallengeLoading || mfaChallengeCode.length !== 6}
-            style={{ width:'100%', padding:'11px 20px', background:'#2D5A3D', color:'#FFFFFF',
-              border:'none', borderRadius:8, fontSize:14, fontWeight:600,
-              cursor: (mfaChallengeLoading || mfaChallengeCode.length !== 6) ? 'not-allowed' : 'pointer',
-              opacity: (mfaChallengeLoading || mfaChallengeCode.length !== 6) ? 0.6 : 1,
-              fontFamily:'inherit', marginBottom:16 }}>
-            {mfaChallengeLoading ? 'Vérification…' : 'Valider'}
-          </button>
-          <div style={{ textAlign:'center' }}>
-            <button onClick={() => signOut()}
-              style={{ background:'transparent', border:'none', color:'#7A7268', fontSize:12,
-                cursor:'pointer', fontFamily:'inherit', textDecoration:'underline' }}>
-              Se déconnecter
-            </button>
-          </div>
         </div>
       </div>
     );
