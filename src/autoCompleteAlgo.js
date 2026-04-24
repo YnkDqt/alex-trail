@@ -153,6 +153,7 @@ export function planPourZone({ besoin, bibliotheque, strategy, isDepart = false 
   const stratEauMl = strategy?.hydratation?.eauPureMl || 0;
   const stratBoissonMl = strategy?.hydratation?.boissonEnergetiqueMl || 0;
   const stratTotalMl = stratEauMl + stratBoissonMl;
+  const flasqueMl = strategy?.hydratation?.flasqueMl || 500;
   
   // Ajuster à la cible de la zone (on ne transporte pas plus que le besoin + 10%)
   const cibleTotalMl = Math.round(cibleEau * 1.1);
@@ -164,10 +165,12 @@ export function planPourZone({ besoin, bibliotheque, strategy, isDepart = false 
   const eauFinalMl = stratTotalMl > 0 ? eauCibleMl : Math.round(cibleEau * 0.5);
   const boissonFinalMl = stratTotalMl > 0 ? boissonCibleMl : Math.round(cibleEau * 0.5);
 
-  // Ajouter eau pure
+  // Ajouter eau pure (arrondie au multiple de flasque — remplissage pratique)
   if (eauFinalMl > 0 && eauxPures.length > 0) {
     const eau = eauxPures[0];
-    const qte = arrondirQuantite(eau, eauFinalMl);
+    // Arrondir au multiple de flasque le plus proche (au moins 1 flasque si besoin > 0)
+    const nbFlasques = Math.max(1, Math.round(eauFinalMl / flasqueMl));
+    const qte = nbFlasques * flasqueMl;
     if (qte > 0) {
       addOrMerge(eau.id, qte);
       const n = nutrimentsFor(eau, qte);
@@ -269,10 +272,15 @@ export function planPourZone({ besoin, bibliotheque, strategy, isDepart = false 
   }
 
   // ── PASSE 4 : ARRONDI FINAL ──
-  // Les incréments sont déjà quantifiés, mais pour les boissons on consolide.
+  // Les incréments sont déjà quantifiés, mais pour les autres items on consolide.
+  // Note : pour l'eau pure, on préserve le multiple de flasque déjà appliqué.
   return plan.map(p => {
     const item = bibliotheque.find(b => b.id === p.id);
     if (!item) return p;
+    // Eau pure : déjà arrondie au multiple de flasque, on ne touche pas
+    const isEauPure = item.type === "Eau pure" ||
+      (!item.type && item.boisson && (item.nom || "").toLowerCase().includes("eau"));
+    if (isEauPure) return p;
     return { ...p, quantite: arrondirQuantite(item, p.quantite) };
   });
 }

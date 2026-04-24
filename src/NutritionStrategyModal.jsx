@@ -19,11 +19,12 @@ const subText = { fontSize: 11, color: C.muted, fontStyle: "italic", marginBotto
 
 // ─── BLOC HYDRATATION ────────────────────────────────────────────────────────
 function BlocHydratation({ strategy, updateStrategy }) {
-  const { eauPureMl, boissonEnergetiqueMl } = strategy.hydratation;
+  const { eauPureMl, boissonEnergetiqueMl, flasqueMl } = strategy.hydratation;
   const total = eauPureMl + boissonEnergetiqueMl;
 
   const setEau = (v) => updateStrategy({ ...strategy, hydratation: { ...strategy.hydratation, eauPureMl: parseInt(v) || 0 } });
   const setBoisson = (v) => updateStrategy({ ...strategy, hydratation: { ...strategy.hydratation, boissonEnergetiqueMl: parseInt(v) || 0 } });
+  const setFlasque = (v) => updateStrategy({ ...strategy, hydratation: { ...strategy.hydratation, flasqueMl: parseInt(v) || 500 } });
 
   // Presets rapides
   const presets = [
@@ -46,7 +47,7 @@ function BlocHydratation({ strategy, updateStrategy }) {
           return (
             <button
               key={p.label}
-              onClick={() => updateStrategy({ ...strategy, hydratation: { eauPureMl: p.eau, boissonEnergetiqueMl: p.boisson } })}
+              onClick={() => updateStrategy({ ...strategy, hydratation: { ...strategy.hydratation, eauPureMl: p.eau, boissonEnergetiqueMl: p.boisson } })}
               style={{
                 padding: "5px 12px", fontSize: 11, borderRadius: 6,
                 border: `1px solid ${active ? C.forest : C.border}`,
@@ -62,7 +63,7 @@ function BlocHydratation({ strategy, updateStrategy }) {
       </div>
 
       {/* Volumes détaillés */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, alignItems: "end" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, alignItems: "end", marginBottom: 12 }}>
         <Field label="💧 Eau pure (ml)">
           <input
             type="number" min="0" step="50"
@@ -85,6 +86,24 @@ function BlocHydratation({ strategy, updateStrategy }) {
             {total} ml
           </div>
         </div>
+      </div>
+
+      {/* Volume flasque d'eau */}
+      <div style={{ padding: "10px 12px", background: C.bluePale, borderRadius: 8, display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 18 }}>🧴</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12, fontWeight: 500, color: C.inkLight }}>Volume d'une flasque d'eau</div>
+          <div style={{ fontSize: 10, color: C.muted }}>
+            L'algo arrondit au multiple pour que tu remplisses tes flasques en entier (au lieu de 350ml bizarres).
+          </div>
+        </div>
+        <input
+          type="number" min="100" max="2000" step="50"
+          value={flasqueMl || 500}
+          onChange={e => setFlasque(e.target.value)}
+          style={{ width: 80 }}
+        />
+        <span style={{ fontSize: 11, color: C.muted }}>ml</span>
       </div>
     </div>
   );

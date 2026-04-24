@@ -220,7 +220,8 @@ export const NUTRITION_STRATEGY_DEFAULTS = {
   },
   hydratation: {
     eauPureMl: 500,
-    boissonEnergetiqueMl: 500
+    boissonEnergetiqueMl: 500,
+    flasqueMl: 500  // Volume d'une flasque d'eau. L'algo arrondit au multiple.
   },
   priorite: "confort",
   ravitos: {}  // map: ravitoId -> { strategieAutonome }

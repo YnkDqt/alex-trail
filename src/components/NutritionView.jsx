@@ -164,7 +164,6 @@ export default function NutritionView({
             
             return {
               kcal: m.kcal + (ingProd.kcal || 0) * qteGrammes / 100,
-              eau: m.eau + (ingProd.boisson ? qteGrammes : 0), // 1g eau = 1ml
               proteines: m.proteines + (ingProd.proteines || 0) * qteGrammes / 100,
               lipides: m.lipides + (ingProd.lipides || 0) * qteGrammes / 100,
               glucides: m.glucides + (ingProd.glucides || 0) * qteGrammes / 100,
@@ -174,9 +173,29 @@ export default function NutritionView({
               zinc: m.zinc + (ingProd.zinc || 0) * qteGrammes / 100,
               calcium: m.calcium + (ingProd.calcium || 0) * qteGrammes / 100
             };
-          }, { kcal: 0, eau: 0, proteines: 0, lipides: 0, glucides: 0, sodium: 0, potassium: 0, magnesium: 0, zinc: 0, calcium: 0 });
+          }, { kcal: 0, proteines: 0, lipides: 0, glucides: 0, sodium: 0, potassium: 0, magnesium: 0, zinc: 0, calcium: 0 });
           
-          return Object.keys(macros).reduce((t, k) => ({ ...t, [k]: t[k] + macros[k] * qte }), total);
+          // Les macros ci-dessus représentent la recette ENTIÈRE (tous ingrédients).
+          // qte = nombre de portions voulues.
+          // Donc on divise par portions puis multiplie par qte.
+          const portions = parseFloat(prod.portions) || 1;
+          const ratio = qte / portions;
+          
+          // Eau : pour une recette boisson, on utilise volumeMlParPortion × qte (plus fiable)
+          const eauRecette = prod.boisson ? (parseFloat(prod.volumeMlParPortion) || 0) * qte : 0;
+          
+          return {
+            kcal: total.kcal + macros.kcal * ratio,
+            eau: total.eau + eauRecette,
+            proteines: total.proteines + macros.proteines * ratio,
+            lipides: total.lipides + macros.lipides * ratio,
+            glucides: total.glucides + macros.glucides * ratio,
+            sodium: total.sodium + macros.sodium * ratio,
+            potassium: total.potassium + macros.potassium * ratio,
+            magnesium: total.magnesium + macros.magnesium * ratio,
+            zinc: total.zinc + macros.zinc * ratio,
+            calcium: total.calcium + macros.calcium * ratio
+          };
         }
         
         // Produit simple - qte en grammes, valeurs nutritionnelles en /100g
@@ -891,21 +910,35 @@ export default function NutritionView({
                   const isProd = item.itemType === "produit";
                   const macros = isProd ? item : item.macros;
                   
+                  // Détection eau pure pour affichage en flasques
+                  const isEauPure = isProd && (
+                    item.type === "Eau pure" ||
+                    (!item.type && item.boisson && (item.nom || "").toLowerCase().includes("eau"))
+                  );
+                  const flasqueMl = isEauPure ? (getNutritionStrategy(race)?.hydratation?.flasqueMl || 500) : 0;
+                  const nbFlasques = isEauPure && flasqueMl > 0 ? (qte / flasqueMl) : null;
+                  const showFlasques = isEauPure && nbFlasques != null && Number.isInteger(nbFlasques);
+                  
                   return (
                     <div key={item.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
                       padding:"8px 12px",background:C.stone,borderRadius:8,marginBottom:6}}>
                       <div style={{flex:1}}>
                         <div style={{fontSize:13,fontWeight:500,color:C.inkLight}}>{item.nom}</div>
                         <div style={{fontSize:11,color:C.muted}}>
-                          {Math.round(macros?.kcal||0)} kcal · {Math.round(macros?.glucides||0)}g gluc. / {isProd?"100g":"portion"}
+                          {isEauPure
+                            ? `Flasques de ${flasqueMl}ml`
+                            : `${Math.round(macros?.kcal||0)} kcal · ${Math.round(macros?.glucides||0)}g gluc. / ${isProd?"100g":"portion"}`
+                          }
                         </div>
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <button onClick={() => updateRavitoQte(ravitoId, item.id, -1)}
+                        <button onClick={() => updateRavitoQte(ravitoId, item.id, isEauPure ? -flasqueMl : -1)}
                           style={{width:28,height:28,borderRadius:6,border:`1px solid ${C.border}`,
                             background:C.white,cursor:"pointer",fontSize:16,color:C.inkLight}}>−</button>
-                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:14,fontWeight:500,minWidth:30,textAlign:"center"}}>{qte}</span>
-                        <button onClick={() => updateRavitoQte(ravitoId, item.id, 1)}
+                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:14,fontWeight:500,minWidth:showFlasques?56:30,textAlign:"center"}}>
+                          {showFlasques ? `${nbFlasques} × ${flasqueMl}ml` : qte}
+                        </span>
+                        <button onClick={() => updateRavitoQte(ravitoId, item.id, isEauPure ? flasqueMl : 1)}
                           style={{width:28,height:28,borderRadius:6,border:`1px solid ${C.border}`,
                             background:C.white,cursor:"pointer",fontSize:16,color:C.inkLight}}>+</button>
                       </div>
