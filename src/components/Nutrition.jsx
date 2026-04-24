@@ -2,6 +2,17 @@ import React, { useState, useMemo, useRef } from "react";
 import { C, isRunning, fmtDate, localDate, exportJSON } from "../constants.js";
 import { Btn, Modal, Field, ConfirmDialog } from "../atoms.jsx";
 import { CIQUAL, CIQUAL_CATEGORIES } from "../data/ciqual.js";
+import {
+  ProduitForm,
+  RecetteForm,
+  emptyProduit as emptyProduitNew,
+  emptyRecette as emptyRecetteNew,
+  normalizeProduit,
+  normalizeRecette,
+  loadProduitForEdit,
+  loadRecetteForEdit,
+  inferType
+} from "../ProduitRecetteForm.jsx";
 
 // ─── JOURNAL NUTRITIONNEL (inchangé)
 const emptyJourEntry = () => ({
@@ -226,42 +237,19 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
 }
 
 // ─── NUTRITION ENTRAÎNEMENT ───────────────────────────────────────────────────
-const emptyProduit = () => ({
-  id: Date.now()+Math.random(),
-  nom: "",
-  kcal: "",
-  glucides: "",
-  proteines: "",
-  lipides: "",
-  sodium: "",
-  potassium: "",
-  magnesium: "",
-  zinc: "",
-  calcium: "",
-  categorie: "",
-  boisson: false,
-  source: "perso",
-  notes: ""
-});
-
-const emptyRecette = () => ({
-  id: Date.now()+Math.random(),
-  nom: "",
-  description: "",
-  portions: 1,
-  ingredients: [], // {produitId, quantite}
-  notes: "",
-  boisson: false,
-  volumeMlParPortion: ""
-});
+// Les fonctions emptyProduit/emptyRecette sont importées depuis ProduitRecetteForm.jsx
+const emptyProduit = emptyProduitNew;
+const emptyRecette = emptyRecetteNew;
 
 function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setSeances, activites = [] }) {
-  const [tab, setTab] = useState("produits"); // produits | recettes | historique
+  const [tab, setTab] = useState("bibliotheque"); // bibliotheque | historique
+  const [bibFilter, setBibFilter] = useState("tous"); // tous | produits | recettes
   const [search, setSearch] = useState("");
   
   // ── Produits ──
   const [prodModal, setProdModal] = useState(false);
   const [prodForm, setProdForm] = useState(emptyProduit());
+  const [prodInputMode, setProdInputMode] = useState("100g"); // state local, non persisté
   const [editProdId, setEditProdId] = useState(null);
   const [confirmProdId, setConfirmProdId] = useState(null);
   
@@ -285,37 +273,28 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   const [mesProduitsModal, setMesProduitsModal] = useState(false);
   const [mesProduitsSearch, setMesProduitsSearch] = useState("");
 
-  const updP = (k,v) => setProdForm(f=>({...f,[k]:v}));
-  const updR = (k,v) => setRecForm(f=>({...f,[k]:v}));
+  // Note : updP, updR, removeIngredient, updateIngredientQte ont été retirés
+  // car désormais gérés par les composants ProduitForm et RecetteForm importés
 
   // ── CRUD Produits ──
   const openNewProd = () => {
     setEditProdId(null);
     setProdForm(emptyProduit());
+    setProdInputMode("100g");
     setProdModal(true);
   };
   
   const openEditProd = (p) => {
     setEditProdId(p.id);
-    setProdForm({...emptyProduit(), ...p});
+    setProdForm(loadProduitForEdit(p));
+    setProdInputMode("100g");
     setProdModal(true);
   };
   
   const saveProduit = () => {
     if(!prodForm.nom.trim()) return;
-    const item = {
-      ...prodForm,
-      id: editProdId || Date.now()+Math.random(),
-      kcal: parseFloat(prodForm.kcal)||0,
-      glucides: parseFloat(prodForm.glucides)||0,
-      proteines: parseFloat(prodForm.proteines)||0,
-      lipides: parseFloat(prodForm.lipides)||0,
-      sodium: parseFloat(prodForm.sodium)||0,
-      potassium: parseFloat(prodForm.potassium)||0,
-      magnesium: parseFloat(prodForm.magnesium)||0,
-      zinc: parseFloat(prodForm.zinc)||0,
-      calcium: parseFloat(prodForm.calcium)||0
-    };
+    const normalized = normalizeProduit(prodForm, prodInputMode);
+    const item = { ...normalized, id: editProdId || Date.now()+Math.random() };
     if(editProdId) setProduits(pp=>pp.map(p=>p.id===editProdId?item:p));
     else setProduits(pp=>[...pp,item]);
     setProdModal(false);
@@ -328,9 +307,12 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
 
   // Ajout depuis CIQUAL
   const addFromCiqual = (alim) => {
+    const isBoisson = alim.c && alim.c.toLowerCase().includes("boisson");
     const newProd = {
+      ...emptyProduit(),
       id: Date.now()+Math.random(),
       nom: alim.n,
+      type: isBoisson ? (alim.n.toLowerCase().includes("eau") ? "Eau pure" : "Boisson énergétique") : "",
       kcal: alim.e || 0,
       glucides: alim.g || 0,
       proteines: alim.p || 0,
@@ -342,6 +324,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
       calcium: 0,
       categorie: alim.c || "",
       source: "ciqual",
+      boisson: isBoisson,
       notes: ""
     };
     setProduits(pp=>[...pp, newProd]);
@@ -358,17 +341,14 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   
   const openEditRec = (r) => {
     setEditRecId(r.id);
-    setRecForm({...emptyRecette(), ...r});
+    setRecForm(loadRecetteForEdit(r));
     setRecModal(true);
   };
   
   const saveRecette = () => {
     if(!recForm.nom.trim()) return;
-    const item = {
-      ...recForm,
-      id: editRecId || Date.now()+Math.random(),
-      portions: parseInt(recForm.portions)||1
-    };
+    const normalized = normalizeRecette(recForm);
+    const item = { ...normalized, id: editRecId || Date.now()+Math.random() };
     if(editRecId) setRecettes(rr=>rr.map(r=>r.id===editRecId?item:r));
     else setRecettes(rr=>[...rr,item]);
     setRecModal(false);
@@ -390,70 +370,49 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   };
 
   const addIngredientFromCiqual = (alim) => {
-    // Vérifier si produit existe déjà (même nom + source ciqual)
-    const existing = produits.find(p => p.nom === alim.n && p.source === "ciqual");
-    
-    if (existing) {
-      // Produit existe déjà, juste ajouter à la recette
-      setRecForm(f=>({
-        ...f,
-        ingredients: [...f.ingredients, {produitId: existing.id, quantite: 100}]
-      }));
-    } else {
-      // Créer nouveau produit
-      const newProd = {
-        id: Date.now()+Math.random(),
-        nom: alim.n,
-        kcal: alim.e || 0,
-        glucides: alim.g || 0,
-        proteines: alim.p || 0,
-        lipides: alim.l || 0,
-        sodium: alim.na || 0,
-        potassium: alim.k || 0,
-        magnesium: alim.mg || 0,
-        zinc: 0,
-        calcium: 0,
-        categorie: alim.c || "",
-        source: "ciqual",
-        notes: ""
-      };
-      setProduits(pp=>[...pp, newProd]);
-      setRecForm(f=>({
-        ...f,
-        ingredients: [...f.ingredients, {produitId: newProd.id, quantite: 100}]
-      }));
-    }
-    
+    // Les ingrédients CIQUAL ne polluent plus la bibliothèque produits.
+    // Les données nutritionnelles sont stockées directement dans l'ingrédient.
+    setRecForm(f=>({
+      ...f,
+      ingredients: [...f.ingredients, {
+        produitId: "ciqual-" + Date.now() + "-" + Math.random(),
+        quantite: 100,
+        _ciqualData: {
+          nom: alim.n,
+          kcal: alim.e || 0,
+          glucides: alim.g || 0,
+          proteines: alim.p || 0,
+          lipides: alim.l || 0,
+          sodium: alim.na || 0,
+          potassium: alim.k || 0,
+          magnesium: alim.mg || 0,
+          zinc: 0,
+          calcium: 0,
+          categorie: alim.c || ""
+        }
+      }]
+    }));
     setIngCiqualModal(false);
     setIngCiqualSearch("");
   };
 
-  const removeIngredient = (idx) => {
-    setRecForm(f=>({
-      ...f,
-      ingredients: f.ingredients.filter((_, i)=>i!==idx)
-    }));
-  };
-
-  const updateIngredientQte = (idx, qte) => {
-    setRecForm(f=>({
-      ...f,
-      ingredients: f.ingredients.map((ing, i)=>i===idx?{...ing, quantite: parseFloat(qte)||0}:ing)
-    }));
-  };
+  // Les fonctions removeIngredient et updateIngredientQte sont maintenant
+  // gérées en interne par le composant RecetteForm
 
   // Calcul macros recette
+  // Gère le nouveau format où les ingrédients CIQUAL portent leurs données en _ciqualData
+  // (au lieu d'être auto-ajoutés à la bibliothèque produits)
   const calcMacros = (rec) => {
     return (rec.ingredients||[]).reduce((acc, ing)=>{
-      const prod = produits.find(p=>p.id===ing.produitId);
-      if(!prod) return acc;
+      const data = ing._ciqualData || produits.find(p=>p.id===ing.produitId);
+      if(!data) return acc;
       const factor = parseFloat(ing.quantite)||0;
       return {
-        kcal: acc.kcal + Math.round((prod.kcal||0)*factor/100),
-        glucides: acc.glucides + Math.round((prod.glucides||0)*factor/100),
-        proteines: acc.proteines + Math.round((prod.proteines||0)*factor/100),
-        lipides: acc.lipides + Math.round((prod.lipides||0)*factor/100),
-        sodium: acc.sodium + Math.round((prod.sodium||0)*factor/100)
+        kcal: acc.kcal + Math.round((data.kcal||0)*factor/100),
+        glucides: acc.glucides + Math.round((data.glucides||0)*factor/100),
+        proteines: acc.proteines + Math.round((data.proteines||0)*factor/100),
+        lipides: acc.lipides + Math.round((data.lipides||0)*factor/100),
+        sodium: acc.sodium + Math.round((data.sodium||0)*factor/100)
       };
     }, {kcal:0, glucides:0, proteines:0, lipides:0, sodium:0});
   };
@@ -546,15 +505,14 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:10}}>
         <div>
           <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight,marginBottom:4}}>Nutrition entraînement</h1>
-          <p style={{fontSize:12,color:C.muted}}>Produits · Recettes · Base CIQUAL · Historique</p>
+          <p style={{fontSize:12,color:C.muted}}>Ma bibliothèque · Historique</p>
         </div>
       </div>
 
       {/* Tabs */}
       <div style={{display:"flex",gap:2,borderBottom:`1px solid ${C.border}`,marginBottom:20}}>
         {[
-          {id:"produits", label:`Produits (${produits.length})`},
-          {id:"recettes", label:`Recettes (${recettes.length})`},
+          {id:"bibliotheque", label:`Ma bibliothèque (${produits.length + recettes.length})`},
           {id:"historique", label:"Historique entraînements"}
         ].map(t=>(
           <button key={t.id} onClick={()=>{setTab(t.id);setSearch("");}}
@@ -567,127 +525,115 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
         ))}
       </div>
 
-      {/* ── TAB PRODUITS ── */}
-      {tab==="produits"&&(
+      {/* ── TAB BIBLIOTHÈQUE (unifiée) ── */}
+      {tab==="bibliotheque"&&(
         <div>
-          <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+          <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
             <input value={search} onChange={e=>setSearch(e.target.value)}
-              placeholder="Rechercher un produit..."
+              placeholder="Rechercher..."
               style={{flex:1,minWidth:200,fontSize:13,padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`}}/>
+            <select value={bibFilter} onChange={e=>setBibFilter(e.target.value)}
+              style={{padding:"8px 12px",fontSize:13,borderRadius:8,border:`1px solid ${C.border}`,background:C.white,cursor:"pointer"}}>
+              <option value="tous">Tous</option>
+              <option value="produits">Produits uniquement</option>
+              <option value="recettes">Recettes uniquement</option>
+            </select>
             <Btn variant="soft" onClick={()=>setCiqualModal(true)}>🔍 Base CIQUAL</Btn>
-            <Btn onClick={openNewProd}>＋ Produit perso</Btn>
+            <Btn variant="soft" onClick={openNewRec}>＋ Recette</Btn>
+            <Btn onClick={openNewProd}>＋ Produit</Btn>
           </div>
 
-          {filteredProduits.length===0?(
-            <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
-              <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>🥕</div>
-              <div style={{fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:6}}>Aucun produit</div>
-              <div style={{fontSize:13,marginBottom:20}}>Ajoute des produits depuis CIQUAL ou crée les tiens</div>
-              <div style={{display:"flex",gap:8,justifyContent:"center"}}>
-                <Btn variant="soft" onClick={()=>setCiqualModal(true)}>🔍 Base CIQUAL</Btn>
-                <Btn onClick={openNewProd}>＋ Produit perso</Btn>
-              </div>
-            </div>
-          ):(
-            <div style={{...card,overflow:"hidden"}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 70px 70px 70px 70px 70px 70px 70px 100px 32px",
-                padding:"8px 16px",background:C.stone,gap:8,fontSize:10,fontWeight:600,color:C.muted,
-                textTransform:"uppercase",letterSpacing:"0.04em"}}>
-                <span>Nom</span>
-                <span style={{textAlign:"right"}}>Kcal</span>
-                <span style={{textAlign:"right"}}>Gluc.</span>
-                <span style={{textAlign:"right"}}>Prot.</span>
-                <span style={{textAlign:"right"}}>Lip.</span>
-                <span style={{textAlign:"right"}}>Na</span>
-                <span style={{textAlign:"right"}}>K</span>
-                <span style={{textAlign:"right"}}>Mg</span>
-                <span style={{textAlign:"right"}}>Zn</span>
-                <span style={{textAlign:"right"}}>Ca</span>
-                <span>Source</span>
-                <span/>
-              </div>
-              <div style={{maxHeight:520,overflowY:"auto"}}>
-                {filteredProduits.map(p=>(
-                  <div key={p.id} style={{display:"grid",gridTemplateColumns:"1fr 70px 70px 70px 70px 70px 70px 70px 70px 70px 100px 32px",
-                    padding:"10px 16px",gap:8,borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:13}}>
-                    <div>
-                      <div style={{fontWeight:500,color:C.inkLight,display:"flex",alignItems:"center",gap:6}}>
-                        {p.nom}
-                        {p.boisson&&<span style={{fontSize:11,background:C.blue+"15",color:C.blue,padding:"2px 6px",borderRadius:4,fontWeight:500}}>💧 Boisson</span>}
-                      </div>
-                      {p.categorie&&<div style={{fontSize:11,color:C.muted}}>{p.categorie}</div>}
-                    </div>
-                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#e65100"}}>{p.kcal||0}</span>
-                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#1d9e75"}}>{p.glucides||0}</span>
-                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#185FA5"}}>{p.proteines||0}</span>
-                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#7F77DD"}}>{p.lipides||0}</span>
-                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#BA7517",fontSize:11}}>{p.sodium||0}</span>
-                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{p.potassium||0}</span>
-                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{p.magnesium||0}</span>
-                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{p.zinc||0}</span>
-                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:11}}>{p.calcium||0}</span>
-                    <span style={{fontSize:11,color:C.muted}}>{p.source==="ciqual"?"CIQUAL":"Perso"}</span>
-                    <div style={{display:"flex",gap:2}}>
-                      <button onClick={()=>openEditProd(p)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.forest}}>✎</button>
-                      <button onClick={()=>setConfirmProdId(p.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red}}>🗑</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+          {(() => {
+            // Construire la liste unifiée selon le filtre
+            const items = [];
+            if (bibFilter !== "recettes") {
+              filteredProduits.forEach(p => items.push({ ...p, _itemType: "produit" }));
+            }
+            if (bibFilter !== "produits") {
+              filteredRecettes.forEach(r => items.push({ ...r, _itemType: "recette" }));
+            }
+            // Tri alphabétique
+            items.sort((a, b) => (a.nom || "").localeCompare(b.nom || ""));
 
-      {/* ── TAB RECETTES ── */}
-      {tab==="recettes"&&(
-        <div>
-          <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-            <input value={search} onChange={e=>setSearch(e.target.value)}
-              placeholder="Rechercher une recette..."
-              style={{flex:1,minWidth:200,fontSize:13,padding:"8px 12px",borderRadius:8,border:`1px solid ${C.border}`}}/>
-            <Btn onClick={openNewRec}>＋ Recette</Btn>
-          </div>
-
-          {filteredRecettes.length===0?(
-            <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
-              <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>🍽️</div>
-              <div style={{fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:6}}>Aucune recette</div>
-              <div style={{fontSize:13,marginBottom:20}}>Crée tes recettes pour tes entraînements</div>
-              <Btn onClick={openNewRec}>＋ Créer une recette</Btn>
-            </div>
-          ):(
-            <div style={{display:"grid",gap:12}}>
-              {filteredRecettes.map(r=>{
-                const macros = calcMacros(r);
-                return (
-                  <div key={r.id} style={{...card,padding:16}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:8}}>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:15,fontWeight:500,color:C.inkLight,marginBottom:2}}>{r.nom}</div>
-                        <div style={{fontSize:12,color:C.muted}}>{r.description||"—"}</div>
-                      </div>
-                      <div style={{display:"flex",gap:4}}>
-                        <button onClick={()=>openEditRec(r)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.forest}}>✎</button>
-                        <button onClick={()=>setConfirmRecId(r.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red}}>🗑</button>
-                      </div>
-                    </div>
-                    <div style={{display:"flex",gap:12,fontSize:12,color:C.muted,marginBottom:8}}>
-                      <span>Portions: {r.portions}</span>
-                      <span>•</span>
-                      <span>Ingrédients: {r.ingredients.length}</span>
-                    </div>
-                    <div style={{display:"flex",gap:12,fontSize:12}}>
-                      <span style={{color:"#e65100",fontWeight:500}}>{macros.kcal} kcal</span>
-                      <span style={{color:"#1d9e75"}}>{macros.glucides}g gluc.</span>
-                      <span style={{color:"#185FA5"}}>{macros.proteines}g prot.</span>
-                      <span style={{color:"#7F77DD"}}>{macros.lipides}g lip.</span>
-                    </div>
+            if (items.length === 0) {
+              return (
+                <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
+                  <div style={{fontFamily:"'Fraunces',serif",fontSize:40,marginBottom:12}}>🥕</div>
+                  <div style={{fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:6}}>Bibliothèque vide</div>
+                  <div style={{fontSize:13,marginBottom:20}}>Ajoute des produits depuis CIQUAL, crée tes produits perso ou tes recettes</div>
+                  <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+                    <Btn variant="soft" onClick={()=>setCiqualModal(true)}>🔍 Base CIQUAL</Btn>
+                    <Btn variant="soft" onClick={openNewRec}>＋ Recette</Btn>
+                    <Btn onClick={openNewProd}>＋ Produit</Btn>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                </div>
+              );
+            }
+
+            return (
+              <div style={{display:"grid",gap:8}}>
+                {items.map(it => {
+                  const isProduit = it._itemType === "produit";
+                  const type = isProduit ? (it.type || inferType(it)) : (it.type || "");
+                  const macros = isProduit 
+                    ? { kcal: it.kcal || 0, glucides: it.glucides || 0, proteines: it.proteines || 0, lipides: it.lipides || 0, sodium: it.sodium || 0 }
+                    : calcMacros(it);
+                  const needsType = isProduit && !it.type;
+                  
+                  return (
+                    <div key={it.id} style={{...card, padding:14, display:"flex", gap:12, alignItems:"center"}}>
+                      {/* Badge type */}
+                      <div style={{
+                        minWidth:80, padding:"4px 10px", borderRadius:6, fontSize:11, fontWeight:500,
+                        textAlign:"center",
+                        background: isProduit ? C.forestPale : C.primaryPale,
+                        color: isProduit ? C.forest : C.primary
+                      }}>
+                        {isProduit ? "Produit" : "Recette"}
+                      </div>
+                      
+                      {/* Infos */}
+                      <div style={{flex:1, minWidth:0}}>
+                        <div style={{fontSize:14,fontWeight:500,color:C.inkLight,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                          {it.nom}
+                          {type && (
+                            <span style={{fontSize:10,background:C.stone,color:C.muted,padding:"2px 8px",borderRadius:10,fontWeight:400}}>
+                              {type}
+                            </span>
+                          )}
+                          {needsType && (
+                            <span style={{fontSize:10,background:C.yellowPale,color:C.yellow,padding:"2px 8px",borderRadius:10,fontWeight:500}}>
+                              Type à définir
+                            </span>
+                          )}
+                          {isProduit && it.source === "ciqual" && (
+                            <span style={{fontSize:10,color:C.muted}}>CIQUAL</span>
+                          )}
+                        </div>
+                        <div style={{fontSize:11,color:C.muted,marginTop:3,display:"flex",gap:10,flexWrap:"wrap"}}>
+                          {it.categorie && <span>{it.categorie}</span>}
+                          {!isProduit && <span>{it.portions} portion{it.portions>1?"s":""} · {it.ingredients?.length||0} ingrédient{(it.ingredients?.length||0)>1?"s":""}</span>}
+                        </div>
+                      </div>
+                      
+                      {/* Macros */}
+                      <div style={{display:"flex",gap:14,fontSize:12,fontFamily:"'DM Mono',monospace",whiteSpace:"nowrap"}}>
+                        <span style={{color:"#e65100"}}>{Math.round(macros.kcal)} kcal</span>
+                        <span style={{color:"#1d9e75"}}>{Math.round(macros.glucides)}g</span>
+                        <span style={{color:"#BA7517",fontSize:11}}>{Math.round(macros.sodium)}mg Na</span>
+                      </div>
+                      
+                      {/* Actions */}
+                      <div style={{display:"flex",gap:2}}>
+                        <button onClick={()=>isProduit?openEditProd(it):openEditRec(it)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.forest,padding:4}}>✎</button>
+                        <button onClick={()=>isProduit?setConfirmProdId(it.id):setConfirmRecId(it.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red,padding:4}}>🗑</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -751,149 +697,25 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
         )
       )}
 
-      {/* ── MODAL PRODUIT ── */}
-      <Modal open={prodModal} onClose={()=>setProdModal(false)} title={editProdId?"Modifier le produit":"Nouveau produit"} width={600}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          <Field label="Nom" full>
-            <input value={prodForm.nom} onChange={e=>updP("nom",e.target.value)} placeholder="ex: Banane" style={{width:"100%"}}/>
-          </Field>
-          <Field label="Catégorie" full>
-            <input value={prodForm.categorie} onChange={e=>updP("categorie",e.target.value)} placeholder="ex: Fruits" style={{width:"100%"}}/>
-          </Field>
-          <div style={{gridColumn:"1/-1",display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
-            {[
-              {k:"kcal",label:"Kcal",unit:"kcal"},
-              {k:"glucides",label:"Glucides",unit:"g"},
-              {k:"proteines",label:"Protéines",unit:"g"},
-              {k:"lipides",label:"Lipides",unit:"g"},
-              {k:"sodium",label:"Sodium",unit:"mg"}
-            ].map(({k,label,unit})=>(
-              <Field key={k} label={`${label} (${unit})`}>
-                <input type="number" min="0" step="0.1" value={prodForm[k]||""} onChange={e=>updP(k,e.target.value)} style={{width:"100%"}}/>
-              </Field>
-            ))}
-          </div>
-          <div style={{gridColumn:"1/-1",display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-            {[
-              {k:"potassium",label:"Potassium",unit:"mg"},
-              {k:"magnesium",label:"Magnésium",unit:"mg"},
-              {k:"zinc",label:"Zinc",unit:"mg"},
-              {k:"calcium",label:"Calcium",unit:"mg"}
-            ].map(({k,label,unit})=>(
-              <Field key={k} label={`${label} (${unit})`}>
-                <input type="number" min="0" step="0.1" value={prodForm[k]||""} onChange={e=>updP(k,e.target.value)} style={{width:"100%"}}/>
-              </Field>
-            ))}
-          </div>
-          <Field label="Notes" full>
-            <textarea value={prodForm.notes||""} onChange={e=>updP("notes",e.target.value)} placeholder="Remarques..." style={{width:"100%",minHeight:60}}/>
-          </Field>
-          <div style={{gridColumn:"1/-1",padding:"12px 14px",background:C.stone,borderRadius:8}}>
-            <label style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
-              <input type="checkbox" checked={prodForm.boisson||false} onChange={e=>updP("boisson",e.target.checked)}
-                style={{width:16,height:16,cursor:"pointer"}}/>
-              <div>
-                <div style={{fontSize:13,fontWeight:500,color:C.inkLight}}>Boisson</div>
-                <div style={{fontSize:11,color:C.muted}}>Ce produit contient de l'eau (sera comptabilisé dans les apports hydriques)</div>
-              </div>
-            </label>
-          </div>
-        </div>
+      {/* ── MODAL PRODUIT (nouveau formulaire unifié) ── */}
+      <Modal open={prodModal} onClose={()=>setProdModal(false)} title={editProdId?"Modifier le produit":"Nouveau produit"} width={700}>
+        <ProduitForm form={prodForm} setForm={setProdForm} onModeChange={setProdInputMode} />
         <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:20}}>
           <Btn variant="ghost" onClick={()=>setProdModal(false)}>Annuler</Btn>
           <Btn onClick={saveProduit}>{editProdId?"Enregistrer":"Ajouter"}</Btn>
         </div>
       </Modal>
 
-      {/* ── MODAL RECETTE ── */}
-      <Modal open={recModal} onClose={()=>setRecModal(false)} title={editRecId?"Modifier la recette":"Nouvelle recette"} width={700}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-          <Field label="Nom" full>
-            <input value={recForm.nom} onChange={e=>updR("nom",e.target.value)} placeholder="ex: Energy balls" style={{width:"100%"}}/>
-          </Field>
-          <Field label="Portions">
-            <input type="number" min="1" value={recForm.portions} onChange={e=>updR("portions",e.target.value)} style={{width:"100%"}}/>
-          </Field>
-          <Field label="Description" full>
-            <textarea value={recForm.description||""} onChange={e=>updR("description",e.target.value)} placeholder="Courte description..." style={{width:"100%",minHeight:50}}/>
-          </Field>
-        </div>
-
-        <div style={{marginBottom:16}}>
-          <div style={{...lbl,marginBottom:8}}>Ingrédients</div>
-          {recForm.ingredients.length===0?(
-            <div style={{textAlign:"center",padding:"20px",background:C.stone,borderRadius:8,color:C.muted,fontSize:13}}>
-              Aucun ingrédient ajouté
-            </div>
-          ):(
-            <div style={{display:"grid",gap:6}}>
-              {recForm.ingredients.map((ing,idx)=>{
-                const prod = produits.find(p=>p.id===ing.produitId);
-                return (
-                  <div key={idx} style={{display:"flex",gap:8,alignItems:"center",padding:8,background:C.stone,borderRadius:6}}>
-                    <span style={{flex:1,fontSize:13,color:C.inkLight}}>{prod?.nom||"Produit inconnu"}</span>
-                    <input type="number" min="0" step="1" value={ing.quantite} onChange={e=>updateIngredientQte(idx,e.target.value)}
-                      style={{width:80,padding:"4px 8px",fontSize:12,borderRadius:6,border:`1px solid ${C.border}`,textAlign:"right"}}/>
-                    <span style={{fontSize:12,color:C.muted}}>g</span>
-                    <button onClick={()=>removeIngredient(idx)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red}}>✕</button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          <div style={{display:"flex",gap:8,marginTop:10}}>
-            <Btn variant="soft" onClick={()=>setIngCiqualModal(true)}>🔍 Base CIQUAL</Btn>
-            <Btn variant="soft" onClick={()=>setMesProduitsModal(true)}>🥕 Mes produits</Btn>
-          </div>
-        </div>
-
-        {recForm.ingredients.length>0&&(()=>{
-          const macros = calcMacros(recForm);
-          return (
-            <div style={{padding:12,background:C.stone,borderRadius:8,marginBottom:16}}>
-              <div style={{...lbl,marginBottom:6}}>Total recette</div>
-              <div style={{display:"flex",gap:12,fontSize:13}}>
-                <span style={{color:"#e65100",fontWeight:500}}>{macros.kcal} kcal</span>
-                <span style={{color:"#1d9e75"}}>{macros.glucides}g gluc.</span>
-                <span style={{color:"#185FA5"}}>{macros.proteines}g prot.</span>
-                <span style={{color:"#7F77DD"}}>{macros.lipides}g lip.</span>
-              </div>
-            </div>
-          );
-        })()}
-
-        <div style={{marginBottom:16}}>
-          <div style={{...lbl,marginBottom:8}}>Type de recette</div>
-          <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:recForm.boisson?C.bluePale:C.stone,
-            border:`1px solid ${recForm.boisson?C.blue+"40":C.border}`,borderRadius:10,cursor:"pointer"}}
-            onClick={()=>updR("boisson",!recForm.boisson)}>
-            <div style={{width:44,height:24,borderRadius:12,background:recForm.boisson?C.blue:C.border,position:"relative",transition:"all 0.2s"}}>
-              <div style={{width:20,height:20,borderRadius:"50%",background:C.white,position:"absolute",top:2,
-                left:recForm.boisson?22:2,transition:"left 0.2s",boxShadow:"0 2px 4px rgba(0,0,0,0.1)"}}/>
-            </div>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:600,fontSize:13,color:recForm.boisson?C.blue:C.inkLight}}>
-                {recForm.boisson?"Recette boisson 💧":"Recette solide"}
-              </div>
-              <div style={{fontSize:11,color:C.muted,marginTop:2}}>
-                {recForm.boisson?"Compte dans l'hydratation":"Ne compte pas dans l'hydratation"}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {recForm.boisson&&(
-          <Field label="Volume par portion (ml)" style={{marginBottom:16}}>
-            <input type="number" min="0" step="10" value={recForm.volumeMlParPortion||""} 
-              onChange={e=>updR("volumeMlParPortion",e.target.value)}
-              placeholder="ex: 500 (ml par portion)" style={{width:"100%"}}/>
-          </Field>
-        )}
-
-        <Field label="Notes">
-          <textarea value={recForm.notes||""} onChange={e=>updR("notes",e.target.value)} placeholder="Instructions, remarques..." style={{width:"100%",minHeight:60}}/>
-        </Field>
-
+      {/* ── MODAL RECETTE (nouveau formulaire unifié) ── */}
+      <Modal open={recModal} onClose={()=>setRecModal(false)} title={editRecId?"Modifier la recette":"Nouvelle recette"} width={760}>
+        <RecetteForm
+          form={recForm}
+          setForm={setRecForm}
+          allProduits={produits}
+          onOpenCiqualIng={()=>setIngCiqualModal(true)}
+          onOpenMesProduitsIng={()=>setMesProduitsModal(true)}
+          calcMacros={calcMacros}
+        />
         <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:20}}>
           <Btn variant="ghost" onClick={()=>setRecModal(false)}>Annuler</Btn>
           <Btn onClick={saveRecette}>{editRecId?"Enregistrer":"Créer"}</Btn>
