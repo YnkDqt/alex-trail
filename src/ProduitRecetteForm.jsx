@@ -368,6 +368,13 @@ export function RecetteForm({ form, setForm, allProduits = [], onOpenCiqualIng, 
 
   const macros = calcMacros ? calcMacros(form) : null;
 
+  // Poids total des ingrédients (somme des quantités en g)
+  const poidsTotal = (form.ingredients || []).reduce((sum, ing) => sum + (parseFloat(ing.quantite) || 0), 0);
+  
+  // Estimation du poids/volume par portion en se basant sur les ingrédients
+  const portions = parseInt(form.portions) || 1;
+  const estimParPortion = Math.round(poidsTotal / portions);
+
   return (
     <div>
       {/* ── SECTION 1 : IDENTITÉ ───────────────────────────────────── */}
@@ -390,6 +397,11 @@ export function RecetteForm({ form, setForm, allProduits = [], onOpenCiqualIng, 
               placeholder={isBoisson ? "ex: 500" : "ex: 40 (1 ball = 40g)"}
               style={inputStyle}
             />
+            {poidsTotal > 0 && (
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                ≈ {estimParPortion}{isBoisson ? "ml" : "g"}/portion selon vos ingrédients
+              </div>
+            )}
           </Field>
           <Field label="Description" full>
             <textarea value={form.description || ""} onChange={e => upd("description", e.target.value)}
@@ -400,7 +412,14 @@ export function RecetteForm({ form, setForm, allProduits = [], onOpenCiqualIng, 
 
       {/* ── SECTION 2 : INGRÉDIENTS ────────────────────────────────── */}
       <div style={{ marginBottom: 18 }}>
-        <div style={{ ...sectionTitleStyle, marginBottom: 10 }}>Ingrédients</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+          <div style={sectionTitleStyle}>Ingrédients</div>
+          {poidsTotal > 0 && (
+            <div style={{ fontSize: 12, color: C.muted }}>
+              Total : <span style={{ fontWeight: 600, color: C.inkLight, fontFamily: "'DM Mono',monospace" }}>{poidsTotal}g</span>
+            </div>
+          )}
+        </div>
         {form.ingredients.length === 0 ? (
           <div style={{ textAlign: "center", padding: 20, background: C.stone, borderRadius: 8, color: C.muted, fontSize: 13 }}>
             Aucun ingrédient ajouté
