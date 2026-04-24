@@ -738,25 +738,27 @@ export default function NutritionView({
       </div>
 
       {/* ── TIER 3 : INDICATIF ── */}
-      <div style={{marginBottom:30,padding:"12px 14px",background:C.stone,borderRadius:10,opacity:0.85}}>
-        <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:8}}>
-          <div style={{...lbl}}>Tier 3 · Indicatif</div>
-          <div style={{fontSize:10,color:C.muted,fontStyle:"italic"}}>Micronutriments — non optimisés par l'algo, informatifs</div>
+      <div style={{marginBottom:30}}>
+        <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:10}}>
+          <div style={{...lbl,color:C.inkLight,fontWeight:600}}>Tier 3 · Indicatif</div>
+          <div style={{fontSize:11,color:C.muted}}>Micronutriments — non optimisés par l'algo, informatifs</div>
         </div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:16,fontSize:12,fontFamily:"'DM Mono',monospace"}}>
-          {nutrientsTier3.map(n => {
-            const estime = nutriEstimes[n.key] || 0;
-            const planifie = nutriPlanifies[n.key] || 0;
-            const pct = calcProgress(planifie, estime);
-            return (
-              <div key={n.key} style={{display:"flex",alignItems:"center",gap:6}}>
-                <span style={{color:C.muted,fontFamily:"inherit"}}>{n.label}</span>
-                <span style={{color:C.inkLight}}>{Math.round(planifie)}</span>
-                <span style={{color:C.muted}}>/ {Math.round(estime)} {n.unit}</span>
-                <span style={{color:C.muted,fontSize:11,opacity:0.7}}>({pct}%)</span>
-              </div>
-            );
-          })}
+        <div style={{padding:"12px 14px",background:C.stone,borderRadius:10,opacity:0.85}}>
+          <div style={{display:"flex",flexWrap:"wrap",gap:16,fontSize:12,fontFamily:"'DM Mono',monospace"}}>
+            {nutrientsTier3.map(n => {
+              const estime = nutriEstimes[n.key] || 0;
+              const planifie = nutriPlanifies[n.key] || 0;
+              const pct = calcProgress(planifie, estime);
+              return (
+                <div key={n.key} style={{display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{color:C.muted,fontFamily:"inherit"}}>{n.label}</span>
+                  <span style={{color:C.inkLight}}>{Math.round(planifie)}</span>
+                  <span style={{color:C.muted}}>/ {Math.round(estime)} {n.unit}</span>
+                  <span style={{color:C.muted,fontSize:11,opacity:0.7}}>({pct}%)</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
