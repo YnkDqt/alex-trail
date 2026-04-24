@@ -408,10 +408,12 @@ export function RecetteForm({ form, setForm, allProduits = [], onOpenCiqualIng, 
         ) : (
           <div style={{ display: "grid", gap: 6 }}>
             {form.ingredients.map((ing, idx) => {
-              const prod = allProduits.find(p => p.id === ing.produitId);
+              // Chercher le nom : d'abord dans _ciqualData (ingrédient CIQUAL inline),
+              // sinon dans la bibliothèque produits (ingrédient perso)
+              const nom = ing._ciqualData?.nom || allProduits.find(p => p.id === ing.produitId)?.nom || "Produit inconnu";
               return (
                 <div key={idx} style={{ display: "flex", gap: 8, alignItems: "center", padding: 8, background: C.stone, borderRadius: 6 }}>
-                  <span style={{ flex: 1, fontSize: 13, color: C.inkLight }}>{prod?.nom || "Produit inconnu"}</span>
+                  <span style={{ flex: 1, fontSize: 13, color: C.inkLight }}>{nom}</span>
                   <input type="number" min="0" step="1" value={ing.quantite} onChange={e => updateIngQte(idx, e.target.value)}
                     style={{ width: 80, padding: "4px 8px", fontSize: 12, borderRadius: 6, border: `1px solid ${C.border}`, textAlign: "right" }} />
                   <span style={{ fontSize: 12, color: C.muted }}>g</span>
