@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { C } from "./constants.js";
 
 // ─── BUTTONS ─────────────────────────────────────────────────────────────────
@@ -75,7 +76,7 @@ export const Modal = ({ open, onClose, title, subtitle, children, footer, width=
   
   if (!open) return null;
   
-  return (
+  return createPortal(
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(28,25,22,0.55)",backdropFilter:"blur(3px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.white,borderRadius:16,width:"100%",maxWidth:width,maxHeight:"90vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
         <div style={{padding:"18px 22px 14px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexShrink:0}}>
@@ -92,13 +93,14 @@ export const Modal = ({ open, onClose, title, subtitle, children, footer, width=
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
 export const ConfirmDialog = ({ open, message, onConfirm, onCancel, danger=true }) => {
   if (!open) return null;
-  return (
+  return createPortal(
     <div onClick={onCancel} style={{position:"fixed",inset:0,background:"rgba(28,25,22,0.6)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.white,borderRadius:14,padding:28,maxWidth:360,width:"100%",boxShadow:"0 16px 48px rgba(0,0,0,0.2)"}}>
         <div style={{fontSize:32,marginBottom:12,textAlign:"center"}}>⚠️</div>
@@ -108,7 +110,8 @@ export const ConfirmDialog = ({ open, message, onConfirm, onCancel, danger=true 
           <Btn variant={danger?"danger":"primary"} onClick={onConfirm}>Confirmer</Btn>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
