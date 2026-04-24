@@ -89,6 +89,7 @@ export default function NutritionView({
   const [confirmType, setConfirmType] = useState(null);
   const [autoCompletePreview, setAutoCompletePreview] = useState(null);
   const [strategyModal, setStrategyModal] = useState(false);
+  const [sourcesOuvert, setSourcesOuvert] = useState(false);
 
   // emptyProduit/emptyRecette sont importés depuis ProduitRecetteForm.jsx
   const emptyProduit = emptyProduitNew;
@@ -129,13 +130,13 @@ export default function NutritionView({
         proteines: acc.proteines + Math.round(n.proteinesH * dH),
         lipides: acc.lipides + Math.round(n.lipidesH * dH),
         glucides: acc.glucides + Math.round(n.glucidesH * dH),
-        sodium: acc.sodium + Math.round(n.selH * dH),
-        potassium: acc.potassium + Math.round(dH * 200),
-        magnesium: acc.magnesium + Math.round(dH * 50),
-        zinc: acc.zinc + Math.round(dH * 2),
-        calcium: acc.calcium + Math.round(dH * 100)
+        sodium: acc.sodium + Math.round(n.sodiumH * dH),
+        // Micros Tier 3 — valeurs indicatives basées sur Maughan & Shirreffs (2019)
+        // et Nielsen (Int J Sport Nutr 2019). À prendre comme ordres de grandeur.
+        potassium: acc.potassium + Math.round(dH * 150),
+        magnesium: acc.magnesium + Math.round(dH * 60)
       };
-    }, { kcal: 0, eau: 0, proteines: 0, lipides: 0, glucides: 0, sodium: 0, potassium: 0, magnesium: 0, zinc: 0, calcium: 0 });
+    }, { kcal: 0, eau: 0, proteines: 0, lipides: 0, glucides: 0, sodium: 0, potassium: 0, magnesium: 0 });
   }, [segments, settings, userWeight]);
 
   // ── CALCULS PLANIFIÉS ──
@@ -178,20 +179,22 @@ export default function NutritionView({
           return Object.keys(macros).reduce((t, k) => ({ ...t, [k]: t[k] + macros[k] * qte }), total);
         }
         
-        // Produit simple - si boisson, quantité = volume eau (1g = 1ml)
-        const eauProd = prod.boisson ? qte * 100 : 0; // qte en portions, 1 portion = 100g
+        // Produit simple - qte en grammes, valeurs nutritionnelles en /100g
+        // Pour une boisson : 1g ≈ 1ml donc eau = qte directement
+        const factor = qte / 100;
+        const eauProd = prod.boisson ? qte : 0; // 1g eau = 1ml
         
         return {
-          kcal: total.kcal + (prod.kcal || 0) * qte,
+          kcal: total.kcal + (prod.kcal || 0) * factor,
           eau: total.eau + eauProd,
-          proteines: total.proteines + (prod.proteines || 0) * qte,
-          lipides: total.lipides + (prod.lipides || 0) * qte,
-          glucides: total.glucides + (prod.glucides || 0) * qte,
-          sodium: total.sodium + (prod.sodium || 0) * qte,
-          potassium: total.potassium + (prod.potassium || 0) * qte,
-          magnesium: total.magnesium + (prod.magnesium || 0) * qte,
-          zinc: total.zinc + (prod.zinc || 0) * qte,
-          calcium: total.calcium + (prod.calcium || 0) * qte
+          proteines: total.proteines + (prod.proteines || 0) * factor,
+          lipides: total.lipides + (prod.lipides || 0) * factor,
+          glucides: total.glucides + (prod.glucides || 0) * factor,
+          sodium: total.sodium + (prod.sodium || 0) * factor,
+          potassium: total.potassium + (prod.potassium || 0) * factor,
+          magnesium: total.magnesium + (prod.magnesium || 0) * factor,
+          zinc: total.zinc + (prod.zinc || 0) * factor,
+          calcium: total.calcium + (prod.calcium || 0) * factor
         };
     }, { kcal: 0, eau: 0, proteines: 0, lipides: 0, glucides: 0, sodium: 0, potassium: 0, magnesium: 0, zinc: 0, calcium: 0 });
   }, [ravitos, produitsDepartLocal, bibliotheque, produits]);
@@ -528,9 +531,7 @@ export default function NutritionView({
   ];
   const nutrientsTier3 = [
     { key: 'potassium', label: 'Potassium', unit: 'mg', factor: 1, color: C.muted },
-    { key: 'magnesium', label: 'Magnésium', unit: 'mg', factor: 1, color: C.muted },
-    { key: 'zinc',      label: 'Zinc',      unit: 'mg', factor: 1, color: C.muted },
-    { key: 'calcium',   label: 'Calcium',   unit: 'mg', factor: 1, color: C.muted }
+    { key: 'magnesium', label: 'Magnésium', unit: 'mg', factor: 1, color: C.muted }
   ];
 
   // Composant carte nutriment avec besoin + planifié + progress bar
@@ -584,11 +585,43 @@ export default function NutritionView({
         const kcalH = totalTime > 0 ? Math.round(nutriEstimes.kcal / totalTime) : 0;
         const glucidesH = totalTime > 0 ? Math.round(nutriEstimes.glucides / totalTime) : 0;
         return (
-          <div style={{fontSize:11,color:C.muted,fontStyle:"italic",marginBottom:14}}>
-            Base calibration : {kcalH} kcal/h · {glucidesH}g glucides/h {effectiveSettings.glucidesTargetGh ? `(cible ${effectiveSettings.glucidesTargetGh}g/h${race?.nutritionStrategy?.glucidesTargetGh != null ? " · override course" : " · profil"})` : "(auto)"}
+          <div style={{fontSize:11,color:C.muted,fontStyle:"italic",marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <span>Base calibration : {kcalH} kcal/h · {glucidesH}g glucides/h {effectiveSettings.glucidesTargetGh ? `(cible ${effectiveSettings.glucidesTargetGh}g/h${race?.nutritionStrategy?.glucidesTargetGh != null ? " · override course" : " · profil"})` : "(auto)"}</span>
+            <button onClick={()=>setSourcesOuvert(v=>!v)}
+              style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:C.forest,fontStyle:"normal",textDecoration:"underline",padding:0,fontFamily:"inherit"}}>
+              {sourcesOuvert ? "Masquer les sources" : "ⓘ Sources scientifiques"}
+            </button>
           </div>
         );
       })()}
+
+      {/* ── PANNEAU SOURCES (dépliable) ── */}
+      {sourcesOuvert && (
+        <div style={{background:C.stone,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 18px",marginBottom:14,fontSize:11,color:C.inkLight,lineHeight:1.7}}>
+          <div style={{fontWeight:600,fontSize:12,marginBottom:8,color:C.forest}}>Références scientifiques utilisées</div>
+          <div style={{marginBottom:6}}>
+            <strong>Kcal — Minetti et al. (2002)</strong> <em style={{color:C.muted}}>J Appl Physiol</em> — Coût énergétique de la course à pied sur pentes variables.
+          </div>
+          <div style={{marginBottom:6}}>
+            <strong>Glucides — Jeukendrup (2014)</strong> <em style={{color:C.muted}}>Sports Medicine</em> — 60-90 g/h pour efforts &gt; 2h, jusqu'à 120 g/h chez coureurs gut-trained (mix glucose/fructose).
+          </div>
+          <div style={{marginBottom:6}}>
+            <strong>Eau — Sawka (2007)</strong> <em style={{color:C.muted}}>Med Sci Sports Exerc</em> + <strong>ACSM Position Stand (2016)</strong> — 400-800 ml/h selon T° et intensité.
+          </div>
+          <div style={{marginBottom:6}}>
+            <strong>Sodium — Hoffman (2015)</strong> <em style={{color:C.muted}}>Clin J Sport Med</em>, <strong>Costa et al. (2019)</strong> <em style={{color:C.muted}}>Nutrients</em> — 300-700 mg de <em>sodium</em> par heure (attention : ≠ sel NaCl).
+          </div>
+          <div style={{marginBottom:6}}>
+            <strong>Protéines — Pugh et al. (2018)</strong> <em style={{color:C.muted}}>Nutrients</em>, <strong>Kato (2016)</strong> <em style={{color:C.muted}}>PLOS ONE</em> — 5-10 g/h pour efforts &gt; 4h (préservation masse musculaire).
+          </div>
+          <div style={{marginBottom:6}}>
+            <strong>Lipides — Burke (2015)</strong> <em style={{color:C.muted}}>Int J Sport Nutr Exerc Metab</em> — Digestion lente, apport plafonné à ~10 g/h sur effort intense.
+          </div>
+          <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${C.border}`,color:C.muted,fontStyle:"italic"}}>
+            Les micronutriments (Potassium, Magnésium) sont des estimations indicatives basées sur les pertes sudorales moyennes (Maughan &amp; Shirreffs 2019, Nielsen 2019). Les valeurs peuvent varier fortement d'un individu à l'autre.
+          </div>
+        </div>
+      )}
 
       {/* ── TIER 1 : ESSENTIEL ── */}
       <div style={{marginBottom:16}}>

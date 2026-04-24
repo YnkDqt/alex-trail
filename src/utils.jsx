@@ -734,8 +734,21 @@ export function parseGarminCSV(text) {
 }
 
 // ─── NUTRITION ───────────────────────────────────────────────────────────────
+// Cibles horaires basées sur la littérature scientifique (trail/ultra-endurance).
+// Sources :
+//   - Glucides : Jeukendrup (Sports Medicine 2014) — 60-90 g/h pour efforts >2h,
+//     jusqu'à 120 g/h chez coureurs gut-trained (mix glucose/fructose).
+//   - Eau : Sawka (MSSE 2007) + ACSM Position Stand (2016) — 400-800 ml/h
+//     selon conditions climatiques et intensité.
+//   - Sodium : Hoffman (Clin J Sport Med 2015), Costa (Nutrients 2019) —
+//     300-700 mg de sodium par heure en endurance.
+//   - Protéines : Pugh et al. (Nutrients 2018), Kato (PLOS ONE 2016) —
+//     5-10 g/h pour efforts >4h (préservation masse musculaire).
+//   - Lipides : Burke (Int J Sport Nutr 2015) — digestion lente, apport
+//     plafonné à ~10 g/h sur effort intense.
+//   - Minetti et al. (J Appl Physiol 2002) — coût énergétique course à pied.
 export function calcNutrition(seg, settings) {
-  if (seg.type === "repos") return { kcal: 0, kcalH: 0, glucidesH: 0, lipidesH: 0, proteinesH: 0, eauH: 0, selH: 0, cafeineH: 0, durationH: 0 };
+  if (seg.type === "repos") return { kcal: 0, kcalH: 0, glucidesH: 0, lipidesH: 0, proteinesH: 0, eauH: 0, sodiumH: 0, selH: 0, cafeineH: 0, durationH: 0 };
   const { weight = 70, kcalPerKm = 65, kcalPerKmUphill = 90, tempC = 15, rain = false, wind = false, snow = false, kcalSource = "minetti", garminStats = null, glucidesTargetGh = null } = settings;
   const distKm = seg.endKm - seg.startKm;
   const durationH = seg.speedKmh > 0 ? distKm / seg.speedKmh : 0;
@@ -759,25 +772,35 @@ export function calcNutrition(seg, settings) {
   const isHot = tempC > 25;
   const isCold = tempC < 0 || snow;
   
-  // ── GLUCIDES : Jeukendrup (2014) Sports Medicine - 60-90g/h effort endurance ──
-  const glucidesH = glucidesTargetGh != null ? Math.round(glucidesTargetGh) : Math.round(kcalH * 0.55 / 4);
+  // ── GLUCIDES : Jeukendrup (2014) ──
+  // Priorité à la valeur paramétrée (capacité intestinale coureur).
+  // Fallback : 60 g/h (recommandation de base pour effort endurance >1h).
+  const glucidesH = glucidesTargetGh != null ? Math.round(glucidesTargetGh) : 60;
   
-  // ── PROTÉINES : Pugh et al. (2018) Nutrients - 5-10g/h si effort >4h ──
-  // Formule conservatrice : 8% kcal (au lieu 10%) pour éviter surestimation
-  const proteinesH = Math.round(kcalH * 0.08 / 4);
+  // ── PROTÉINES : Pugh (2018), Kato (2016) ──
+  // 5 g/h de base, plafonné à 10 g/h (au-delà : inutile en course).
+  const proteinesH = Math.max(5, Math.min(10, Math.round(kcalH * 0.06 / 4)));
   
-  // ── LIPIDES : Burke (2015) Int J Sport Nutr - MAX 10g/h (digestion lente) ──
-  // Effort intense trail = quasi 100% glucides, lipides résiduels faibles
-  // Plafond 10g/h même si calcul résiduel suggère plus
+  // ── LIPIDES : Burke (2015) ──
+  // Résiduel kcal, plafonné à 10 g/h (digestion lente = inconfort).
   const lipidesResiduels = Math.max(0, Math.round((kcalH - glucidesH * 4 - proteinesH * 4) / 9));
   const lipidesH = Math.min(10, lipidesResiduels);
   
+  // ── EAU : Sawka (2007), ACSM (2016) ──
+  // 500 ml/h base, 750 chaud, 350 froid. +100 si vent (déshydratation accrue).
   const waterBase = isHot ? 750 : isCold ? 350 : 500;
   const eauH = Math.round(waterBase + (wind ? 100 : 0));
-  const selH = Math.round(isHot ? 800 : snow ? 700 : 500);
+  
+  // ── SODIUM : Hoffman (2015), Costa (2019) ──
+  // 500 mg/h base, 700 chaud, 400 froid (pertes sudorales variables).
+  // Attention : "sodium" ≠ "sel" (NaCl). 1g sel = 400mg sodium.
+  const sodiumH = isHot ? 700 : isCold ? 400 : 500;
+  // selH conservé pour rétro-compat (convertit sodium → sel NaCl)
+  const selH = Math.round(sodiumH / 0.4);
+  
   const cumDurationH = seg.speedKmh > 0 ? (seg.startKm || 0) / seg.speedKmh : 0;
   const cafeineH = cumDurationH >= 2 ? Math.round(30 + Math.min(seg.slopePct * 2, 40)) : 0;
-  return { kcal, kcalH, glucidesH, lipidesH, proteinesH, eauH, selH, cafeineH, durationH };
+  return { kcal, kcalH, glucidesH, lipidesH, proteinesH, eauH, sodiumH, selH, cafeineH, durationH };
 }
 
 // ─── STYLES GLOBAUX ──────────────────────────────────────────────────────────
