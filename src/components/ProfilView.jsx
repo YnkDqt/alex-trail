@@ -484,7 +484,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
             );
 
             return (
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16, marginBottom: 24 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
 
                 {/* ── BLOC 1 : COURSE ── */}
                 <Card>
