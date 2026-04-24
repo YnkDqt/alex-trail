@@ -399,9 +399,6 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   // Les fonctions removeIngredient et updateIngredientQte sont maintenant
   // gérées en interne par le composant RecetteForm
 
-  // Calcul macros recette
-  // Gère le nouveau format où les ingrédients CIQUAL portent leurs données en _ciqualData
-  // (au lieu d'être auto-ajoutés à la bibliothèque produits)
   const calcMacros = (rec) => {
     return (rec.ingredients||[]).reduce((acc, ing)=>{
       const data = ing._ciqualData || produits.find(p=>p.id===ing.produitId);
@@ -412,9 +409,13 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
         glucides: acc.glucides + Math.round((data.glucides||0)*factor/100),
         proteines: acc.proteines + Math.round((data.proteines||0)*factor/100),
         lipides: acc.lipides + Math.round((data.lipides||0)*factor/100),
-        sodium: acc.sodium + Math.round((data.sodium||0)*factor/100)
+        sodium: acc.sodium + Math.round((data.sodium||0)*factor/100),
+        potassium: acc.potassium + Math.round((data.potassium||0)*factor/100),
+        magnesium: acc.magnesium + Math.round((data.magnesium||0)*factor/100),
+        zinc: acc.zinc + Math.round((data.zinc||0)*factor/100),
+        calcium: acc.calcium + Math.round((data.calcium||0)*factor/100)
       };
-    }, {kcal:0, glucides:0, proteines:0, lipides:0, sodium:0});
+    }, {kcal:0, glucides:0, proteines:0, lipides:0, sodium:0, potassium:0, magnesium:0, zinc:0, calcium:0});
   };
 
   // Filtres

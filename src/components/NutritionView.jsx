@@ -335,9 +335,13 @@ export default function NutritionView({
         glucides: acc.glucides + Math.round((data.glucides||0)*factor/100),
         proteines: acc.proteines + Math.round((data.proteines||0)*factor/100),
         lipides: acc.lipides + Math.round((data.lipides||0)*factor/100),
-        sodium: acc.sodium + Math.round((data.sodium||0)*factor/100)
+        sodium: acc.sodium + Math.round((data.sodium||0)*factor/100),
+        potassium: acc.potassium + Math.round((data.potassium||0)*factor/100),
+        magnesium: acc.magnesium + Math.round((data.magnesium||0)*factor/100),
+        zinc: acc.zinc + Math.round((data.zinc||0)*factor/100),
+        calcium: acc.calcium + Math.round((data.calcium||0)*factor/100)
       };
-    }, {kcal:0, glucides:0, proteines:0, lipides:0, sodium:0});
+    }, {kcal:0, glucides:0, proteines:0, lipides:0, sodium:0, potassium:0, magnesium:0, zinc:0, calcium:0});
   };
 
   const nutriProduit = (item, quantite) => {
