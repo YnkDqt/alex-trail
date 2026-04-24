@@ -37,6 +37,7 @@ export const emptyRecette = () => ({
   type: "",
   description: "",
   portions: 1,
+  grammesParPortion: "",
   ingredients: [],
   notes: "",
   boisson: false,
@@ -381,6 +382,15 @@ export function RecetteForm({ form, setForm, allProduits = [], onOpenCiqualIng, 
           <Field label="Portions">
             <input type="number" min="1" value={form.portions} onChange={e => upd("portions", e.target.value)} style={inputStyle} />
           </Field>
+          <Field label={isBoisson ? "Volume / portion (ml)" : "Poids / portion (g)"}>
+            <input 
+              type="number" min="0" step={isBoisson ? "10" : "1"}
+              value={isBoisson ? (form.volumeMlParPortion || "") : (form.grammesParPortion || "")}
+              onChange={e => upd(isBoisson ? "volumeMlParPortion" : "grammesParPortion", e.target.value)}
+              placeholder={isBoisson ? "ex: 500" : "ex: 40 (1 ball = 40g)"}
+              style={inputStyle}
+            />
+          </Field>
           <Field label="Description" full>
             <textarea value={form.description || ""} onChange={e => upd("description", e.target.value)}
               placeholder="Courte description..." style={{ ...inputStyle, minHeight: 50 }} />
@@ -431,17 +441,6 @@ export function RecetteForm({ form, setForm, allProduits = [], onOpenCiqualIng, 
         </div>
       )}
 
-      {/* ── SECTION 4 : VOLUME SI BOISSON ──────────────────────────── */}
-      {isBoisson && (
-        <div style={{ marginBottom: 18 }}>
-          <Field label="Volume par portion (ml)">
-            <input type="number" min="0" step="10" value={form.volumeMlParPortion || ""}
-              onChange={e => upd("volumeMlParPortion", e.target.value)}
-              placeholder="ex: 500 (ml par portion)" style={inputStyle} />
-          </Field>
-        </div>
-      )}
-
       {/* ── SECTION 5 : USAGE (repliable) ──────────────────────────── */}
       <Section title="Usage & tolérance" optional>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
@@ -471,6 +470,7 @@ export function normalizeRecette(form) {
   return {
     ...form,
     portions: parseInt(form.portions) || 1,
+    grammesParPortion: parseFloat(form.grammesParPortion) || 0,
     volumeMlParPortion: parseFloat(form.volumeMlParPortion) || 0,
     boisson: TYPES_BOISSON.includes(form.type)
   };

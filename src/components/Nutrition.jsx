@@ -698,16 +698,30 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
       )}
 
       {/* ── MODAL PRODUIT (nouveau formulaire unifié) ── */}
-      <Modal open={prodModal} onClose={()=>setProdModal(false)} title={editProdId?"Modifier le produit":"Nouveau produit"} width={700}>
-        <ProduitForm form={prodForm} setForm={setProdForm} onModeChange={setProdInputMode} />
-        <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:20}}>
+      <Modal 
+        open={prodModal} 
+        onClose={()=>setProdModal(false)} 
+        title={editProdId?"Modifier le produit":"Nouveau produit"} 
+        width={700}
+        footer={<>
           <Btn variant="ghost" onClick={()=>setProdModal(false)}>Annuler</Btn>
           <Btn onClick={saveProduit}>{editProdId?"Enregistrer":"Ajouter"}</Btn>
-        </div>
+        </>}
+      >
+        <ProduitForm form={prodForm} setForm={setProdForm} onModeChange={setProdInputMode} />
       </Modal>
 
       {/* ── MODAL RECETTE (nouveau formulaire unifié) ── */}
-      <Modal open={recModal} onClose={()=>setRecModal(false)} title={editRecId?"Modifier la recette":"Nouvelle recette"} width={760}>
+      <Modal 
+        open={recModal} 
+        onClose={()=>setRecModal(false)} 
+        title={editRecId?"Modifier la recette":"Nouvelle recette"} 
+        width={760}
+        footer={<>
+          <Btn variant="ghost" onClick={()=>setRecModal(false)}>Annuler</Btn>
+          <Btn onClick={saveRecette}>{editRecId?"Enregistrer":"Créer"}</Btn>
+        </>}
+      >
         <RecetteForm
           form={recForm}
           setForm={setRecForm}
@@ -716,10 +730,6 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
           onOpenMesProduitsIng={()=>setMesProduitsModal(true)}
           calcMacros={calcMacros}
         />
-        <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:20}}>
-          <Btn variant="ghost" onClick={()=>setRecModal(false)}>Annuler</Btn>
-          <Btn onClick={saveRecette}>{editRecId?"Enregistrer":"Créer"}</Btn>
-        </div>
       </Modal>
 
       {/* ── MODAL CIQUAL PRODUITS ── */}

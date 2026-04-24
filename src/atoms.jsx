@@ -62,7 +62,7 @@ export const FormGrid = ({ children }) => (
 );
 
 // ─── MODALS & DIALOGS ────────────────────────────────────────────────────────
-export const Modal = ({ open, onClose, title, subtitle, children, width=560 }) => {
+export const Modal = ({ open, onClose, title, subtitle, children, footer, width=560 }) => {
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
     const onKey = e => e.key === "Escape" && onClose();
@@ -85,7 +85,12 @@ export const Modal = ({ open, onClose, title, subtitle, children, width=560 }) =
           </div>
           <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:C.stoneDeep,padding:"0 4px",lineHeight:1}}>×</button>
         </div>
-        <div style={{padding:22,overflowY:"auto",flex:1}}>{children}</div>
+        <div style={{padding:22,overflowY:"auto",flex:1,minHeight:0}}>{children}</div>
+        {footer && (
+          <div style={{padding:"14px 22px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end",gap:10,flexShrink:0,background:C.white,borderBottomLeftRadius:16,borderBottomRightRadius:16}}>
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
