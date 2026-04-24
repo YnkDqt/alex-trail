@@ -746,14 +746,14 @@ export default function NutritionView({
               textTransform:"uppercase",letterSpacing:"0.04em"}}>
               <span>Type</span><span>Nom</span>
               <span style={{textAlign:"right"}}>Kcal</span>
-              <span style={{textAlign:"right"}}>Gluc.</span>
-              <span style={{textAlign:"right"}}>Prot.</span>
-              <span style={{textAlign:"right"}}>Lip.</span>
-              <span style={{textAlign:"right"}}>Na</span>
-              <span style={{textAlign:"right"}}>K</span>
-              <span style={{textAlign:"right"}}>Mg</span>
-              <span style={{textAlign:"right"}}>Zn</span>
-              <span style={{textAlign:"right"}}>Ca</span>
+              <span style={{textAlign:"right"}}>Gluc. (g)</span>
+              <span style={{textAlign:"right"}}>Prot. (g)</span>
+              <span style={{textAlign:"right"}}>Lip. (g)</span>
+              <span style={{textAlign:"right"}}>Na (mg)</span>
+              <span style={{textAlign:"right"}}>K (mg)</span>
+              <span style={{textAlign:"right"}}>Mg (mg)</span>
+              <span style={{textAlign:"right"}}>Zn (mg)</span>
+              <span style={{textAlign:"right"}}>Ca (mg)</span>
               <span/>
             </div>
             <div style={{maxHeight:320,overflowY:"auto"}}>
@@ -777,11 +777,11 @@ export default function NutritionView({
                     <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#1d9e75",fontSize:11}}>{Math.round(macros?.glucides||0)}</span>
                     <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#185FA5",fontSize:11}}>{Math.round(macros?.proteines||0)}</span>
                     <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:"#7F77DD",fontSize:11}}>{Math.round(macros?.lipides||0)}</span>
-                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:10}}>{Math.round(item.sodium||0)}</span>
-                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:10}}>{Math.round(item.potassium||0)}</span>
-                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:10}}>{Math.round(item.magnesium||0)}</span>
-                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:10}}>{Math.round(item.zinc||0)}</span>
-                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:10}}>{Math.round(item.calcium||0)}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:10}}>{Math.round(macros?.sodium||0)}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:10}}>{Math.round(macros?.potassium||0)}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:10}}>{Math.round(macros?.magnesium||0)}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:10}}>{Math.round(macros?.zinc||0)}</span>
+                    <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:C.muted,fontSize:10}}>{Math.round(macros?.calcium||0)}</span>
                     <button onClick={()=>{setConfirmId(item.id);setConfirmType(item.itemType);}} 
                       style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:C.red}}>✕</button>
                   </div>
