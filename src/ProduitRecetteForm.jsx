@@ -28,7 +28,8 @@ export const emptyProduit = () => ({
   phaseCourse: "",
   notes: "",
   boisson: false,
-  source: "perso"
+  source: "perso",
+  aEmporter: true
 });
 
 export const emptyRecette = () => ({
@@ -152,6 +153,24 @@ export function ProduitForm({ form, setForm, onModeChange }) {
           <Field label="Catégorie">
             <input value={form.categorie} onChange={e => upd("categorie", e.target.value)} placeholder="ex: Gels / Barres / Maison" style={inputStyle} />
           </Field>
+        </div>
+
+        {/* Toggle : produit à emporter en course ou ingrédient uniquement */}
+        <div style={{ marginTop: 12, padding: 12, background: C.stone, borderRadius: 8 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={form.aEmporter !== false}
+              onChange={e => upd("aEmporter", e.target.checked)}
+              style={{ width: 16, height: 16, cursor: "pointer", flexShrink: 0 }}
+            />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: C.inkLight }}>Je mange ce produit tel quel en course</div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                Décoche si ce n'est qu'un ingrédient pour tes recettes (ex: jus de citron, miel brut)
+              </div>
+            </div>
+          </label>
         </div>
       </div>
 

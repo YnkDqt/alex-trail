@@ -439,8 +439,12 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   }, [ingCiqualSearch, ingCiqualCat]);
 
   const filteredProduits = useMemo(()=>{
-    if(!search) return produits;
-    return produits.filter(p=>
+    // On n'affiche dans la bibliothèque que les produits à emporter en course.
+    // Les ingrédients bruts (aEmporter === false) restent disponibles pour les recettes
+    // via la modal "Mes produits" mais ne polluent pas la vue principale.
+    const aEmporter = produits.filter(p => p.aEmporter !== false);
+    if(!search) return aEmporter;
+    return aEmporter.filter(p=>
       (p.nom||"").toLowerCase().includes(search.toLowerCase()) ||
       (p.categorie||"").toLowerCase().includes(search.toLowerCase())
     );
@@ -512,7 +516,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
       {/* Tabs */}
       <div style={{display:"flex",gap:2,borderBottom:`1px solid ${C.border}`,marginBottom:20}}>
         {[
-          {id:"bibliotheque", label:`Ma bibliothèque (${produits.length + recettes.length})`},
+          {id:"bibliotheque", label:`Ma bibliothèque (${produits.filter(p=>p.aEmporter!==false).length + recettes.length})`},
           {id:"historique", label:"Historique entraînements"}
         ].map(t=>(
           <button key={t.id} onClick={()=>{setTab(t.id);setSearch("");}}
@@ -617,10 +621,12 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
                       </div>
                       
                       {/* Macros */}
-                      <div style={{display:"flex",gap:14,fontSize:12,fontFamily:"'DM Mono',monospace",whiteSpace:"nowrap"}}>
-                        <span style={{color:"#e65100"}}>{Math.round(macros.kcal)} kcal</span>
-                        <span style={{color:"#1d9e75"}}>{Math.round(macros.glucides)}g</span>
-                        <span style={{color:"#BA7517",fontSize:11}}>{Math.round(macros.sodium)}mg Na</span>
+                      <div style={{display:"flex",gap:12,fontSize:12,fontFamily:"'DM Mono',monospace",whiteSpace:"nowrap"}}>
+                        <span style={{color:"#e65100",fontWeight:500}}>{Math.round(macros.kcal)} kcal</span>
+                        <span style={{color:"#1d9e75"}}>{Math.round(macros.glucides)}g gluc.</span>
+                        <span style={{color:"#185FA5"}}>{Math.round(macros.proteines||0)}g prot.</span>
+                        <span style={{color:"#7F77DD"}}>{Math.round(macros.lipides||0)}g lip.</span>
+                        <span style={{color:"#BA7517"}}>{Math.round(macros.sodium)}mg Na</span>
                       </div>
                       
                       {/* Actions */}
@@ -868,7 +874,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
 
       {/* ── MODAL NUTRITION SÉANCE ── */}
       <Modal open={nutritionSeanceModal} onClose={()=>setNutritionSeanceModal(false)} title="Nutrition de la séance" width={600}>
-        {recettes.length===0 && produits.length===0?(
+        {recettes.length===0 && produits.filter(p=>p.aEmporter!==false).length===0?(
           <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>
             <div style={{fontSize:14,marginBottom:8}}>Aucun produit ou recette</div>
             <div style={{fontSize:12}}>Crée des produits ou recettes dans les onglets correspondants</div>
@@ -907,11 +913,11 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
               </div>
             )}
 
-            {produits.length>0&&(
+            {produits.filter(p=>p.aEmporter!==false).length>0&&(
               <div>
                 <div style={{...lbl,marginBottom:10}}>Produits</div>
                 <div style={{display:"grid",gap:6}}>
-                  {produits.map(p=>{
+                  {produits.filter(p=>p.aEmporter!==false).map(p=>{
                     const item = nutritionSeanceForm.find(n=>n.id===p.id);
                     const checked = !!item;
                     return (
