@@ -172,6 +172,31 @@ export const TERRAIN_TYPES = [
   { key: "trestech",  label: "Très technique", coeff: 0.68, desc: "Éboulis, hors-sentier, passages engagés" },
 ];
 
+// ─── CONSTANTES NUTRITION ────────────────────────────────────────────────────
+export const PRODUIT_TYPES = [
+  "Eau pure",
+  "Boisson énergétique",
+  "Gel",
+  "Barre",
+  "Solide mou",
+  "Solide dur",
+  "Pastille sel / électrolytes",
+  "Aliment vrai",
+];
+
+export const PRODUIT_UNITES = ["gel", "barre", "dose", "pastille", "portion", "sachet"];
+
+export const TEXTURES = ["Liquide", "Mou", "Dur"];
+
+export const TOLERANCES = ["Facile", "Moyen", "Difficile"];
+
+export const SOURCES_GLUCIDES = ["Glucose", "Fructose", "Maltodextrine", "Mix", "Amidon"];
+
+export const PHASES_COURSE = ["Tout moment", "Début", "Milieu", "Fin"];
+
+// Les types qui sont nativement des boissons (détection automatique legacy)
+export const TYPES_BOISSON = ["Eau pure", "Boisson énergétique"];
+
 // ─── HELPERS ENTRAINEMENT ────────────────────────────────────────────────────
 export const isRunning = (a) => RUNNING_TYPES.includes(TYPE_MIGRATION[a]||a);
 export const exportJSON = (data, name) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type:"application/json"})); a.download = name; a.click(); };
