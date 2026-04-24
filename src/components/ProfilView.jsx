@@ -7,7 +7,6 @@ import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, Cust
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
 export default function ProfilView({ race, setRace, segments, setSegments, settings, setSettings, onOpenRepos, isMobile, profilDetail = true, profil }) {
   const [gpxError, setGpxError]       = useState(null);
-  const [tooltipGlu, setTooltipGlu]   = useState(false);
   const [gpxStatus, setGpxStatus]     = useState(null);
   const [dragging, setDragging]       = useState(false);
   const [elevConflict, setElevConflict] = useState(null); // { pointsGPS, dPlusGPS, pointsAPI, dPlusAPI }
@@ -685,128 +684,8 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                   </div>
                 </Card>
 
-                {/* ── BLOC 4 : CALIBRATION ÉNERGÉTIQUE ── */}
-                {profilDetail && <Card>
-                  <SLabel>Calibration énergétique</SLabel>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                    {(() => {
-                      const w = settings.weight || 70;
-                      const minettiFlatKcal = Math.round(3.6 * w * 1000 / 4184);
-                      const i10 = 0.10;
-                      const cr10 = 155.4*i10**5 - 30.4*i10**4 - 43.3*i10**3 + 46.3*i10**2 + 19.5*i10 + 3.6;
-                      const minettiUpKcal = Math.round(cr10 * w * 1000 / 4184);
-                      const gs = settings.garminStats;
-                      const src = settings.kcalSource || "minetti";
-                      const SourceCard = ({ id, label, sub, flatVal, upVal, unavailable }) => {
-                        const active = src === id;
-                        return (
-                          <div onClick={() => !unavailable && updS("kcalSource", id)} style={{
-                            flex: 1, minWidth: 0, borderRadius: 9, padding: "9px 10px", cursor: unavailable ? "default" : "pointer",
-                            border: `2px solid ${active ? C.primary : "var(--border-c)"}`,
-                            background: active ? C.primaryPale : "var(--surface-2)",
-                            opacity: unavailable ? 0.45 : 1, transition: "all 0.15s",
-                          }}>
-                            <div style={{ fontSize: 10, fontWeight: 600, color: active ? C.primaryDeep : "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>{label}</div>
-                            <div style={{ fontSize: 10, color: "var(--muted-c)", marginBottom: 4 }}>{sub}</div>
-                            {!unavailable ? (
-                              <div style={{ fontSize: 12, fontWeight: 700, color: active ? C.primaryDeep : "var(--text-c)", fontFamily: "'Playfair Display', serif" }}>
-                                {flatVal} <span style={{ fontSize: 10, fontWeight: 400, color: "var(--muted-c)" }}>kcal/km</span>
-                              </div>
-                            ) : (
-                              <div style={{ fontSize: 10, color: "var(--muted-c)", fontStyle: "italic" }}>Import requis</div>
-                            )}
-                            {active && !unavailable && <div style={{ fontSize: 10, color: C.primary, fontWeight: 600, marginTop: 2 }}>✓ Actif</div>}
-                          </div>
-                        );
-                      };
-                      return (
-                        <div>
-                          <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 6 }}>Source dépense kcal</div>
-                          <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                            <SourceCard id="minetti" label="Minetti" sub="Formule scientifique" flatVal={minettiFlatKcal} upVal={minettiUpKcal} />
-                            <SourceCard id="garmin" label="Garmin perso" sub={gs?.kcalActivityCount ? `${gs.kcalActivityCount} sorties` : "Import requis"} flatVal={gs?.kcalPerKmFlat} upVal={gs?.kcalPerKmUphill} unavailable={!gs?.kcalPerKmFlat} />
-                            <SourceCard id="manual" label="Manuel" sub="Personnalisé" flatVal={settings.kcalPerKm} upVal={settings.kcalPerKmUphill} />
-                          </div>
-                          {src === "manual" && (
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "9px 10px", background: "var(--surface-2)", borderRadius: 8, border: `1px solid var(--border-c)`, marginBottom: 8 }}>
-                              <div>
-                                <div style={{ fontSize: 10, color: "var(--muted-c)", marginBottom: 3 }}>Plat (kcal/km)</div>
-                                <input type="number" min={40} max={150} value={settings.kcalPerKm}
-                                  onChange={e => updS("kcalPerKm", e.target.value === "" ? "" : +e.target.value)}
-                                  onBlur={e => updS("kcalPerKm", Math.max(40, Math.min(150, +e.target.value || 65)))} style={{ width: "100%" }} />
-                              </div>
-                              <div>
-                                <div style={{ fontSize: 10, color: "var(--muted-c)", marginBottom: 3 }}>Montée ≥5% (kcal/km)</div>
-                                <input type="number" min={40} max={200} value={settings.kcalPerKmUphill}
-                                  onChange={e => updS("kcalPerKmUphill", e.target.value === "" ? "" : +e.target.value)}
-                                  onBlur={e => updS("kcalPerKmUphill", Math.max(40, Math.min(200, +e.target.value || 90)))} style={{ width: "100%" }} />
-                              </div>
-                            </div>
-                          )}
-                          {gs?.kcalPerKmFlat && (
-                            <div style={{ padding: "7px 10px", background: C.secondaryPale, borderRadius: 8, fontSize: 11, color: "var(--text-c)" }}>
-                              Historique : <strong>{gs.kcalPerKmFlat} kcal/km</strong> plat{gs.kcalPerKmUphill ? <> · <strong>{gs.kcalPerKmUphill}</strong> montée</> : null}
-                              <span style={{ color: "var(--muted-c)", marginLeft: 6 }}>({gs.kcalActivityCount} sorties FC)</span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-                    {(() => {
-                      const target = settings.glucidesTargetGh;
-                      const kcalH = 400;
-                      const glucidesH = target != null ? target : Math.round(kcalH * 0.55 / 4);
-                      const proteinesH = Math.round(kcalH * 0.10 / 4);
-                      const lipidesH = Math.max(0, Math.round((kcalH - glucidesH * 4 - proteinesH * 4) / 9));
-                      const totalCalc = glucidesH * 4 + lipidesH * 9 + proteinesH * 4;
-                      const pctGlu = totalCalc > 0 ? Math.round(glucidesH * 4 / totalCalc * 100) : 55;
-                      const pctLip = totalCalc > 0 ? Math.round(lipidesH * 9 / totalCalc * 100) : 35;
-                      const pctPro = 100 - pctGlu - pctLip;
-                      return (
-                        <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 12 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                            <span style={{ fontSize: 11, color: "var(--muted-c)" }}>Glucides & substrats</span>
-                            <span onClick={() => setTooltipGlu(t => !t)} style={{ cursor: "pointer", fontSize: 13, color: C.primary, lineHeight: 1, userSelect: "none" }}>ⓘ</span>
-                          </div>
-                          {tooltipGlu && (
-                            <div style={{ background: "var(--surface-2)", border: `1px solid var(--border-c)`, borderRadius: 9, padding: "9px 12px", fontSize: 11, color: "var(--text-c)", marginBottom: 8, lineHeight: 1.7 }}>
-                              <strong>Jeukendrup (2004, 2011)</strong> — absorption plafonnée à 60–90 g/h selon entraînement intestinal.<br/>
-                              <strong>Brooks & Mercier (1994)</strong> — crossover : en dessous de ~65% VO₂max, les lipides dominent.
-                            </div>
-                          )}
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                            <div>
-                              <div style={{ fontSize: 10, color: "var(--muted-c)", marginBottom: 3 }}>Glucides visés (g/h)</div>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                <input type="number" min={20} max={150} placeholder="Auto"
-                                  value={target ?? ""}
-                                  onChange={e => updS("glucidesTargetGh", e.target.value === "" ? null : +e.target.value)}
-                                  onBlur={e => { if (e.target.value !== "") updS("glucidesTargetGh", Math.max(20, Math.min(150, +e.target.value))); }}
-                                  style={{ width: 70 }} />
-                                {target != null && (
-                                  <button onClick={() => updS("glucidesTargetGh", null)} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, border: `1px solid var(--border-c)`, background: "var(--surface-2)", color: "var(--muted-c)", cursor: "pointer" }}>Auto</button>
-                                )}
-                                <span style={{ fontSize: 11, color: "var(--muted-c)" }}>{target == null ? "55% des kcal" : target <= 60 ? "Débutant" : target <= 90 ? "Entraîné" : "Gut training"}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <div style={{ padding: "8px 10px", background: "var(--surface-2)", borderRadius: 8, fontSize: 11 }}>
-                            <div style={{ display: "flex", gap: 0, height: 6, borderRadius: 3, overflow: "hidden", marginBottom: 6 }}>
-                              <div style={{ width: `${pctGlu}%`, background: C.yellow, transition: "width 0.3s" }} />
-                              <div style={{ width: `${pctLip}%`, background: C.primary, transition: "width 0.3s" }} />
-                              <div style={{ width: `${pctPro}%`, background: C.secondary, transition: "width 0.3s" }} />
-                            </div>
-                            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                              <span style={{ color: C.yellow, fontWeight: 600 }}>G {pctGlu}% <span style={{ fontWeight: 400, color: "var(--muted-c)" }}>({glucidesH} g/h)</span></span>
-                              <span style={{ color: C.primary, fontWeight: 600 }}>L {pctLip}% <span style={{ fontWeight: 400, color: "var(--muted-c)" }}>({lipidesH} g/h)</span></span>
-                              <span style={{ color: C.secondary, fontWeight: 600 }}>P {pctPro}% <span style={{ fontWeight: 400, color: "var(--muted-c)" }}>({proteinesH} g/h)</span></span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </Card>}
+                {/* BLOC 4 : CALIBRATION ÉNERGÉTIQUE déplacé vers ProfilCompte (infos coureur)
+                   et la stratégie course par course est dans la modal Stratégie nutrition (NutritionView). */}
 
               </div>
             );

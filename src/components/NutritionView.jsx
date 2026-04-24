@@ -106,11 +106,21 @@ export default function NutritionView({
 
   // updP, updR, removeIngredient, updateIngredientQte sont gérés par ProduitForm/RecetteForm
 
+  // ── Settings effectifs : applique l'override glucides/h de la stratégie course ──
+  // Si la course a un override dans race.nutritionStrategy.glucidesTargetGh, on l'applique.
+  // Sinon, on utilise la valeur profil coureur (settings.glucidesTargetGh).
+  const effectiveSettings = useMemo(() => {
+    const override = race?.nutritionStrategy?.glucidesTargetGh;
+    return override != null
+      ? { ...settings, glucidesTargetGh: override }
+      : settings;
+  }, [settings, race?.nutritionStrategy?.glucidesTargetGh]);
+
   // ── CALCULS ESTIMÉS ──
   const nutriEstimes = useMemo(() => {
     return segments.reduce((acc, seg) => {
       if (seg.type === "ravito" || seg.type === "repos") return acc;
-      const n = calcNutrition(seg, { ...settings, weight: userWeight });
+      const n = calcNutrition(seg, { ...effectiveSettings, weight: userWeight });
       const dH = seg.speedKmh > 0 ? (seg.endKm - seg.startKm) / seg.speedKmh : 0;
       return {
         kcal: acc.kcal + n.kcal,
@@ -583,7 +593,7 @@ export default function NutritionView({
     const besoin = segsZ.reduce((acc, seg) => {
       const overlap = Math.min(seg.endKm, to) - Math.max(seg.startKm, from);
       const ratio = overlap / (seg.endKm - seg.startKm || 1);
-      const n = calcNutrition(seg, { ...settings, weight: userWeight });
+      const n = calcNutrition(seg, { ...effectiveSettings, weight: userWeight });
       const dH = (seg.endKm - seg.startKm) / seg.speedKmh * ratio;
       return { 
         kcal: acc.kcal + Math.round(n.kcalH * dH), 
@@ -712,7 +722,7 @@ export default function NutritionView({
         const glucidesH = totalTime > 0 ? Math.round(nutriEstimes.glucides / totalTime) : 0;
         return (
           <div style={{fontSize:11,color:C.muted,fontStyle:"italic",marginBottom:14}}>
-            Base calibration : {kcalH} kcal/h · {glucidesH}g glucides/h {settings.glucidesTargetGh ? `(cible ${settings.glucidesTargetGh}g/h)` : "(auto)"}
+            Base calibration : {kcalH} kcal/h · {glucidesH}g glucides/h {effectiveSettings.glucidesTargetGh ? `(cible ${effectiveSettings.glucidesTargetGh}g/h${race?.nutritionStrategy?.glucidesTargetGh != null ? " · override course" : " · profil"})` : "(auto)"}
           </div>
         );
       })()}

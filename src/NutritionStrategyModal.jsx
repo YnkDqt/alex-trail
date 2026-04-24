@@ -129,7 +129,6 @@ function BlocTransport({ strategy, updateStrategy }) {
 // ─── BLOC PRIORITÉ ───────────────────────────────────────────────────────────
 function BlocPriorite({ strategy, updateStrategy, settings }) {
   const setPriorite = (p) => updateStrategy({ ...strategy, priorite: p });
-  const glucidesTargetGh = settings?.glucidesTargetGh;
 
   return (
     <div style={{ marginBottom: 24 }}>
@@ -137,11 +136,6 @@ function BlocPriorite({ strategy, updateStrategy, settings }) {
       <div style={subText}>
         Oriente l'algo vers ton objectif principal pour cette course.
       </div>
-      {glucidesTargetGh && (
-        <div style={{ padding: "8px 12px", background: C.bluePale, borderRadius: 8, marginBottom: 10, fontSize: 11, color: C.blue }}>
-          ℹ️ Ta cible glucides/h ({glucidesTargetGh}g/h) est définie dans Profil de course et sera respectée.
-        </div>
-      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
         {PRIORITES_NUTRITION.map(p => {
           const active = strategy.priorite === p.key;
@@ -165,6 +159,115 @@ function BlocPriorite({ strategy, updateStrategy, settings }) {
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// ─── BLOC GLUCIDES & SUBSTRATS (cascade profil → course) ─────────────────────
+function BlocGlucides({ strategy, updateStrategy, settings }) {
+  const capaciteProfil = settings?.glucidesTargetGh;  // valeur coureur depuis son profil
+  const overrideCourse = strategy.glucidesTargetGh;   // override pour cette course (nullable)
+  const valueEffective = overrideCourse != null ? overrideCourse : capaciteProfil;  // valeur appliquée
+  const utiliseOverride = overrideCourse != null;
+
+  // Calcul des substrats (pédagogique)
+  const kcalH = 400;
+  const glucidesH = valueEffective != null ? valueEffective : Math.round(kcalH * 0.55 / 4);
+  const proteinesH = Math.round(kcalH * 0.10 / 4);
+  const lipidesH = Math.max(0, Math.round((kcalH - glucidesH * 4 - proteinesH * 4) / 9));
+  const totalCalc = glucidesH * 4 + lipidesH * 9 + proteinesH * 4;
+  const pctGlu = totalCalc > 0 ? Math.round(glucidesH * 4 / totalCalc * 100) : 55;
+  const pctLip = totalCalc > 0 ? Math.round(lipidesH * 9 / totalCalc * 100) : 35;
+  const pctPro = 100 - pctGlu - pctLip;
+
+  const setMode = (mode) => {
+    if (mode === "profil") {
+      // Utiliser la valeur profil : on retire l'override
+      updateStrategy({ ...strategy, glucidesTargetGh: null });
+    } else {
+      // Override : on initialise avec la valeur profil (ou 75 par défaut)
+      updateStrategy({ ...strategy, glucidesTargetGh: capaciteProfil || 75 });
+    }
+  };
+
+  const setOverrideValue = (v) => {
+    const parsed = v === "" ? null : Math.max(20, Math.min(150, +v));
+    updateStrategy({ ...strategy, glucidesTargetGh: parsed });
+  };
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div style={sectionTitleStyle}>Glucides & substrats</div>
+      <div style={subText}>
+        Sur une course courte tu peux pousser le débit ; sur un ultra tu le modères. Par défaut on utilise ta capacité habituelle (profil coureur).
+      </div>
+
+      {/* Choix mode */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <button
+          onClick={() => setMode("profil")}
+          style={{
+            flex: 1, padding: "10px 12px", borderRadius: 8,
+            border: `1.5px solid ${!utiliseOverride ? C.forest : C.border}`,
+            background: !utiliseOverride ? C.forestPale : C.white,
+            cursor: "pointer", fontFamily: "inherit", textAlign: "left"
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 600, color: !utiliseOverride ? C.forest : C.inkLight, marginBottom: 3 }}>
+            Utiliser ma capacité habituelle
+          </div>
+          <div style={{ fontSize: 11, color: C.muted }}>
+            {capaciteProfil != null ? `${capaciteProfil} g/h (profil coureur)` : "Auto (55% des kcal)"}
+          </div>
+        </button>
+        <button
+          onClick={() => setMode("override")}
+          style={{
+            flex: 1, padding: "10px 12px", borderRadius: 8,
+            border: `1.5px solid ${utiliseOverride ? C.forest : C.border}`,
+            background: utiliseOverride ? C.forestPale : C.white,
+            cursor: "pointer", fontFamily: "inherit", textAlign: "left"
+          }}
+        >
+          <div style={{ fontSize: 12, fontWeight: 600, color: utiliseOverride ? C.forest : C.inkLight, marginBottom: 3 }}>
+            Personnaliser pour cette course
+          </div>
+          <div style={{ fontSize: 11, color: C.muted }}>
+            Override uniquement pour cette course
+          </div>
+        </button>
+      </div>
+
+      {/* Input override si activé */}
+      {utiliseOverride && (
+        <div style={{ padding: "10px 12px", background: C.stone, borderRadius: 8, marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
+          <input type="number" min={20} max={150}
+            value={overrideCourse ?? ""}
+            onChange={e => setOverrideValue(e.target.value)}
+            style={{ width: 80 }} />
+          <span style={{ fontSize: 11, color: C.muted }}>g/h pour cette course</span>
+          <span style={{ fontSize: 11, color: C.muted, marginLeft: "auto" }}>
+            {overrideCourse == null ? "—" : overrideCourse <= 60 ? "Conservateur" : overrideCourse <= 90 ? "Standard" : "Agressif"}
+          </span>
+        </div>
+      )}
+
+      {/* Aperçu substrats */}
+      <div style={{ padding: "10px 12px", background: C.stone, borderRadius: 8, fontSize: 11 }}>
+        <div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+          Répartition substrats à ~{kcalH} kcal/h
+        </div>
+        <div style={{ display: "flex", gap: 0, height: 6, borderRadius: 3, overflow: "hidden", marginBottom: 6 }}>
+          <div style={{ width: `${pctGlu}%`, background: C.yellow, transition: "width 0.3s" }} />
+          <div style={{ width: `${pctLip}%`, background: C.primary, transition: "width 0.3s" }} />
+          <div style={{ width: `${pctPro}%`, background: C.secondary, transition: "width 0.3s" }} />
+        </div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ color: C.yellow, fontWeight: 600 }}>G {pctGlu}% <span style={{ fontWeight: 400, color: C.muted }}>({glucidesH} g/h)</span></span>
+          <span style={{ color: C.primary, fontWeight: 600 }}>L {pctLip}% <span style={{ fontWeight: 400, color: C.muted }}>({lipidesH} g/h)</span></span>
+          <span style={{ color: C.secondary, fontWeight: 600 }}>P {pctPro}% <span style={{ fontWeight: 400, color: C.muted }}>({proteinesH} g/h)</span></span>
+        </div>
       </div>
     </div>
   );
@@ -273,6 +376,7 @@ export default function NutritionStrategyModal({ open, onClose, race, setRace, r
     >
       <BlocHydratation strategy={localStrategy} updateStrategy={setLocalStrategy} />
       <BlocTransport strategy={localStrategy} updateStrategy={setLocalStrategy} />
+      <BlocGlucides strategy={localStrategy} updateStrategy={setLocalStrategy} settings={settings} />
       <BlocPriorite strategy={localStrategy} updateStrategy={setLocalStrategy} settings={settings} />
       <BlocRavitosAutonomes strategy={localStrategy} updateStrategy={setLocalStrategy} ravitos={ravitos} />
     </Modal>

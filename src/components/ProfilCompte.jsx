@@ -73,7 +73,7 @@ const SectionTitle = ({ children }) => (
   </div>
 );
 
-export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
+export default function ProfilCompte({ profil = {}, setProfil, settings = {}, setSettings, onClose }) {
   const { user, deleteAccount, updatePassword, mfaEnroll, mfaVerify, mfaVerifyChallenge, mfaUnenroll, mfaListFactors, mfaSaveRecoveryCodes, mfaUseRecoveryCode } = useAuth();
   const p = profil;
 
@@ -97,6 +97,9 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
         .catch(err => console.error('Erreur save profil:', err));
     }
   };
+
+  // Helper pour les settings (calibration nutritionnelle)
+  const updS = (k, v) => setSettings && setSettings(s => ({ ...s, [k]: v }));
 
   const age  = useMemo(() => calcAge(p.dateNaissance), [p.dateNaissance]);
   const zones = useMemo(() => calcZones(p.fcRepos, p.fcMax), [p.fcRepos, p.fcMax]);
@@ -481,6 +484,101 @@ export default function ProfilCompte({ profil = {}, setProfil, onClose }) {
             )}
           </div>
         )}
+
+        {/* Calibration nutritionnelle */}
+        <SectionTitle>Calibration nutritionnelle</SectionTitle>
+        <div style={{ fontSize:12, color:C.muted, marginBottom:12, lineHeight:1.5 }}>
+          Ces paramètres décrivent ta physiologie : dépense énergétique et capacité intestinale.
+          Ils servent de base aux calculs de toutes tes courses. La stratégie course par course (hydratation, transport…) se règle dans Nutrition course.
+        </div>
+
+        {/* Source dépense kcal */}
+        {(() => {
+          const w = settings.weight || p.poids || 70;
+          const minettiFlatKcal = Math.round(3.6 * w * 1000 / 4184);
+          const gs = settings.garminStats;
+          const src = settings.kcalSource || "minetti";
+          const SourceCard = ({ id, label, sub, flatVal, unavailable }) => {
+            const active = src === id;
+            return (
+              <div onClick={() => !unavailable && updS("kcalSource", id)} style={{
+                flex: 1, minWidth: 0, borderRadius: 9, padding: "9px 10px",
+                cursor: unavailable ? "default" : "pointer",
+                border: `2px solid ${active ? C.forest : C.border}`,
+                background: active ? C.forestPale : C.stone,
+                opacity: unavailable ? 0.45 : 1, transition: "all 0.15s",
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: active ? C.forest : C.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: 10, color: C.muted, marginBottom: 4 }}>{sub}</div>
+                {!unavailable ? (
+                  <div style={{ fontSize: 12, fontWeight: 700, color: active ? C.forest : C.inkLight, fontFamily: "'Playfair Display', serif" }}>
+                    {flatVal} <span style={{ fontSize: 10, fontWeight: 400, color: C.muted }}>kcal/km</span>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 10, color: C.muted, fontStyle: "italic" }}>Import requis</div>
+                )}
+                {active && !unavailable && <div style={{ fontSize: 10, color: C.forest, fontWeight: 600, marginTop: 2 }}>✓ Actif</div>}
+              </div>
+            );
+          };
+          return (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>Source dépense kcal</div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                <SourceCard id="minetti" label="Minetti" sub="Formule scientifique" flatVal={minettiFlatKcal} />
+                <SourceCard id="garmin" label="Garmin perso" sub={gs?.kcalActivityCount ? `${gs.kcalActivityCount} sorties` : "Import requis"} flatVal={gs?.kcalPerKmFlat} unavailable={!gs?.kcalPerKmFlat} />
+                <SourceCard id="manual" label="Manuel" sub="Personnalisé" flatVal={settings.kcalPerKm} />
+              </div>
+              {src === "manual" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "9px 10px", background: C.stone, borderRadius: 8, border: `1px solid ${C.border}`, marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: C.muted, marginBottom: 3 }}>Plat (kcal/km)</div>
+                    <input type="number" min={40} max={150} value={settings.kcalPerKm || ""}
+                      onChange={e => updS("kcalPerKm", e.target.value === "" ? "" : +e.target.value)}
+                      onBlur={e => updS("kcalPerKm", Math.max(40, Math.min(150, +e.target.value || 65)))}
+                      style={{ width: "100%" }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: C.muted, marginBottom: 3 }}>Montée ≥5% (kcal/km)</div>
+                    <input type="number" min={40} max={200} value={settings.kcalPerKmUphill || ""}
+                      onChange={e => updS("kcalPerKmUphill", e.target.value === "" ? "" : +e.target.value)}
+                      onBlur={e => updS("kcalPerKmUphill", Math.max(40, Math.min(200, +e.target.value || 90)))}
+                      style={{ width: "100%" }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Capacité intestinale (glucides/h habituels) */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>Capacité intestinale (glucides g/h)</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: C.stone, borderRadius: 8, border: `1px solid ${C.border}` }}>
+            <input type="number" min={20} max={150} placeholder="Auto"
+              value={settings.glucidesTargetGh ?? ""}
+              onChange={e => updS("glucidesTargetGh", e.target.value === "" ? null : +e.target.value)}
+              onBlur={e => { if (e.target.value !== "") updS("glucidesTargetGh", Math.max(20, Math.min(150, +e.target.value))); }}
+              style={{ width: 80 }} />
+            <span style={{ fontSize: 11, color: C.muted }}>
+              {settings.glucidesTargetGh == null
+                ? "Auto (55% des kcal)"
+                : settings.glucidesTargetGh <= 60 ? "Débutant"
+                : settings.glucidesTargetGh <= 90 ? "Entraîné"
+                : "Gut training avancé"}
+            </span>
+            {settings.glucidesTargetGh != null && (
+              <button onClick={() => updS("glucidesTargetGh", null)}
+                style={{ fontSize: 10, padding: "3px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: C.white, color: C.muted, cursor: "pointer", marginLeft: "auto" }}>
+                Auto
+              </button>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, marginTop: 6, lineHeight: 1.5 }}>
+            Ta capacité habituelle à absorber les glucides en course. Peut être ajustée course par course dans la stratégie nutrition.
+            <br/><strong>Jeukendrup :</strong> absorption plafonnée à 60–90 g/h selon entraînement intestinal.
+          </div>
+        </div>
 
         {/* Sécurité */}
         <SectionTitle>Sécurité</SectionTitle>

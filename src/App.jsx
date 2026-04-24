@@ -848,7 +848,7 @@ function AppLayout({
                 <span style={{fontSize:11,color:C.stoneDark}}>|</span>
                 <span style={{fontSize:13,color:C.inkLight,fontWeight:500}}>Profil</span>
               </div>
-              <ProfilCompte profil={profil} setProfil={setProfil}/>
+              <ProfilCompte profil={profil} setProfil={setProfil} settings={settings} setSettings={setSettings}/>
             </div>
           )}
           {/* Politique de confidentialité */}
