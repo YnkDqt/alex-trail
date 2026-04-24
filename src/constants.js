@@ -197,6 +197,35 @@ export const PHASES_COURSE = ["Tout moment", "Début", "Milieu", "Fin"];
 // Les types qui sont nativement des boissons (détection automatique legacy)
 export const TYPES_BOISSON = ["Eau pure", "Boisson énergétique"];
 
+// ─── STRATÉGIE NUTRITION COURSE ──────────────────────────────────────────────
+// Priorités globales qui influencent l'algo d'autocomplétion
+export const PRIORITES_NUTRITION = [
+  { key: "performance", label: "Performance", icon: "🔥", desc: "Glucides poussés au max, tous les micros visés" },
+  { key: "confort",     label: "Confort",     icon: "⚖️", desc: "Équilibre : glucides modérés, sodium visé" },
+  { key: "leger",       label: "Léger",       icon: "🪶", desc: "Minimise le poids transporté, glucides suffisants" }
+];
+
+// Stratégies pour les ravitos autonomes (où l'équipe n'est pas présente)
+export const STRATEGIES_AUTONOME = [
+  { key: "porter", label: "Je porte depuis avant", icon: "🎒", desc: "Tout est ajouté au ravito précédent" },
+  { key: "orga",   label: "Je prends sur stand orga", icon: "🏁", desc: "Couvert par l'organisation" },
+  { key: "mix",    label: "Mix (50/50)", icon: "🤝", desc: "Moitié porté, moitié orga" }
+];
+
+// Valeurs par défaut de la stratégie
+export const NUTRITION_STRATEGY_DEFAULTS = {
+  transport: {
+    liquideMaxMl: 1500,
+    solideMaxG: 500
+  },
+  hydratation: {
+    eauPureMl: 500,
+    boissonEnergetiqueMl: 500
+  },
+  priorite: "confort",
+  ravitos: {}  // map: ravitoId -> { strategieAutonome }
+};
+
 // ─── HELPERS ENTRAINEMENT ────────────────────────────────────────────────────
 export const isRunning = (a) => RUNNING_TYPES.includes(TYPE_MIGRATION[a]||a);
 export const exportJSON = (data, name) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type:"application/json"})); a.download = name; a.click(); };

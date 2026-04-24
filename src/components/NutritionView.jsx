@@ -13,6 +13,7 @@ import {
   loadProduitForEdit,
   loadRecetteForEdit
 } from '../ProduitRecetteForm.jsx';
+import NutritionStrategyModal from '../NutritionStrategyModal.jsx';
 
 export default function NutritionView({ 
   segments, 
@@ -86,6 +87,7 @@ export default function NutritionView({
   const [confirmId, setConfirmId] = useState(null);
   const [confirmType, setConfirmType] = useState(null);
   const [autoCompletePreview, setAutoCompletePreview] = useState(null);
+  const [strategyModal, setStrategyModal] = useState(false);
 
   // emptyProduit/emptyRecette sont importés depuis ProduitRecetteForm.jsx
   const emptyProduit = emptyProduitNew;
@@ -840,7 +842,10 @@ export default function NutritionView({
       <div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
           <div style={{...lbl}}>Plan de ravitaillement</div>
-          <Btn variant="soft" size="sm" onClick={handleAutoComplete} disabled style={{opacity:0.4,cursor:"not-allowed"}}>🤖 Auto-compléter (bientôt)</Btn>
+          <div style={{display:"flex",gap:8}}>
+            <Btn variant="soft" size="sm" onClick={()=>setStrategyModal(true)}>⚙️ Stratégie</Btn>
+            <Btn variant="soft" size="sm" onClick={handleAutoComplete} disabled style={{opacity:0.4,cursor:"not-allowed"}}>🤖 Auto-compléter (bientôt)</Btn>
+          </div>
         </div>
 
         {autoCompletePreview && (
@@ -1196,6 +1201,15 @@ export default function NutritionView({
           );
         })()}
       </Modal>
+
+      <NutritionStrategyModal
+        open={strategyModal}
+        onClose={()=>setStrategyModal(false)}
+        race={race}
+        setRace={setRace}
+        ravitos={ravitos}
+        settings={settings}
+      />
 
       <ConfirmDialog 
         open={!!confirmId} 
