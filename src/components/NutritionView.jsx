@@ -1,8 +1,18 @@
 import { useState, useMemo } from 'react';
 import { C } from '../constants.js';
 import { fmtTime, calcNutrition } from '../utils.jsx';
-import { Btn, Modal, Field, ConfirmDialog, KPI } from '../atoms.jsx';
+import { Btn, Modal, ConfirmDialog, KPI } from '../atoms.jsx';
 import { CIQUAL, CIQUAL_CATEGORIES } from '../data/ciqual.js';
+import {
+  ProduitForm,
+  RecetteForm,
+  emptyProduit as emptyProduitNew,
+  emptyRecette as emptyRecetteNew,
+  normalizeProduit,
+  normalizeRecette,
+  loadProduitForEdit,
+  loadRecetteForEdit
+} from '../ProduitRecetteForm.jsx';
 
 export default function NutritionView({ 
   segments, 
@@ -77,20 +87,13 @@ export default function NutritionView({
   const [confirmType, setConfirmType] = useState(null);
   const [autoCompletePreview, setAutoCompletePreview] = useState(null);
 
-  const emptyProduit = () => ({
-    id: Date.now()+Math.random(),
-    nom: "", kcal: "", glucides: "", proteines: "", lipides: "",
-    sodium: "", potassium: "", magnesium: "", zinc: "", calcium: "",
-    categorie: "", notes: ""
-  });
-
-  const emptyRecette = () => ({
-    id: Date.now()+Math.random(), nom: "", description: "", portions: 1,
-    ingredients: [], notes: "", boisson: false, volumeMlParPortion: ""
-  });
+  // emptyProduit/emptyRecette sont importés depuis ProduitRecetteForm.jsx
+  const emptyProduit = emptyProduitNew;
+  const emptyRecette = emptyRecetteNew;
 
   const [prodForm, setProdForm] = useState(emptyProduit());
   const [recForm, setRecForm] = useState(emptyRecette());
+  const [prodInputMode, setProdInputMode] = useState("100g"); // mode de saisie (state local)
   const [ciqualSearch, setCiqualSearch] = useState("");
   const [ciqualCat, setCiqualCat] = useState("Toutes");
   const [ingCiqualModal, setIngCiqualModal] = useState(false);
@@ -99,8 +102,7 @@ export default function NutritionView({
   const [ingMesProduitsModal, setIngMesProduitsModal] = useState(false);
   const [ingMesProduitsSearch, setIngMesProduitsSearch] = useState("");
 
-  const updP = (k,v) => setProdForm(f=>({...f,[k]:v}));
-  const updR = (k,v) => setRecForm(f=>({...f,[k]:v}));
+  // updP, updR, removeIngredient, updateIngredientQte sont gérés par ProduitForm/RecetteForm
 
   // ── CALCULS ESTIMÉS ──
   const nutriEstimes = useMemo(() => {
@@ -141,7 +143,8 @@ export default function NutritionView({
         
         if (prod.ingredients) {
           const macros = (prod.ingredients || []).reduce((m, ing) => {
-            const ingProd = [...produits, ...bibliotheque.produits].find(p => p.id === ing.produitId);
+            // Gère les deux cas : ingrédient CIQUAL inline OU produit bibliothèque
+            const ingProd = ing._ciqualData || [...produits, ...bibliotheque.produits].find(p => p.id === ing.produitId);
             if (!ingProd) return m;
             const qteGrammes = ing.quantite || 0;
             
@@ -187,26 +190,21 @@ export default function NutritionView({
   const openNewProd = () => {
     setEditProdId(null);
     setProdForm(emptyProduit());
+    setProdInputMode("100g");
     setProdModal(true);
   };
 
   const openEditProd = (p) => {
     setEditProdId(p.id);
-    setProdForm({...emptyProduit(), ...p});
+    setProdForm(loadProduitForEdit(p));
+    setProdInputMode("100g");
     setProdModal(true);
   };
 
   const saveProduit = () => {
     if(!prodForm.nom.trim()) return;
-    const item = {
-      ...prodForm, id: editProdId || Date.now()+Math.random(),
-      kcal: parseFloat(prodForm.kcal)||0, glucides: parseFloat(prodForm.glucides)||0,
-      proteines: parseFloat(prodForm.proteines)||0, lipides: parseFloat(prodForm.lipides)||0,
-      sodium: parseFloat(prodForm.sodium)||0, potassium: parseFloat(prodForm.potassium)||0,
-      magnesium: parseFloat(prodForm.magnesium)||0, zinc: parseFloat(prodForm.zinc)||0,
-      calcium: parseFloat(prodForm.calcium)||0
-    };
-    
+    const normalized = normalizeProduit(prodForm, prodInputMode);
+    const item = { ...normalized, id: editProdId || Date.now()+Math.random() };
     if(editProdId) {
       updBibliotheque({ ...bibliotheque, produits: bibliotheque.produits.map(p=>p.id===editProdId?item:p) });
     } else {
@@ -223,7 +221,9 @@ export default function NutritionView({
   const addFromCiqual = (alim) => {
     const isBoisson = alim.c && alim.c.toLowerCase().includes("boisson");
     const newProd = {
+      ...emptyProduit(),
       id: Date.now()+Math.random(), nom: alim.n,
+      type: isBoisson ? (alim.n.toLowerCase().includes("eau") ? "Eau pure" : "Boisson énergétique") : "",
       kcal: alim.e || 0, glucides: alim.g || 0, proteines: alim.p || 0,
       lipides: alim.l || 0, sodium: alim.na || 0, potassium: alim.k || 0,
       magnesium: alim.mg || 0, zinc: 0, calcium: 0,
@@ -250,14 +250,14 @@ export default function NutritionView({
 
   const openEditRec = (r) => {
     setEditRecId(r.id);
-    setRecForm({...emptyRecette(), ...r});
+    setRecForm(loadRecetteForEdit(r));
     setRecModal(true);
   };
 
   const saveRecette = () => {
     if(!recForm.nom.trim()) return;
-    const item = { ...recForm, id: editRecId || Date.now()+Math.random(), portions: parseInt(recForm.portions)||1 };
-    
+    const normalized = normalizeRecette(recForm);
+    const item = { ...normalized, id: editRecId || Date.now()+Math.random() };
     if(editRecId) {
       updBibliotheque({ ...bibliotheque, recettes: bibliotheque.recettes.map(r=>r.id===editRecId?item:r) });
     } else {
@@ -298,39 +298,44 @@ export default function NutritionView({
   };
 
   const addIngredientFromCiqual = (alim) => {
-    const newProd = {
-      id: Date.now()+Math.random(), nom: alim.n,
-      kcal: alim.e || 0, glucides: alim.g || 0, proteines: alim.p || 0,
-      lipides: alim.l || 0, sodium: alim.na || 0, potassium: alim.k || 0,
-      magnesium: alim.mg || 0, zinc: 0, calcium: 0,
-      categorie: alim.c || "", source: "ciqual", notes: ""
-    };
-    
-    updBibliotheque({ ...bibliotheque, produits: [...bibliotheque.produits, newProd] });
-    setRecForm(f=>({ ...f, ingredients: [...f.ingredients, {produitId: newProd.id, quantite: 100}] }));
+    // Les ingrédients CIQUAL ne polluent plus la bibliothèque produits.
+    // Les données nutritionnelles sont stockées directement dans l'ingrédient.
+    setRecForm(f=>({
+      ...f,
+      ingredients: [...f.ingredients, {
+        produitId: "ciqual-" + Date.now() + "-" + Math.random(),
+        quantite: 100,
+        _ciqualData: {
+          nom: alim.n,
+          kcal: alim.e || 0,
+          glucides: alim.g || 0,
+          proteines: alim.p || 0,
+          lipides: alim.l || 0,
+          sodium: alim.na || 0,
+          potassium: alim.k || 0,
+          magnesium: alim.mg || 0,
+          zinc: 0,
+          calcium: 0,
+          categorie: alim.c || ""
+        }
+      }]
+    }));
     setIngCiqualModal(false);
     setIngCiqualSearch("");
   };
 
-  const removeIngredient = (idx) => {
-    setRecForm(f=>({ ...f, ingredients: f.ingredients.filter((_, i)=>i!==idx) }));
-  };
-
-  const updateIngredientQte = (idx, qte) => {
-    setRecForm(f=>({ ...f, ingredients: f.ingredients.map((ing, i)=>i===idx?{...ing, quantite: parseFloat(qte)||0}:ing) }));
-  };
-
   const calcMacros = (rec) => {
     return (rec.ingredients||[]).reduce((acc, ing)=>{
-      const prod = allProduitsForIngredients.find(p=>p.id===ing.produitId);
-      if(!prod) return acc;
+      // Gère les deux cas : ingrédient CIQUAL inline OU produit de la bibliothèque
+      const data = ing._ciqualData || allProduitsForIngredients.find(p=>p.id===ing.produitId);
+      if(!data) return acc;
       const factor = parseFloat(ing.quantite)||0;
       return {
-        kcal: acc.kcal + Math.round((prod.kcal||0)*factor/100),
-        glucides: acc.glucides + Math.round((prod.glucides||0)*factor/100),
-        proteines: acc.proteines + Math.round((prod.proteines||0)*factor/100),
-        lipides: acc.lipides + Math.round((prod.lipides||0)*factor/100),
-        sodium: acc.sodium + Math.round((prod.sodium||0)*factor/100)
+        kcal: acc.kcal + Math.round((data.kcal||0)*factor/100),
+        glucides: acc.glucides + Math.round((data.glucides||0)*factor/100),
+        proteines: acc.proteines + Math.round((data.proteines||0)*factor/100),
+        lipides: acc.lipides + Math.round((data.lipides||0)*factor/100),
+        sodium: acc.sodium + Math.round((data.sodium||0)*factor/100)
       };
     }, {kcal:0, glucides:0, proteines:0, lipides:0, sodium:0});
   };
@@ -954,145 +959,39 @@ export default function NutritionView({
         })}
       </div>
 
-      {/* ── MODAUX (repris version actuelle) ── */}
-      <Modal open={prodModal} onClose={()=>setProdModal(false)} title={editProdId?"Modifier produit":"Créer produit"} width={600}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          <Field label="Nom" full>
-            <input value={prodForm.nom} onChange={e=>updP("nom",e.target.value)} placeholder="ex: Banane" style={{width:"100%"}}/>
-          </Field>
-          <Field label="Catégorie" full>
-            <input value={prodForm.categorie} onChange={e=>updP("categorie",e.target.value)} placeholder="ex: Fruits" style={{width:"100%"}}/>
-          </Field>
-          <div style={{gridColumn:"1/-1",display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
-            {[
-              {k:"kcal",label:"Kcal",unit:"kcal"},
-              {k:"glucides",label:"Glucides",unit:"g"},
-              {k:"proteines",label:"Protéines",unit:"g"},
-              {k:"lipides",label:"Lipides",unit:"g"},
-              {k:"sodium",label:"Sodium",unit:"mg"}
-            ].map(({k,label,unit})=>(
-              <Field key={k} label={`${label} (${unit})`}>
-                <input type="number" min="0" step="0.1" value={prodForm[k]||""} onChange={e=>updP(k,e.target.value)} style={{width:"100%"}}/>
-              </Field>
-            ))}
-          </div>
-          <div style={{gridColumn:"1/-1",display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-            {[
-              {k:"potassium",label:"Potassium",unit:"mg"},
-              {k:"magnesium",label:"Magnésium",unit:"mg"},
-              {k:"zinc",label:"Zinc",unit:"mg"},
-              {k:"calcium",label:"Calcium",unit:"mg"}
-            ].map(({k,label,unit})=>(
-              <Field key={k} label={`${label} (${unit})`}>
-                <input type="number" min="0" step="0.1" value={prodForm[k]||""} onChange={e=>updP(k,e.target.value)} style={{width:"100%"}}/>
-              </Field>
-            ))}
-          </div>
-          <Field label="Notes" full>
-            <textarea value={prodForm.notes||""} onChange={e=>updP("notes",e.target.value)} placeholder="Remarques..." style={{width:"100%",minHeight:60}}/>
-          </Field>
-        </div>
-        <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:20}}>
+      {/* ── MODAL PRODUIT (formulaire unifié) ── */}
+      <Modal 
+        open={prodModal} 
+        onClose={()=>setProdModal(false)} 
+        title={editProdId?"Modifier produit":"Créer produit"} 
+        width={700}
+        footer={<>
           <Btn variant="ghost" onClick={()=>setProdModal(false)}>Annuler</Btn>
           <Btn onClick={saveProduit}>{editProdId?"Enregistrer":"Créer"}</Btn>
-        </div>
+        </>}
+      >
+        <ProduitForm form={prodForm} setForm={setProdForm} onModeChange={setProdInputMode} />
       </Modal>
 
-      <Modal open={recModal} onClose={()=>setRecModal(false)} title={editRecId?"Modifier recette":"Créer recette"} width={700}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-          <Field label="Nom" full>
-            <input value={recForm.nom} onChange={e=>updR("nom",e.target.value)} placeholder="ex: Energy balls" style={{width:"100%"}}/>
-          </Field>
-          <Field label="Portions">
-            <input type="number" min="1" value={recForm.portions} onChange={e=>updR("portions",e.target.value)} style={{width:"100%"}}/>
-          </Field>
-          <Field label="Description" full>
-            <textarea value={recForm.description||""} onChange={e=>updR("description",e.target.value)} placeholder="Courte description..." style={{width:"100%",minHeight:50}}/>
-          </Field>
-        </div>
-
-        <div style={{marginBottom:16}}>
-          <div style={{...lbl,marginBottom:8}}>Ingrédients</div>
-          {recForm.ingredients.length===0?(
-            <div style={{textAlign:"center",padding:"20px",background:C.stone,borderRadius:8,color:C.muted,fontSize:13}}>
-              Aucun ingrédient
-            </div>
-          ):(
-            <div style={{display:"grid",gap:6}}>
-              {recForm.ingredients.map((ing,idx)=>{
-                const prod = allProduitsForIngredients.find(p=>p.id===ing.produitId);
-                return (
-                  <div key={idx} style={{display:"flex",gap:8,alignItems:"center",padding:8,background:C.stone,borderRadius:6}}>
-                    <span style={{flex:1,fontSize:13,color:C.inkLight}}>
-                      {prod?.nom||"Produit inconnu"}
-                      {prod?.fromEntrainement&&<span style={{fontSize:11,color:C.muted,marginLeft:6}}>(entraînement)</span>}
-                    </span>
-                    <input type="number" min="0" step="1" value={ing.quantite} onChange={e=>updateIngredientQte(idx,e.target.value)}
-                      style={{width:80,padding:"4px 8px",fontSize:12,borderRadius:6,border:`1px solid ${C.border}`,textAlign:"right"}}/>
-                    <span style={{fontSize:12,color:C.muted}}>g</span>
-                    <button onClick={()=>removeIngredient(idx)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red}}>✕</button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          <div style={{display:"flex",gap:8,marginTop:10}}>
-            <Btn variant="soft" onClick={()=>setIngCiqualModal(true)}>🔍 Base CIQUAL</Btn>
-            <Btn variant="soft" onClick={()=>setIngMesProduitsModal(true)}>🥕 Mes produits</Btn>
-          </div>
-        </div>
-
-        {recForm.ingredients.length>0&&(()=>{
-          const macros = calcMacros(recForm);
-          return (
-            <div style={{padding:12,background:C.stone,borderRadius:8,marginBottom:16}}>
-              <div style={{...lbl,marginBottom:6}}>Total recette</div>
-              <div style={{display:"flex",gap:12,fontSize:13}}>
-                <span style={{color:"#e65100",fontWeight:500}}>{macros.kcal} kcal</span>
-                <span style={{color:"#1d9e75"}}>{macros.glucides}g gluc.</span>
-                <span style={{color:"#185FA5"}}>{macros.proteines}g prot.</span>
-                <span style={{color:"#7F77DD"}}>{macros.lipides}g lip.</span>
-              </div>
-            </div>
-          );
-        })()}
-
-        <div style={{marginBottom:16}}>
-          <div style={{...lbl,marginBottom:8}}>Type de recette</div>
-          <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:recForm.boisson?C.bluePale:C.stone,
-            border:`1px solid ${recForm.boisson?C.blue+"40":C.border}`,borderRadius:10,cursor:"pointer"}}
-            onClick={()=>updR("boisson",!recForm.boisson)}>
-            <div style={{width:44,height:24,borderRadius:12,background:recForm.boisson?C.blue:C.border,position:"relative",transition:"all 0.2s"}}>
-              <div style={{width:20,height:20,borderRadius:"50%",background:C.white,position:"absolute",top:2,
-                left:recForm.boisson?22:2,transition:"left 0.2s",boxShadow:"0 2px 4px rgba(0,0,0,0.1)"}}/>
-            </div>
-            <div style={{flex:1}}>
-              <div style={{fontWeight:600,fontSize:13,color:recForm.boisson?C.blue:C.inkLight}}>
-                {recForm.boisson?"Recette boisson 💧":"Recette solide"}
-              </div>
-              <div style={{fontSize:11,color:C.muted,marginTop:2}}>
-                {recForm.boisson?"Compte dans l'hydratation":"Ne compte pas dans l'hydratation"}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {recForm.boisson&&(
-          <Field label="Volume par portion (ml)" style={{marginBottom:16}}>
-            <input type="number" min="0" step="10" value={recForm.volumeMlParPortion||""} 
-              onChange={e=>updR("volumeMlParPortion",e.target.value)}
-              placeholder="ex: 500 (ml par portion)" style={{width:"100%"}}/>
-          </Field>
-        )}
-
-        <Field label="Notes">
-          <textarea value={recForm.notes||""} onChange={e=>updR("notes",e.target.value)} placeholder="Instructions..." style={{width:"100%",minHeight:60}}/>
-        </Field>
-
-        <div style={{display:"flex",justifyContent:"flex-end",gap:10,marginTop:20}}>
+      {/* ── MODAL RECETTE (formulaire unifié) ── */}
+      <Modal 
+        open={recModal} 
+        onClose={()=>setRecModal(false)} 
+        title={editRecId?"Modifier recette":"Créer recette"} 
+        width={760}
+        footer={<>
           <Btn variant="ghost" onClick={()=>setRecModal(false)}>Annuler</Btn>
           <Btn onClick={saveRecette}>{editRecId?"Enregistrer":"Créer"}</Btn>
-        </div>
+        </>}
+      >
+        <RecetteForm
+          form={recForm}
+          setForm={setRecForm}
+          allProduits={allProduitsForIngredients}
+          onOpenCiqualIng={()=>setIngCiqualModal(true)}
+          onOpenMesProduitsIng={()=>setIngMesProduitsModal(true)}
+          calcMacros={calcMacros}
+        />
       </Modal>
 
       <Modal open={ciqualModal} onClose={()=>setCiqualModal(false)} title="Base CIQUAL" width={800}>
@@ -1221,28 +1120,33 @@ export default function NutritionView({
       </Modal>
 
       <Modal open={entrainementProdModal} onClose={()=>setEntrainementProdModal(false)} title="Mes produits entraînement" width={700}>
-        {produits.length===0?(
-          <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>Aucun produit</div>
-        ):(
-          <div style={{maxHeight:500,overflowY:"auto"}}>
-            {produits.map(p=>{
-              const added = bibliotheque.produits.some(bp=>bp.nom===p.nom);
-              return (
-                <div key={p.id} style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:14,fontWeight:500,color:C.inkLight}}>{p.nom}</div>
-                    {p.categorie&&<div style={{fontSize:11,color:C.muted}}>{p.categorie}</div>}
+        {(() => {
+          // N'importer que les produits à emporter (pas les ingrédients bruts)
+          const produitsImportables = produits.filter(p => p.aEmporter !== false);
+          if (produitsImportables.length === 0) {
+            return <div style={{textAlign:"center",padding:"40px 20px",color:C.muted}}>Aucun produit à emporter disponible</div>;
+          }
+          return (
+            <div style={{maxHeight:500,overflowY:"auto"}}>
+              {produitsImportables.map(p=>{
+                const added = bibliotheque.produits.some(bp=>bp.nom===p.nom);
+                return (
+                  <div key={p.id} style={{padding:"12px 16px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:14,fontWeight:500,color:C.inkLight}}>{p.nom}</div>
+                      {p.categorie&&<div style={{fontSize:11,color:C.muted}}>{p.categorie}</div>}
+                    </div>
+                    {added?(
+                      <span style={{fontSize:12,color:C.muted}}>✓ Ajouté</span>
+                    ):(
+                      <Btn size="sm" onClick={()=>addFromEntrainementProduits([p.id])}>＋</Btn>
+                    )}
                   </div>
-                  {added?(
-                    <span style={{fontSize:12,color:C.muted}}>✓ Ajouté</span>
-                  ):(
-                    <Btn size="sm" onClick={()=>addFromEntrainementProduits([p.id])}>＋</Btn>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          );
+        })()}
       </Modal>
 
       <ConfirmDialog 
