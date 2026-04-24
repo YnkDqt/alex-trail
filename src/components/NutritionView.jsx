@@ -639,79 +639,121 @@ export default function NutritionView({
   const card = {background:C.white,border:`1px solid ${C.border}`,borderRadius:12};
   const lbl = {fontSize:10,fontWeight:500,textTransform:"uppercase",letterSpacing:"0.06em",color:C.muted};
 
-  const nutrients = [
-    { key: 'eau', label: 'Eau', unit: 'L', factor: 1000, icon: '💧', color: C.blue },
-    { key: 'kcal', label: 'Kcal', unit: 'kcal', factor: 1, icon: '🔥', color: C.red },
-    { key: 'proteines', label: 'Prot.', unit: 'g', factor: 1, icon: '🥩', color: '#185FA5' },
-    { key: 'lipides', label: 'Lip.', unit: 'g', factor: 1, icon: '🥑', color: '#7F77DD' },
-    { key: 'glucides', label: 'Gluc.', unit: 'g', factor: 1, icon: '🍌', color: '#1d9e75' },
-    { key: 'sodium', label: 'Sodium', unit: 'mg', factor: 1, icon: '🧂', color: '#BA7517' },
-    { key: 'potassium', label: 'Potassium', unit: 'mg', factor: 1, icon: '', color: C.muted },
-    { key: 'magnesium', label: 'Magnésium', unit: 'mg', factor: 1, icon: '', color: C.muted },
-    { key: 'zinc', label: 'Zinc', unit: 'mg', factor: 1, icon: '', color: C.muted },
-    { key: 'calcium', label: 'Calcium', unit: 'mg', factor: 1, icon: '', color: C.muted }
+  // Nutriments hiérarchisés par importance (Tier 1 = essentiel, Tier 3 = indicatif)
+  // Basé sur la science du trail : eau/glucides/sodium sont critiques, les micros sont secondaires
+  const nutrientsTier1 = [
+    { key: 'eau',      label: 'Eau',      unit: 'L',    factor: 1000, icon: '💧', color: C.blue },
+    { key: 'kcal',     label: 'Kcal',     unit: 'kcal', factor: 1,    icon: '🔥', color: C.red },
+    { key: 'glucides', label: 'Glucides', unit: 'g',    factor: 1,    icon: '🍌', color: '#1d9e75' },
+    { key: 'sodium',   label: 'Sodium',   unit: 'mg',   factor: 1,    icon: '🧂', color: '#BA7517' }
   ];
+  const nutrientsTier2 = [
+    { key: 'proteines', label: 'Protéines', unit: 'g', factor: 1, icon: '🥩', color: '#185FA5' },
+    { key: 'lipides',   label: 'Lipides',   unit: 'g', factor: 1, icon: '🥑', color: '#7F77DD' }
+  ];
+  const nutrientsTier3 = [
+    { key: 'potassium', label: 'Potassium', unit: 'mg', factor: 1, color: C.muted },
+    { key: 'magnesium', label: 'Magnésium', unit: 'mg', factor: 1, color: C.muted },
+    { key: 'zinc',      label: 'Zinc',      unit: 'mg', factor: 1, color: C.muted },
+    { key: 'calcium',   label: 'Calcium',   unit: 'mg', factor: 1, color: C.muted }
+  ];
+
+  // Composant carte nutriment avec besoin + planifié + progress bar
+  const NutrientCard = ({ n, size = "md" }) => {
+    const estime = nutriEstimes[n.key] || 0;
+    const planifie = nutriPlanifies[n.key] || 0;
+    const pct = calcProgress(planifie, estime);
+    const col = progressColor(pct);
+    const fmt = v => n.factor > 1 ? (v / n.factor).toFixed(1) : Math.round(v);
+    
+    const sizes = {
+      lg: { padding: "14px 16px", labelFs: 10, valueFs: 22, subFs: 11, gap: 6 },
+      md: { padding: "12px 14px", labelFs: 10, valueFs: 20, subFs: 11, gap: 5 }
+    };
+    const s = sizes[size] || sizes.md;
+
+    return (
+      <div style={{background:C.stone,borderRadius:10,padding:s.padding,border:`1.5px solid ${col}25`}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:s.gap}}>
+          <div style={{fontSize:s.labelFs,color:C.muted,fontWeight:500,textTransform:"uppercase",letterSpacing:"0.04em"}}>
+            {n.icon && <span style={{marginRight:4}}>{n.icon}</span>}
+            {n.label}
+          </div>
+          <div style={{fontSize:s.labelFs,fontWeight:600,color:col,fontFamily:"'DM Mono',monospace"}}>{pct}%</div>
+        </div>
+        <div style={{fontFamily:"'DM Mono',monospace",fontSize:s.valueFs,fontWeight:500,color:n.color,lineHeight:1,marginBottom:s.gap}}>
+          {fmt(planifie)}
+          <span style={{fontSize:s.subFs,color:C.muted,fontWeight:400,marginLeft:3}}>/ {fmt(estime)} {n.unit}</span>
+        </div>
+        {/* Progress bar */}
+        <div style={{height:4,background:C.border,borderRadius:2,overflow:"hidden"}}>
+          <div style={{height:"100%",width:`${Math.min(pct,100)}%`,background:col,transition:"width 0.3s"}}/>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="anim" style={{padding:"24px 40px 80px"}}>
       <div style={{marginBottom:20}}>
         <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight,marginBottom:4}}>Nutrition course</h1>
-        <p style={{fontSize:12,color:C.muted}}>Besoins estimés · Apports planifiés · Bibliothèque · Plan ravitaillement</p>
+        <p style={{fontSize:12,color:C.muted}}>Besoins · Apports · Bibliothèque · Plan ravitaillement</p>
       </div>
 
-      {/* ── BESOINS ESTIMÉS ── */}
-      <div style={{marginBottom:12}}>
-        <div style={{...lbl,marginBottom:4}}>Besoins estimés (calculés depuis profil de course)</div>
-        {(() => {
-          const totalTime = segments.reduce((s, seg) => {
-            if (seg.type === "ravito" || seg.type === "repos") return s;
-            return s + (seg.speedKmh > 0 ? (seg.endKm - seg.startKm) / seg.speedKmh : 0);
-          }, 0);
-          const kcalH = totalTime > 0 ? Math.round(nutriEstimes.kcal / totalTime) : 0;
-          const glucidesH = totalTime > 0 ? Math.round(nutriEstimes.glucides / totalTime) : 0;
-          return (
-            <div style={{fontSize:11,color:C.muted,fontStyle:"italic",marginBottom:10}}>
-              Base calibration : {kcalH} kcal/h · {glucidesH}g glucides/h {settings.glucidesTargetGh ? `(cible ${settings.glucidesTargetGh}g/h)` : "(auto)"}
-            </div>
-          );
-        })()}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:10}}>
-          {nutrients.map(n => {
-            const val = nutriEstimes[n.key] || 0;
-            const display = n.factor > 1 ? (val / n.factor).toFixed(1) : Math.round(val);
-            return (
-              <div key={n.key} style={{background:C.stone,borderRadius:10,padding:"10px 14px"}}>
-                <div style={{fontSize:10,color:C.muted,marginBottom:4}}>{n.label}</div>
-                <div style={{fontFamily:"'DM Mono',monospace",fontSize:20,fontWeight:500,color:n.color,lineHeight:1}}>
-                  {n.icon&&<span style={{marginRight:4}}>{n.icon}</span>}
-                  {display}
-                  <span style={{fontSize:11,color:C.muted,fontWeight:400,marginLeft:3}}>{n.unit}</span>
-                </div>
-              </div>
-            );
-          })}
+      {/* ── CALIBRATION (info de contexte) ── */}
+      {(() => {
+        const totalTime = segments.reduce((s, seg) => {
+          if (seg.type === "ravito" || seg.type === "repos") return s;
+          return s + (seg.speedKmh > 0 ? (seg.endKm - seg.startKm) / seg.speedKmh : 0);
+        }, 0);
+        const kcalH = totalTime > 0 ? Math.round(nutriEstimes.kcal / totalTime) : 0;
+        const glucidesH = totalTime > 0 ? Math.round(nutriEstimes.glucides / totalTime) : 0;
+        return (
+          <div style={{fontSize:11,color:C.muted,fontStyle:"italic",marginBottom:14}}>
+            Base calibration : {kcalH} kcal/h · {glucidesH}g glucides/h {settings.glucidesTargetGh ? `(cible ${settings.glucidesTargetGh}g/h)` : "(auto)"}
+          </div>
+        );
+      })()}
+
+      {/* ── TIER 1 : ESSENTIEL ── */}
+      <div style={{marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:10}}>
+          <div style={{...lbl,color:C.inkLight,fontWeight:600}}>Tier 1 · Essentiel</div>
+          <div style={{fontSize:11,color:C.muted}}>Les apports critiques pour la performance et la sécurité</div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:10}}>
+          {nutrientsTier1.map(n => <NutrientCard key={n.key} n={n} size="lg" />)}
         </div>
       </div>
 
-      {/* ── APPORTS PLANIFIÉS ── */}
-      <div style={{marginBottom:30}}>
-        <div style={{...lbl,marginBottom:10}}>Apports planifiés (depuis plan ravitaillement)</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))",gap:10}}>
-          {nutrients.map(n => {
-            const val = nutriPlanifies[n.key] || 0;
+      {/* ── TIER 2 : IMPORTANT ── */}
+      <div style={{marginBottom:16}}>
+        <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:10}}>
+          <div style={{...lbl,color:C.inkLight,fontWeight:600}}>Tier 2 · Important</div>
+          <div style={{fontSize:11,color:C.muted}}>Le confort et l'endurance sur longue durée</div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:10}}>
+          {nutrientsTier2.map(n => <NutrientCard key={n.key} n={n} size="md" />)}
+        </div>
+      </div>
+
+      {/* ── TIER 3 : INDICATIF ── */}
+      <div style={{marginBottom:30,padding:"12px 14px",background:C.stone,borderRadius:10,opacity:0.85}}>
+        <div style={{display:"flex",alignItems:"baseline",gap:10,marginBottom:8}}>
+          <div style={{...lbl}}>Tier 3 · Indicatif</div>
+          <div style={{fontSize:10,color:C.muted,fontStyle:"italic"}}>Micronutriments — non optimisés par l'algo, informatifs</div>
+        </div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:16,fontSize:12,fontFamily:"'DM Mono',monospace"}}>
+          {nutrientsTier3.map(n => {
             const estime = nutriEstimes[n.key] || 0;
-            const display = n.factor > 1 ? (val / n.factor).toFixed(1) : Math.round(val);
-            const pct = calcProgress(val, estime);
-            const col = progressColor(pct);
+            const planifie = nutriPlanifies[n.key] || 0;
+            const pct = calcProgress(planifie, estime);
             return (
-              <div key={n.key} style={{background:C.stone,borderRadius:10,padding:"10px 14px",
-                border:`1.5px solid ${col}20`}}>
-                <div style={{fontSize:10,color:C.muted,marginBottom:4}}>{n.label}</div>
-                <div style={{fontFamily:"'DM Mono',monospace",fontSize:20,fontWeight:500,color:n.color,lineHeight:1,marginBottom:4}}>
-                  {display}
-                  <span style={{fontSize:11,color:C.muted,fontWeight:400,marginLeft:3}}>{n.unit}</span>
-                </div>
-                <div style={{fontSize:11,fontWeight:500,color:col}}>{pct}%</div>
+              <div key={n.key} style={{display:"flex",alignItems:"center",gap:6}}>
+                <span style={{color:C.muted,fontFamily:"inherit"}}>{n.label}</span>
+                <span style={{color:C.inkLight}}>{Math.round(planifie)}</span>
+                <span style={{color:C.muted}}>/ {Math.round(estime)} {n.unit}</span>
+                <span style={{color:C.muted,fontSize:11,opacity:0.7}}>({pct}%)</span>
               </div>
             );
           })}
