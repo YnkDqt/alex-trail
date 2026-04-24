@@ -13,7 +13,8 @@ import {
   loadProduitForEdit,
   loadRecetteForEdit
 } from '../ProduitRecetteForm.jsx';
-import NutritionStrategyModal from '../NutritionStrategyModal.jsx';
+import NutritionStrategyModal, { getNutritionStrategy } from '../NutritionStrategyModal.jsx';
+import { calculerPlanComplet } from '../autoCompleteAlgo.js';
 
 export default function NutritionView({ 
   segments, 
@@ -377,160 +378,22 @@ export default function NutritionView({
     };
   };
 
+  // ── AUTOCOMPLÉTION (Phase 4a) ──
+  // Utilise l'algo autoCompleteAlgo.js qui calcule un plan zone par zone
+  // en respectant la stratégie nutrition (hydratation, transport, glucides).
   const handleAutoComplete = () => {
-    // ── 1. FUSION ZONES AUTONOMES ──
-    const zonesAjustees = [];
-    let i = 0;
-    while (i < zones.length) {
-      const zone = zones[i];
-      const isAutonome = i > 0 && ravitos[i - 1]?.assistancePresente === false;
-      
-      if (isAutonome && zonesAjustees.length > 0) {
-        const prev = zonesAjustees[zonesAjustees.length - 1];
-        prev.to = zone.to;
-        prev.dist = prev.to - prev.from;
-        prev.toLbl = zone.toLbl;
-        prev.besoin.kcal += zone.besoin.kcal;
-        prev.besoin.glucides += zone.besoin.glucides;
-        prev.besoin.eau += zone.besoin.eau;
-        prev.fusionAutonome = true;
-      } else {
-        zonesAjustees.push({ ...zone, fusionAutonome: false });
-      }
-      i++;
-    }
-
-    // ── 2. CLASSIFICATION PRODUITS ──
-    const eauPure = allBibItems.find(p => p.boisson && p.nom && p.nom.toLowerCase() === "eau");
-    const boissonsEnergie = allBibItems.filter(p => p.boisson && p.id !== eauPure?.id);
-    const solides = allBibItems.filter(p => !p.boisson);
-
-    if (!eauPure && boissonsEnergie.length === 0 && solides.length === 0) {
-      alert("Bibliothèque vide.");
+    if (allBibItems.length === 0) {
+      alert("Bibliothèque vide. Ajoute des produits ou recettes avant d'autocompléter.");
       return;
     }
-
-    // Trier solides par densité glucides (priorité trail)
-    solides.sort((a, b) => {
-      const densA = a.itemType === "recette" ? (a.macros?.glucides || 0) / (a.portions || 1) * 100 : (a.glucides || 0);
-      const densB = b.itemType === "recette" ? (b.macros?.glucides || 0) / (b.portions || 1) * 100 : (b.glucides || 0);
-      return densB - densA;
+    
+    const strategy = getNutritionStrategy(race);
+    const newPlan = calculerPlanComplet({
+      zones,
+      bibliotheque: allBibItems,
+      strategy
     });
-
-    const newPlan = {};
-
-    // ── 3. OPTIMISATION PAR ZONE ──
-    zonesAjustees.forEach((zone, zi) => {
-      const { pointKey, besoin } = zone;
-      const isDepart = zi === 0;
-      
-      // Cibles avec marges
-      const marge = isDepart ? 1.1 : (zone.fusionAutonome ? 1.15 : 1.0);
-      const cibleKcal = Math.round(besoin.kcal * marge);
-      const cibleGlucides = Math.round(besoin.glucides * marge);
-      const cibleEau = Math.round(besoin.eau * marge); // en ml
-      
-      const plan = [];
-      let totalKcal = 0, totalGluc = 0, totalEau = 0;
-
-      // ── Étape 1 : Eau pure (300ml min sécurité sauf départ) ──
-      if (eauPure) {
-        const eauMin = isDepart ? 0 : 300; // ml
-        const eauCible = Math.max(cibleEau * 0.4, eauMin); // 40% besoin ou min
-        const qteGrammes = Math.ceil(eauCible / 100) * 100; // Arrondi 100g
-        
-        plan.push({ id: eauPure.id, quantite: qteGrammes });
-        const nutri = nutriProduit(eauPure, qteGrammes);
-        totalEau += nutri.eauMl;
-      }
-
-      // ── Étape 2 : Boisson énergétique (compléter eau + kcal) ──
-      if (boissonsEnergie.length > 0) {
-        const b = boissonsEnergie[0];
-        const eauRestante = cibleEau - totalEau;
-        
-        if (eauRestante > 100) { // Si > 100ml manquant
-          let qte = 0;
-          
-          if (b.itemType === "recette") {
-            // Recette : calcul portions
-            const volParPortion = parseFloat(b.volumeMlParPortion) || 500;
-            const portions = Math.ceil(eauRestante / volParPortion);
-            qte = portions;
-          } else {
-            // Produit : grammes = ml
-            qte = Math.ceil(eauRestante / 100) * 100;
-          }
-          
-          plan.push({ id: b.id, quantite: qte });
-          const nutri = nutriProduit(b, qte);
-          totalKcal += nutri.kcal;
-          totalGluc += nutri.glucides;
-          totalEau += nutri.eauMl;
-        }
-      }
-
-      // ── Étape 3 : Solides (glucides + kcal) ──
-      if (solides.length > 0) {
-        const produitsUtilises = Math.min(3, solides.length); // Variété max 3
-        
-        for (let round = 0; round < 10; round++) { // Max 10 itérations
-          const manqueKcal = cibleKcal - totalKcal;
-          const manqueGluc = cibleGlucides - totalGluc;
-          
-          // Seuil acceptation : ±10%
-          if (manqueKcal < cibleKcal * 0.1 && manqueGluc < cibleGlucides * 0.1) break;
-          if (manqueKcal < 0 && manqueGluc < 0) break;
-          
-          // Sélectionner meilleur produit pour besoin actuel
-          let bestProd = null;
-          let bestScore = -Infinity;
-          
-          for (let p of solides.slice(0, produitsUtilises)) {
-            const isProduit = p.itemType === "produit";
-            const qteTest = isProduit ? 50 : 1; // 50g ou 1 portion
-            const nutri = nutriProduit(p, qteTest);
-            
-            // Score = gain kcal + 1.5× gain glucides (priorité glucides trail)
-            const gainKcal = Math.min(manqueKcal, nutri.kcal);
-            const gainGluc = Math.min(manqueGluc, nutri.glucides);
-            const score = gainKcal + gainGluc * 1.5;
-            
-            if (score > bestScore) {
-              bestScore = score;
-              bestProd = { prod: p, qteTest, nutri };
-            }
-          }
-          
-          if (!bestProd || bestScore <= 0) break;
-          
-          // Ajouter au plan
-          const existing = plan.find(x => x.id === bestProd.prod.id);
-          if (existing) {
-            existing.quantite += bestProd.qteTest;
-          } else {
-            plan.push({ id: bestProd.prod.id, quantite: bestProd.qteTest });
-          }
-          
-          totalKcal += bestProd.nutri.kcal;
-          totalGluc += bestProd.nutri.glucides;
-        }
-      }
-
-      // ── Étape 4 : Arrondir quantités ──
-      const planFinal = plan.map(p => {
-        const item = allBibItems.find(x => x.id === p.id);
-        if (!item) return p;
-        
-        const isProduit = item.itemType === "produit";
-        const arrondi = isProduit ? Math.round(p.quantite / 10) * 10 : Math.round(p.quantite);
-        
-        return { ...p, quantite: Math.max(arrondi, isProduit ? 10 : 1) };
-      });
-
-      newPlan[pointKey] = planFinal;
-    });
-
+    
     setAutoCompletePreview(newPlan);
   };
 
@@ -854,7 +717,7 @@ export default function NutritionView({
           <div style={{...lbl}}>Plan de ravitaillement</div>
           <div style={{display:"flex",gap:8}}>
             <Btn variant="soft" size="sm" onClick={()=>setStrategyModal(true)}>⚙️ Stratégie</Btn>
-            <Btn variant="soft" size="sm" onClick={handleAutoComplete} disabled style={{opacity:0.4,cursor:"not-allowed"}}>🤖 Auto-compléter (bientôt)</Btn>
+            <Btn variant="soft" size="sm" onClick={handleAutoComplete}>🤖 Auto-compléter</Btn>
           </div>
         </div>
 
