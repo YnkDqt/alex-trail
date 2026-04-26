@@ -33,7 +33,6 @@ import Objectifs from './components/Objectifs.jsx';
 import { JournalNutri, Nutrition } from './components/Nutrition.jsx';
 import SemaineType from './components/SemaineType.jsx';
 import MonCoachIA from './components/MonCoachIA.jsx';
-import { Donnees, Parametres, DonneesParams } from './components/Donnees.jsx';
 
 // ─── GLOBAL STYLES ────────────────────────────────────────────────────────────
 const G = `
@@ -262,8 +261,12 @@ function DonneesParamsView({
     try {
       const snap = await loadSnapshot(user.id, snapshotId);
       const data = snap.data || {};
-      // Restaurer en utilisant les saves Supabase directement (pareil que l'import JSON)
       const nutr = data.nutrition || {};
+      const stg  = data.settings  || {};
+      // currentRace stocké soit en plat, soit imbriqué (selon source)
+      const raceData = data.currentRace?.race?.race ? data.currentRace : (data.currentRace || {});
+      
+      // 1. Restaurer toutes les données principales en parallèle
       await Promise.all([
         data.profile && saveAthleteProfile(user.id, data.profile),
         Array.isArray(data.activities) && saveActivities(user.id, data.activities),
@@ -273,7 +276,25 @@ function DonneesParamsView({
         Array.isArray(data.poids) && savePoids(user.id, data.poids),
         Array.isArray(data.objectifs) && saveObjectifs(user.id, data.objectifs),
         nutr && saveNutrition(user.id, nutr.journalNutri || [], nutr.produits || [], nutr.recettes || []),
+        stg && saveEntrainementSettings(user.id, stg.planningType, stg.activityTypes, stg.entrainementFeatures, stg.courseFeatures, stg.profilType),
+        raceData?.race && saveCurrentRace(user.id, raceData.race || {}, raceData.segments || [], raceData.settings || {}),
       ].filter(Boolean));
+      
+      // 2. Restaurer l'historique des courses séquentiellement (saveCourse est par-course)
+      if (Array.isArray(data.courses) && data.courses.length > 0) {
+        // Récupérer la liste actuelle pour ne pas re-créer ce qui existe
+        const existing = await loadCourses(user.id);
+        const existingIds = new Set(existing.map(c => c.id));
+        const toAdd = data.courses.filter(c => !existingIds.has(c.id));
+        for (const course of toAdd) {
+          try {
+            await saveCourse(user.id, course);
+          } catch (err) {
+            console.warn('Erreur restore course:', course.id, err);
+          }
+        }
+      }
+      
       setSnapshotMsg("✓ Snapshot restauré — recharge la page pour voir les données");
       setTimeout(() => setSnapshotMsg(""), 8000);
       setSnapshotsOpen(false);
@@ -1274,23 +1295,25 @@ export default function App() {
       
       // ── SNAPSHOT : sauvegarde de la période courante si pas déjà existante ──
       // Non bloquant. Utilise les données fraîchement loadées (pas le state).
+      // Format ALIGNÉ sur l'export JSON pour interchangeabilité (cf. handleRestore).
       hasSnapshotForCurrentPeriod(user.id).then(exists => {
         if (exists) return;
-        // Charger aussi les données race en plus (pas dans le bloc principal load)
+        // Charger aussi currentRace et courses (pas dans le bloc principal load)
         return Promise.all([
           loadCurrentRace(user.id).catch(() => null),
           loadCourses(user.id).catch(() => [])
         ]).then(([currentRace, coursesList]) => {
           const snapshotData = {
-            profil: profile || null,
+            // Mêmes clés que l'export JSON (cf. ligne export "alex-export-1.0")
+            profile: profile || null,
+            activities: acts || [],
             seances: seances || [],
-            activites: acts || [],
             sommeil: som || [],
-            vfcData: vfc || [],
+            vfc: vfc || [],
             poids: pds || [],
             objectifs: objs || [],
             nutrition: nutr || null,
-            entrainementSettings: settings || null,
+            settings: settings || null,
             currentRace: currentRace || null,
             courses: coursesList || []
           };
