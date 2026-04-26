@@ -404,15 +404,11 @@ export default function NutritionView({
     }
     
     const strategy = getNutritionStrategy(race);
-    console.log('[DEBUG handleAutoComplete] race.nutritionStrategy brute:', race?.nutritionStrategy);
-    console.log('[DEBUG handleAutoComplete] strategy retournée par getNutritionStrategy:', strategy);
-    console.log('[DEBUG handleAutoComplete] zones:', zones.map(z => ({ pointKey: z.pointKey, label: z.label, besoin: z.besoin })));
     const newPlan = calculerPlanComplet({
       zones,
       bibliotheque: allBibItems,
       strategy
     });
-    console.log('[DEBUG handleAutoComplete] plan retourné:', newPlan);
     
     setAutoCompletePreview(newPlan);
   };
@@ -471,6 +467,7 @@ export default function NutritionView({
     const label = i === 0 ? "Départ" : (ravitos[i-1]?.name || `Ravito ${i}`);
     const toLbl = i === bornes.length - 2 ? "Arrivée" : (ravitos[i]?.name || `Ravito ${i+1}`);
     const pointKey = i === 0 ? "depart" : String(ravitos[i-1]?.id);
+    const isAutonome = i > 0 && ravitos[i-1]?.assistancePresente === false;
     
     const segsZ = segments.filter(s => s.type !== "ravito" && s.type !== "repos" && s.startKm < to && s.endKm > from);
     const besoin = segsZ.reduce((acc, seg) => {
@@ -485,7 +482,7 @@ export default function NutritionView({
       };
     }, { kcal: 0, eau: 0, glucides: 0 });
     
-    return { label, toLbl, from, to, pointKey, besoin, dist: to - from };
+    return { label, toLbl, from, to, pointKey, besoin, dist: to - from, isAutonome };
   }), [bornes, ravitos, segments, settings, userWeight]);
 
   const updateRavitoQte = (ravitoId, prodId, delta) => {

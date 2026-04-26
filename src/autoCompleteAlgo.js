@@ -290,20 +290,18 @@ export function planPourZone({ besoin, bibliotheque, strategy, isDepart = false 
 /**
  * Pré-traite les zones selon les stratégies de zones autonomes.
  *
- * Pour chaque zone autonome (dont le ravito d'entrée a une stratégie définie) :
+ * Une zone est considérée autonome si elle est marquée `isAutonome: true`
+ * (passé par NutritionView) OU si une stratégie explicite est définie pour elle.
+ *
+ * Stratégie par défaut pour zone autonome sans config explicite : "porter" + "avant".
+ *
  * - "orga" : besoin de la zone = 0 (couvert par l'organisation)
  * - "porter" + repartition="avant" : 100% du besoin transféré sur la zone précédente
- * - "porter" + repartition="split" : 50% sur précédente, 50% sur suivante (s'il y a une suivante)
+ * - "porter" + repartition="split" : 50% sur précédente, 50% sur suivante
  * - "mix" : 50% sur précédente, 50% effacé (orga)
- *
- * Retourne une copie modifiée des zones avec les `besoin` ajustés.
  */
 function appliquerStrategiesAutonomes(zones, strategy) {
-  // Clone pour ne pas muter les zones d'origine
   const adjusted = zones.map(z => ({ ...z, besoin: { ...z.besoin } }));
-  
-  console.log('[DEBUG appliquerStrategiesAutonomes] zones reçues:', zones.map(z => ({ pointKey: z.pointKey, label: z.label, besoin: z.besoin })));
-  console.log('[DEBUG appliquerStrategiesAutonomes] strategy.ravitos:', strategy?.ravitos);
   
   const addBesoin = (target, source, ratio = 1) => {
     Object.keys(source).forEach(k => {
@@ -311,45 +309,51 @@ function appliquerStrategiesAutonomes(zones, strategy) {
     });
   };
   
-  // On parcourt en partant de la fin pour éviter les transferts en cascade
   for (let i = adjusted.length - 1; i >= 1; i--) {
     const zone = adjusted[i];
-    const config = strategy?.ravitos?.[zone.pointKey];
-    console.log(`[DEBUG] zone i=${i} pointKey="${zone.pointKey}" config=`, config);
-    if (!config?.strategieAutonome) continue;
+    const explicitConfig = strategy?.ravitos?.[zone.pointKey];
     
-    const strat = config.strategieAutonome;
-    const repartition = config.repartitionPorter || "avant"; // défaut : tout avant
+    // Pas de config explicite + pas autonome → on saute
+    if (!explicitConfig?.strategieAutonome && !zone.isAutonome) continue;
+    
+    // Sinon : config explicite OU défaut "porter avant" pour zone autonome
+    const strat = explicitConfig?.strategieAutonome || "porter";
+    const repartition = explicitConfig?.repartitionPorter || "avant";
     const besoinZone = { ...zone.besoin };
     
     if (strat === "orga") {
-      // Zone couverte par l'organisation : on efface tout
       Object.keys(zone.besoin).forEach(k => { zone.besoin[k] = 0; });
     } else if (strat === "porter") {
-      // Tout transféré sur la zone précédente (i-1)
       if (repartition === "split" && i + 1 < adjusted.length) {
-        // 50/50 entre précédente et suivante
         addBesoin(adjusted[i - 1].besoin, besoinZone, 0.5);
         addBesoin(adjusted[i + 1].besoin, besoinZone, 0.5);
       } else {
-        // 100% sur la précédente
         addBesoin(adjusted[i - 1].besoin, besoinZone, 1);
       }
-      // Zone vidée (le coureur la traverse en autonomie depuis avant)
       Object.keys(zone.besoin).forEach(k => { zone.besoin[k] = 0; });
     } else if (strat === "mix") {
-      // 50% transféré sur la précédente, 50% effacé (couvert orga)
       addBesoin(adjusted[i - 1].besoin, besoinZone, 0.5);
       Object.keys(zone.besoin).forEach(k => { zone.besoin[k] = 0; });
     }
   }
   
-  console.log('[DEBUG appliquerStrategiesAutonomes] zones AJUSTÉES:', adjusted.map(z => ({ pointKey: z.pointKey, label: z.label, besoin: z.besoin })));
   return adjusted;
 }
 
 /**
  * Calcule un plan complet pour toutes les zones d'une course.
+ *
+ * Architecture en 2 passes (Phase 4b) :
+ *
+ * Passe 1 — Construction d'une PALETTE de produits pour toute la course :
+ *   - Sélectionne une variété raisonnable (1 eau, 1-2 boissons, 2-4 solides, 0-1 pastille)
+ *   - Évite la fatigue gustative en privilégiant la diversité de profils
+ *
+ * Passe 2 — Distribution des produits dans les zones :
+ *   - Respecte le besoin de chaque zone (pas de sur-couverture)
+ *   - Respecte la capacité transport par zone
+ *   - Pénalité souple sur les répétitions consécutives
+ *   - Skip les zones autonomes (besoins déjà reportés par Phase 4c)
  *
  * @param {Object} params
  * @param {Array}  params.zones        - zones calculées depuis NutritionView
@@ -358,28 +362,314 @@ function appliquerStrategiesAutonomes(zones, strategy) {
  * @returns {Object} plan = { [pointKey]: [{id, quantite}] }
  */
 export function calculerPlanComplet({ zones, bibliotheque, strategy }) {
-  const plan = {};
-  
-  // Phase 4c : ajuste les besoins des zones selon les stratégies de zones autonomes
+  // Phase 4c : ajuster les besoins selon stratégies zones autonomes
   const zonesAjustees = appliquerStrategiesAutonomes(zones, strategy);
   
-  zonesAjustees.forEach((zone, i) => {
-    const isDepart = i === 0;
-    // Si la zone a été vidée (orga), on retourne un plan vide
-    const totalBesoin = (zone.besoin.kcal || 0) + (zone.besoin.eau || 0) + (zone.besoin.glucides || 0);
-    if (totalBesoin <= 0) {
-      plan[zone.pointKey] = [];
-      return;
+  // Zones effectivement remplies (pas autonomes ou avec besoin résiduel)
+  const zonesActives = zonesAjustees
+    .map((z, i) => ({ ...z, originalIndex: i }))
+    .filter(z => {
+      const total = (z.besoin.kcal || 0) + (z.besoin.glucides || 0) + (z.besoin.eau || 0);
+      return total > 0;
+    });
+  
+  // Plan vide pour zones non-actives
+  const plan = {};
+  zonesAjustees.forEach(z => { plan[z.pointKey] = []; });
+  
+  if (zonesActives.length === 0) return plan;
+  
+  // ── PASSE 1 : CONSTRUCTION DE LA PALETTE ──
+  const palette = construirePalette(bibliotheque, zonesActives, strategy);
+  
+  // ── PASSE 2 : DISTRIBUTION DANS LES ZONES ──
+  return distribuerPalette(palette, zonesActives, plan, strategy, bibliotheque);
+}
+
+// ─── PASSE 1 : CONSTRUCTION PALETTE ──────────────────────────────────────────
+
+/**
+ * Construit une palette de produits pour toute la course.
+ * Vise la diversité gustative tout en couvrant les besoins macros/eau/sodium.
+ */
+function construirePalette(bibliotheque, zonesActives, strategy) {
+  // Classifications (mêmes que planPourZone pour cohérence)
+  const eauxPures = bibliotheque.filter(it =>
+    it.type === "Eau pure" ||
+    (!it.type && it.boisson && (it.nom || "").toLowerCase().includes("eau"))
+  );
+  const boissonsEnergie = bibliotheque.filter(it =>
+    it.type === "Boisson énergétique" ||
+    (!it.type && it.boisson && !(it.nom || "").toLowerCase().includes("eau"))
+  );
+  const pastillesSel = bibliotheque.filter(it => it.type === "Pastille sel / électrolytes");
+  const solides = bibliotheque.filter(it =>
+    !it.boisson &&
+    it.type !== "Pastille sel / électrolytes" &&
+    it.type !== "Eau pure" &&
+    it.type !== "Boisson énergétique"
+  );
+  
+  const palette = {
+    eau: eauxPures[0] || null,
+    boissons: [],
+    solides: [],
+    pastille: null
+  };
+  
+  // Boissons énergétiques : on prend la meilleure densité glucidique, +1 alternative si dispo
+  if (boissonsEnergie.length > 0) {
+    const sorted = [...boissonsEnergie].sort((a, b) => densiteGlucides(b) - densiteGlucides(a));
+    palette.boissons.push(sorted[0]);
+    // Alternative : différente catégorie si possible (variation gustative)
+    if (sorted.length > 1) {
+      const alt = sorted.find(b => b.id !== sorted[0].id && (b.categorie || "") !== (sorted[0].categorie || ""))
+        || (sorted.length > 2 ? sorted[1] : null);
+      if (alt) palette.boissons.push(alt);
     }
-    plan[zone.pointKey] = planPourZone({
-      besoin: zone.besoin,
-      bibliotheque,
+  }
+  
+  // Solides : on cherche la diversité de profils.
+  // Tri par densité glucidique, mais on filtre en prenant 1 par "profil" (catégorie + texture)
+  if (solides.length > 0) {
+    const sorted = [...solides].sort((a, b) => densiteGlucides(b) - densiteGlucides(a));
+    
+    // Heuristique : "profil" = combinaison catégorie + boisson/non
+    const profilsVus = new Set();
+    for (const s of sorted) {
+      const profil = `${s.categorie || "autre"}|${s.itemType || "produit"}`;
+      if (profilsVus.has(profil)) continue;
+      profilsVus.add(profil);
+      palette.solides.push(s);
+      if (palette.solides.length >= 4) break;  // max 4 solides
+    }
+    
+    // Si on a moins de 2 solides après dedup catégorie, on complète sans filtrer
+    if (palette.solides.length < 2 && sorted.length >= 2) {
+      for (const s of sorted) {
+        if (!palette.solides.find(p => p.id === s.id)) {
+          palette.solides.push(s);
+          if (palette.solides.length >= 2) break;
+        }
+      }
+    }
+  }
+  
+  // Pastille sel : seulement si déficit prévisible
+  // On regarde si la palette actuelle couvre le sodium total
+  if (pastillesSel.length > 0) {
+    const totalSodiumNeeds = zonesActives.reduce((s, z) => s + (z.besoin.sodium || 0), 0);
+    // Estimation rapide : si les boissons + solides ne couvrent probablement pas → ajouter pastille
+    // On met toujours la pastille dispo, la passe 2 décidera si on l'utilise
+    if (totalSodiumNeeds > 0) {
+      palette.pastille = pastillesSel[0];
+    }
+  }
+  
+  return palette;
+}
+
+// ─── PASSE 2 : DISTRIBUTION DANS LES ZONES ──────────────────────────────────
+
+/**
+ * Distribue les produits de la palette dans les zones actives.
+ * Pour chaque zone, on remplit en respectant :
+ *  - le besoin (eau, glucides, sodium)
+ *  - la capacité transport (solideMaxG, liquideMaxMl)
+ *  - une pénalité de répétition consécutive
+ */
+function distribuerPalette(palette, zonesActives, plan, strategy, bibliotheque) {
+  // Tracking : par produit, dans quelles zones consécutives il a été placé
+  const dernieresUtilisations = {};  // { itemId: zoneIndex de la dernière utilisation }
+  
+  zonesActives.forEach((zone) => {
+    const isDepart = zone.originalIndex === 0;
+    const planZone = remplirZone({
+      zone,
+      palette,
       strategy,
-      isDepart
+      isDepart,
+      dernieresUtilisations,
+      currentZoneIndex: zone.originalIndex
+    });
+    plan[zone.pointKey] = planZone;
+    
+    // Mettre à jour les "dernières utilisations" pour la pénalité de répétition
+    planZone.forEach(p => {
+      dernieresUtilisations[p.id] = zone.originalIndex;
     });
   });
   
   return plan;
+}
+
+/**
+ * Remplit une zone à partir de la palette en appliquant les contraintes.
+ * Logique similaire à planPourZone mais utilise UNIQUEMENT les produits de la palette
+ * et applique une pénalité de score sur les produits utilisés dans la zone précédente.
+ */
+function remplirZone({ zone, palette, strategy, isDepart, dernieresUtilisations, currentZoneIndex }) {
+  const planZone = [];
+  const addOrMerge = (id, qte) => {
+    const existing = planZone.find(p => p.id === id);
+    if (existing) existing.quantite += qte;
+    else planZone.push({ id, quantite: qte });
+  };
+  
+  let totalKcal = 0, totalGluc = 0, totalEau = 0, totalSodium = 0, poidsSolide = 0;
+  const cibleGluc = zone.besoin.glucides || 0;
+  const cibleEau = zone.besoin.eau || 0;
+  const cibleSodium = zone.besoin.sodium || 0;
+  
+  // ── HYDRATATION : eau pure + boisson énergétique ──
+  const stratEauMl = strategy?.hydratation?.eauPureMl || 0;
+  const stratBoissonMl = strategy?.hydratation?.boissonEnergetiqueMl || 0;
+  const stratTotalMl = stratEauMl + stratBoissonMl;
+  const flasqueMl = strategy?.hydratation?.flasqueMl || 500;
+  
+  const cibleTotalMl = Math.round(cibleEau * 1.1);
+  const ratioAjust = stratTotalMl > 0 ? Math.min(1, cibleTotalMl / stratTotalMl) : 1;
+  const eauCibleMl = stratTotalMl > 0 ? Math.round(stratEauMl * ratioAjust) : Math.round(cibleEau * 0.5);
+  const boissonCibleMl = stratTotalMl > 0 ? Math.round(stratBoissonMl * ratioAjust) : Math.round(cibleEau * 0.5);
+  
+  // Eau pure
+  if (eauCibleMl > 0 && palette.eau) {
+    const nbFlasques = Math.max(1, Math.round(eauCibleMl / flasqueMl));
+    const qte = nbFlasques * flasqueMl;
+    addOrMerge(palette.eau.id, qte);
+    const n = nutrimentsFor(palette.eau, qte);
+    totalEau += n.eauMl;
+    totalKcal += n.kcal;
+    totalGluc += n.glucides;
+    totalSodium += n.sodium;
+  }
+  
+  // Boisson énergétique : alterner entre les boissons disponibles selon la zone précédente
+  if (boissonCibleMl > 0 && palette.boissons.length > 0) {
+    const boisson = choisirAvecPenalite(
+      palette.boissons,
+      dernieresUtilisations,
+      currentZoneIndex
+    );
+    
+    const isRecette = boisson.itemType === "recette";
+    let qte;
+    if (isRecette) {
+      const volPortion = parseFloat(boisson.volumeMlParPortion) || 500;
+      qte = Math.max(1, Math.round(boissonCibleMl / volPortion));
+    } else {
+      qte = arrondirQuantite(boisson, boissonCibleMl);
+    }
+    if (qte > 0) {
+      addOrMerge(boisson.id, qte);
+      const n = nutrimentsFor(boisson, qte);
+      totalEau += n.eauMl;
+      totalKcal += n.kcal;
+      totalGluc += n.glucides;
+      totalSodium += n.sodium;
+    }
+  }
+  
+  // ── SOLIDES : compléter glucides ──
+  const solideMaxG = strategy?.transport?.solideMaxG || 500;
+  let manqueGluc = cibleGluc - totalGluc;
+  const maxIter = 40;
+  const utilisationParSolide = {};
+  
+  for (let i = 0; i < maxIter && manqueGluc > 3 && palette.solides.length > 0; i++) {
+    if (poidsSolide >= solideMaxG) break;
+    
+    let bestItem = null;
+    let bestScore = -Infinity;
+    
+    for (const s of palette.solides) {
+      const inc = incrementQuantite(s);
+      const nutri = nutrimentsFor(s, inc);
+      if (nutri.glucides <= 0) continue;
+      
+      const poidsInc = nutri.poidsG || inc;
+      if (poidsSolide + poidsInc > solideMaxG) continue;
+      
+      // Efficacité = glucides / poids
+      const efficacite = nutri.glucides / Math.max(1, poidsInc);
+      
+      // Pénalité 1 : sur-utilisation dans la zone (diversité intra-zone)
+      const dejaUtilise = utilisationParSolide[s.id] || 0;
+      const penaliteIntraZone = dejaUtilise > 0 ? Math.max(0.5, 1 - dejaUtilise * 0.15) : 1;
+      
+      // Pénalité 2 : répétition d'une zone à l'autre (anti-doublon entre zones)
+      const derniere = dernieresUtilisations[s.id];
+      let penaliteInterZone = 1;
+      if (derniere !== undefined) {
+        const ecart = currentZoneIndex - derniere;
+        // Pénalité forte si zone juste avant, atténuée si éloignée
+        if (ecart === 1) penaliteInterZone = 0.55;       // zone précédente : -45%
+        else if (ecart === 2) penaliteInterZone = 0.80;  // 2 zones avant : -20%
+        // Au-delà : pas de pénalité
+      }
+      
+      const score = efficacite * penaliteIntraZone * penaliteInterZone;
+      
+      if (score > bestScore) {
+        bestScore = score;
+        bestItem = { item: s, inc, nutri };
+      }
+    }
+    
+    if (!bestItem) break;
+    
+    addOrMerge(bestItem.item.id, bestItem.inc);
+    totalKcal += bestItem.nutri.kcal;
+    totalGluc += bestItem.nutri.glucides;
+    totalSodium += bestItem.nutri.sodium;
+    poidsSolide += bestItem.nutri.poidsG || bestItem.inc;
+    utilisationParSolide[bestItem.item.id] = (utilisationParSolide[bestItem.item.id] || 0) + 1;
+    manqueGluc = cibleGluc - totalGluc;
+  }
+  
+  // ── PASTILLE SEL si déficit sodium > 20% ──
+  if (cibleSodium > 0 && totalSodium < cibleSodium * 0.8 && palette.pastille) {
+    const inc = incrementQuantite(palette.pastille);
+    const nutri = nutrimentsFor(palette.pastille, inc);
+    if (nutri.sodium > 0) {
+      const deficit = cibleSodium - totalSodium;
+      const nbPastilles = Math.min(3, Math.ceil(deficit / nutri.sodium));
+      addOrMerge(palette.pastille.id, inc * nbPastilles);
+    }
+  }
+  
+  // ── ARRONDI FINAL ──
+  return planZone.map(p => {
+    const item = palette.eau?.id === p.id ? palette.eau
+      : palette.pastille?.id === p.id ? palette.pastille
+      : palette.boissons.find(b => b.id === p.id)
+      || palette.solides.find(s => s.id === p.id);
+    if (!item) return p;
+    const isEauPure = item.type === "Eau pure" ||
+      (!item.type && item.boisson && (item.nom || "").toLowerCase().includes("eau"));
+    if (isEauPure) return p;
+    return { ...p, quantite: arrondirQuantite(item, p.quantite) };
+  });
+}
+
+/**
+ * Choisit un item dans une liste en pénalisant celui utilisé à la zone précédente.
+ * Utilisé pour alterner les boissons énergétiques.
+ */
+function choisirAvecPenalite(items, dernieresUtilisations, currentZoneIndex) {
+  if (items.length === 1) return items[0];
+  
+  // Score : 1 par défaut, -50% si utilisé à la zone juste avant
+  const scores = items.map(it => {
+    const derniere = dernieresUtilisations[it.id];
+    if (derniere !== undefined && currentZoneIndex - derniere === 1) {
+      return { item: it, score: 0.5 };
+    }
+    return { item: it, score: 1 };
+  });
+  
+  scores.sort((a, b) => b.score - a.score);
+  return scores[0].item;
 }
 
 // ─── VALIDATION : CE QUE LE PLAN RAPPORTE VS CIBLE ───────────────────────────
