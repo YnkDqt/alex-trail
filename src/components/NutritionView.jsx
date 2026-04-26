@@ -26,7 +26,8 @@ export default function NutritionView({
   setRecettes,
   produits = [],
   setProduits,
-  settings
+  settings,
+  isMobile
 }) {
   // Bibliothèque globale (produits + recettes), partagée avec Gut Training
   // Garantit la présence de "Eau" comme produit par défaut
