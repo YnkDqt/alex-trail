@@ -1057,8 +1057,42 @@ export default function App() {
       if (objs?.length) setObjectifs(objs);
       if (nutr) {
         if (nutr.journalNutri?.length) setJournalNutri(nutr.journalNutri);
-        if (nutr.produits?.length) setProduits(nutr.produits.map(p => ({ ...p, type: p.type || 'produit' })));
-        if (nutr.recettes?.length) setRecettes(nutr.recettes.map(r => ({ ...r, type: r.type || 'recette' })));
+        // Dédoublonnage par nom (garde le plus récent = id le plus grand) au load
+        const dedupByName = (items) => {
+          const byName = new Map();
+          items.forEach(it => {
+            const key = (it.nom || '').trim().toLowerCase();
+            if (!key) return;
+            const existing = byName.get(key);
+            if (!existing || (Number(it.id) || 0) > (Number(existing.id) || 0)) {
+              byName.set(key, it);
+            }
+          });
+          return Array.from(byName.values());
+        };
+        let cleanedProduits = null;
+        let cleanedRecettes = null;
+        if (nutr.produits?.length) {
+          const original = nutr.produits;
+          const cleaned = dedupByName(original).map(p => ({ ...p, type: p.type || 'produit' }));
+          setProduits(cleaned);
+          if (cleaned.length !== original.length) cleanedProduits = cleaned;
+        }
+        if (nutr.recettes?.length) {
+          const original = nutr.recettes;
+          const cleaned = dedupByName(original).map(r => ({ ...r, type: r.type || 'recette' }));
+          setRecettes(cleaned);
+          if (cleaned.length !== original.length) cleanedRecettes = cleaned;
+        }
+        // Si on a effectivement supprimé des doublons, persiste le nettoyage
+        if (cleanedProduits || cleanedRecettes) {
+          saveNutrition(
+            user.id,
+            nutr.journalNutri || [],
+            cleanedProduits || nutr.produits || [],
+            cleanedRecettes || nutr.recettes || []
+          ).catch(err => console.error('Erreur save dedoublonnage:', err));
+        }
       }
       if (settings) {
         if (settings.planningType && Object.keys(settings.planningType).length > 0) {
@@ -1371,30 +1405,55 @@ export default function App() {
     }
     if (user?.id) {
       loadCurrentRace(user.id).then(d=>{
+        let migratedRace = null;
         if(d?.race && Object.keys(d.race).length > 0) {
-          // MIGRATION : fusionner ancienne race.bibliotheque dans produits/recettes globaux
+          // MIGRATION : fusionner ancienne race.bibliotheque + dédoublonnage par nom (garde le plus récent)
           const oldBib = d.race.bibliotheque;
-          if (oldBib && (oldBib.produits?.length || oldBib.recettes?.length)) {
+          const dedupByName = (items) => {
+            const byName = new Map();
+            items.forEach(it => {
+              const key = (it.nom || '').trim().toLowerCase();
+              if (!key) return;
+              const existing = byName.get(key);
+              // L'id étant un Date.now(), le plus grand = le plus récent
+              if (!existing || (Number(it.id) || 0) > (Number(existing.id) || 0)) {
+                byName.set(key, it);
+              }
+            });
+            return Array.from(byName.values());
+          };
+          const needsBibMigration = oldBib && (oldBib.produits?.length || oldBib.recettes?.length);
+          if (needsBibMigration) {
+            // On capture les valeurs dédoublonnées dans des refs locaux pour un save unique
+            let cleanedProduits = null;
+            let cleanedRecettes = null;
             setProduits(prev => {
-              const existingIds = new Set(prev.map(p => p.id));
-              const toAdd = (oldBib.produits || []).filter(p => p.source !== 'default' && !existingIds.has(p.id));
-              if (toAdd.length === 0) return prev;
-              return [...prev, ...toAdd.map(p => ({ ...p, type: p.type || 'produit' }))];
+              const merged = [...prev, ...(oldBib.produits || []).filter(p => p.source !== 'default')];
+              cleanedProduits = dedupByName(merged).map(p => ({ ...p, type: p.type || 'produit' }));
+              return cleanedProduits;
             });
             setRecettes(prev => {
-              const existingIds = new Set(prev.map(r => r.id));
-              const toAdd = (oldBib.recettes || []).filter(r => !existingIds.has(r.id));
-              if (toAdd.length === 0) return prev;
-              return [...prev, ...toAdd.map(r => ({ ...r, type: r.type || 'recette' }))];
+              const merged = [...prev, ...(oldBib.recettes || [])];
+              cleanedRecettes = dedupByName(merged).map(r => ({ ...r, type: r.type || 'recette' }));
+              return cleanedRecettes;
             });
+            // Save unique pour persister la fusion dédoublonnée
+            // setTimeout pour laisser React appliquer les setStates
+            setTimeout(() => {
+              if (cleanedProduits || cleanedRecettes) {
+                saveNutrition(user.id, [], cleanedProduits || [], cleanedRecettes || [])
+                  .catch(err => console.error('Erreur save nutrition migration:', err));
+              }
+            }, 0);
           }
-          // On retire bibliotheque de race au runtime (la source de vérité = nutrition_data)
+          // On retire bibliotheque de race (la source de vérité = nutrition_data)
           const { bibliotheque, ...raceClean } = d.race;
+          migratedRace = raceClean;
           setRaceRaw(raceClean);
         }
         if(d?.segments && d.segments.length > 0) setSegmentsRaw(d.segments);
+        let migratedSettings = null;
         if(d?.settings && Object.keys(d.settings).length > 0) {
-          // MIGRATION : déplacer settings nutrition profil vers athlete_profile si pas déjà là
           const s = d.settings;
           const nutritionFields = ['kcalSource', 'kcalPerKm', 'kcalPerKmUphill', 'glucidesTargetGh'];
           setProfil(prev => {
@@ -1404,13 +1463,17 @@ export default function App() {
             });
             if (Object.keys(updates).length === 0) return prev;
             const merged = { ...prev, ...updates };
-            // Persister la migration côté Supabase
             saveAthleteProfile(user.id, merged).catch(err => console.error('Erreur migration profil:', err));
             return merged;
           });
-          // Nettoie ces champs de settings (ils vivent maintenant dans profil)
           const { kcalSource, kcalPerKm, kcalPerKmUphill, glucidesTargetGh, ...settingsClean } = s;
-          setSettingsRaw({...EMPTY_SETTINGS, ...settingsClean});
+          migratedSettings = { ...EMPTY_SETTINGS, ...settingsClean };
+          setSettingsRaw(migratedSettings);
+        }
+        // Persiste current_race nettoyé (sans bibliotheque + sans champs nutrition profil)
+        if (migratedRace || migratedSettings) {
+          saveCurrentRace(user.id, migratedRace || d?.race || {}, d?.segments || [], migratedSettings || d?.settings || {})
+            .catch(err => console.error('Erreur save current_race nettoyé:', err));
         }
       }).catch(err => console.error('Erreur load current race:', err));
       
