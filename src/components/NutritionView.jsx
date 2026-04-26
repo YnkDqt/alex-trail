@@ -14,7 +14,7 @@ import {
   loadRecetteForEdit
 } from '../ProduitRecetteForm.jsx';
 import NutritionStrategyModal, { getNutritionStrategy } from '../NutritionStrategyModal.jsx';
-import { calculerPlanComplet } from '../autoCompleteAlgo.js';
+import { calculerPlanComplet, evaluerPlan } from '../autoCompleteAlgo.js';
 
 export default function NutritionView({ 
   segments, 
@@ -766,86 +766,200 @@ export default function NutritionView({
           </div>
         </div>
 
-        {autoCompletePreview && (
-          <div style={{background:C.primaryPale,border:`1px solid ${C.primary}40`,borderRadius:14,padding:"16px 20px",marginBottom:20}}>
-            <div style={{fontWeight:700,color:C.primary,marginBottom:8,fontSize:15}}>
-              🪄 Proposition auto-complétion
+        <Modal
+          open={!!autoCompletePreview}
+          onClose={() => setAutoCompletePreview(null)}
+          title="Proposition d'auto-complétion"
+          subtitle={`Répartition sur ${zones.length} zones · Poids limite ${Math.round(userWeight * 0.12 * 10) / 10} kg`}
+          width={920}
+          footer={
+            <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+              <Btn variant="ghost" onClick={() => setAutoCompletePreview(null)}>Annuler</Btn>
+              <Btn onClick={applyAutoComplete}>Appliquer ce plan</Btn>
             </div>
-            <div style={{fontSize:13,color:C.primary,marginBottom:12,lineHeight:1.6}}>
-              Répartition intelligente sur {zones.length} zones · Poids limite : {Math.round(userWeight * 0.12 * 10) / 10} kg
-              {(() => {
-                const totalKcal = Object.values(autoCompletePreview).reduce((acc, items) => {
-                  return acc + items.reduce((s, { id, quantite }) => {
-                    const p = allBibItems.find(x => x.id === id);
-                    if (!p) return s;
-                    const n = nutriProduit(p, quantite);
-                    return s + n.kcal;
-                  }, 0);
-                }, 0);
-                const totalGlu = Object.values(autoCompletePreview).reduce((acc, items) => {
-                  return acc + items.reduce((s, { id, quantite }) => {
-                    const p = allBibItems.find(x => x.id === id);
-                    if (!p) return s;
-                    const n = nutriProduit(p, quantite);
-                    return s + n.glucides;
-                  }, 0);
-                }, 0);
-                const totalEau = Object.values(autoCompletePreview).reduce((acc, items) => {
-                  return acc + items.reduce((s, { id, quantite }) => {
-                    const p = allBibItems.find(x => x.id === id);
-                    if (!p) return s;
-                    const n = nutriProduit(p, quantite);
-                    return s + n.eauMl;
-                  }, 0);
-                }, 0);
-                const pctKcal = nutriEstimes.kcal > 0 ? Math.round(totalKcal / nutriEstimes.kcal * 100) : 0;
-                const pctGlu = nutriEstimes.glucides > 0 ? Math.round(totalGlu / nutriEstimes.glucides * 100) : 0;
-                const pctEau = nutriEstimes.eau > 0 ? Math.round(totalEau / nutriEstimes.eau * 100) : 0;
-                const color = pctKcal >= 90 && pctKcal <= 120 ? C.green : (pctKcal >= 70 ? C.yellow : C.red);
+          }
+        >
+          {autoCompletePreview && (() => {
+            // ── ÉVALUATION GLOBALE ──
+            const evals = evaluerPlan({ zones, plan: autoCompletePreview, bibliotheque: allBibItems });
+            const strategy = getNutritionStrategy(race);
+            
+            // Totaux (somme de toutes les zones)
+            const totaux = evals.reduce((acc, e) => ({
+              kcal: acc.kcal + (e.planifie.kcal || 0),
+              glucides: acc.glucides + (e.planifie.glucides || 0),
+              eau: acc.eau + (e.planifie.eau || 0),
+              sodium: acc.sodium + (e.planifie.sodium || 0),
+              poidsG: acc.poidsG + (e.planifie.poidsG || 0),
+              volumeMl: acc.volumeMl + (e.planifie.volumeMl || 0)
+            }), { kcal:0, glucides:0, eau:0, sodium:0, poidsG:0, volumeMl:0 });
+            
+            const besoinTotal = {
+              kcal: nutriEstimes.kcal,
+              glucides: nutriEstimes.glucides,
+              eau: nutriEstimes.eau,
+              sodium: nutriEstimes.sodium
+            };
+            
+            // Couvertures globales (en %)
+            const cov = {
+              kcal: besoinTotal.kcal > 0 ? Math.round(totaux.kcal / besoinTotal.kcal * 100) : 100,
+              glucides: besoinTotal.glucides > 0 ? Math.round(totaux.glucides / besoinTotal.glucides * 100) : 100,
+              eau: besoinTotal.eau > 0 ? Math.round(totaux.eau / besoinTotal.eau * 100) : 100,
+              sodium: besoinTotal.sodium > 0 ? Math.round(totaux.sodium / besoinTotal.sodium * 100) : 100
+            };
+            
+            // Couleur selon couverture
+            const covColor = (pct, optimal=[90,120]) => {
+              if (pct >= optimal[0] && pct <= optimal[1]) return C.green;
+              if (pct >= optimal[0] - 20) return C.yellow;
+              return C.red;
+            };
+            
+            // ── ALERTES ──
+            const alertes = [];
+            // Couverture insuffisante
+            if (cov.kcal < 70) alertes.push({ niv: "high", txt: `Couverture kcal très faible (${cov.kcal}%)` });
+            else if (cov.kcal < 85) alertes.push({ niv: "med", txt: `Couverture kcal insuffisante (${cov.kcal}%)` });
+            if (cov.glucides < 70) alertes.push({ niv: "high", txt: `Couverture glucides très faible (${cov.glucides}%)` });
+            else if (cov.glucides < 85) alertes.push({ niv: "med", txt: `Couverture glucides insuffisante (${cov.glucides}%)` });
+            if (cov.eau < 70) alertes.push({ niv: "high", txt: `Couverture eau très faible (${cov.eau}%)` });
+            else if (cov.eau < 85) alertes.push({ niv: "med", txt: `Couverture eau insuffisante (${cov.eau}%)` });
+            if (cov.sodium < 60) alertes.push({ niv: "med", txt: `Couverture sodium faible (${cov.sodium}%)` });
+            
+            // Sur-couverture (prudence)
+            if (cov.kcal > 140) alertes.push({ niv: "med", txt: `Plan très chargé en kcal (${cov.kcal}%)` });
+            
+            // Transport dépassé par zone
+            evals.forEach(e => {
+              if (e.planifie.poidsG > strategy.transport.solideMaxG) {
+                alertes.push({ niv: "high", txt: `${e.label} : poids solide ${e.planifie.poidsG}g > limite ${strategy.transport.solideMaxG}g` });
+              }
+              if (e.planifie.volumeMl > strategy.transport.liquideMaxMl) {
+                alertes.push({ niv: "high", txt: `${e.label} : volume liquide ${e.planifie.volumeMl}ml > limite ${strategy.transport.liquideMaxMl}ml` });
+              }
+            });
+            
+            const isMobileLayout = isMobile;
+            
+            return (
+              <div>
+                {/* Alertes */}
+                {alertes.length > 0 && (
+                  <div style={{marginBottom:16, display:"flex", flexDirection:"column", gap:6}}>
+                    {alertes.map((a, i) => (
+                      <div key={i} style={{
+                        padding:"8px 12px", borderRadius:8, fontSize:12,
+                        background: a.niv === "high" ? `${C.red}15` : `${C.yellow}20`,
+                        border: `1px solid ${a.niv === "high" ? C.red : C.yellow}40`,
+                        color: a.niv === "high" ? C.red : C.inkLight
+                      }}>
+                        <strong>{a.niv === "high" ? "⚠ " : "• "}</strong>{a.txt}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {alertes.length === 0 && (
+                  <div style={{
+                    marginBottom:16, padding:"8px 12px", borderRadius:8, fontSize:12,
+                    background: `${C.green}15`, border: `1px solid ${C.green}40`, color: C.green
+                  }}>
+                    <strong>✓ </strong>Plan cohérent — aucune alerte
+                  </div>
+                )}
                 
-                return (
-                  <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:6}}>
-                    <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
-                      <span><strong>{Math.round(totalKcal)} kcal</strong> <span style={{color,fontWeight:600}}>({pctKcal}%)</span></span>
-                      <span><strong>{Math.round(totalGlu)}g glucides</strong> <span style={{color:pctGlu>=90&&pctGlu<=120?C.green:C.yellow,fontWeight:600}}>({pctGlu}%)</span></span>
-                      <span><strong>{(totalEau/1000).toFixed(1)}L eau</strong> <span style={{color:pctEau>=80?C.green:C.yellow,fontWeight:600}}>({pctEau}%)</span></span>
+                {/* Deux colonnes : KPIs gauche, plan détaillé droite */}
+                <div style={{
+                  display:"grid",
+                  gridTemplateColumns: isMobileLayout ? "1fr" : "1fr 1.3fr",
+                  gap:20
+                }}>
+                  {/* COLONNE GAUCHE — KPIs Tier 1/2/3 */}
+                  <div>
+                    <div style={{fontSize:11, fontWeight:600, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8}}>
+                      Couverture globale
                     </div>
-                    {zones.map((z, zi) => {
-                      const pointKey = zi === 0 ? "depart" : String(ravitos[zi - 1]?.id);
-                      const items = autoCompletePreview[pointKey] || [];
-                      if (items.length === 0) return null;
-                      
-                      const zoneKcal = items.reduce((s, { id, quantite }) => {
-                        const p = allBibItems.find(x => x.id === id);
-                        if (!p) return s;
-                        return s + nutriProduit(p, quantite).kcal;
-                      }, 0);
-                      const zoneGlu = items.reduce((s, { id, quantite }) => {
-                        const p = allBibItems.find(x => x.id === id);
-                        if (!p) return s;
-                        return s + nutriProduit(p, quantite).glucides;
-                      }, 0);
-                      const zPctKcal = z.besoin.kcal > 0 ? Math.round(zoneKcal / z.besoin.kcal * 100) : 0;
-                      const zColor = zPctKcal >= 90 && zPctKcal <= 130 ? C.green : (zPctKcal >= 70 ? C.yellow : C.red);
-                      
+                    {[
+                      { label: "Énergie", k: "kcal", planifie: Math.round(totaux.kcal), besoin: Math.round(besoinTotal.kcal), unit: "kcal" },
+                      { label: "Glucides", k: "glucides", planifie: Math.round(totaux.glucides), besoin: Math.round(besoinTotal.glucides), unit: "g" },
+                      { label: "Eau", k: "eau", planifie: (totaux.eau/1000).toFixed(1), besoin: (besoinTotal.eau/1000).toFixed(1), unit: "L" },
+                      { label: "Sodium", k: "sodium", planifie: Math.round(totaux.sodium), besoin: Math.round(besoinTotal.sodium), unit: "mg" }
+                    ].map(({ label, k, planifie, besoin, unit }) => {
+                      const pct = cov[k];
+                      const color = covColor(pct);
                       return (
-                        <div key={zi} style={{fontSize:11,color:C.primary,paddingLeft:10,borderLeft:`2px solid ${C.primary}40`,marginTop:4}}>
-                          <strong>{z.label}</strong>: {Math.round(zoneKcal)} kcal · {Math.round(zoneGlu)}g gluc. 
-                          <span style={{color:zColor,fontWeight:600,marginLeft:6}}>({zPctKcal}%)</span>
-                          <span style={{color:C.muted,marginLeft:6}}>· {items.length} produit{items.length>1?"s":""}</span>
+                        <div key={k} style={{marginBottom:10, padding:"10px 12px", background:C.stone, borderRadius:8, border:`1px solid ${C.border}`}}>
+                          <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:6}}>
+                            <span style={{fontSize:12, fontWeight:600, color:C.inkLight}}>{label}</span>
+                            <span style={{fontSize:13, fontWeight:700, color, fontFamily:"'Playfair Display', serif"}}>{pct}%</span>
+                          </div>
+                          <div style={{fontSize:11, color:C.muted, marginBottom:6}}>
+                            {planifie} / {besoin} {unit}
+                          </div>
+                          <div style={{height:5, background:C.border, borderRadius:3, overflow:"hidden"}}>
+                            <div style={{
+                              width:`${Math.min(pct, 100)}%`, height:"100%",
+                              background: color, transition:"width 0.3s"
+                            }}/>
+                          </div>
                         </div>
                       );
                     })}
+                    
+                    {/* Charge totale */}
+                    <div style={{marginTop:12, padding:"10px 12px", background:C.primaryPale, borderRadius:8, fontSize:11, color:C.primary, lineHeight:1.6}}>
+                      <strong>Charge totale</strong> : {Math.round(totaux.poidsG)}g solide · {Math.round(totaux.volumeMl)}ml liquide
+                    </div>
                   </div>
-                );
-              })()}
-            </div>
-            <div style={{display:"flex",gap:10}}>
-              <Btn onClick={applyAutoComplete}>✓ Appliquer</Btn>
-              <Btn variant="ghost" onClick={()=>setAutoCompletePreview(null)}>Annuler</Btn>
-            </div>
-          </div>
-        )}
+                  
+                  {/* COLONNE DROITE — Plan détaillé */}
+                  <div>
+                    <div style={{fontSize:11, fontWeight:600, color:C.muted, textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:8}}>
+                      Plan zone par zone
+                    </div>
+                    <div style={{display:"flex", flexDirection:"column", gap:8, maxHeight:480, overflowY:"auto"}}>
+                      {evals.map((e, zi) => {
+                        const items = autoCompletePreview[e.pointKey] || [];
+                        const zonePctKcal = e.couverture.kcal;
+                        const zoneColor = covColor(zonePctKcal, [85, 130]);
+                        return (
+                          <div key={e.pointKey} style={{padding:"10px 12px", background:C.white, border:`1px solid ${C.border}`, borderRadius:8}}>
+                            <div style={{display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:6}}>
+                              <strong style={{fontSize:13, color:C.inkLight}}>{e.label}</strong>
+                              <span style={{fontSize:11, color:zoneColor, fontWeight:600}}>
+                                {zonePctKcal}% kcal · {e.couverture.glucides}% gluc.
+                              </span>
+                            </div>
+                            {items.length === 0 ? (
+                              <div style={{fontSize:11, color:C.muted, fontStyle:"italic"}}>Aucun produit proposé</div>
+                            ) : (
+                              <div style={{display:"flex", flexDirection:"column", gap:3}}>
+                                {items.map((it, idx) => {
+                                  const prod = allBibItems.find(x => x.id === it.id);
+                                  if (!prod) return null;
+                                  const isUnit = !!prod.unite && (prod.grammesParUnite || prod.volumeMlParUnite);
+                                  const qteAffichee = isUnit
+                                    ? `${Math.round(it.quantite / (prod.grammesParUnite || prod.volumeMlParUnite))} ${prod.unite}`
+                                    : (prod.boisson || prod.volumeMlParUnite ? `${Math.round(it.quantite)}ml` : `${Math.round(it.quantite)}g`);
+                                  return (
+                                    <div key={idx} style={{fontSize:11, color:C.muted, display:"flex", justifyContent:"space-between"}}>
+                                      <span>{prod.nom}</span>
+                                      <span style={{fontWeight:600, color:C.inkLight}}>{qteAffichee}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </Modal>
 
         {zones.map((z, zi) => {
           // Zone départ = state local, autres = ravitos normaux
