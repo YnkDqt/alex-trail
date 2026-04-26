@@ -1,13 +1,20 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { C, exportJSON, parseCSVActivities, parseCSVSommeil, parseCSVVFC,
   localDate, fmtDate, daysUntil, actColor, actShort, isRunning,
   DAY_NAMES, DEFAULT_PLANNING, ACTIVITY_TYPES, emptyObjectif, emptySeance } from "../constants.js";
-import { Btn, Field, ConfirmDialog } from "../atoms.jsx";
+import { Btn, Field, ConfirmDialog, Modal } from "../atoms.jsx";
+import { listSnapshots, loadSnapshot, createSnapshot } from "../supabaseHelpers.js";
 // ─── DONNÉES ─────────────────────────────────────────────────────────────────
-function Donnees({ activites, setActivites, sommeil, setSommeil, vfcData, setVfcData, poids, setPoids, seances, setSeances, planningType, objectifs, allData, loadData, resetAll, journalNutri }) {
+function Donnees({ activites, setActivites, sommeil, setSommeil, vfcData, setVfcData, poids, setPoids, seances, setSeances, planningType, objectifs, allData, loadData, loadEntrainementData, resetAll, journalNutri, user }) {
   const [msgs,          setMsgs]         = useState({});
   const [confirmReset,  setConfirmReset] = useState(false);
   const [saved,         setSaved]        = useState(false);
+  const [snapshotsOpen, setSnapshotsOpen] = useState(false);
+  const [snapshotsList, setSnapshotsList] = useState([]);
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+  const [confirmRestore, setConfirmRestore] = useState(null); // {id, period} ou null
+  const [creatingSnapshot, setCreatingSnapshot] = useState(false);
+  const [restoreMsg, setRestoreMsg] = useState("");
   const activitesRef=useRef(); const sommeilRef=useRef();
   const vfcRef=useRef(); const progRef=useRef(); const backupRef=useRef();
 
@@ -97,6 +104,83 @@ function Donnees({ activites, setActivites, sommeil, setSommeil, vfcData, setVfc
 
   const cardStyle = {background:C.white,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"};
   const secLabel = (txt) => <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",color:C.muted,marginBottom:12}}>{txt}</div>;
+  
+  // ── SNAPSHOTS ──
+  const openSnapshots = async () => {
+    if (!user?.id) return;
+    setSnapshotsOpen(true);
+    setSnapshotsLoading(true);
+    try {
+      const list = await listSnapshots(user.id);
+      setSnapshotsList(list);
+    } catch (err) {
+      console.error('Erreur listSnapshots:', err);
+      alert("Erreur lors du chargement des snapshots");
+    } finally {
+      setSnapshotsLoading(false);
+    }
+  };
+  
+  const handleCreateManualSnapshot = async () => {
+    if (!user?.id || creatingSnapshot) return;
+    setCreatingSnapshot(true);
+    try {
+      // allData contient la photo complète actuelle
+      await createSnapshot(user.id, allData);
+      // Refresh la liste
+      const list = await listSnapshots(user.id);
+      setSnapshotsList(list);
+      setRestoreMsg("✓ Snapshot créé");
+      setTimeout(() => setRestoreMsg(""), 3000);
+    } catch (err) {
+      console.error('Erreur create snapshot:', err);
+      alert("Erreur lors de la création du snapshot");
+    } finally {
+      setCreatingSnapshot(false);
+    }
+  };
+  
+  const handleRestore = async (snapshotId) => {
+    if (!user?.id) return;
+    try {
+      const snap = await loadSnapshot(user.id, snapshotId);
+      // Aplatir le snapshot pour matcher le format attendu par loadEntrainementData
+      const flat = {
+        ...snap.data,
+        // Si nutrition est un sous-objet, on l'aplatit
+        ...(snap.data.nutrition || {}),
+        // Si entrainementSettings est un sous-objet, on l'aplatit (planningType, activityTypes...)
+        ...(snap.data.entrainementSettings || {})
+      };
+      const fn = loadEntrainementData || loadData;
+      if (fn) fn(flat);
+      setRestoreMsg("✓ Données restaurées — la sauvegarde sera appliquée automatiquement");
+      setTimeout(() => setRestoreMsg(""), 5000);
+      setSnapshotsOpen(false);
+      setConfirmRestore(null);
+    } catch (err) {
+      console.error('Erreur restore:', err);
+      alert("Erreur lors de la restauration");
+    }
+  };
+  
+  const fmtSnapshotPeriod = (period) => {
+    // "2026-04-26-AM" → "26 avr. (matin)"
+    const m = period?.match(/^(\d{4})-(\d{2})-(\d{2})-(AM|PM)$/);
+    if (!m) return period;
+    const months = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
+    const day = parseInt(m[3]);
+    const monthName = months[parseInt(m[2]) - 1];
+    const tod = m[4] === "AM" ? "matin" : "après-midi";
+    return `${day} ${monthName} (${tod})`;
+  };
+  
+  const fmtBytes = (n) => {
+    if (!n) return "?";
+    if (n < 1024) return `${n} o`;
+    if (n < 1024 * 1024) return `${(n/1024).toFixed(0)} Ko`;
+    return `${(n/(1024*1024)).toFixed(1)} Mo`;
+  };
 
   return (
     <div className="anim" style={{padding:"24px 40px 80px"}}>
@@ -151,6 +235,15 @@ function Donnees({ activites, setActivites, sommeil, setSommeil, vfcData, setVfc
               <input ref={backupRef} type="file" accept=".json" style={{display:"none"}} onChange={handleLoad}/>
               <Btn variant="ghost" size="sm" onClick={()=>backupRef.current?.click()}>⬆ Charger</Btn>
             </div>
+            <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 18px",borderTop:`1px solid ${C.border}`}}>
+              <span style={{fontSize:20,width:26,textAlign:"center",flexShrink:0}}>🕒</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:500,color:C.inkLight}}>Snapshots automatiques</div>
+                <div style={{fontSize:11,color:C.muted,marginTop:1}}>2x/jour · 30 derniers jours</div>
+                {restoreMsg && <div style={{fontSize:11,color:C.green,fontWeight:500,marginTop:3}}>{restoreMsg}</div>}
+              </div>
+              <Btn variant="ghost" size="sm" onClick={openSnapshots}>Voir</Btn>
+            </div>
           </div>
         </div>
 
@@ -166,6 +259,59 @@ function Donnees({ activites, setActivites, sommeil, setSommeil, vfcData, setVfc
 
       </div>
 
+      <Modal
+        open={snapshotsOpen}
+        onClose={() => setSnapshotsOpen(false)}
+        title="Snapshots automatiques"
+        subtitle="Sauvegardes du matin et de l'après-midi sur les 30 derniers jours"
+        width={560}
+        footer={
+          <div style={{display:"flex",gap:10,justifyContent:"space-between",alignItems:"center"}}>
+            <Btn variant="soft" size="sm" onClick={handleCreateManualSnapshot} disabled={creatingSnapshot}>
+              {creatingSnapshot ? "Création…" : "📸 Créer un snapshot maintenant"}
+            </Btn>
+            <Btn variant="ghost" onClick={() => setSnapshotsOpen(false)}>Fermer</Btn>
+          </div>
+        }
+      >
+        {snapshotsLoading ? (
+          <div style={{padding:"30px",textAlign:"center",color:C.muted,fontSize:13}}>Chargement…</div>
+        ) : snapshotsList.length === 0 ? (
+          <div style={{padding:"30px",textAlign:"center",color:C.muted,fontSize:13}}>
+            Aucun snapshot pour l'instant. Le premier sera créé au prochain login.
+          </div>
+        ) : (
+          <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:420,overflowY:"auto"}}>
+            {snapshotsList.map(s => (
+              <div key={s.id} style={{
+                display:"flex",alignItems:"center",gap:12,
+                padding:"10px 12px",background:C.stone,borderRadius:8,border:`1px solid ${C.border}`
+              }}>
+                <span style={{fontSize:16}}>🕒</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:500,color:C.inkLight}}>
+                    {fmtSnapshotPeriod(s.snapshot_period)}
+                  </div>
+                  <div style={{fontSize:11,color:C.muted,marginTop:1}}>
+                    {new Date(s.created_at).toLocaleString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}
+                    {" · "}
+                    {fmtBytes(s.data_size)}
+                  </div>
+                </div>
+                <Btn variant="ghost" size="sm" onClick={() => setConfirmRestore(s)}>Restaurer</Btn>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
+      
+      <ConfirmDialog
+        open={!!confirmRestore}
+        message={confirmRestore ? `Restaurer le snapshot du ${fmtSnapshotPeriod(confirmRestore.snapshot_period)} ? Tes données actuelles seront remplacées.` : ""}
+        onConfirm={() => confirmRestore && handleRestore(confirmRestore.id)}
+        onCancel={() => setConfirmRestore(null)}
+      />
+      
       <ConfirmDialog open={confirmReset} message="Effacer toutes les données ? Cette action est irréversible." onConfirm={()=>{resetAll();setConfirmReset(false);}} onCancel={()=>setConfirmReset(false)}/>
     </div>
   );

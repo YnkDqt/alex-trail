@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useAuth } from './AuthContext';
-import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse, loadNutrition, saveNutrition, loadEntrainementSettings, saveEntrainementSettings, getDataVersion, bumpDataVersion, clearUserData } from './supabaseHelpers';
+import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse, loadNutrition, saveNutrition, loadEntrainementSettings, saveEntrainementSettings, getDataVersion, bumpDataVersion, clearUserData, hasSnapshotForCurrentPeriod, createSnapshot, listSnapshots, loadSnapshot } from './supabaseHelpers';
 import Login from './Login';
 
 // ─── COURSE IMPORTS ───────────────────────────────────────────────────────────
@@ -1105,6 +1105,34 @@ export default function App() {
       }
       setLoadError(false);
       setDataLoaded(true);
+      
+      // ── SNAPSHOT : sauvegarde de la période courante si pas déjà existante ──
+      // Non bloquant. Utilise les données fraîchement loadées (pas le state).
+      hasSnapshotForCurrentPeriod(user.id).then(exists => {
+        if (exists) return;
+        // Charger aussi les données race en plus (pas dans le bloc principal load)
+        return Promise.all([
+          loadCurrentRace(user.id).catch(() => null),
+          loadCourses(user.id).catch(() => [])
+        ]).then(([currentRace, coursesList]) => {
+          const snapshotData = {
+            profil: profile || null,
+            seances: seances || [],
+            activites: acts || [],
+            sommeil: som || [],
+            vfcData: vfc || [],
+            poids: pds || [],
+            objectifs: objs || [],
+            nutrition: nutr || null,
+            entrainementSettings: settings || null,
+            currentRace: currentRace || null,
+            courses: coursesList || []
+          };
+          return createSnapshot(user.id, snapshotData);
+        });
+      }).catch(err => {
+        console.warn('[snapshot] échec création (non bloquant):', err);
+      });
     }).catch(err => {
       if (cancelled) return;
       console.error('Erreur chargement données (toutes tentatives échouées):', err);

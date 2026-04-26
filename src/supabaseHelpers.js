@@ -740,3 +740,110 @@ export async function bumpDataVersion(userId) {
   if (error) throw error
   return data // nouveau timestamp
 }
+
+// ─── SNAPSHOTS : sauvegardes journalières automatiques ───────────────────────
+// Pattern : 2 snapshots par jour max (matin/après-midi), 30 jours de rétention.
+// Permet de restaurer une version antérieure en cas de bug ou perte de données.
+
+// Période courante : "YYYY-MM-DD-AM" (avant midi) ou "YYYY-MM-DD-PM" (après midi)
+function currentSnapshotPeriod(date = new Date()) {
+  const yyyy = date.getFullYear()
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  const ampm = date.getHours() < 12 ? 'AM' : 'PM'
+  return `${yyyy}-${mm}-${dd}-${ampm}`
+}
+
+// Vérifie si un snapshot existe pour la période actuelle
+export async function hasSnapshotForCurrentPeriod(userId) {
+  if (!userId) return false
+  const period = currentSnapshotPeriod()
+  const { data, error } = await supabase
+    .from('data_snapshots')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('snapshot_period', period)
+    .maybeSingle()
+  
+  if (error) {
+    console.error('[snapshots] erreur check:', error)
+    return false
+  }
+  return !!data
+}
+
+// Crée un snapshot pour la période actuelle (upsert : remplace si existe déjà)
+export async function createSnapshot(userId, snapshotData) {
+  if (!userId) throw new Error('createSnapshot : userId manquant')
+  if (!snapshotData || typeof snapshotData !== 'object') {
+    throw new Error('createSnapshot : données invalides')
+  }
+  
+  const period = currentSnapshotPeriod()
+  const dataStr = JSON.stringify(snapshotData)
+  const dataSize = new Blob([dataStr]).size
+  
+  // Upsert : insère ou remplace si existe (key = user_id + snapshot_period)
+  const { error } = await supabase
+    .from('data_snapshots')
+    .upsert({
+      user_id: userId,
+      snapshot_period: period,
+      data: snapshotData,
+      data_size: dataSize,
+      created_at: new Date().toISOString()
+    }, { onConflict: 'user_id,snapshot_period' })
+  
+  if (error) throw error
+  
+  // Auto-cleanup : supprime les snapshots > 30 jours
+  cleanOldSnapshots(userId).catch(err => {
+    console.warn('[snapshots] cleanup échoué (non bloquant):', err)
+  })
+  
+  return { period, dataSize }
+}
+
+// Liste les snapshots d'un user (du plus récent au plus ancien)
+export async function listSnapshots(userId) {
+  if (!userId) return []
+  const { data, error } = await supabase
+    .from('data_snapshots')
+    .select('id, snapshot_period, data_size, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(60)  // 30 jours × 2 = 60 max
+  
+  if (error) throw error
+  return data || []
+}
+
+// Récupère le contenu complet d'un snapshot
+export async function loadSnapshot(userId, snapshotId) {
+  if (!userId || !snapshotId) throw new Error('loadSnapshot : paramètres manquants')
+  const { data, error } = await supabase
+    .from('data_snapshots')
+    .select('id, snapshot_period, data, created_at')
+    .eq('user_id', userId)
+    .eq('id', snapshotId)
+    .single()
+  
+  if (error) throw error
+  return data
+}
+
+// Cleanup : supprime les snapshots > 30 jours pour un user
+export async function cleanOldSnapshots(userId) {
+  if (!userId) return
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - 30)
+  
+  const { error } = await supabase
+    .from('data_snapshots')
+    .delete()
+    .eq('user_id', userId)
+    .lt('created_at', cutoff.toISOString())
+  
+  if (error) throw error
+}
+
