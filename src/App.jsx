@@ -201,6 +201,105 @@ function DonneesParamsView({
   user,
 }) {
   const [tab, setTab] = useState("sauvegarde");
+  
+  // ── États snapshots ──
+  const [snapshotsOpen, setSnapshotsOpen] = useState(false);
+  const [snapshotsList, setSnapshotsList] = useState([]);
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+  const [confirmRestore, setConfirmRestore] = useState(null);
+  const [creatingSnapshot, setCreatingSnapshot] = useState(false);
+  const [snapshotMsg, setSnapshotMsg] = useState("");
+  
+  const openSnapshots = async () => {
+    if (!user?.id) return;
+    setSnapshotsOpen(true);
+    setSnapshotsLoading(true);
+    try {
+      const list = await listSnapshots(user.id);
+      setSnapshotsList(list);
+    } catch (err) {
+      console.error('Erreur listSnapshots:', err);
+      alert("Erreur lors du chargement des snapshots");
+    } finally {
+      setSnapshotsLoading(false);
+    }
+  };
+  
+  const handleCreateManualSnapshot = async () => {
+    if (!user?.id || creatingSnapshot) return;
+    setCreatingSnapshot(true);
+    try {
+      // Récupérer l'état actuel complet depuis Supabase pour le snapshot
+      const [profile, activities, seances, sommeil, vfc, poids, objectifs, nutrition, settings, currentRace, courses] = await Promise.all([
+        loadAthleteProfile(user.id),
+        loadActivities(user.id),
+        loadSeances(user.id),
+        loadSommeil(user.id),
+        loadVFC(user.id),
+        loadPoids(user.id),
+        loadObjectifs(user.id),
+        loadNutrition(user.id),
+        loadEntrainementSettings(user.id),
+        loadCurrentRace(user.id),
+        loadCourses(user.id),
+      ]);
+      const snapshotData = { profile, activities, seances, sommeil, vfc, poids, objectifs, nutrition, settings, currentRace, courses };
+      await createSnapshot(user.id, snapshotData);
+      const list = await listSnapshots(user.id);
+      setSnapshotsList(list);
+      setSnapshotMsg("✓ Snapshot créé");
+      setTimeout(() => setSnapshotMsg(""), 3000);
+    } catch (err) {
+      console.error('Erreur create snapshot:', err);
+      alert("Erreur lors de la création du snapshot");
+    } finally {
+      setCreatingSnapshot(false);
+    }
+  };
+  
+  const handleRestore = async (snapshotId) => {
+    if (!user?.id) return;
+    try {
+      const snap = await loadSnapshot(user.id, snapshotId);
+      const data = snap.data || {};
+      // Restaurer en utilisant les saves Supabase directement (pareil que l'import JSON)
+      const nutr = data.nutrition || {};
+      await Promise.all([
+        data.profile && saveAthleteProfile(user.id, data.profile),
+        Array.isArray(data.activities) && saveActivities(user.id, data.activities),
+        Array.isArray(data.seances) && saveSeances(user.id, data.seances),
+        Array.isArray(data.sommeil) && saveSommeil(user.id, data.sommeil),
+        Array.isArray(data.vfc) && saveVFC(user.id, data.vfc),
+        Array.isArray(data.poids) && savePoids(user.id, data.poids),
+        Array.isArray(data.objectifs) && saveObjectifs(user.id, data.objectifs),
+        nutr && saveNutrition(user.id, nutr.journalNutri || [], nutr.produits || [], nutr.recettes || []),
+      ].filter(Boolean));
+      setSnapshotMsg("✓ Snapshot restauré — recharge la page pour voir les données");
+      setTimeout(() => setSnapshotMsg(""), 8000);
+      setSnapshotsOpen(false);
+      setConfirmRestore(null);
+    } catch (err) {
+      console.error('Erreur restore:', err);
+      alert("Erreur lors de la restauration : " + err.message);
+    }
+  };
+  
+  const fmtSnapshotPeriod = (period) => {
+    const m = period?.match(/^(\d{4})-(\d{2})-(\d{2})-(AM|PM)$/);
+    if (!m) return period;
+    const months = ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."];
+    const day = parseInt(m[3]);
+    const monthName = months[parseInt(m[2]) - 1];
+    const tod = m[4] === "AM" ? "matin" : "après-midi";
+    return `${day} ${monthName} (${tod})`;
+  };
+  
+  const fmtBytes = (n) => {
+    if (!n) return "?";
+    if (n < 1024) return `${n} o`;
+    if (n < 1024 * 1024) return `${(n/1024).toFixed(0)} Ko`;
+    return `${(n/(1024*1024)).toFixed(1)} Mo`;
+  };
 
   const TabBtn = ({id, label}) => (
     <button onClick={()=>setTab(id)}
@@ -381,6 +480,20 @@ function DonneesParamsView({
             </div>
           </Section>
 
+          <Section title="Snapshots automatiques">
+            <p style={{fontSize:13,color:C.muted,marginBottom:14,lineHeight:1.6}}>
+              Sauvegarde de sécurité créée 2 fois par jour (matin/après-midi). Permet de restaurer une version antérieure en cas de bug ou d'erreur. 30 jours de rétention.
+            </p>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              <ActionBtn onClick={openSnapshots} icon="🕒" label="Voir et restaurer un snapshot"/>
+            </div>
+            {snapshotMsg && (
+              <div style={{marginTop:10,padding:"10px 14px",background:`${C.green}15`,border:`1px solid ${C.green}40`,borderRadius:10,fontSize:12,color:C.green,fontWeight:500}}>
+                {snapshotMsg}
+              </div>
+            )}
+          </Section>
+
           <Section title="Stratégie de course">
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               <ActionBtn
@@ -510,6 +623,59 @@ Annuler = tout effacer.`);if(ok)saveCourse();}
           </Section>
         </div>
       )}
+      
+      <Modal
+        open={snapshotsOpen}
+        onClose={() => setSnapshotsOpen(false)}
+        title="Snapshots automatiques"
+        subtitle="Sauvegardes du matin et de l'après-midi sur les 30 derniers jours"
+        width={560}
+        footer={
+          <div style={{display:"flex",gap:10,justifyContent:"space-between",alignItems:"center"}}>
+            <Btn variant="soft" size="sm" onClick={handleCreateManualSnapshot} disabled={creatingSnapshot}>
+              {creatingSnapshot ? "Création…" : "📸 Créer un snapshot maintenant"}
+            </Btn>
+            <Btn variant="ghost" onClick={() => setSnapshotsOpen(false)}>Fermer</Btn>
+          </div>
+        }
+      >
+        {snapshotsLoading ? (
+          <div style={{padding:"30px",textAlign:"center",color:C.muted,fontSize:13}}>Chargement…</div>
+        ) : snapshotsList.length === 0 ? (
+          <div style={{padding:"30px",textAlign:"center",color:C.muted,fontSize:13}}>
+            Aucun snapshot pour l'instant. Le premier sera créé au prochain login, ou clique sur "Créer un snapshot maintenant".
+          </div>
+        ) : (
+          <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:420,overflowY:"auto"}}>
+            {snapshotsList.map(s => (
+              <div key={s.id} style={{
+                display:"flex",alignItems:"center",gap:12,
+                padding:"10px 12px",background:C.stone,borderRadius:8,border:`1px solid ${C.border}`
+              }}>
+                <span style={{fontSize:16}}>🕒</span>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:500,color:C.inkLight}}>
+                    {fmtSnapshotPeriod(s.snapshot_period)}
+                  </div>
+                  <div style={{fontSize:11,color:C.muted,marginTop:1}}>
+                    {new Date(s.created_at).toLocaleString('fr-FR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}
+                    {" · "}
+                    {fmtBytes(s.data_size)}
+                  </div>
+                </div>
+                <Btn variant="ghost" size="sm" onClick={() => setConfirmRestore(s)}>Restaurer</Btn>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
+      
+      <ConfirmDialog
+        open={!!confirmRestore}
+        message={confirmRestore ? `Restaurer le snapshot du ${fmtSnapshotPeriod(confirmRestore.snapshot_period)} ? Tes données actuelles seront remplacées.` : ""}
+        onConfirm={() => confirmRestore && handleRestore(confirmRestore.id)}
+        onCancel={() => setConfirmRestore(null)}
+      />
     </div>
   );
 }
