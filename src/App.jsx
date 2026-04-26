@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useAuth } from './AuthContext';
-import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse, loadNutrition, saveNutrition, loadEntrainementSettings, saveEntrainementSettings, getDataVersion, bumpDataVersion } from './supabaseHelpers';
+import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse, loadNutrition, saveNutrition, loadEntrainementSettings, saveEntrainementSettings, getDataVersion, bumpDataVersion, clearUserData } from './supabaseHelpers';
 import Login from './Login';
 
 // ─── COURSE IMPORTS ───────────────────────────────────────────────────────────
@@ -1291,7 +1291,20 @@ export default function App() {
     if(data.recettes)      setRecettes(data.recettes);
     if(data.profil)        setProfil(data.profil);
   };
-  const resetAll = ()=>{ setSeances([]); setActivites([]); setSommeil([]); setVfcData([]); setPoids([]); setObjectifs([]); };
+  const resetAll = async ()=>{
+    // 1. Vider côté serveur EXPLICITEMENT (couche 3 : action consciente)
+    if (user?.id) {
+      try {
+        await clearUserData(user.id, ['seances','activities','sommeil','vfc','poids','objectifs']);
+      } catch (err) {
+        console.error('Erreur resetAll serveur:', err);
+        alert('Erreur lors de la suppression côté serveur. Tes données locales restent intactes.');
+        return;
+      }
+    }
+    // 2. Vider côté local (l'auto-save garde-fou refusera de propager [], donc on est safe)
+    setSeances([]); setActivites([]); setSommeil([]); setVfcData([]); setPoids([]); setObjectifs([]);
+  };
 
   // ── Course state (ex-CourseLayout) ────────────────────────────────────────
   const [view,         setView]         = useState("accueil");

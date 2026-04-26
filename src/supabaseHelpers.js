@@ -72,6 +72,80 @@ const convertDuration = (val) => {
   return cleanInt(val)
 }
 
+// ─── SAFE REPLACE : pattern INSERT-puis-DELETE pour éviter les pertes ────────
+// Pattern utilisé pour les tables time-series où on remplace tout le set d'un user.
+//
+// Sécurité 3 couches :
+//  1. Garde-fou : refuse si rows vide (sauf si allowEmpty=true explicite)
+//  2. INSERT d'abord avec un batch_id unique → si échec, l'ancien data est intact
+//  3. DELETE des anciens batch_id seulement après INSERT réussi
+//
+// Si rows.length === 0 ET allowEmpty=true : appelle clearTable (action explicite)
+async function safeReplace(table, userId, rows, { allowEmpty = false } = {}) {
+  if (!userId) throw new Error(`safeReplace[${table}] : userId manquant`)
+  
+  // Couche 1 : garde-fou anti-zéro
+  if (!Array.isArray(rows)) {
+    console.warn(`[safeReplace ${table}] rows n'est pas un array, abort`)
+    return
+  }
+  if (rows.length === 0) {
+    if (allowEmpty) {
+      // Reset explicite : on supprime toutes les lignes du user
+      return clearTable(table, userId)
+    }
+    // Sinon : on refuse silencieusement (probable bug d'init/race condition)
+    console.warn(`[safeReplace ${table}] rows vide sans allowEmpty → abort (protection)`)
+    return
+  }
+  
+  // Couche 2 : INSERT d'abord avec un batch_id unique
+  const batchId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  const rowsWithBatch = rows.map(r => ({ ...r, batch_id: batchId }))
+  
+  const { error: insertError } = await supabase.from(table).insert(rowsWithBatch)
+  if (insertError) {
+    // INSERT a échoué : on ne touche pas à l'ancien data, il est intact
+    console.error(`[safeReplace ${table}] INSERT échec, anciennes données préservées:`, insertError)
+    throw insertError
+  }
+  
+  // Couche 2 (suite) : DELETE des anciens batch (tous sauf le nouveau)
+  const { error: deleteError } = await supabase
+    .from(table)
+    .delete()
+    .eq('user_id', userId)
+    .or(`batch_id.is.null,batch_id.neq.${batchId}`)
+  
+  if (deleteError) {
+    // DELETE échoué : on a des doublons (ancien + nouveau batch). Pas grave.
+    // Le prochain save fera le ménage. On log mais on ne throw pas.
+    console.warn(`[safeReplace ${table}] DELETE anciens batch échoué (les nouvelles données sont quand même là):`, deleteError)
+  }
+}
+
+// Reset explicite d'une table pour un user (à utiliser uniquement par resetAll / clearUserData)
+async function clearTable(table, userId) {
+  const { error } = await supabase.from(table).delete().eq('user_id', userId)
+  if (error) throw error
+}
+
+// Reset explicite multi-tables — utilisée par resetAll côté UI
+export async function clearUserData(userId, tables) {
+  if (!userId) throw new Error('clearUserData : userId manquant')
+  if (!Array.isArray(tables) || tables.length === 0) return
+  
+  // Reset séquentiel pour avoir des erreurs lisibles
+  for (const t of tables) {
+    try {
+      await clearTable(t, userId)
+    } catch (err) {
+      console.error(`[clearUserData] échec reset ${t}:`, err)
+      throw err
+    }
+  }
+}
+
 // ─── ATHLETE PROFILE ──────────────────────────────────────────────────────────
 export async function loadAthleteProfile(userId) {
   const { data, error } = await supabase
@@ -159,27 +233,21 @@ export async function loadSeances(userId) {
 }
 
 export async function saveSeances(userId, seances) {
-  await supabase.from('seances').delete().eq('user_id', userId)
-  
-  if (seances.length > 0) {
-    const { error } = await supabase
-      .from('seances')
-      .insert(seances.map(s => ({
-        user_id: userId,
-        date: s.date,
-        demi_journee: s.demiJournee,
-        activite: s.activite,
-        statut: s.statut,
-        notes: s.commentaire || s.notes,
-        duree_obj: s.dureeObj,
-        distance_obj: cleanNumber(s.kmObj),
-        dp_obj: cleanNumber(s.dpObj),
-        data: s,
-        updated_at: new Date().toISOString()
-      })))
-    
-    if (error) throw error
-  }
+  if (!Array.isArray(seances)) return
+  const rows = seances.map(s => ({
+    user_id: userId,
+    date: s.date,
+    demi_journee: s.demiJournee,
+    activite: s.activite,
+    statut: s.statut,
+    notes: s.commentaire || s.notes,
+    duree_obj: s.dureeObj,
+    distance_obj: cleanNumber(s.kmObj),
+    dp_obj: cleanNumber(s.dpObj),
+    data: s,
+    updated_at: new Date().toISOString()
+  }))
+  await safeReplace('seances', userId, rows)
 }
 
 // ─── ACTIVITIES ───────────────────────────────────────────────────────────────
@@ -228,45 +296,39 @@ export async function loadActivities(userId) {
 }
 
 export async function saveActivities(userId, activities) {
-  await supabase.from('activities').delete().eq('user_id', userId)
-  
-  if (activities.length > 0) {
-    const { error } = await supabase
-      .from('activities')
-      .insert(activities.map(a => ({
-        user_id: userId,
-        date: a.date,
-        date_heure: a.dateHeure || a.idGarmin || a._garminId,
-        type: a.type || a.activite,
-        statut: a.statut,
-        id_garmin: a.dateHeure || a.idGarmin || a._garminId,
-        titre: a.titre || a.garminTitre,
-        distance: cleanNumber(a.distance || a.kmGarmin),
-        duration: convertDuration(a.duree || a.dureeGarmin || a.dureeMin || a.duration),
-        duration_str: a.duree || a.dureeGarmin,
-        fc_moy: cleanInt(a.fcMoy),
-        fc_max: cleanInt(a.fcMax),
-        elevation: cleanNumber(a.dp || a.dpGarmin || a.elevation),
-        calories: cleanInt(a.calories || a.cal),
-        allure: a.allure,
-        gap_moy: a.gapMoy,
-        cadence: cleanInt(a.cadence),
-        body_battery: a.bodyBattery,
-        tss: a.tss,
-        te_aero: a.teAero,
-        z0: cleanZone(a.z0),
-        z1: cleanZone(a.z1),
-        z2: cleanZone(a.z2),
-        z3: cleanZone(a.z3),
-        z4: cleanZone(a.z4),
-        z5: cleanZone(a.z5),
-        notes: a.notes || a.commentaire,
-        gpx_data: a.gpxData || null,
-        updated_at: new Date().toISOString()
-      })))
-    
-    if (error) throw error
-  }
+  if (!Array.isArray(activities)) return
+  const rows = activities.map(a => ({
+    user_id: userId,
+    date: a.date,
+    date_heure: a.dateHeure || a.idGarmin || a._garminId,
+    type: a.type || a.activite,
+    statut: a.statut,
+    id_garmin: a.dateHeure || a.idGarmin || a._garminId,
+    titre: a.titre || a.garminTitre,
+    distance: cleanNumber(a.distance || a.kmGarmin),
+    duration: convertDuration(a.duree || a.dureeGarmin || a.dureeMin || a.duration),
+    duration_str: a.duree || a.dureeGarmin,
+    fc_moy: cleanInt(a.fcMoy),
+    fc_max: cleanInt(a.fcMax),
+    elevation: cleanNumber(a.dp || a.dpGarmin || a.elevation),
+    calories: cleanInt(a.calories || a.cal),
+    allure: a.allure,
+    gap_moy: a.gapMoy,
+    cadence: cleanInt(a.cadence),
+    body_battery: a.bodyBattery,
+    tss: a.tss,
+    te_aero: a.teAero,
+    z0: cleanZone(a.z0),
+    z1: cleanZone(a.z1),
+    z2: cleanZone(a.z2),
+    z3: cleanZone(a.z3),
+    z4: cleanZone(a.z4),
+    z5: cleanZone(a.z5),
+    notes: a.notes || a.commentaire,
+    gpx_data: a.gpxData || null,
+    updated_at: new Date().toISOString()
+  }))
+  await safeReplace('activities', userId, rows)
 }
 
 // ─── SOMMEIL ──────────────────────────────────────────────────────────────────
@@ -314,30 +376,24 @@ export async function loadSommeil(userId) {
 }
 
 export async function saveSommeil(userId, sommeil) {
-  await supabase.from('sommeil').delete().eq('user_id', userId)
-  
-  if (sommeil.length > 0) {
-    const { error } = await supabase
-      .from('sommeil')
-      .insert(sommeil.map(s => ({
-        user_id: userId,
-        date: s.date,
-        score: cleanInt(s.score),
-        qualite: s.qualite,
-        duree_min: cleanInt(s.dureeMin),
-        fc_moy: cleanInt(s.fcMoy),
-        bb_nuit: cleanInt(s.bodyBatteryNuit),
-        body_battery: cleanInt(s.bodyBatteryMatin),
-        spo2: cleanInt(s.spo2),
-        resp: cleanNumber(s.resp),
-        coucher: s.coucher,
-        lever: s.lever,
-        data: s,
-        updated_at: new Date().toISOString()
-      })))
-    
-    if (error) throw error
-  }
+  if (!Array.isArray(sommeil)) return
+  const rows = sommeil.map(s => ({
+    user_id: userId,
+    date: s.date,
+    score: cleanInt(s.score),
+    qualite: s.qualite,
+    duree_min: cleanInt(s.dureeMin),
+    fc_moy: cleanInt(s.fcMoy),
+    bb_nuit: cleanInt(s.bodyBatteryNuit),
+    body_battery: cleanInt(s.bodyBatteryMatin),
+    spo2: cleanInt(s.spo2),
+    resp: cleanNumber(s.resp),
+    coucher: s.coucher,
+    lever: s.lever,
+    data: s,
+    updated_at: new Date().toISOString()
+  }))
+  await safeReplace('sommeil', userId, rows)
 }
 
 // ─── VFC ──────────────────────────────────────────────────────────────────────
@@ -362,24 +418,18 @@ export async function loadVFC(userId) {
 }
 
 export async function saveVFC(userId, vfcData) {
-  await supabase.from('vfc').delete().eq('user_id', userId)
-  
-  if (vfcData.length > 0) {
-    const { error } = await supabase
-      .from('vfc')
-      .insert(vfcData.map(v => ({
-        user_id: userId,
-        date: v.date,
-        vfc: cleanInt(v.vfc),
-        baseline: v.baseline,
-        charge_aigue: cleanInt(v.chargeAigue),
-        charge_chronique: cleanInt(v.chargeChronique),
-        data: v,
-        updated_at: new Date().toISOString()
-      })))
-    
-    if (error) throw error
-  }
+  if (!Array.isArray(vfcData)) return
+  const rows = vfcData.map(v => ({
+    user_id: userId,
+    date: v.date,
+    vfc: cleanInt(v.vfc),
+    baseline: v.baseline,
+    charge_aigue: cleanInt(v.chargeAigue),
+    charge_chronique: cleanInt(v.chargeChronique),
+    data: v,
+    updated_at: new Date().toISOString()
+  }))
+  await safeReplace('vfc', userId, rows)
 }
 
 // ─── POIDS ────────────────────────────────────────────────────────────────────
@@ -409,30 +459,24 @@ export async function loadPoids(userId) {
 }
 
 export async function savePoids(userId, poids) {
-  await supabase.from('poids').delete().eq('user_id', userId)
-  
-  if (poids.length > 0) {
-    const { error } = await supabase
-      .from('poids')
-      .insert(poids.map(p => ({
-        user_id: userId,
-        date: p.date,
-        poids: cleanNumber(p.poids),
-        taille: cleanInt(p.taille),
-        cou: cleanNumber(p.cou),
-        epaules: cleanNumber(p.epaules),
-        poitrine: cleanNumber(p.poitrine),
-        bras: cleanNumber(p.bras),
-        taille_cm: cleanNumber(p.taille_cm || p.tailleCm),
-        ventre: cleanNumber(p.ventre),
-        hanche: cleanNumber(p.hanche),
-        cuisse: cleanNumber(p.cuisse),
-        mollet: cleanNumber(p.mollet),
-        updated_at: new Date().toISOString()
-      })))
-    
-    if (error) throw error
-  }
+  if (!Array.isArray(poids)) return
+  const rows = poids.map(p => ({
+    user_id: userId,
+    date: p.date,
+    poids: cleanNumber(p.poids),
+    taille: cleanInt(p.taille),
+    cou: cleanNumber(p.cou),
+    epaules: cleanNumber(p.epaules),
+    poitrine: cleanNumber(p.poitrine),
+    bras: cleanNumber(p.bras),
+    taille_cm: cleanNumber(p.taille_cm || p.tailleCm),
+    ventre: cleanNumber(p.ventre),
+    hanche: cleanNumber(p.hanche),
+    cuisse: cleanNumber(p.cuisse),
+    mollet: cleanNumber(p.mollet),
+    updated_at: new Date().toISOString()
+  }))
+  await safeReplace('poids', userId, rows)
 }
 
 // ─── OBJECTIFS ────────────────────────────────────────────────────────────────
@@ -458,25 +502,19 @@ export async function loadObjectifs(userId) {
 }
 
 export async function saveObjectifs(userId, objectifs) {
-  await supabase.from('objectifs').delete().eq('user_id', userId)
-  
-  if (objectifs.length > 0) {
-    const { error } = await supabase
-      .from('objectifs')
-      .insert(objectifs.map(o => ({
-        user_id: userId,
-        date: o.date,
-        nom: o.nom,
-        distance: cleanNumber(o.distance),
-        dp: cleanNumber(o.dp),
-        type: o.type,
-        statut: o.statut,
-        data: o,
-        updated_at: new Date().toISOString()
-      })))
-    
-    if (error) throw error
-  }
+  if (!Array.isArray(objectifs)) return
+  const rows = objectifs.map(o => ({
+    user_id: userId,
+    date: o.date,
+    nom: o.nom,
+    distance: cleanNumber(o.distance),
+    dp: cleanNumber(o.dp),
+    type: o.type,
+    statut: o.statut,
+    data: o,
+    updated_at: new Date().toISOString()
+  }))
+  await safeReplace('objectifs', userId, rows)
 }
 
 // ─── NUTRITION ────────────────────────────────────────────────────────────────
