@@ -288,6 +288,62 @@ export function planPourZone({ besoin, bibliotheque, strategy, isDepart = false 
 // ─── ALGO GLOBAL (toutes les zones) ──────────────────────────────────────────
 
 /**
+ * Pré-traite les zones selon les stratégies de zones autonomes.
+ *
+ * Pour chaque zone autonome (dont le ravito d'entrée a une stratégie définie) :
+ * - "orga" : besoin de la zone = 0 (couvert par l'organisation)
+ * - "porter" + repartition="avant" : 100% du besoin transféré sur la zone précédente
+ * - "porter" + repartition="split" : 50% sur précédente, 50% sur suivante (s'il y a une suivante)
+ * - "mix" : 50% sur précédente, 50% effacé (orga)
+ *
+ * Retourne une copie modifiée des zones avec les `besoin` ajustés.
+ */
+function appliquerStrategiesAutonomes(zones, strategy) {
+  // Clone pour ne pas muter les zones d'origine
+  const adjusted = zones.map(z => ({ ...z, besoin: { ...z.besoin } }));
+  
+  const addBesoin = (target, source, ratio = 1) => {
+    Object.keys(source).forEach(k => {
+      target[k] = (target[k] || 0) + (source[k] || 0) * ratio;
+    });
+  };
+  
+  // On parcourt en partant de la fin pour éviter les transferts en cascade
+  for (let i = adjusted.length - 1; i >= 1; i--) {
+    const zone = adjusted[i];
+    const config = strategy?.ravitos?.[zone.pointKey];
+    if (!config?.strategieAutonome) continue;
+    
+    const strat = config.strategieAutonome;
+    const repartition = config.repartitionPorter || "avant"; // défaut : tout avant
+    const besoinZone = { ...zone.besoin };
+    
+    if (strat === "orga") {
+      // Zone couverte par l'organisation : on efface tout
+      Object.keys(zone.besoin).forEach(k => { zone.besoin[k] = 0; });
+    } else if (strat === "porter") {
+      // Tout transféré sur la zone précédente (i-1)
+      if (repartition === "split" && i + 1 < adjusted.length) {
+        // 50/50 entre précédente et suivante
+        addBesoin(adjusted[i - 1].besoin, besoinZone, 0.5);
+        addBesoin(adjusted[i + 1].besoin, besoinZone, 0.5);
+      } else {
+        // 100% sur la précédente
+        addBesoin(adjusted[i - 1].besoin, besoinZone, 1);
+      }
+      // Zone vidée (le coureur la traverse en autonomie depuis avant)
+      Object.keys(zone.besoin).forEach(k => { zone.besoin[k] = 0; });
+    } else if (strat === "mix") {
+      // 50% transféré sur la précédente, 50% effacé (couvert orga)
+      addBesoin(adjusted[i - 1].besoin, besoinZone, 0.5);
+      Object.keys(zone.besoin).forEach(k => { zone.besoin[k] = 0; });
+    }
+  }
+  
+  return adjusted;
+}
+
+/**
  * Calcule un plan complet pour toutes les zones d'une course.
  *
  * @param {Object} params
@@ -299,8 +355,17 @@ export function planPourZone({ besoin, bibliotheque, strategy, isDepart = false 
 export function calculerPlanComplet({ zones, bibliotheque, strategy }) {
   const plan = {};
   
-  zones.forEach((zone, i) => {
+  // Phase 4c : ajuste les besoins des zones selon les stratégies de zones autonomes
+  const zonesAjustees = appliquerStrategiesAutonomes(zones, strategy);
+  
+  zonesAjustees.forEach((zone, i) => {
     const isDepart = i === 0;
+    // Si la zone a été vidée (orga), on retourne un plan vide
+    const totalBesoin = (zone.besoin.kcal || 0) + (zone.besoin.eau || 0) + (zone.besoin.glucides || 0);
+    if (totalBesoin <= 0) {
+      plan[zone.pointKey] = [];
+      return;
+    }
     plan[zone.pointKey] = planPourZone({
       besoin: zone.besoin,
       bibliotheque,
@@ -317,9 +382,15 @@ export function calculerPlanComplet({ zones, bibliotheque, strategy }) {
 /**
  * Retourne pour chaque zone les écarts entre cible et planifié.
  * Utile pour la preview (Phase 5).
+ *
+ * Si `strategy` est fourni, applique les stratégies de zones autonomes
+ * (les besoins ajustés sont utilisés pour calculer la couverture).
  */
-export function evaluerPlan({ zones, plan, bibliotheque }) {
-  return zones.map(zone => {
+export function evaluerPlan({ zones, plan, bibliotheque, strategy }) {
+  // Si strategy fourni, on évalue par rapport aux besoins ajustés
+  const zonesEval = strategy ? appliquerStrategiesAutonomes(zones, strategy) : zones;
+  
+  return zonesEval.map(zone => {
     const items = plan[zone.pointKey] || [];
     const totaux = items.reduce((acc, { id, quantite }) => {
       const item = bibliotheque.find(b => b.id === id);

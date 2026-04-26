@@ -782,8 +782,8 @@ export default function NutritionView({
         >
           {autoCompletePreview && (() => {
             // ── ÉVALUATION GLOBALE ──
-            const evals = evaluerPlan({ zones, plan: autoCompletePreview, bibliotheque: allBibItems });
             const strategy = getNutritionStrategy(race);
+            const evals = evaluerPlan({ zones, plan: autoCompletePreview, bibliotheque: allBibItems, strategy });
             
             // Totaux (somme de toutes les zones)
             const totaux = evals.reduce((acc, e) => ({
@@ -968,6 +968,41 @@ export default function NutritionView({
           const ravitoProds = zi === 0 ? produitsDepartLocal : (ravitos[zi - 1]?.produits || []);
           const isAutonome = zi > 0 && ravitos[zi - 1]?.assistancePresente === false;
           
+          // Stratégie zone autonome (Phase 4c)
+          const ravitoConfig = isAutonome ? (race?.nutritionStrategy?.ravitos?.[z.pointKey] || {}) : null;
+          const stratAutonome = ravitoConfig?.strategieAutonome || "porter";
+          const repartitionPorter = ravitoConfig?.repartitionPorter || "avant";
+          const setStratAutonome = (newStrat) => {
+            setRace(r => {
+              const cur = r.nutritionStrategy || {};
+              return {
+                ...r,
+                nutritionStrategy: {
+                  ...cur,
+                  ravitos: {
+                    ...(cur.ravitos || {}),
+                    [z.pointKey]: { ...(cur.ravitos?.[z.pointKey] || {}), strategieAutonome: newStrat }
+                  }
+                }
+              };
+            });
+          };
+          const setRepartitionPorter = (newRep) => {
+            setRace(r => {
+              const cur = r.nutritionStrategy || {};
+              return {
+                ...r,
+                nutritionStrategy: {
+                  ...cur,
+                  ravitos: {
+                    ...(cur.ravitos || {}),
+                    [z.pointKey]: { ...(cur.ravitos?.[z.pointKey] || {}), repartitionPorter: newRep }
+                  }
+                }
+              };
+            });
+          };
+          
           // Calcul plan zone
           const planZone = ravitoProds.reduce((acc, {id, quantite}) => {
             const item = allBibItems.find(x => x.id === id);
@@ -981,15 +1016,14 @@ export default function NutritionView({
           }, {kcal: 0, glucides: 0, eau: 0});
           
           return (
-            <div key={zi} style={{...card,padding:16,marginBottom:12,opacity:isAutonome?0.7:1}}>
+            <div key={zi} style={{...card,padding:16,marginBottom:12,opacity:isAutonome?0.85:1}}>
               <div style={{marginBottom:12}}>
                 <div style={{fontSize:15,fontWeight:600,color:C.inkLight,marginBottom:4}}>
                   {zi === 0 ? "🏁" : "📍"} {z.label} — {z.toLbl} · {z.dist.toFixed(1)} km
-                  {isAutonome && <span style={{fontSize:11,fontWeight:500,color:C.muted,marginLeft:8,padding:"2px 8px",background:C.stone,borderRadius:6}}>⚠️ Autonome</span>}
+                  {isAutonome && <span style={{fontSize:11,fontWeight:500,color:C.muted,marginLeft:8,padding:"2px 8px",background:C.stone,borderRadius:6}}>Zone autonome</span>}
                 </div>
                 <div style={{fontSize:11,color:C.muted,marginBottom:2}}>
                   <strong>Besoin :</strong> {z.besoin.kcal} kcal · {z.besoin.glucides}g glucides · {(z.besoin.eau/1000).toFixed(1)}L eau
-                  {isAutonome && <span style={{marginLeft:8,fontStyle:"italic"}}>· Tout transporter</span>}
                 </div>
                 <div style={{fontSize:11,color:C.inkLight}}>
                   <strong>Plan :</strong> {Math.round(planZone.kcal)} kcal 
@@ -1008,8 +1042,54 @@ export default function NutritionView({
               </div>
 
               {isAutonome ? (
-                <div style={{padding:"12px 16px",background:C.stone,borderRadius:8,fontSize:12,color:C.muted,fontStyle:"italic",textAlign:"center"}}>
-                  Ravito autonome — Nutrition à transporter depuis le départ ou ravito précédent
+                <div style={{padding:"12px 14px",background:C.stone,borderRadius:8,border:`1px solid ${C.border}`}}>
+                  <div style={{fontSize:11,fontWeight:600,color:C.muted,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:8}}>
+                    Comment gérer cette zone ?
+                  </div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:stratAutonome==="porter"?10:0}}>
+                    {[
+                      {key:"porter",label:"🎒 Porter",desc:"Tout est ajouté au ravito précédent"},
+                      {key:"orga",label:"🏁 Orga",desc:"Couvert par l'organisation"},
+                      {key:"mix",label:"🤝 Mix 50/50",desc:"Moitié porté, moitié orga"}
+                    ].map(s => {
+                      const active = stratAutonome === s.key;
+                      return (
+                        <button key={s.key} onClick={()=>setStratAutonome(s.key)} title={s.desc}
+                          style={{
+                            padding:"6px 12px",fontSize:11,borderRadius:6,
+                            border:`1px solid ${active?C.forest:C.border}`,
+                            background:active?C.forestPale:C.white,
+                            color:active?C.forest:C.muted,
+                            cursor:"pointer",fontWeight:active?600:400,fontFamily:"inherit"
+                          }}>
+                          {s.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {stratAutonome === "porter" && (
+                    <div style={{display:"flex",gap:6,alignItems:"center",fontSize:11,color:C.muted}}>
+                      <span>Réparti :</span>
+                      {[
+                        {key:"avant",label:"Tout sur le précédent"},
+                        {key:"split",label:"50/50 avant/après"}
+                      ].map(r => {
+                        const active = repartitionPorter === r.key;
+                        return (
+                          <button key={r.key} onClick={()=>setRepartitionPorter(r.key)}
+                            style={{
+                              padding:"3px 9px",fontSize:10,borderRadius:5,
+                              border:`1px solid ${active?C.forest:C.border}`,
+                              background:active?C.forestPale:C.white,
+                              color:active?C.forest:C.muted,
+                              cursor:"pointer",fontWeight:active?600:400,fontFamily:"inherit"
+                            }}>
+                            {r.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               ) : (
                 allBibItems.map(item => {
