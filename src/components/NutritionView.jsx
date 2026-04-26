@@ -404,11 +404,15 @@ export default function NutritionView({
     }
     
     const strategy = getNutritionStrategy(race);
+    console.log('[DEBUG handleAutoComplete] race.nutritionStrategy brute:', race?.nutritionStrategy);
+    console.log('[DEBUG handleAutoComplete] strategy retournée par getNutritionStrategy:', strategy);
+    console.log('[DEBUG handleAutoComplete] zones:', zones.map(z => ({ pointKey: z.pointKey, label: z.label, besoin: z.besoin })));
     const newPlan = calculerPlanComplet({
       zones,
       bibliotheque: allBibItems,
       strategy
     });
+    console.log('[DEBUG handleAutoComplete] plan retourné:', newPlan);
     
     setAutoCompletePreview(newPlan);
   };

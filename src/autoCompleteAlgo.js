@@ -302,6 +302,9 @@ function appliquerStrategiesAutonomes(zones, strategy) {
   // Clone pour ne pas muter les zones d'origine
   const adjusted = zones.map(z => ({ ...z, besoin: { ...z.besoin } }));
   
+  console.log('[DEBUG appliquerStrategiesAutonomes] zones reçues:', zones.map(z => ({ pointKey: z.pointKey, label: z.label, besoin: z.besoin })));
+  console.log('[DEBUG appliquerStrategiesAutonomes] strategy.ravitos:', strategy?.ravitos);
+  
   const addBesoin = (target, source, ratio = 1) => {
     Object.keys(source).forEach(k => {
       target[k] = (target[k] || 0) + (source[k] || 0) * ratio;
@@ -312,6 +315,7 @@ function appliquerStrategiesAutonomes(zones, strategy) {
   for (let i = adjusted.length - 1; i >= 1; i--) {
     const zone = adjusted[i];
     const config = strategy?.ravitos?.[zone.pointKey];
+    console.log(`[DEBUG] zone i=${i} pointKey="${zone.pointKey}" config=`, config);
     if (!config?.strategieAutonome) continue;
     
     const strat = config.strategieAutonome;
@@ -340,6 +344,7 @@ function appliquerStrategiesAutonomes(zones, strategy) {
     }
   }
   
+  console.log('[DEBUG appliquerStrategiesAutonomes] zones AJUSTÉES:', adjusted.map(z => ({ pointKey: z.pointKey, label: z.label, besoin: z.besoin })));
   return adjusted;
 }
 
