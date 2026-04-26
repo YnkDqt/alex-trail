@@ -962,11 +962,48 @@ export default function NutritionView({
           })()}
         </Modal>
 
+        {/* Calcul des besoins reportés depuis zones autonomes vers zones non-autonomes */}
+        {(() => null)()}
         {zones.map((z, zi) => {
           // Zone départ = state local, autres = ravitos normaux
           const ravitoId = zi === 0 ? 'depart-local' : ravitos[zi - 1]?.id;
           const ravitoProds = zi === 0 ? produitsDepartLocal : (ravitos[zi - 1]?.produits || []);
           const isAutonome = zi > 0 && ravitos[zi - 1]?.assistancePresente === false;
+          
+          // Besoin reporté : pour les zones non-autonomes, somme les besoins
+          // venant des zones autonomes suivantes (selon leur stratégie)
+          const reporteIci = (() => {
+            if (isAutonome) return null;
+            const acc = { kcal: 0, glucides: 0, eau: 0 };
+            // Cherche zone autonome juste après (zi+1) — porter ou mix
+            const nextZone = zones[zi + 1];
+            const nextIsAutonome = nextZone && ravitos[zi]?.assistancePresente === false;
+            if (nextIsAutonome) {
+              const cfg = race?.nutritionStrategy?.ravitos?.[nextZone.pointKey] || {};
+              const strat = cfg.strategieAutonome || "porter";
+              const rep = cfg.repartitionPorter || "avant";
+              let ratio = 0;
+              if (strat === "porter") ratio = rep === "split" ? 0.5 : 1;
+              else if (strat === "mix") ratio = 0.5;
+              if (ratio > 0) {
+                acc.kcal += Math.round(nextZone.besoin.kcal * ratio);
+                acc.glucides += Math.round(nextZone.besoin.glucides * ratio);
+                acc.eau += Math.round(nextZone.besoin.eau * ratio);
+              }
+            }
+            // Cherche zone autonome juste avant (zi-1) avec porter+split → 50% sur la suivante
+            const prevZone = zones[zi - 1];
+            const prevIsAutonome = prevZone && zi >= 2 && ravitos[zi - 2]?.assistancePresente === false;
+            if (prevIsAutonome) {
+              const cfg = race?.nutritionStrategy?.ravitos?.[prevZone.pointKey] || {};
+              if (cfg.strategieAutonome === "porter" && cfg.repartitionPorter === "split") {
+                acc.kcal += Math.round(prevZone.besoin.kcal * 0.5);
+                acc.glucides += Math.round(prevZone.besoin.glucides * 0.5);
+                acc.eau += Math.round(prevZone.besoin.eau * 0.5);
+              }
+            }
+            return (acc.kcal + acc.glucides + acc.eau) > 0 ? acc : null;
+          })();
           
           // Stratégie zone autonome (Phase 4c)
           const ravitoConfig = isAutonome ? (race?.nutritionStrategy?.ravitos?.[z.pointKey] || {}) : null;
@@ -1025,20 +1062,35 @@ export default function NutritionView({
                 <div style={{fontSize:11,color:C.muted,marginBottom:2}}>
                   <strong>Besoin :</strong> {z.besoin.kcal} kcal · {z.besoin.glucides}g glucides · {(z.besoin.eau/1000).toFixed(1)}L eau
                 </div>
-                <div style={{fontSize:11,color:C.inkLight}}>
-                  <strong>Plan :</strong> {Math.round(planZone.kcal)} kcal 
-                  <span style={{color:planZone.kcal>=z.besoin.kcal*0.9&&planZone.kcal<=z.besoin.kcal*1.3?C.green:C.yellow,fontWeight:600,marginLeft:4}}>
-                    ({z.besoin.kcal>0?Math.round(planZone.kcal/z.besoin.kcal*100):0}%)
-                  </span> · 
-                  {Math.round(planZone.glucides)}g glucides
-                  <span style={{color:planZone.glucides>=z.besoin.glucides*0.9&&planZone.glucides<=z.besoin.glucides*1.3?C.green:C.yellow,fontWeight:600,marginLeft:4}}>
-                    ({z.besoin.glucides>0?Math.round(planZone.glucides/z.besoin.glucides*100):0}%)
-                  </span> · 
-                  {(planZone.eau/1000).toFixed(1)}L eau
-                  <span style={{color:planZone.eau>=z.besoin.eau*0.8?C.green:C.yellow,fontWeight:600,marginLeft:4}}>
-                    ({z.besoin.eau>0?Math.round(planZone.eau/z.besoin.eau*100):0}%)
-                  </span>
-                </div>
+                {reporteIci && (
+                  <div style={{fontSize:11,color:C.primary,marginBottom:2}}>
+                    <strong>+ À porter :</strong> {reporteIci.kcal} kcal · {reporteIci.glucides}g glucides · {(reporteIci.eau/1000).toFixed(1)}L eau
+                    <span style={{color:C.muted,fontStyle:"italic",marginLeft:6}}>(zone autonome adjacente)</span>
+                  </div>
+                )}
+                {(() => {
+                  const besoinTotal = reporteIci ? {
+                    kcal: z.besoin.kcal + reporteIci.kcal,
+                    glucides: z.besoin.glucides + reporteIci.glucides,
+                    eau: z.besoin.eau + reporteIci.eau
+                  } : z.besoin;
+                  return (
+                    <div style={{fontSize:11,color:C.inkLight}}>
+                      <strong>Plan :</strong> {Math.round(planZone.kcal)} kcal 
+                      <span style={{color:planZone.kcal>=besoinTotal.kcal*0.9&&planZone.kcal<=besoinTotal.kcal*1.3?C.green:C.yellow,fontWeight:600,marginLeft:4}}>
+                        ({besoinTotal.kcal>0?Math.round(planZone.kcal/besoinTotal.kcal*100):0}%)
+                      </span> · 
+                      {Math.round(planZone.glucides)}g glucides
+                      <span style={{color:planZone.glucides>=besoinTotal.glucides*0.9&&planZone.glucides<=besoinTotal.glucides*1.3?C.green:C.yellow,fontWeight:600,marginLeft:4}}>
+                        ({besoinTotal.glucides>0?Math.round(planZone.glucides/besoinTotal.glucides*100):0}%)
+                      </span> · 
+                      {(planZone.eau/1000).toFixed(1)}L eau
+                      <span style={{color:planZone.eau>=besoinTotal.eau*0.8?C.green:C.yellow,fontWeight:600,marginLeft:4}}>
+                        ({besoinTotal.eau>0?Math.round(planZone.eau/besoinTotal.eau*100):0}%)
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               {isAutonome ? (
