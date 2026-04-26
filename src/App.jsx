@@ -552,6 +552,16 @@ function AppLayout({
 
   const isDark = settings?.darkMode || false;
 
+  // Settings effectifs : cascade course → profil → settings legacy
+  // Permet aux composants de lire kcalSource/kcalPerKm/glucidesTargetGh sans connaître la source
+  const effSettings = {
+    ...settings,
+    kcalSource: profil?.kcalSource ?? settings.kcalSource,
+    kcalPerKm: profil?.kcalPerKm ?? settings.kcalPerKm,
+    kcalPerKmUphill: profil?.kcalPerKmUphill ?? settings.kcalPerKmUphill,
+    glucidesTargetGh: race?.nutritionStrategy?.glucidesTargetGh ?? profil?.glucidesTargetGh ?? settings.glucidesTargetGh
+  };
+
   // Navigation unifiée avec filtrage selon profilType
   const NAV_GROUPS = [
     { label: null, color: null, items: [
@@ -812,12 +822,12 @@ function AppLayout({
             </div>
           )}
           {/* Vues Course */}
-          {view==="profil_course"&&<div style={{padding:"24px 32px"}}><ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profilDetail={features.profilDetail} profil={profil}/></div>}
-          {view==="strategie"&&<div style={{padding:"24px 32px"}}><StrategieView race={race} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profil={profil}/></div>}
-          {view==="nutrition_course"&&<div style={{padding:"24px 32px"}}><NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} isMobile={isMobile} onNavigate={setView} profil={profil} poids={poids} recettes={recettes} produits={produits}/></div>}
+          {view==="profil_course"&&<div style={{padding:"24px 32px"}}><ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={effSettings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profilDetail={features.profilDetail} profil={profil}/></div>}
+          {view==="strategie"&&<div style={{padding:"24px 32px"}}><StrategieView race={race} segments={segments} setSegments={setSegments} settings={effSettings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profil={profil}/></div>}
+          {view==="nutrition_course"&&<div style={{padding:"24px 32px"}}><NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} isMobile={isMobile} onNavigate={setView} profil={profil} poids={poids} recettes={recettes} setRecettes={setRecettes} produits={produits} setProduits={setProduits}/></div>}
           {view==="equipement"&&<div style={{padding:"24px 32px"}}><EquipementView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} isMobile={isMobile}/></div>}
-          {view==="analyse"&&<div style={{padding:"24px 32px"}}><AnalyseView race={race} segments={segments} settings={settings} isMobile={isMobile} onNavigate={setView}/></div>}
-          {view==="team"&&<div style={{padding:"24px 32px"}}><TeamView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={settings} setSettings={setSettings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} isMobile={isMobile} onLoadStrategy={data=>{
+          {view==="analyse"&&<div style={{padding:"24px 32px"}}><AnalyseView race={race} segments={segments} settings={effSettings} isMobile={isMobile} onNavigate={setView}/></div>}
+          {view==="team"&&<div style={{padding:"24px 32px"}}><TeamView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={effSettings} setSettings={setSettings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} isMobile={isMobile} onLoadStrategy={data=>{
             if(data.race)setRace(data.race);
             if(data.segments)setSegments(data.segments);
             if(data.settings)setSettings({...EMPTY_SETTINGS,...data.settings});
@@ -1362,15 +1372,46 @@ export default function App() {
     if (user?.id) {
       loadCurrentRace(user.id).then(d=>{
         if(d?.race && Object.keys(d.race).length > 0) {
-          // Init bibliotheque si absente
-          const raceWithBib = {
-            ...d.race,
-            bibliotheque: d.race.bibliotheque || { produits: [], recettes: [] }
-          };
-          setRaceRaw(raceWithBib);
+          // MIGRATION : fusionner ancienne race.bibliotheque dans produits/recettes globaux
+          const oldBib = d.race.bibliotheque;
+          if (oldBib && (oldBib.produits?.length || oldBib.recettes?.length)) {
+            setProduits(prev => {
+              const existingIds = new Set(prev.map(p => p.id));
+              const toAdd = (oldBib.produits || []).filter(p => p.source !== 'default' && !existingIds.has(p.id));
+              if (toAdd.length === 0) return prev;
+              return [...prev, ...toAdd.map(p => ({ ...p, type: p.type || 'produit' }))];
+            });
+            setRecettes(prev => {
+              const existingIds = new Set(prev.map(r => r.id));
+              const toAdd = (oldBib.recettes || []).filter(r => !existingIds.has(r.id));
+              if (toAdd.length === 0) return prev;
+              return [...prev, ...toAdd.map(r => ({ ...r, type: r.type || 'recette' }))];
+            });
+          }
+          // On retire bibliotheque de race au runtime (la source de vérité = nutrition_data)
+          const { bibliotheque, ...raceClean } = d.race;
+          setRaceRaw(raceClean);
         }
         if(d?.segments && d.segments.length > 0) setSegmentsRaw(d.segments);
-        if(d?.settings && Object.keys(d.settings).length > 0) setSettingsRaw({...EMPTY_SETTINGS,...d.settings});
+        if(d?.settings && Object.keys(d.settings).length > 0) {
+          // MIGRATION : déplacer settings nutrition profil vers athlete_profile si pas déjà là
+          const s = d.settings;
+          const nutritionFields = ['kcalSource', 'kcalPerKm', 'kcalPerKmUphill', 'glucidesTargetGh'];
+          setProfil(prev => {
+            const updates = {};
+            nutritionFields.forEach(k => {
+              if (prev?.[k] == null && s[k] != null) updates[k] = s[k];
+            });
+            if (Object.keys(updates).length === 0) return prev;
+            const merged = { ...prev, ...updates };
+            // Persister la migration côté Supabase
+            saveAthleteProfile(user.id, merged).catch(err => console.error('Erreur migration profil:', err));
+            return merged;
+          });
+          // Nettoie ces champs de settings (ils vivent maintenant dans profil)
+          const { kcalSource, kcalPerKm, kcalPerKmUphill, glucidesTargetGh, ...settingsClean } = s;
+          setSettingsRaw({...EMPTY_SETTINGS, ...settingsClean});
+        }
       }).catch(err => console.error('Erreur load current race:', err));
       
       loadCourses(user.id).then(list=>setCourses(list.sort((a,b)=>b.savedAt-a.savedAt)))

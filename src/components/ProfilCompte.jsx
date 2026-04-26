@@ -497,11 +497,11 @@ export default function ProfilCompte({ profil = {}, setProfil, settings = {}, se
           const w = settings.weight || p.poids || 70;
           const minettiFlatKcal = Math.round(3.6 * w * 1000 / 4184);
           const gs = settings.garminStats;
-          const src = settings.kcalSource || "minetti";
+          const src = p.kcalSource || "minetti";
           const SourceCard = ({ id, label, sub, flatVal, unavailable }) => {
             const active = src === id;
             return (
-              <div onClick={() => !unavailable && updS("kcalSource", id)} style={{
+              <div onClick={() => !unavailable && set("kcalSource", id)} style={{
                 flex: 1, minWidth: 0, borderRadius: 9, padding: "9px 10px",
                 cursor: unavailable ? "default" : "pointer",
                 border: `2px solid ${active ? C.forest : C.border}`,
@@ -527,22 +527,22 @@ export default function ProfilCompte({ profil = {}, setProfil, settings = {}, se
               <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                 <SourceCard id="minetti" label="Minetti" sub="Formule scientifique" flatVal={minettiFlatKcal} />
                 <SourceCard id="garmin" label="Garmin perso" sub={gs?.kcalActivityCount ? `${gs.kcalActivityCount} sorties` : "Import requis"} flatVal={gs?.kcalPerKmFlat} unavailable={!gs?.kcalPerKmFlat} />
-                <SourceCard id="manual" label="Manuel" sub="Personnalisé" flatVal={settings.kcalPerKm} />
+                <SourceCard id="manual" label="Manuel" sub="Personnalisé" flatVal={p.kcalPerKm} />
               </div>
               {src === "manual" && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "9px 10px", background: C.stone, borderRadius: 8, border: `1px solid ${C.border}`, marginBottom: 8 }}>
                   <div>
                     <div style={{ fontSize: 10, color: C.muted, marginBottom: 3 }}>Plat (kcal/km)</div>
-                    <input type="number" min={40} max={150} value={settings.kcalPerKm || ""}
-                      onChange={e => updS("kcalPerKm", e.target.value === "" ? "" : +e.target.value)}
-                      onBlur={e => updS("kcalPerKm", Math.max(40, Math.min(150, +e.target.value || 65)))}
+                    <input type="number" min={40} max={150} value={p.kcalPerKm || ""}
+                      onChange={e => set("kcalPerKm", e.target.value === "" ? "" : +e.target.value)}
+                      onBlur={e => set("kcalPerKm", Math.max(40, Math.min(150, +e.target.value || 65)))}
                       style={{ width: "100%" }} />
                   </div>
                   <div>
                     <div style={{ fontSize: 10, color: C.muted, marginBottom: 3 }}>Montée ≥5% (kcal/km)</div>
-                    <input type="number" min={40} max={200} value={settings.kcalPerKmUphill || ""}
-                      onChange={e => updS("kcalPerKmUphill", e.target.value === "" ? "" : +e.target.value)}
-                      onBlur={e => updS("kcalPerKmUphill", Math.max(40, Math.min(200, +e.target.value || 90)))}
+                    <input type="number" min={40} max={200} value={p.kcalPerKmUphill || ""}
+                      onChange={e => set("kcalPerKmUphill", e.target.value === "" ? "" : +e.target.value)}
+                      onBlur={e => set("kcalPerKmUphill", Math.max(40, Math.min(200, +e.target.value || 90)))}
                       style={{ width: "100%" }} />
                   </div>
                 </div>
@@ -556,19 +556,19 @@ export default function ProfilCompte({ profil = {}, setProfil, settings = {}, se
           <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>Capacité intestinale (glucides g/h)</div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: C.stone, borderRadius: 8, border: `1px solid ${C.border}` }}>
             <input type="number" min={20} max={150} placeholder="Auto"
-              value={settings.glucidesTargetGh ?? ""}
-              onChange={e => updS("glucidesTargetGh", e.target.value === "" ? null : +e.target.value)}
-              onBlur={e => { if (e.target.value !== "") updS("glucidesTargetGh", Math.max(20, Math.min(150, +e.target.value))); }}
+              value={p.glucidesTargetGh ?? ""}
+              onChange={e => set("glucidesTargetGh", e.target.value === "" ? null : +e.target.value)}
+              onBlur={e => { if (e.target.value !== "") set("glucidesTargetGh", Math.max(20, Math.min(150, +e.target.value))); }}
               style={{ width: 80 }} />
             <span style={{ fontSize: 11, color: C.muted }}>
-              {settings.glucidesTargetGh == null
+              {p.glucidesTargetGh == null
                 ? "Auto (55% des kcal)"
-                : settings.glucidesTargetGh <= 60 ? "Débutant"
-                : settings.glucidesTargetGh <= 90 ? "Entraîné"
+                : p.glucidesTargetGh <= 60 ? "Débutant"
+                : p.glucidesTargetGh <= 90 ? "Entraîné"
                 : "Gut training avancé"}
             </span>
-            {settings.glucidesTargetGh != null && (
-              <button onClick={() => updS("glucidesTargetGh", null)}
+            {p.glucidesTargetGh != null && (
+              <button onClick={() => set("glucidesTargetGh", null)}
                 style={{ fontSize: 10, padding: "3px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: C.white, color: C.muted, cursor: "pointer", marginLeft: "auto" }}>
                 Auto
               </button>

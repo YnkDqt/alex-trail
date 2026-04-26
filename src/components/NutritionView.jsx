@@ -23,44 +23,34 @@ export default function NutritionView({
   profil, 
   poids, 
   recettes = [],
+  setRecettes,
   produits = [],
+  setProduits,
   settings
 }) {
-  // Bibliothèque course
+  // Bibliothèque globale (produits + recettes), partagée avec Gut Training
+  // Garantit la présence de "Eau" comme produit par défaut
   const bibliotheque = useMemo(() => {
-    const bib = race.bibliotheque;
-    if (!bib || Array.isArray(bib)) {
-      // Init bibliothèque avec Eau par défaut
+    const hasEau = produits.some(p => (p.nom || "").toLowerCase() === "eau" || p.source === "default");
+    if (!hasEau) {
       const eauDefaut = {
-        id: "eau-default-" + Date.now(),
+        id: "eau-default",
         nom: "Eau",
         kcal: 0, glucides: 0, proteines: 0, lipides: 0,
         sodium: 0, potassium: 0, magnesium: 0, zinc: 0, calcium: 0,
         categorie: "Boisson", source: "default", notes: "Eau pure",
-        boisson: true
+        boisson: true, aEmporter: true
       };
-      return { produits: [eauDefaut], recettes: [] };
+      return { produits: [eauDefaut, ...produits], recettes };
     }
-    
-    // Si bibliothèque existe mais pas d'eau, l'ajouter
-    const produits = bib.produits || [];
-    const hasEau = produits.some(p => p.nom.toLowerCase() === "eau" || p.source === "default");
-    if (!hasEau && produits.length > 0) {
-      const eauDefaut = {
-        id: "eau-default-" + Date.now(),
-        nom: "Eau",
-        kcal: 0, glucides: 0, proteines: 0, lipides: 0,
-        sodium: 0, potassium: 0, magnesium: 0, zinc: 0, calcium: 0,
-        categorie: "Boisson", source: "default", notes: "Eau pure",
-        boisson: true
-      };
-      return { produits: [eauDefaut, ...produits], recettes: bib.recettes || [] };
-    }
-    
-    return { produits, recettes: bib.recettes || [] };
-  }, [race.bibliotheque]);
+    return { produits, recettes };
+  }, [produits, recettes]);
   
-  const updBibliotheque = (newBib) => setRace(r => ({ ...r, bibliotheque: newBib }));
+  // Adapter à la nouvelle structure : on modifie produits/recettes globaux directement
+  const updBibliotheque = (newBib) => {
+    if (setProduits) setProduits(newBib.produits.filter(p => p.source !== "default"));
+    if (setRecettes) setRecettes(newBib.recettes);
+  };
 
   const userWeight = profil?.poids || [...(poids || [])].sort((a,b) => new Date(b.date) - new Date(a.date))[0]?.poids || 70;
 
@@ -108,15 +98,18 @@ export default function NutritionView({
 
   // updP, updR, removeIngredient, updateIngredientQte sont gérés par ProduitForm/RecetteForm
 
-  // ── Settings effectifs : applique l'override glucides/h de la stratégie course ──
-  // Si la course a un override dans race.nutritionStrategy.glucidesTargetGh, on l'applique.
-  // Sinon, on utilise la valeur profil coureur (settings.glucidesTargetGh).
+  // ── Settings effectifs : cascade course → profil pour les 4 champs nutrition ──
+  // Hiérarchie : race.nutritionStrategy override > profil coureur > defaults
   const effectiveSettings = useMemo(() => {
     const override = race?.nutritionStrategy?.glucidesTargetGh;
-    return override != null
-      ? { ...settings, glucidesTargetGh: override }
-      : settings;
-  }, [settings, race?.nutritionStrategy?.glucidesTargetGh]);
+    return {
+      ...settings,
+      kcalSource: profil?.kcalSource || settings.kcalSource,
+      kcalPerKm: profil?.kcalPerKm ?? settings.kcalPerKm,
+      kcalPerKmUphill: profil?.kcalPerKmUphill ?? settings.kcalPerKmUphill,
+      glucidesTargetGh: override != null ? override : (profil?.glucidesTargetGh ?? settings.glucidesTargetGh)
+    };
+  }, [settings, profil, race?.nutritionStrategy?.glucidesTargetGh]);
 
   // ── CALCULS ESTIMÉS ──
   const nutriEstimes = useMemo(() => {

@@ -94,7 +94,12 @@ export async function loadAthleteProfile(userId) {
       fcRepos: data.fc_repos,
       zonesFC: data.zones_fc,
       allureZ2: data.allure_z2,
-      allureZ3: data.allure_z3
+      allureZ3: data.allure_z3,
+      // Nutrition profil (par défaut, surchargeable par course)
+      kcalSource: data.kcal_source,
+      kcalPerKm: data.kcal_per_km,
+      kcalPerKmUphill: data.kcal_per_km_uphill,
+      glucidesTargetGh: data.glucides_target_gh
     }
   }
   
@@ -117,6 +122,10 @@ export async function saveAthleteProfile(userId, profil) {
       zones_fc: profil.zonesFC || null,
       allure_z2: cleanNumber(profil.allureZ2),
       allure_z3: cleanNumber(profil.allureZ3),
+      kcal_source: profil.kcalSource || null,
+      kcal_per_km: cleanNumber(profil.kcalPerKm),
+      kcal_per_km_uphill: cleanNumber(profil.kcalPerKmUphill),
+      glucides_target_gh: cleanNumber(profil.glucidesTargetGh),
       updated_at: new Date().toISOString()
     }, { 
       onConflict: 'user_id'
