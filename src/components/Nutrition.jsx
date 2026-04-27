@@ -576,7 +576,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
             }
 
             return (
-              <div style={{display:"grid",gap:8}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(420px,1fr))",gap:10}}>
                 {items.map(it => {
                   const isProduit = it._itemType === "produit";
                   const type = isProduit ? (it.type || inferType(it)) : (it.type || "");
@@ -586,54 +586,53 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
                   const needsType = isProduit && !it.type;
                   
                   return (
-                    <div key={it.id} style={{...card, padding:14, display:"flex", gap:12, alignItems:"center"}}>
-                      {/* Badge type */}
-                      <div style={{
-                        minWidth:80, padding:"4px 10px", borderRadius:6, fontSize:11, fontWeight:500,
-                        textAlign:"center",
-                        background: isProduit ? C.forestPale : C.primaryPale,
-                        color: isProduit ? C.forest : C.primary
-                      }}>
-                        {isProduit ? "Produit" : "Recette"}
+                    <div key={it.id} style={{...card, padding:12, display:"flex", flexDirection:"column", gap:8}}>
+                      {/* Ligne 1 : badge + nom + actions */}
+                      <div style={{display:"flex", gap:10, alignItems:"flex-start"}}>
+                        <div style={{
+                          minWidth:70, padding:"3px 8px", borderRadius:6, fontSize:10, fontWeight:500,
+                          textAlign:"center",
+                          background: isProduit ? C.forestPale : C.primaryPale,
+                          color: isProduit ? C.forest : C.primary,
+                          flexShrink:0
+                        }}>
+                          {isProduit ? "Produit" : "Recette"}
+                        </div>
+                        <div style={{flex:1, minWidth:0}}>
+                          <div style={{fontSize:14,fontWeight:500,color:C.inkLight,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                            {it.nom}
+                            {type && (
+                              <span style={{fontSize:10,background:C.stone,color:C.muted,padding:"2px 7px",borderRadius:10,fontWeight:400}}>
+                                {type}
+                              </span>
+                            )}
+                            {needsType && (
+                              <span style={{fontSize:10,background:C.yellowPale,color:C.yellow,padding:"2px 7px",borderRadius:10,fontWeight:500}}>
+                                Type à définir
+                              </span>
+                            )}
+                            {isProduit && it.source === "ciqual" && (
+                              <span style={{fontSize:10,color:C.muted}}>CIQUAL</span>
+                            )}
+                          </div>
+                          <div style={{fontSize:11,color:C.muted,marginTop:2,display:"flex",gap:8,flexWrap:"wrap"}}>
+                            {it.categorie && <span>{it.categorie}</span>}
+                            {!isProduit && <span>{it.portions} portion{it.portions>1?"s":""} · {it.ingredients?.length||0} ingrédient{(it.ingredients?.length||0)>1?"s":""}</span>}
+                          </div>
+                        </div>
+                        <div style={{display:"flex",gap:2,flexShrink:0}}>
+                          <button onClick={()=>isProduit?openEditProd(it):openEditRec(it)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.forest,padding:4}}>✎</button>
+                          <button onClick={()=>isProduit?setConfirmProdId(it.id):setConfirmRecId(it.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red,padding:4}}>🗑</button>
+                        </div>
                       </div>
                       
-                      {/* Infos */}
-                      <div style={{flex:1, minWidth:0}}>
-                        <div style={{fontSize:14,fontWeight:500,color:C.inkLight,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                          {it.nom}
-                          {type && (
-                            <span style={{fontSize:10,background:C.stone,color:C.muted,padding:"2px 8px",borderRadius:10,fontWeight:400}}>
-                              {type}
-                            </span>
-                          )}
-                          {needsType && (
-                            <span style={{fontSize:10,background:C.yellowPale,color:C.yellow,padding:"2px 8px",borderRadius:10,fontWeight:500}}>
-                              Type à définir
-                            </span>
-                          )}
-                          {isProduit && it.source === "ciqual" && (
-                            <span style={{fontSize:10,color:C.muted}}>CIQUAL</span>
-                          )}
-                        </div>
-                        <div style={{fontSize:11,color:C.muted,marginTop:3,display:"flex",gap:10,flexWrap:"wrap"}}>
-                          {it.categorie && <span>{it.categorie}</span>}
-                          {!isProduit && <span>{it.portions} portion{it.portions>1?"s":""} · {it.ingredients?.length||0} ingrédient{(it.ingredients?.length||0)>1?"s":""}</span>}
-                        </div>
-                      </div>
-                      
-                      {/* Macros */}
-                      <div style={{display:"flex",gap:12,fontSize:12,fontFamily:"'DM Mono',monospace",whiteSpace:"nowrap"}}>
+                      {/* Ligne 2 : macros */}
+                      <div style={{display:"flex",gap:10,fontSize:11,fontFamily:"'DM Mono',monospace",flexWrap:"wrap",paddingLeft:80}}>
                         <span style={{color:"#e65100",fontWeight:500}}>{Math.round(macros.kcal)} kcal</span>
                         <span style={{color:"#1d9e75"}}>{Math.round(macros.glucides)}g gluc.</span>
                         <span style={{color:"#185FA5"}}>{Math.round(macros.proteines||0)}g prot.</span>
                         <span style={{color:"#7F77DD"}}>{Math.round(macros.lipides||0)}g lip.</span>
                         <span style={{color:"#BA7517"}}>{Math.round(macros.sodium)}mg Na</span>
-                      </div>
-                      
-                      {/* Actions */}
-                      <div style={{display:"flex",gap:2}}>
-                        <button onClick={()=>isProduit?openEditProd(it):openEditRec(it)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.forest,padding:4}}>✎</button>
-                        <button onClick={()=>isProduit?setConfirmProdId(it.id):setConfirmRecId(it.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red,padding:4}}>🗑</button>
                       </div>
                     </div>
                   );
@@ -885,7 +884,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
             {recettes.length>0&&(
               <div style={{marginBottom:20}}>
                 <div style={{...lbl,marginBottom:10}}>Recettes</div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8}}>
+                <div style={{display:"grid",gap:6}}>
                   {recettes.map(r=>{
                     const item = nutritionSeanceForm.find(n=>n.id===r.id);
                     const checked = !!item;
@@ -917,7 +916,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
             {produits.filter(p=>p.aEmporter!==false).length>0&&(
               <div>
                 <div style={{...lbl,marginBottom:10}}>Produits</div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8}}>
+                <div style={{display:"grid",gap:6}}>
                   {produits.filter(p=>p.aEmporter!==false).map(p=>{
                     const item = nutritionSeanceForm.find(n=>n.id===p.id);
                     const checked = !!item;
