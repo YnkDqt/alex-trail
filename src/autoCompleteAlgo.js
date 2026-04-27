@@ -174,25 +174,22 @@ export function planPourZone({ besoin, bibliotheque, strategy, isDepart = false 
   const cibleEau = besoin.eau || 0;  // en ml
   const cibleSodium = besoin.sodium || 0;
 
-  // ── PASSE 1 : HYDRATATION (selon stratégie) ──
-  // On applique la répartition eau pure / boisson énergétique définie dans la stratégie.
-  // Si la cible eau de la zone est inférieure à la stratégie, on réduit proportionnellement.
+  // ── PASSE 1 : HYDRATATION ──
+  // La cible totale = besoin réel de la zone. On respecte le RATIO eau pure /
+  // boisson énergétique défini par la stratégie (et non un volume absolu).
   const stratEauMl = strategy?.hydratation?.eauPureMl || 0;
   const stratBoissonMl = strategy?.hydratation?.boissonEnergetiqueMl || 0;
   const stratTotalMl = stratEauMl + stratBoissonMl;
   const flasqueMl = strategy?.hydratation?.flasqueMl || 500;
   
-  // Ajuster à la cible de la zone (on ne transporte pas plus que le besoin + 10%)
-  const cibleTotalMl = Math.round(cibleEau * 1.1);
-  const ratioAjust = stratTotalMl > 0 ? Math.min(1, cibleTotalMl / stratTotalMl) : 1;
-  const eauCibleMl = Math.round(stratEauMl * ratioAjust);
-  const boissonCibleMl = Math.round(stratBoissonMl * ratioAjust);
+  const ratioEau = stratTotalMl > 0 ? stratEauMl / stratTotalMl : 0.5;
+  const ratioBoisson = stratTotalMl > 0 ? stratBoissonMl / stratTotalMl : 0.5;
   
-  // Fallback si stratégie = 0 : on prend 50/50 basé sur la cible
-  const eauFinalMl = stratTotalMl > 0 ? eauCibleMl : Math.round(cibleEau * 0.5);
-  const boissonFinalMl = stratTotalMl > 0 ? boissonCibleMl : Math.round(cibleEau * 0.5);
+  const cibleTotalMl = Math.round(cibleEau * 1.1);
+  const eauFinalMl = Math.round(cibleTotalMl * ratioEau);
 
   // Ajouter eau pure (arrondie au multiple de flasque — remplissage pratique)
+  let eauApporteeMl = 0;
   if (eauFinalMl > 0 && eauxPures.length > 0) {
     const eau = eauxPures[0];
     // Arrondir au multiple de flasque le plus proche (au moins 1 flasque si besoin > 0)
@@ -205,8 +202,14 @@ export function planPourZone({ besoin, bibliotheque, strategy, isDepart = false 
       totalKcal += n.kcal;
       totalGluc += n.glucides;
       totalSodium += n.sodium;
+      eauApporteeMl = n.eauMl;
     }
   }
+  
+  // Boisson : ajuster pour ne pas sur-hydrater si l'eau couvre déjà presque tout
+  const boissonFinalMl = Math.max(0, cibleTotalMl - eauApporteeMl) > 0
+    ? Math.round(Math.min(cibleTotalMl * ratioBoisson, cibleTotalMl - eauApporteeMl))
+    : 0;
 
   // Ajouter boisson énergétique (on prend la mieux dotée en glucides)
   if (boissonFinalMl > 0 && boissonsEnergie.length > 0) {
@@ -521,6 +524,24 @@ function distribuerPalette(palette, zonesActives, plan, strategy, bibliotheque) 
   // Tracking : par produit, dans quelles zones consécutives il a été placé
   const dernieresUtilisations = {};  // { itemId: zoneIndex de la dernière utilisation }
   
+  // Allocation transport proportionnelle au besoin glucides de chaque zone.
+  // Plutôt qu'une limite plate par zone (ex: 500g partout), on alloue proportionnellement
+  // au besoin de chaque zone, avec un plancher pour les zones courtes (80g).
+  // Ainsi une zone de 200g de glucides reçoit 2× plus de poids transport qu'une zone de 100g.
+  const solideMaxG = strategy?.transport?.solideMaxG || 500;
+  const totalGlucBesoin = zonesActives.reduce((s, z) => s + (z.besoin.glucides || 0), 0);
+  const allocByZone = {};  // pointKey -> max poids solide alloué
+  zonesActives.forEach(z => {
+    if (totalGlucBesoin <= 0) {
+      allocByZone[z.pointKey] = solideMaxG;
+      return;
+    }
+    const part = (z.besoin.glucides || 0) / totalGlucBesoin;
+    // Allocation = part proportionnelle × (solideMaxG × nb zones), bornée à [80, solideMaxG]
+    const ideal = part * solideMaxG * zonesActives.length;
+    allocByZone[z.pointKey] = Math.max(80, Math.min(solideMaxG, Math.round(ideal)));
+  });
+  
   zonesActives.forEach((zone) => {
     const isDepart = zone.originalIndex === 0;
     const planZone = remplirZone({
@@ -529,7 +550,8 @@ function distribuerPalette(palette, zonesActives, plan, strategy, bibliotheque) 
       strategy,
       isDepart,
       dernieresUtilisations,
-      currentZoneIndex: zone.originalIndex
+      currentZoneIndex: zone.originalIndex,
+      solideMaxZoneG: allocByZone[zone.pointKey]
     });
     plan[zone.pointKey] = planZone;
     
@@ -547,7 +569,7 @@ function distribuerPalette(palette, zonesActives, plan, strategy, bibliotheque) 
  * Logique similaire à planPourZone mais utilise UNIQUEMENT les produits de la palette
  * et applique une pénalité de score sur les produits utilisés dans la zone précédente.
  */
-function remplirZone({ zone, palette, strategy, isDepart, dernieresUtilisations, currentZoneIndex }) {
+function remplirZone({ zone, palette, strategy, isDepart, dernieresUtilisations, currentZoneIndex, solideMaxZoneG }) {
   const planZone = [];
   const addOrMerge = (id, qte) => {
     const existing = planZone.find(p => p.id === id);
@@ -561,17 +583,23 @@ function remplirZone({ zone, palette, strategy, isDepart, dernieresUtilisations,
   const cibleSodium = zone.besoin.sodium || 0;
   
   // ── HYDRATATION : eau pure + boisson énergétique ──
+  // La cible totale = besoin réel de la zone. On respecte le RATIO eau pure /
+  // boisson énergétique défini par la stratégie (et non un volume absolu).
   const stratEauMl = strategy?.hydratation?.eauPureMl || 0;
   const stratBoissonMl = strategy?.hydratation?.boissonEnergetiqueMl || 0;
   const stratTotalMl = stratEauMl + stratBoissonMl;
   const flasqueMl = strategy?.hydratation?.flasqueMl || 500;
   
-  const cibleTotalMl = Math.round(cibleEau * 1.1);
-  const ratioAjust = stratTotalMl > 0 ? Math.min(1, cibleTotalMl / stratTotalMl) : 1;
-  const eauCibleMl = stratTotalMl > 0 ? Math.round(stratEauMl * ratioAjust) : Math.round(cibleEau * 0.5);
-  const boissonCibleMl = stratTotalMl > 0 ? Math.round(stratBoissonMl * ratioAjust) : Math.round(cibleEau * 0.5);
+  // Ratio eau pure / boisson selon stratégie (50/50 par défaut si stratégie vide)
+  const ratioEau = stratTotalMl > 0 ? stratEauMl / stratTotalMl : 0.5;
+  const ratioBoisson = stratTotalMl > 0 ? stratBoissonMl / stratTotalMl : 0.5;
   
-  // Eau pure
+  // On vise le besoin réel de la zone, avec une marge de sécurité de 10%
+  const cibleTotalMl = Math.round(cibleEau * 1.1);
+  const eauCibleMl = Math.round(cibleTotalMl * ratioEau);
+  
+  // Eau pure (arrondie au multiple de flasque)
+  let eauApportee = 0;
   if (eauCibleMl > 0 && palette.eau) {
     const nbFlasques = Math.max(1, Math.round(eauCibleMl / flasqueMl));
     const qte = nbFlasques * flasqueMl;
@@ -581,7 +609,14 @@ function remplirZone({ zone, palette, strategy, isDepart, dernieresUtilisations,
     totalKcal += n.kcal;
     totalGluc += n.glucides;
     totalSodium += n.sodium;
+    eauApportee = n.eauMl;
   }
+  
+  // Boisson énergétique : on ajuste pour ne pas sur-hydrater (l'arrondi flasque eau
+  // a pu déjà couvrir une partie du besoin boisson). On vise donc le complément.
+  const boissonCibleMl = Math.max(0, cibleTotalMl - eauApportee) > 0
+    ? Math.round(Math.min(cibleTotalMl * ratioBoisson, cibleTotalMl - eauApportee))
+    : 0;
   
   // Boisson énergétique : alterner entre les boissons disponibles selon la zone précédente
   if (boissonCibleMl > 0 && palette.boissons.length > 0) {
@@ -610,7 +645,9 @@ function remplirZone({ zone, palette, strategy, isDepart, dernieresUtilisations,
   }
   
   // ── SOLIDES : compléter glucides ──
-  const solideMaxG = strategy?.transport?.solideMaxG || 500;
+  // solideMaxZoneG = allocation transport pour cette zone (proportionnelle au besoin glucides).
+  // Fallback : limite globale de la stratégie si non fourni.
+  const solideMaxG = solideMaxZoneG != null ? solideMaxZoneG : (strategy?.transport?.solideMaxG || 500);
   let manqueGluc = cibleGluc - totalGluc;
   const maxIter = 40;
   const utilisationParSolide = {};
@@ -681,12 +718,16 @@ function remplirZone({ zone, palette, strategy, isDepart, dernieresUtilisations,
   }
   
   // ── PASTILLE SEL si déficit sodium > 20% ──
+  // Plafond calibré par durée approximative de la zone (max 1.5 pastille/h, dosage standard).
+  // On dérive la durée depuis le besoin sodium horaire moyen (~500mg/h en conditions normales).
   if (cibleSodium > 0 && totalSodium < cibleSodium * 0.8 && palette.pastille) {
     const inc = incrementQuantite(palette.pastille);
     const nutri = nutrimentsFor(palette.pastille, inc);
     if (nutri.sodium > 0) {
       const deficit = cibleSodium - totalSodium;
-      const nbPastilles = Math.min(3, Math.ceil(deficit / nutri.sodium));
+      const dureeApproxH = Math.max(1, cibleSodium / 500);
+      const plafondPastilles = Math.max(2, Math.ceil(dureeApproxH * 1.5));
+      const nbPastilles = Math.min(plafondPastilles, Math.ceil(deficit / nutri.sodium));
       addOrMerge(palette.pastille.id, inc * nbPastilles);
     }
   }
@@ -704,13 +745,20 @@ function remplirZone({ zone, palette, strategy, isDepart, dernieresUtilisations,
 }
 
 /**
- * Choisit un item dans une liste en pénalisant celui utilisé à la zone précédente.
- * Utilisé pour alterner les boissons énergétiques.
+ * Choisit une boisson en priorisant la rotation : celles jamais utilisées passent
+ * en premier. À défaut, on pénalise celle utilisée à la zone précédente.
  */
 function choisirAvecPenalite(items, dernieresUtilisations, currentZoneIndex) {
   if (items.length === 1) return items[0];
   
-  // Score : 1 par défaut, -50% si utilisé à la zone juste avant
+  // Phase rotation : si une boisson n'a jamais été utilisée, elle passe en priorité.
+  const inutilisees = items.filter(it => dernieresUtilisations[it.id] === undefined);
+  if (inutilisees.length > 0) {
+    // Parmi les inutilisées, prendre la plus dense en glucides (ordre déterministe)
+    return [...inutilisees].sort((a, b) => densiteGlucides(b) - densiteGlucides(a))[0];
+  }
+  
+  // Toutes utilisées : pénaliser celle de la zone juste avant
   const scores = items.map(it => {
     const derniere = dernieresUtilisations[it.id];
     if (derniere !== undefined && currentZoneIndex - derniere === 1) {
