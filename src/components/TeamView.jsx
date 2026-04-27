@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { C, RUNNER_LEVELS, TERRAIN_TYPES, DEFAULT_EQUIPMENT, PREP_TIMELINE, EMPTY_SETTINGS, DEFAULT_FLAT_SPEED } from '../constants.js';
-import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, exportRecap, exportGPXMontre, suggestSpeed, autoSegmentGPX, parseGarminCSV, buildElevationProfile, calcSlopeFromGPX, parseGPX } from '../utils.jsx';
+import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, exportRecap, exportGPXMontre, suggestSpeed, autoSegmentGPX, parseGarminCSV, buildElevationProfile, calcSlopeFromGPX, parseGPX, kcalDuStock, formatQuantiteStock } from '../utils.jsx';
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE TEAM ────────────────────────────────────────────────────────────────
@@ -422,33 +422,10 @@ export default function TeamView({ race, setRace, segments, setSegments, setting
         if (!departItems.length) return null;
         const allItems = [...produits, ...recettes];
         
-        const isRecette = (it) => Array.isArray(it.ingredients);
-        const calcMacrosRecette = (rec) => {
-          return (rec.ingredients || []).reduce((acc, ing) => {
-            const data = ing._ciqualData || allItems.find(p => p.id === ing.produitId);
-            if (!data) return acc;
-            const factor = parseFloat(ing.quantite) || 0;
-            return { kcal: acc.kcal + (data.kcal || 0) * factor / 100 };
-          }, { kcal: 0 });
-        };
-        const kcalDuStock = (item, quantite) => {
-          if (isRecette(item)) {
-            const total = calcMacrosRecette(item).kcal;
-            const portions = parseFloat(item.portions) || 1;
-            return Math.round((total / portions) * quantite);
-          }
-          return Math.round((item.kcal || 0) * quantite / 100);
-        };
-        const formatQuantite = (item, quantite) => {
-          if (isRecette(item)) return `× ${quantite}`;
-          const isLiq = item.boisson || (item.categorie || "").toLowerCase().includes("boisson");
-          return isLiq ? `${quantite} ml` : `${quantite} g`;
-        };
-        
         const totalKcal = departItems.reduce((acc, { id, quantite }) => {
           const p = allItems.find(x => x.id === id);
           if (!p) return acc;
-          return acc + kcalDuStock(p, quantite);
+          return acc + kcalDuStock(p, quantite, allItems);
         }, 0);
         
         return (
@@ -469,9 +446,9 @@ export default function TeamView({ race, setRace, segments, setSegments, setting
                     <div key={id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", background: "var(--surface)", borderRadius: 8, fontSize: 13 }}>
                       <span style={{ fontWeight: 600 }}>{p.nom}</span>
                       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                        <span style={{ color: "var(--muted-c)", fontSize: 12 }}>{formatQuantite(p, quantite)}</span>
+                        <span style={{ color: "var(--muted-c)", fontSize: 12 }}>{formatQuantiteStock(p, quantite)}</span>
                         <span style={{ color: C.red, fontWeight: 600, fontSize: 12 }}>
-                          {kcalDuStock(p, quantite)} kcal
+                          {kcalDuStock(p, quantite, allItems)} kcal
                         </span>
                       </div>
                     </div>
@@ -584,37 +561,6 @@ export default function TeamView({ race, setRace, segments, setSegments, setting
                       // La biblio est globale (produits + recettes props), plus race.bibliotheque
                       const allItems = [...produits, ...recettes];
                       
-                      // Calcul kcal correct selon le type d'item :
-                      // - Produit : kcal pour 100g, quantite en grammes → kcal × quantite/100
-                      // - Recette : calcMacros retourne kcal pour TOUS les ingrédients (= total recette
-                      //   pour `portions` portions), quantite en portions stockées
-                      //   → (kcalTotalRecette / portions) × quantite
-                      const isRecette = (it) => Array.isArray(it.ingredients);
-                      const calcMacrosRecette = (rec) => {
-                        return (rec.ingredients || []).reduce((acc, ing) => {
-                          const data = ing._ciqualData || allItems.find(p => p.id === ing.produitId);
-                          if (!data) return acc;
-                          const factor = parseFloat(ing.quantite) || 0;
-                          return { kcal: acc.kcal + (data.kcal || 0) * factor / 100 };
-                        }, { kcal: 0 });
-                      };
-                      const kcalDuStock = (item, quantite) => {
-                        if (isRecette(item)) {
-                          const total = calcMacrosRecette(item).kcal;
-                          const portions = parseFloat(item.portions) || 1;
-                          return Math.round((total / portions) * quantite);
-                        }
-                        return Math.round((item.kcal || 0) * quantite / 100);
-                      };
-                      
-                      // Affichage quantité avec unité claire
-                      const formatQuantite = (item, quantite) => {
-                        if (isRecette(item)) return `× ${quantite}`;  // portions
-                        // Eau (boisson, ml) ou produit solide (g)
-                        const isLiq = item.boisson || (item.categorie || "").toLowerCase().includes("boisson");
-                        return isLiq ? `${quantite} ml` : `${quantite} g`;
-                      };
-                      
                       if (!items.length) return (
                         <div style={{ padding: "12px 16px", background: "var(--surface-2)", borderRadius: 12, fontSize: 13, color: "var(--muted-c)", fontStyle: "italic" }}>
                           Aucun produit planifié — configure le plan dans l'onglet Nutrition.
@@ -628,13 +574,13 @@ export default function TeamView({ race, setRace, segments, setSegments, setting
                               const p = allItems.find(x => x.id === id);
                               if (!p) return null;
                               
-                              const kcal = kcalDuStock(p, quantite);
+                              const kcal = kcalDuStock(p, quantite, allItems);
                               
                               return (
                                 <div key={id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", background: "var(--surface)", borderRadius: 8, fontSize: 13 }}>
                                   <span style={{ fontWeight: 600 }}>{p.nom}</span>
                                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                                    <span style={{ color: "var(--muted-c)", fontSize: 12 }}>{formatQuantite(p, quantite)}</span>
+                                    <span style={{ color: "var(--muted-c)", fontSize: 12 }}>{formatQuantiteStock(p, quantite)}</span>
                                     <span style={{ color: C.red, fontWeight: 600, fontSize: 12 }}>
                                       {kcal} kcal
                                     </span>

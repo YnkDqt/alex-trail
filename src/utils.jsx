@@ -1440,3 +1440,45 @@ export function calcPassingTimes(segments, startTime) {
   });
   return { times, startSec };
 }
+
+// ─── HELPERS NUTRITION PARTAGÉS ─────────────────────────────────────────────
+// Utilisés par NutritionView (panneau ravito) et TeamView (préparation ravitos).
+// Garder une seule source de vérité évite les divergences sur le calcul kcal.
+
+// Test : un item est-il une recette (vs un produit simple) ?
+export function isRecette(item) {
+  return Array.isArray(item?.ingredients);
+}
+
+// Calcule les kcal totaux d'une recette (somme des ingrédients × quantité/100).
+// `allItems` doit contenir les produits référencés dans `recette.ingredients`.
+export function calcKcalRecette(recette, allItems) {
+  return (recette.ingredients || []).reduce((acc, ing) => {
+    const data = ing._ciqualData || allItems.find(p => p.id === ing.produitId);
+    if (!data) return acc;
+    const factor = parseFloat(ing.quantite) || 0;
+    return acc + (data.kcal || 0) * factor / 100;
+  }, 0);
+}
+
+// Calcule les kcal d'une quantité stockée (produit ou recette).
+// - Produit : kcal/100g, quantite en grammes
+// - Recette : (kcal_total_recette / portions) × quantite_en_portions
+export function kcalDuStock(item, quantite, allItems) {
+  if (isRecette(item)) {
+    const total = calcKcalRecette(item, allItems);
+    const portions = parseFloat(item.portions) || 1;
+    return Math.round((total / portions) * (quantite || 0));
+  }
+  return Math.round((item.kcal || 0) * (quantite || 0) / 100);
+}
+
+// Formate une quantité avec son unité claire selon le type d'item :
+// - Recette → "× N" (portions)
+// - Produit boisson → "N ml" (1g de liquide ≈ 1ml)
+// - Produit solide → "N g"
+export function formatQuantiteStock(item, quantite) {
+  if (isRecette(item)) return `× ${quantite}`;
+  const isLiq = item.boisson || (item.categorie || "").toLowerCase().includes("boisson");
+  return isLiq ? `${quantite} ml` : `${quantite} g`;
+}

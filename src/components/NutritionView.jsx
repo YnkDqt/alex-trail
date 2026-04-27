@@ -14,7 +14,7 @@ import {
   loadRecetteForEdit
 } from '../ProduitRecetteForm.jsx';
 import NutritionStrategyModal, { getNutritionStrategy } from '../NutritionStrategyModal.jsx';
-import { calculerPlanComplet, evaluerPlan, isEauPure, isBoissonEnergetique } from '../autoCompleteAlgo.js';
+import { calculerPlanComplet, planPourZone, evaluerPlan, isEauPure, isBoissonEnergetique } from '../autoCompleteAlgo.js';
 
 export default function NutritionView({ 
   segments, 
@@ -301,6 +301,21 @@ export default function NutritionView({
     setConfirmId(null);
   };
 
+  // Toggle ⭐ Favori — produit ou recette. Les favoris ont un bonus +30% dans l'algo.
+  const toggleFavori = (item) => {
+    if (item.itemType === "recette") {
+      updBibliotheque({
+        ...bibliotheque,
+        recettes: bibliotheque.recettes.map(r => r.id === item.id ? { ...r, favori: !r.favori } : r)
+      });
+    } else {
+      updBibliotheque({
+        ...bibliotheque,
+        produits: bibliotheque.produits.map(p => p.id === item.id ? { ...p, favori: !p.favori } : p)
+      });
+    }
+  };
+
   const addFromEntrainementRecettes = (selectedIds) => {
     const selected = recettes.filter(r=>selectedIds.includes(r.id));
     const newRecs = selected.map(r=>({ ...r, id: Date.now()+Math.random(), source: "entrainement" }));
@@ -439,6 +454,44 @@ export default function NutritionView({
     }
     
     setAutoCompletePreview(null);
+  };
+
+  // ── RÉGÉNÉRATION D'UNE SEULE ZONE ──
+  // Recalcule les produits d'une zone (départ ou ravito) sans toucher aux autres.
+  // Utilise planPourZone (algo single-zone) — ne préserve pas la diversité inter-zones,
+  // mais c'est volontaire : l'utilisateur veut juste re-proposer cette zone.
+  const handleRegenererZone = (zone) => {
+    if (allBibItems.length === 0) {
+      alert("Bibliothèque vide. Ajoute des produits ou recettes avant de régénérer.");
+      return;
+    }
+    const strategy = getNutritionStrategy(race);
+    
+    // Si zone autonome, on régénère la zone précédente avec le besoin cumulé (report)
+    // sinon le résultat n'aura aucun sens (zone autonome = pas de produits propres)
+    if (zone.isAutonome) {
+      alert("Une zone autonome n'a pas de produits propres. Régénère la zone qui la précède (ou suit, selon le report).");
+      return;
+    }
+    
+    // Calculer le besoin total : zone + éventuel report depuis zones autonomes adjacentes
+    // Pour rester simple, on régénère sur le besoin de la zone seule.
+    // Si tu veux régénérer avec report, il faut le passer ici (TODO)
+    const newPlan = planPourZone({
+      besoin: zone.besoin,
+      bibliotheque: allBibItems,
+      strategy,
+      isDepart: zone.pointKey === "depart"
+    });
+    
+    if (zone.pointKey === "depart") {
+      setProduitsDepartLocal(newPlan);
+    } else {
+      const updated = ravitos.map(rv => 
+        String(rv.id) === zone.pointKey ? { ...rv, produits: newPlan } : rv
+      );
+      updRavitos(updated);
+    }
   };
 
   // ── VIDER TOUT LE PLAN ──
@@ -748,9 +801,14 @@ export default function NutritionView({
                       {isProd?"Produit":"Recette"}
                     </span>
                     <div>
-                      <div style={{fontWeight:500,color:C.inkLight,fontSize:13}}>
-                        {item.nom}
-                        {item.boisson&&<span style={{fontSize:10,marginLeft:6,padding:"2px 6px",background:C.bluePale,color:C.blue,borderRadius:4,fontWeight:600}}>💧</span>}
+                      <div style={{fontWeight:500,color:C.inkLight,fontSize:13,display:"flex",alignItems:"center",gap:6}}>
+                        <button onClick={() => toggleFavori(item)}
+                          title={item.favori ? "Retirer des favoris" : "Marquer comme favori (priorisé par l'algo)"}
+                          style={{background:"none",border:"none",cursor:"pointer",fontSize:14,padding:0,lineHeight:1,color:item.favori?"#E8B530":C.muted,opacity:item.favori?1:0.4}}>
+                          {item.favori ? "★" : "☆"}
+                        </button>
+                        <span>{item.nom}</span>
+                        {item.boisson&&<span style={{fontSize:10,padding:"2px 6px",background:C.bluePale,color:C.blue,borderRadius:4,fontWeight:600}}>💧</span>}
                       </div>
                       {item.categorie&&<div style={{fontSize:10,color:C.muted}}>{item.categorie}</div>}
                     </div>
@@ -1080,9 +1138,18 @@ export default function NutritionView({
           return (
             <div key={zi} style={{...card,padding:16,marginBottom:12,opacity:isAutonome?0.85:1}}>
               <div style={{marginBottom:12}}>
-                <div style={{fontSize:15,fontWeight:600,color:C.inkLight,marginBottom:4}}>
-                  {zi === 0 ? "🏁" : "📍"} {z.label} — {z.toLbl} · {z.dist.toFixed(1)} km
-                  {isAutonome && <span style={{fontSize:11,fontWeight:500,color:C.muted,marginLeft:8,padding:"2px 8px",background:C.stone,borderRadius:6}}>Zone autonome</span>}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8,marginBottom:4}}>
+                  <div style={{fontSize:15,fontWeight:600,color:C.inkLight}}>
+                    {zi === 0 ? "🏁" : "📍"} {z.label} — {z.toLbl} · {z.dist.toFixed(1)} km
+                    {isAutonome && <span style={{fontSize:11,fontWeight:500,color:C.muted,marginLeft:8,padding:"2px 8px",background:C.stone,borderRadius:6}}>Zone autonome</span>}
+                  </div>
+                  {!isAutonome && (
+                    <button onClick={() => handleRegenererZone(z)}
+                      title="Régénérer cette zone uniquement"
+                      style={{background:"none",border:`1px solid ${C.border}`,borderRadius:6,padding:"3px 9px",fontSize:11,cursor:"pointer",color:C.muted,whiteSpace:"nowrap",flexShrink:0}}>
+                      🔄 Régénérer
+                    </button>
+                  )}
                 </div>
                 <div style={{fontSize:11,color:C.muted,marginBottom:2}}>
                   <strong>Besoin :</strong> {z.besoin.kcal} kcal · {z.besoin.glucides}g glucides · {(z.besoin.eau/1000).toFixed(1)}L eau

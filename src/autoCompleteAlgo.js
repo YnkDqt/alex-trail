@@ -266,7 +266,9 @@ export function planPourZone({ besoin, bibliotheque, strategy, isDepart = false 
       // Pénalité de diversité : -50% si déjà beaucoup utilisé
       const dejaUtilise = utilisationParSolide[s.id] || 0;
       const penaliteDivers = dejaUtilise > 0 ? Math.max(0.5, 1 - dejaUtilise * 0.15) : 1;
-      const score = efficacite * penaliteDivers;
+      // Bonus favori : +30% si l'utilisateur a marqué le produit comme favori
+      const bonusFavori = s.favori ? 1.3 : 1;
+      const score = efficacite * penaliteDivers * bonusFavori;
       
       if (score > bestScore) {
         bestScore = score;
@@ -438,9 +440,12 @@ function construirePalette(bibliotheque, zonesActives, strategy) {
     pastille: null
   };
   
-  // Boissons énergétiques : on prend la meilleure densité glucidique, +1 alternative si dispo
+  // Boissons énergétiques : favoris d'abord, puis meilleure densité glucidique
   if (boissonsEnergie.length > 0) {
-    const sorted = [...boissonsEnergie].sort((a, b) => densiteGlucides(b) - densiteGlucides(a));
+    const sorted = [...boissonsEnergie].sort((a, b) => {
+      if (!!b.favori !== !!a.favori) return (b.favori ? 1 : 0) - (a.favori ? 1 : 0);
+      return densiteGlucides(b) - densiteGlucides(a);
+    });
     palette.boissons.push(sorted[0]);
     // Alternative : différente catégorie si possible (variation gustative)
     if (sorted.length > 1) {
@@ -451,11 +456,12 @@ function construirePalette(bibliotheque, zonesActives, strategy) {
   }
   
   // Solides : on cherche la diversité gustative.
-  // Tri par densité glucidique, on garde jusqu'à 4 solides différents par nom.
-  // La dédup par catégorie est appliquée seulement si on a beaucoup de candidats
-  // d'une même catégorie (sinon trop restrictif quand les catégories sont vides).
+  // Tri par favori puis densité glucidique. On garde jusqu'à 4 solides différents par nom.
   if (solides.length > 0) {
-    const sorted = [...solides].sort((a, b) => densiteGlucides(b) - densiteGlucides(a));
+    const sorted = [...solides].sort((a, b) => {
+      if (!!b.favori !== !!a.favori) return (b.favori ? 1 : 0) - (a.favori ? 1 : 0);
+      return densiteGlucides(b) - densiteGlucides(a);
+    });
     const TARGET_SOLIDES = Math.min(4, sorted.length);
     
     // Étape 1 : prendre les N meilleurs en évitant les doublons exacts (même nom)
@@ -698,7 +704,10 @@ function remplirZone({ zone, palette, strategy, isDepart, dernieresUtilisations,
         else if (ecart === 2) penaliteInterZone = 0.80;
       }
       
-      const score = efficacite * penaliteIntraZone * penaliteInterZone;
+      // Bonus favori : +30% si l'utilisateur a marqué le produit comme favori
+      const bonusFavori = s.favori ? 1.3 : 1;
+      
+      const score = efficacite * penaliteIntraZone * penaliteInterZone * bonusFavori;
       
       if (score > bestScore) {
         bestScore = score;
@@ -752,19 +761,22 @@ function choisirAvecPenalite(items, dernieresUtilisations, currentZoneIndex) {
   if (items.length === 1) return items[0];
   
   // Phase rotation : si une boisson n'a jamais été utilisée, elle passe en priorité.
+  // Parmi les inutilisées, on privilégie les favoris puis la densité glucidique.
   const inutilisees = items.filter(it => dernieresUtilisations[it.id] === undefined);
   if (inutilisees.length > 0) {
-    // Parmi les inutilisées, prendre la plus dense en glucides (ordre déterministe)
-    return [...inutilisees].sort((a, b) => densiteGlucides(b) - densiteGlucides(a))[0];
+    return [...inutilisees].sort((a, b) => {
+      if (!!b.favori !== !!a.favori) return (b.favori ? 1 : 0) - (a.favori ? 1 : 0);
+      return densiteGlucides(b) - densiteGlucides(a);
+    })[0];
   }
   
-  // Toutes utilisées : pénaliser celle de la zone juste avant
+  // Toutes utilisées : pénaliser celle de la zone juste avant, bonus si favori
   const scores = items.map(it => {
     const derniere = dernieresUtilisations[it.id];
-    if (derniere !== undefined && currentZoneIndex - derniere === 1) {
-      return { item: it, score: 0.5 };
-    }
-    return { item: it, score: 1 };
+    let score = 1;
+    if (derniere !== undefined && currentZoneIndex - derniere === 1) score = 0.5;
+    if (it.favori) score *= 1.3;
+    return { item: it, score };
   });
   
   scores.sort((a, b) => b.score - a.score);
