@@ -869,108 +869,108 @@ export default function NutritionView({
           };
 
           return (
-            <>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:suggestionDifferente?4:12,flexWrap:"wrap",gap:8}}>
-                <div style={{...lbl}}>Plan de ravitaillement</div>
-                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",position:"relative"}}>
-                  <Btn variant="soft" size="sm" onClick={() => setPresetMenuOpen(o => !o)}>
-                    {label}
-                  </Btn>
-                  <button
-                    onClick={() => setPresetInfoOpen(true)}
-                    title="Comment ce preset est-il calculé ?"
-                    style={{background:"none",border:`1px solid ${C.stoneDeep}`,borderRadius:"50%",width:22,height:22,cursor:"pointer",fontSize:11,color:C.muted,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
-                    ?
-                  </button>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:8}}>
+              <div style={{...lbl,paddingTop:6}}>Plan de ravitaillement</div>
+              <div style={{display:"flex",gap:8,alignItems:"flex-start",flexWrap:"wrap",position:"relative"}}>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2}}>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                    <Btn variant="soft" size="sm" onClick={() => setPresetMenuOpen(o => !o)}>
+                      {label}
+                    </Btn>
+                    <button
+                      onClick={() => setPresetInfoOpen(true)}
+                      title="Comment ce preset est-il calculé ?"
+                      style={{background:"none",border:`1px solid ${C.stoneDeep}`,borderRadius:"50%",width:22,height:22,cursor:"pointer",fontSize:11,color:C.muted,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+                      ?
+                    </button>
+                  </div>
+                  {suggestionDifferente && (
+                    <button onClick={() => handlePick(presetBase, true)}
+                      style={{background:"none",border:"none",cursor:"pointer",padding:"0 4px",fontSize:11,color:C.muted,fontStyle:"italic",textDecoration:"underline",textUnderlineOffset:2,whiteSpace:"nowrap"}}
+                      title="Cliquer pour appliquer la suggestion">
+                      💡 Suggéré : {presetAuto.icon} {presetAuto.label}
+                    </button>
+                  )}
+                </div>
 
-                  {presetMenuOpen && (
-                    <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,background:C.bgWhite,border:`1px solid ${C.stoneDeep}`,borderRadius:8,padding:14,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",zIndex:50,minWidth:isMobile?280:520}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                        <div style={{fontSize:12,fontWeight:600,color:C.inkLight,textTransform:"uppercase",letterSpacing:"0.05em"}}>
-                          Preset stratégie
-                        </div>
-                        <button onClick={() => setPresetMenuOpen(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.muted}}>✕</button>
+                {presetMenuOpen && (
+                  <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,background:C.bgWhite,border:`1px solid ${C.stoneDeep}`,borderRadius:8,padding:14,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",zIndex:50,minWidth:isMobile?280:520}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                      <div style={{fontSize:12,fontWeight:600,color:C.inkLight,textTransform:"uppercase",letterSpacing:"0.05em"}}>
+                        Preset stratégie
                       </div>
-
-                      {presetAuto && (
-                        <div style={{marginBottom:12,padding:10,background:C.primaryPale,border:`1px solid ${C.primary}40`,borderRadius:6}}>
-                          <div style={{fontSize:10,fontWeight:600,color:C.primaryDeep,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>
-                            {isApi ? "Détecté automatiquement" : "Estimé selon ta saisie"}
-                          </div>
-                          <button onClick={handleAuto}
-                            style={{width:"100%",textAlign:"left",background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:8,fontSize:13,color:C.ink,fontWeight:500}}>
-                            <span style={{fontSize:18}}>{presetAuto.icon}</span>
-                            <span>{presetAuto.label}</span>
-                            <span style={{fontSize:11,color:C.muted,marginLeft:"auto"}}>
-                              {Math.round(dureeH * 10) / 10}h · {tempC}°C
-                              {conditionsActives && (
-                                <> · {conditions.rain && "🌧️"}{conditions.snow && "❄️"}{conditions.wind && "💨"}</>
-                              )}
-                            </span>
-                          </button>
-                        </div>
-                      )}
-                      {!hasTemp && (
-                        <div style={{marginBottom:12,padding:10,background:C.stone,borderRadius:6,fontSize:11,color:C.muted}}>
-                          Renseigne la température dans Profil de course pour activer la suggestion.
-                        </div>
-                      )}
-
-                      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:6}}>
-                        {NUTRITION_PRESETS.map(p => {
-                          const active = presetActuel?.id === p.id;
-                          return (
-                            <button key={p.id} onClick={() => handlePick(p, false)}
-                              style={{
-                                background: active ? C.primaryPale : C.bgWhite,
-                                border: `1px solid ${active ? C.primary : C.stoneDeep}`,
-                                borderRadius: 6, padding: "8px 10px", cursor: "pointer",
-                                display: "flex", alignItems: "center", gap: 6, fontSize: 12,
-                                color: C.ink, textAlign: "left",
-                                fontWeight: active ? 600 : 400
-                              }}>
-                              <span style={{fontSize:15}}>{p.icon}</span>
-                              <span>{p.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <button onClick={() => setPresetMenuOpen(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.muted}}>✕</button>
                     </div>
-                  )}
 
-                  {presetInfoOpen && (
-                    <Modal open={presetInfoOpen} onClose={() => setPresetInfoOpen(false)} title="Comment fonctionne le preset ?" width={520}>
-                      <div style={{fontSize:13,color:C.ink,lineHeight:1.6}}>
-                        <p style={{marginTop:0}}>
-                          Le preset est calculé en direct à partir des paramètres de <b>Profil de course</b> :
-                        </p>
-                        <ul style={{paddingLeft:18,margin:"8px 0"}}>
-                          <li><b>Durée estimée</b> de la course (somme des segments à leur vitesse cible).</li>
-                          <li><b>Température moyenne</b> du jour J : récupérée par l'API météo (jusqu'à J−14) ou saisie manuellement si la course est plus lointaine.</li>
-                          <li><b>Conditions</b> 🌧️ Pluie / ❄️ Neige / 💨 Vent : ajustent finement le preset (besoin thermique, manipulation).</li>
-                        </ul>
-                        <p style={{margin:"10px 0"}}>
-                          <b>Auto</b> indique que la météo provient de l'API. <b>Estimé</b> indique que tu as saisi la température toi-même (course trop lointaine ou override manuel).
-                        </p>
-                        <p>9 combinaisons de base : court/moyen/long × froid/neutre/chaud. Tu peux à tout moment choisir un autre preset, ou affiner manuellement chaque valeur via <b>⚙️ Stratégie</b>.</p>
+                    {presetAuto && (
+                      <div style={{marginBottom:12,padding:10,background:C.primaryPale,border:`1px solid ${C.primary}40`,borderRadius:6}}>
+                        <div style={{fontSize:10,fontWeight:600,color:C.primaryDeep,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>
+                          {isApi ? "Détecté automatiquement" : "Estimé selon ta saisie"}
+                        </div>
+                        <button onClick={handleAuto}
+                          style={{width:"100%",textAlign:"left",background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:8,fontSize:13,color:C.ink,fontWeight:500}}>
+                          <span style={{fontSize:18}}>{presetAuto.icon}</span>
+                          <span>{presetAuto.label}</span>
+                          <span style={{fontSize:11,color:C.muted,marginLeft:"auto"}}>
+                            {Math.round(dureeH * 10) / 10}h · {tempC}°C
+                            {conditionsActives && (
+                              <> · {conditions.rain && "🌧️"}{conditions.snow && "❄️"}{conditions.wind && "💨"}</>
+                            )}
+                          </span>
+                        </button>
                       </div>
-                    </Modal>
-                  )}
-                  <Btn variant="soft" size="sm" onClick={()=>setStrategyModal(true)}>⚙️ Stratégie</Btn>
-                  <Btn variant="soft" size="sm" onClick={handleAutoComplete}>🤖 Auto-compléter</Btn>
-                  <Btn variant="soft" size="sm" onClick={()=>setConfirmVider(true)}>🗑 Vider tout</Btn>
-                </div>
+                    )}
+                    {!hasTemp && (
+                      <div style={{marginBottom:12,padding:10,background:C.stone,borderRadius:6,fontSize:11,color:C.muted}}>
+                        Renseigne la température dans Profil de course pour activer la suggestion.
+                      </div>
+                    )}
+
+                    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:6}}>
+                      {NUTRITION_PRESETS.map(p => {
+                        const active = presetActuel?.id === p.id;
+                        return (
+                          <button key={p.id} onClick={() => handlePick(p, false)}
+                            style={{
+                              background: active ? C.primaryPale : C.bgWhite,
+                              border: `1px solid ${active ? C.primary : C.stoneDeep}`,
+                              borderRadius: 6, padding: "8px 10px", cursor: "pointer",
+                              display: "flex", alignItems: "center", gap: 6, fontSize: 12,
+                              color: C.ink, textAlign: "left",
+                              fontWeight: active ? 600 : 400
+                            }}>
+                            <span style={{fontSize:15}}>{p.icon}</span>
+                            <span>{p.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {presetInfoOpen && (
+                  <Modal open={presetInfoOpen} onClose={() => setPresetInfoOpen(false)} title="Comment fonctionne le preset ?" width={520}>
+                    <div style={{fontSize:13,color:C.ink,lineHeight:1.6}}>
+                      <p style={{marginTop:0}}>
+                        Le preset est calculé en direct à partir des paramètres de <b>Profil de course</b> :
+                      </p>
+                      <ul style={{paddingLeft:18,margin:"8px 0"}}>
+                        <li><b>Durée estimée</b> de la course (somme des segments à leur vitesse cible).</li>
+                        <li><b>Température moyenne</b> du jour J : récupérée par l'API météo (jusqu'à J−14) ou saisie manuellement si la course est plus lointaine.</li>
+                        <li><b>Conditions</b> 🌧️ Pluie / ❄️ Neige / 💨 Vent : ajustent finement le preset (besoin thermique, manipulation).</li>
+                      </ul>
+                      <p style={{margin:"10px 0"}}>
+                        <b>Auto</b> indique que la météo provient de l'API. <b>Estimé</b> indique que tu as saisi la température toi-même (course trop lointaine ou override manuel).
+                      </p>
+                      <p>9 combinaisons de base : court/moyen/long × froid/neutre/chaud. Tu peux à tout moment choisir un autre preset, ou affiner manuellement chaque valeur via <b>⚙️ Stratégie</b>.</p>
+                    </div>
+                  </Modal>
+                )}
+                <Btn variant="soft" size="sm" onClick={()=>setStrategyModal(true)}>⚙️ Stratégie</Btn>
+                <Btn variant="soft" size="sm" onClick={handleAutoComplete}>🤖 Auto-compléter</Btn>
+                <Btn variant="soft" size="sm" onClick={()=>setConfirmVider(true)}>🗑 Vider tout</Btn>
               </div>
-              {suggestionDifferente && (
-                <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
-                  <button onClick={() => handlePick(presetBase, true)}
-                    style={{background:"none",border:"none",cursor:"pointer",padding:0,fontSize:11,color:C.muted,fontStyle:"italic",textDecoration:"underline",textUnderlineOffset:2}}
-                    title="Cliquer pour appliquer la suggestion">
-                    💡 Suggéré : {presetAuto.icon} {presetAuto.label}
-                  </button>
-                </div>
-              )}
-            </>
+            </div>
           );
         })()}
 
