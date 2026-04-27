@@ -416,6 +416,73 @@ export default function TeamView({ race, setRace, segments, setSegments, setting
         </div>
       )}
 
+      {/* Préparation départ */}
+      {(() => {
+        const departItems = race.depart?.produits || [];
+        if (!departItems.length) return null;
+        const allItems = [...produits, ...recettes];
+        
+        const isRecette = (it) => Array.isArray(it.ingredients);
+        const calcMacrosRecette = (rec) => {
+          return (rec.ingredients || []).reduce((acc, ing) => {
+            const data = ing._ciqualData || allItems.find(p => p.id === ing.produitId);
+            if (!data) return acc;
+            const factor = parseFloat(ing.quantite) || 0;
+            return { kcal: acc.kcal + (data.kcal || 0) * factor / 100 };
+          }, { kcal: 0 });
+        };
+        const kcalDuStock = (item, quantite) => {
+          if (isRecette(item)) {
+            const total = calcMacrosRecette(item).kcal;
+            const portions = parseFloat(item.portions) || 1;
+            return Math.round((total / portions) * quantite);
+          }
+          return Math.round((item.kcal || 0) * quantite / 100);
+        };
+        const formatQuantite = (item, quantite) => {
+          if (isRecette(item)) return `× ${quantite}`;
+          const isLiq = item.boisson || (item.categorie || "").toLowerCase().includes("boisson");
+          return isLiq ? `${quantite} ml` : `${quantite} g`;
+        };
+        
+        const totalKcal = departItems.reduce((acc, { id, quantite }) => {
+          const p = allItems.find(x => x.id === id);
+          if (!p) return acc;
+          return acc + kcalDuStock(p, quantite);
+        }, 0);
+        
+        return (
+          <Card style={{ borderLeft: `4px solid ${C.green}`, marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <span style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: 18 }}>
+                🏁 Préparation départ
+              </span>
+              <span className="badge badge-sage" style={{ fontSize: 12 }}>{totalKcal} kcal</span>
+            </div>
+            <div style={{ padding: "14px 16px", background: "var(--surface-2)", borderRadius: 12 }}>
+              <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 13 }}>À préparer dans le sac avant le départ</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                {departItems.map(({ id, quantite }) => {
+                  const p = allItems.find(x => x.id === id);
+                  if (!p) return null;
+                  return (
+                    <div key={id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", background: "var(--surface)", borderRadius: 8, fontSize: 13 }}>
+                      <span style={{ fontWeight: 600 }}>{p.nom}</span>
+                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <span style={{ color: "var(--muted-c)", fontSize: 12 }}>{formatQuantite(p, quantite)}</span>
+                        <span style={{ color: C.red, fontWeight: 600, fontSize: 12 }}>
+                          {kcalDuStock(p, quantite)} kcal
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </Card>
+        );
+      })()}
+
       {/* Ravitos */}
       {ravitos.length === 0 ? (
         <div style={{ background: C.yellowPale, border: `1px solid ${C.yellow}40`, borderRadius: 12, padding: "14px 18px", fontSize: 13, color: C.yellow, marginBottom: 20 }}>
