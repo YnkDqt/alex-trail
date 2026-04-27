@@ -885,7 +885,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
             {recettes.length>0&&(
               <div style={{marginBottom:20}}>
                 <div style={{...lbl,marginBottom:10}}>Recettes</div>
-                <div style={{display:"grid",gap:6}}>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8}}>
                   {recettes.map(r=>{
                     const item = nutritionSeanceForm.find(n=>n.id===r.id);
                     const checked = !!item;
@@ -917,7 +917,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
             {produits.filter(p=>p.aEmporter!==false).length>0&&(
               <div>
                 <div style={{...lbl,marginBottom:10}}>Produits</div>
-                <div style={{display:"grid",gap:6}}>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8}}>
                   {produits.filter(p=>p.aEmporter!==false).map(p=>{
                     const item = nutritionSeanceForm.find(n=>n.id===p.id);
                     const checked = !!item;
