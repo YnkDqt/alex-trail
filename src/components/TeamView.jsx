@@ -8,7 +8,7 @@ function wazeUrl(query) {
   return `https://waze.com/ul?q=${encodeURIComponent(query)}&navigate=yes`;
 }
 
-export default function TeamView({ race, setRace, segments, setSegments, settings, setSettings, sharedMode, installPrompt, onInstall, onLoadStrategy, isMobile }) {
+export default function TeamView({ race, setRace, segments, setSegments, settings, setSettings, produits = [], recettes = [], sharedMode, installPrompt, onInstall, onLoadStrategy, isMobile }) {
   const [realTimes, setRealTimes] = useState({});
   const [activeRavito, setActiveRavito] = useState(null);
   const [sosActive, setSosActive] = useState(false);
@@ -514,9 +514,8 @@ export default function TeamView({ race, setRace, segments, setSegments, setting
                       </div>
                     ) : (() => {
                       const items = rv.produits || [];
-                      const bibProduits = (race.bibliotheque?.produits || []);
-                      const bibRecettes = (race.bibliotheque?.recettes || []);
-                      const allItems = [...bibProduits, ...bibRecettes];
+                      // La biblio est globale (produits + recettes props), plus race.bibliotheque
+                      const allItems = [...produits, ...recettes];
                       
                       if (!items.length) return (
                         <div style={{ padding: "12px 16px", background: "var(--surface-2)", borderRadius: 12, fontSize: 13, color: "var(--muted-c)", fontStyle: "italic" }}>

@@ -487,16 +487,6 @@ function DonneesParamsView({
                         data.settings && saveEntrainementSettings(user.id, stg.planningType, stg.activityTypes, stg.entrainementFeatures, stg.courseFeatures, stg.profilType),
                         raceData && saveCurrentRace(user.id, raceData.race, raceData.segments, raceData.settings),
                       ]);
-                      // Restaurer l'historique des courses (saveCourse est par-course)
-                      if (Array.isArray(data.courses) && data.courses.length > 0) {
-                        const existing = await loadCourses(user.id);
-                        const existingIds = new Set(existing.map(c => c.id));
-                        const toAdd = data.courses.filter(c => !existingIds.has(c.id));
-                        for (const course of toAdd) {
-                          try { await saveCourse(user.id, course); }
-                          catch (err) { console.warn('Erreur import course:', course.id, err); }
-                        }
-                      }
                       alert('✅ Import réussi ! Recharge la page.');
                       window.location.reload();
                     } catch (err) {
@@ -1024,7 +1014,7 @@ function AppLayout({
           {view==="nutrition_course"&&<div style={{padding:"24px 32px"}}><NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} isMobile={isMobile} onNavigate={setView} profil={profil} poids={poids} recettes={recettes} setRecettes={setRecettes} produits={produits} setProduits={setProduits}/></div>}
           {view==="equipement"&&<div style={{padding:"24px 32px"}}><EquipementView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} isMobile={isMobile}/></div>}
           {view==="analyse"&&<div style={{padding:"24px 32px"}}><AnalyseView race={race} segments={segments} settings={effSettings} isMobile={isMobile} onNavigate={setView}/></div>}
-          {view==="team"&&<div style={{padding:"24px 32px"}}><TeamView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={effSettings} setSettings={setSettings} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} isMobile={isMobile} onLoadStrategy={data=>{
+          {view==="team"&&<div style={{padding:"24px 32px"}}><TeamView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={effSettings} setSettings={setSettings} produits={produits} recettes={recettes} sharedMode={sharedMode} installPrompt={installPrompt} onInstall={handleInstall} isMobile={isMobile} onLoadStrategy={data=>{
             if(data.race)setRace(data.race);
             if(data.segments)setSegments(data.segments);
             if(data.settings)setSettings({...EMPTY_SETTINGS,...data.settings});
@@ -1494,6 +1484,17 @@ export default function App() {
     }, 2000);
     return () => clearTimeout(timer);
   }, [planningType, activityTypes, entrainementFeatures, courseFeatures, profilType, user?.id, dataLoaded, conflictDetected, safeSave]);
+
+  // Auto-save profil athlète (BPM, FC zones, glucides cible, taille, sexe, etc.)
+  useEffect(()=>{
+    if (!user?.id || !dataLoaded || conflictDetected) return;
+    pendingSavesRef.current.profil = () => safeSave(() => saveAthleteProfile(user.id, profil));
+    const timer = setTimeout(() => {
+      safeSave(() => saveAthleteProfile(user.id, profil));
+      delete pendingSavesRef.current.profil;
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [profil, user?.id, dataLoaded, conflictDetected, safeSave]);
 
   // Init profil.taille depuis dernier poids si vide (mount uniquement)
   useEffect(()=>{
