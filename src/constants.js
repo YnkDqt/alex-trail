@@ -227,6 +227,59 @@ export const NUTRITION_STRATEGY_DEFAULTS = {
   ravitos: {}  // map: ravitoId -> { strategieAutonome }
 };
 
+// ─── PRESETS NUTRITION (matrice 3 durées × 3 températures) ───────────────────
+// Bornes : court < 3h, moyen 3-6h, long > 6h
+//          froid < 10°C, neutre 10-22°C, chaud > 22°C
+export const NUTRITION_PRESETS = [
+  { id: "court_froid",  label: "Court & froid",  icon: "🥶", dureeMax: 3, tempMax: 10,
+    eauPureMl: 300, boissonEnergetiqueMl: 700, liquideMaxMl: 1000, solideMaxG: 400, priorite: "kcal" },
+  { id: "court_neutre", label: "Court & neutre", icon: "🏃", dureeMax: 3, tempMax: 22,
+    eauPureMl: 400, boissonEnergetiqueMl: 600, liquideMaxMl: 1000, solideMaxG: 300, priorite: "confort" },
+  { id: "court_chaud",  label: "Court & chaud",  icon: "🌞", dureeMax: 3, tempMax: 99,
+    eauPureMl: 700, boissonEnergetiqueMl: 300, liquideMaxMl: 1500, solideMaxG: 250, priorite: "hydratation" },
+  { id: "moyen_froid",  label: "Moyen & froid",  icon: "❄️", dureeMax: 6, tempMax: 10,
+    eauPureMl: 300, boissonEnergetiqueMl: 700, liquideMaxMl: 1500, solideMaxG: 600, priorite: "kcal" },
+  { id: "moyen_neutre", label: "Moyen & neutre", icon: "⚖️", dureeMax: 6, tempMax: 22,
+    eauPureMl: 500, boissonEnergetiqueMl: 500, liquideMaxMl: 1500, solideMaxG: 500, priorite: "confort" },
+  { id: "moyen_chaud",  label: "Moyen & chaud",  icon: "☀️", dureeMax: 6, tempMax: 99,
+    eauPureMl: 800, boissonEnergetiqueMl: 200, liquideMaxMl: 2000, solideMaxG: 400, priorite: "hydratation" },
+  { id: "long_froid",   label: "Long & froid",   icon: "🧊", dureeMax: 99, tempMax: 10,
+    eauPureMl: 400, boissonEnergetiqueMl: 600, liquideMaxMl: 2000, solideMaxG: 700, priorite: "kcal" },
+  { id: "long_neutre",  label: "Long & neutre",  icon: "🏔️", dureeMax: 99, tempMax: 22,
+    eauPureMl: 500, boissonEnergetiqueMl: 500, liquideMaxMl: 2000, solideMaxG: 600, priorite: "confort" },
+  { id: "long_chaud",   label: "Long & chaud",   icon: "🔥", dureeMax: 99, tempMax: 99,
+    eauPureMl: 900, boissonEnergetiqueMl: 100, liquideMaxMl: 2500, solideMaxG: 500, priorite: "hydratation" }
+];
+
+// Détecte le preset correspondant à une durée (en heures) et une température (°C)
+export const detectPreset = (dureeH, tempC) => {
+  if (dureeH == null || tempC == null) return null;
+  return NUTRITION_PRESETS.find(p => dureeH <= p.dureeMax && tempC <= p.tempMax) || null;
+};
+
+// Applique un preset à une stratégie existante (préserve ravitos, flasqueMl)
+export const applyPreset = (strategy, preset) => ({
+  ...strategy,
+  transport: { liquideMaxMl: preset.liquideMaxMl, solideMaxG: preset.solideMaxG },
+  hydratation: {
+    ...strategy.hydratation,
+    eauPureMl: preset.eauPureMl,
+    boissonEnergetiqueMl: preset.boissonEnergetiqueMl
+  },
+  priorite: preset.priorite
+});
+
+// Indique si la stratégie courante correspond exactement à un preset
+export const matchPreset = (strategy) => {
+  return NUTRITION_PRESETS.find(p =>
+    strategy.transport?.liquideMaxMl === p.liquideMaxMl &&
+    strategy.transport?.solideMaxG === p.solideMaxG &&
+    strategy.hydratation?.eauPureMl === p.eauPureMl &&
+    strategy.hydratation?.boissonEnergetiqueMl === p.boissonEnergetiqueMl &&
+    strategy.priorite === p.priorite
+  ) || null;
+};
+
 // ─── HELPERS ENTRAINEMENT ────────────────────────────────────────────────────
 export const isRunning = (a) => RUNNING_TYPES.includes(TYPE_MIGRATION[a]||a);
 export const exportJSON = (data, name) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type:"application/json"})); a.download = name; a.click(); };

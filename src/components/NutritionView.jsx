@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { C } from '../constants.js';
+import { C, NUTRITION_PRESETS, detectPreset, applyPreset, matchPreset } from '../constants.js';
 import { fmtTime, calcNutrition } from '../utils.jsx';
 import { Btn, Modal, ConfirmDialog, KPI } from '../atoms.jsx';
 import { CIQUAL, CIQUAL_CATEGORIES } from '../data/ciqual.js';
@@ -81,6 +81,8 @@ export default function NutritionView({
   const [autoCompletePreview, setAutoCompletePreview] = useState(null);
   const [confirmVider, setConfirmVider] = useState(false);
   const [strategyModal, setStrategyModal] = useState(false);
+  const [presetMenuOpen, setPresetMenuOpen] = useState(false);
+  const [presetInfoOpen, setPresetInfoOpen] = useState(false);
   const [sourcesOuvert, setSourcesOuvert] = useState(false);
 
   // emptyProduit/emptyRecette sont importés depuis ProduitRecetteForm.jsx
@@ -833,9 +835,115 @@ export default function NutritionView({
 
       {/* ── PLAN RAVITAILLEMENT ── */}
       <div>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
           <div style={{...lbl}}>Plan de ravitaillement</div>
-          <div style={{display:"flex",gap:8}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",position:"relative"}}>
+            {(() => {
+              const dureeH = (segments || [])
+                .filter(s => s.type !== "ravito" && s.type !== "repos")
+                .reduce((acc, seg) => acc + (seg.endKm - seg.startKm) / (seg.speedKmh || 1) , 0);
+              const meteoOk = settings?.meteoFetched && settings?.tempC != null;
+              const presetAuto = meteoOk && dureeH > 0 ? detectPreset(dureeH, settings.tempC) : null;
+              const currentStrat = getNutritionStrategy(race);
+              const presetActuel = matchPreset(currentStrat);
+              const isAuto = presetAuto && presetActuel && presetAuto.id === presetActuel.id;
+              const label = presetActuel
+                ? `${isAuto ? "Auto · " : ""}${presetActuel.icon} ${presetActuel.label}`
+                : meteoOk && presetAuto
+                  ? `Auto · ${presetAuto.icon} ${presetAuto.label}`
+                  : "Personnalisé";
+
+              const handlePick = (preset) => {
+                const next = applyPreset(currentStrat, preset);
+                setRace(r => ({ ...r, nutritionStrategy: next }));
+                setPresetMenuOpen(false);
+              };
+              const handleAuto = () => {
+                if (presetAuto) handlePick(presetAuto);
+              };
+
+              return (
+                <>
+                  <Btn variant="soft" size="sm" onClick={() => setPresetMenuOpen(o => !o)}>
+                    {label}
+                  </Btn>
+                  <button
+                    onClick={() => setPresetInfoOpen(true)}
+                    title="Comment ce preset est-il calculé ?"
+                    style={{background:"none",border:`1px solid ${C.stoneDeep}`,borderRadius:"50%",width:22,height:22,cursor:"pointer",fontSize:11,color:C.muted,display:"flex",alignItems:"center",justifyContent:"center",padding:0}}>
+                    ?
+                  </button>
+
+                  {presetMenuOpen && (
+                    <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,background:C.bgWhite,border:`1px solid ${C.stoneDeep}`,borderRadius:8,padding:14,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",zIndex:50,minWidth:isMobile?280:520}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                        <div style={{fontSize:12,fontWeight:600,color:C.inkLight,textTransform:"uppercase",letterSpacing:"0.05em"}}>
+                          Preset stratégie
+                        </div>
+                        <button onClick={() => setPresetMenuOpen(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.muted}}>✕</button>
+                      </div>
+
+                      {presetAuto && (
+                        <div style={{marginBottom:12,padding:10,background:C.primaryPale,border:`1px solid ${C.primary}40`,borderRadius:6}}>
+                          <div style={{fontSize:10,fontWeight:600,color:C.primaryDeep,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Détecté automatiquement</div>
+                          <button onClick={handleAuto}
+                            style={{width:"100%",textAlign:"left",background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:8,fontSize:13,color:C.ink,fontWeight:500}}>
+                            <span style={{fontSize:18}}>{presetAuto.icon}</span>
+                            <span>{presetAuto.label}</span>
+                            <span style={{fontSize:11,color:C.muted,marginLeft:"auto"}}>
+                              {Math.round(dureeH * 10) / 10}h · {settings.tempC}°C
+                            </span>
+                          </button>
+                        </div>
+                      )}
+                      {!meteoOk && (
+                        <div style={{marginBottom:12,padding:10,background:C.stone,borderRadius:6,fontSize:11,color:C.muted}}>
+                          Météo non récupérée — l'auto-détection sera disponible une fois la météo chargée dans Profil de course.
+                        </div>
+                      )}
+
+                      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:6}}>
+                        {NUTRITION_PRESETS.map(p => {
+                          const active = presetActuel?.id === p.id;
+                          return (
+                            <button key={p.id} onClick={() => handlePick(p)}
+                              style={{
+                                background: active ? C.primaryPale : C.bgWhite,
+                                border: `1px solid ${active ? C.primary : C.stoneDeep}`,
+                                borderRadius: 6, padding: "8px 10px", cursor: "pointer",
+                                display: "flex", alignItems: "center", gap: 6, fontSize: 12,
+                                color: C.ink, textAlign: "left",
+                                fontWeight: active ? 600 : 400
+                              }}>
+                              <span style={{fontSize:15}}>{p.icon}</span>
+                              <span>{p.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {presetInfoOpen && (
+                    <Modal open={presetInfoOpen} onClose={() => setPresetInfoOpen(false)} title="Comment fonctionne le preset auto ?" width={520}>
+                      <div style={{fontSize:13,color:C.ink,lineHeight:1.6}}>
+                        <p style={{marginTop:0}}>
+                          Le preset est calculé automatiquement à partir de deux paramètres récupérés dans <b>Profil de course</b> :
+                        </p>
+                        <ul style={{paddingLeft:18,margin:"8px 0"}}>
+                          <li><b>Durée estimée</b> de la course (somme des segments à leur vitesse cible).</li>
+                          <li><b>Température moyenne</b> prévue le jour J, récupérée via l'API météo Open-Meteo.</li>
+                        </ul>
+                        <p>9 combinaisons possibles : court/moyen/long × froid/neutre/chaud. Chacune ajuste l'eau, la boisson énergétique, les capacités de transport et la priorité de l'algo.</p>
+                        <p style={{margin:"10px 0 0",padding:10,background:C.stone,borderRadius:6,fontSize:12,color:C.muted}}>
+                          Tu peux à tout moment choisir un autre preset, ou affiner manuellement chaque valeur via <b>⚙️ Stratégie</b>.
+                        </p>
+                      </div>
+                    </Modal>
+                  )}
+                </>
+              );
+            })()}
             <Btn variant="soft" size="sm" onClick={()=>setStrategyModal(true)}>⚙️ Stratégie</Btn>
             <Btn variant="soft" size="sm" onClick={handleAutoComplete}>🤖 Auto-compléter</Btn>
             <Btn variant="soft" size="sm" onClick={()=>setConfirmVider(true)}>🗑 Vider tout</Btn>
