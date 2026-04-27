@@ -835,42 +835,44 @@ export default function NutritionView({
 
       {/* ── PLAN RAVITAILLEMENT ── */}
       <div>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexWrap:"wrap",gap:8}}>
-          <div style={{...lbl}}>Plan de ravitaillement</div>
-          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",position:"relative"}}>
-            {(() => {
-              const dureeH = (segments || [])
-                .filter(s => s.type !== "ravito" && s.type !== "repos")
-                .reduce((acc, seg) => acc + (seg.endKm - seg.startKm) / (seg.speedKmh || 1) , 0);
-              const tempC = settings?.tempC;
-              const hasTemp = tempC != null;
-              const isApi = !!settings?.meteoFetched;
-              const conditions = { rain: !!settings?.rain, snow: !!settings?.snow, wind: !!settings?.wind };
-              const conditionsActives = conditions.rain || conditions.snow || conditions.wind;
-              const presetBase = hasTemp && dureeH > 0 ? detectPreset(dureeH, tempC) : null;
-              const presetAuto = presetBase ? applyMeteoModifiers(presetBase, conditions) : null;
-              const currentStrat = getNutritionStrategy(race);
-              const presetActuel = matchPreset(currentStrat);
-              const sourceTag = isApi ? "Auto" : "Estimé";
-              const isPresetActuelAuto = presetAuto && presetActuel && presetActuel.id === presetAuto.id;
-              const label = presetActuel
-                ? `${isPresetActuelAuto ? sourceTag + " · " : ""}${presetActuel.icon} ${presetActuel.label}`
-                : presetAuto
-                  ? `${sourceTag} · ${presetAuto.icon} ${presetAuto.label}`
-                  : "Personnalisé";
+        {(() => {
+          const dureeH = (segments || [])
+            .filter(s => s.type !== "ravito" && s.type !== "repos")
+            .reduce((acc, seg) => acc + (seg.endKm - seg.startKm) / (seg.speedKmh || 1) , 0);
+          const tempC = settings?.tempC;
+          const hasTemp = tempC != null;
+          const isApi = !!settings?.meteoFetched;
+          const conditions = { rain: !!settings?.rain, snow: !!settings?.snow, wind: !!settings?.wind };
+          const conditionsActives = conditions.rain || conditions.snow || conditions.wind;
+          const presetBase = hasTemp && dureeH > 0 ? detectPreset(dureeH, tempC) : null;
+          const presetAuto = presetBase ? applyMeteoModifiers(presetBase, conditions) : null;
+          const currentStrat = getNutritionStrategy(race);
+          const presetActuel = matchPreset(currentStrat);
+          const sourceTag = isApi ? "Auto" : "Estimé";
+          const isPresetActuelAuto = presetAuto && presetActuel && presetActuel.id === presetAuto.id;
+          const label = presetActuel
+            ? `${isPresetActuelAuto ? sourceTag + " · " : ""}${presetActuel.icon} ${presetActuel.label}`
+            : presetAuto
+              ? `${sourceTag} · ${presetAuto.icon} ${presetAuto.label}`
+              : "Personnalisé";
+          // Suggestion différente du choix actuel ?
+          const suggestionDifferente = presetAuto && (!presetActuel || presetActuel.id !== presetAuto.id);
 
-              const handlePick = (preset, withMeteo = false) => {
-                const final = withMeteo ? applyMeteoModifiers(preset, conditions) : preset;
-                const next = applyPreset(currentStrat, final);
-                setRace(r => ({ ...r, nutritionStrategy: next }));
-                setPresetMenuOpen(false);
-              };
-              const handleAuto = () => {
-                if (presetBase) handlePick(presetBase, true);
-              };
+          const handlePick = (preset, withMeteo = false) => {
+            const final = withMeteo ? applyMeteoModifiers(preset, conditions) : preset;
+            const next = applyPreset(currentStrat, final);
+            setRace(r => ({ ...r, nutritionStrategy: next }));
+            setPresetMenuOpen(false);
+          };
+          const handleAuto = () => {
+            if (presetBase) handlePick(presetBase, true);
+          };
 
-              return (
-                <>
+          return (
+            <>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:suggestionDifferente?4:12,flexWrap:"wrap",gap:8}}>
+                <div style={{...lbl}}>Plan de ravitaillement</div>
+                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",position:"relative"}}>
                   <Btn variant="soft" size="sm" onClick={() => setPresetMenuOpen(o => !o)}>
                     {label}
                   </Btn>
@@ -954,14 +956,23 @@ export default function NutritionView({
                       </div>
                     </Modal>
                   )}
-                </>
-              );
-            })()}
-            <Btn variant="soft" size="sm" onClick={()=>setStrategyModal(true)}>⚙️ Stratégie</Btn>
-            <Btn variant="soft" size="sm" onClick={handleAutoComplete}>🤖 Auto-compléter</Btn>
-            <Btn variant="soft" size="sm" onClick={()=>setConfirmVider(true)}>🗑 Vider tout</Btn>
-          </div>
-        </div>
+                  <Btn variant="soft" size="sm" onClick={()=>setStrategyModal(true)}>⚙️ Stratégie</Btn>
+                  <Btn variant="soft" size="sm" onClick={handleAutoComplete}>🤖 Auto-compléter</Btn>
+                  <Btn variant="soft" size="sm" onClick={()=>setConfirmVider(true)}>🗑 Vider tout</Btn>
+                </div>
+              </div>
+              {suggestionDifferente && (
+                <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+                  <button onClick={() => handlePick(presetBase, true)}
+                    style={{background:"none",border:"none",cursor:"pointer",padding:0,fontSize:11,color:C.muted,fontStyle:"italic",textDecoration:"underline",textUnderlineOffset:2}}
+                    title="Cliquer pour appliquer la suggestion">
+                    💡 Suggéré : {presetAuto.icon} {presetAuto.label}
+                  </button>
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         <Modal
           open={!!autoCompletePreview}
