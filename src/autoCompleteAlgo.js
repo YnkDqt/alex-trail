@@ -618,6 +618,18 @@ function remplirZone({ zone, palette, strategy, isDepart, dernieresUtilisations,
   for (let i = 0; i < maxIter && manqueGluc > 3 && palette.solides.length > 0; i++) {
     if (poidsSolide >= solideMaxG) break;
     
+    // Combien de solides éligibles n'ont jamais été utilisés dans cette zone ?
+    // On veut qu'ils passent en priorité tant que la place le permet.
+    const eligibles = palette.solides.filter(s => {
+      const inc = incrementQuantite(s);
+      const nutri = nutrimentsFor(s, inc);
+      if (nutri.glucides <= 0) return false;
+      const poidsInc = nutri.poidsG || inc;
+      return poidsSolide + poidsInc <= solideMaxG;
+    });
+    const inutilisesEligibles = eligibles.filter(s => !utilisationParSolide[s.id]);
+    const phaseRotation = inutilisesEligibles.length > 0;
+    
     let bestItem = null;
     let bestScore = -Infinity;
     
@@ -629,22 +641,24 @@ function remplirZone({ zone, palette, strategy, isDepart, dernieresUtilisations,
       const poidsInc = nutri.poidsG || inc;
       if (poidsSolide + poidsInc > solideMaxG) continue;
       
+      // Phase rotation : on ignore les solides déjà utilisés tant qu'il en reste des inutilisés
+      const dejaUtilise = utilisationParSolide[s.id] || 0;
+      if (phaseRotation && dejaUtilise > 0) continue;
+      
       // Efficacité = glucides / poids
       const efficacite = nutri.glucides / Math.max(1, poidsInc);
       
-      // Pénalité 1 : sur-utilisation dans la zone (diversité intra-zone)
-      const dejaUtilise = utilisationParSolide[s.id] || 0;
-      const penaliteIntraZone = dejaUtilise > 0 ? Math.max(0.5, 1 - dejaUtilise * 0.15) : 1;
+      // Pénalité intra-zone (renforcée : -25% par utilisation au lieu de -15%)
+      // S'applique uniquement après la phase de rotation initiale.
+      const penaliteIntraZone = dejaUtilise > 0 ? Math.max(0.4, 1 - dejaUtilise * 0.25) : 1;
       
       // Pénalité 2 : répétition d'une zone à l'autre (anti-doublon entre zones)
       const derniere = dernieresUtilisations[s.id];
       let penaliteInterZone = 1;
       if (derniere !== undefined) {
         const ecart = currentZoneIndex - derniere;
-        // Pénalité forte si zone juste avant, atténuée si éloignée
-        if (ecart === 1) penaliteInterZone = 0.55;       // zone précédente : -45%
-        else if (ecart === 2) penaliteInterZone = 0.80;  // 2 zones avant : -20%
-        // Au-delà : pas de pénalité
+        if (ecart === 1) penaliteInterZone = 0.55;
+        else if (ecart === 2) penaliteInterZone = 0.80;
       }
       
       const score = efficacite * penaliteIntraZone * penaliteInterZone;
