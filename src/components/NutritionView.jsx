@@ -14,7 +14,7 @@ import {
   loadRecetteForEdit
 } from '../ProduitRecetteForm.jsx';
 import NutritionStrategyModal, { getNutritionStrategy } from '../NutritionStrategyModal.jsx';
-import { calculerPlanComplet, evaluerPlan } from '../autoCompleteAlgo.js';
+import { calculerPlanComplet, evaluerPlan, isEauPure, isBoissonEnergetique } from '../autoCompleteAlgo.js';
 
 export default function NutritionView({ 
   segments, 
@@ -375,10 +375,12 @@ export default function NutritionView({
   };
 
   const nutriProduit = (item, quantite) => {
+    // Détection liquide cohérente avec l'algo (gère le cas "Eau" sans flag boisson)
+    const liquide = isEauPure(item) || isBoissonEnergetique(item);
     if (item.itemType === "recette") {
       const macros = calcMacros(item);
       const ratio = quantite / (item.portions || 1);
-      const eauMl = item.boisson ? (item.volumeMlParPortion || 0) * ratio : 0;
+      const eauMl = liquide ? (item.volumeMlParPortion || 0) * ratio : 0;
       return {
         kcal: macros.kcal * ratio,
         glucides: macros.glucides * ratio,
@@ -387,7 +389,7 @@ export default function NutritionView({
     }
     // Produit simple
     const ratio = quantite / 100;
-    const eauMl = item.boisson ? quantite : 0; // 1g boisson = 1ml
+    const eauMl = liquide ? quantite : 0; // 1g boisson = 1ml
     return {
       kcal: (item.kcal || 0) * ratio,
       glucides: (item.glucides || 0) * ratio,
@@ -490,9 +492,10 @@ export default function NutritionView({
       return { 
         kcal: acc.kcal + Math.round(n.kcalH * dH), 
         eau: acc.eau + Math.round(n.eauH * dH), 
-        glucides: acc.glucides + Math.round(n.glucidesH * dH) 
+        glucides: acc.glucides + Math.round(n.glucidesH * dH),
+        sodium: acc.sodium + Math.round((n.sodiumH || 0) * dH)
       };
-    }, { kcal: 0, eau: 0, glucides: 0 });
+    }, { kcal: 0, eau: 0, glucides: 0, sodium: 0 });
     
     return { label, toLbl, from, to, pointKey, besoin, dist: to - from, isAutonome };
   }), [bornes, ravitos, segments, settings, userWeight]);
@@ -845,6 +848,14 @@ export default function NutritionView({
             // Sur-couverture (prudence)
             if (cov.kcal > 140) alertes.push({ niv: "med", txt: `Plan très chargé en kcal (${cov.kcal}%)` });
             
+            // Garde-fou : déficit kcal absolu trop important (typique long trail multi-jour)
+            const deficitKcal = besoinTotal.kcal - totaux.kcal;
+            if (deficitKcal > 1500) {
+              alertes.push({ niv: "high", txt: `Déficit énergétique critique : −${Math.round(deficitKcal)} kcal sur la course. Augmente la limite transport ou ajoute des produits plus denses.` });
+            } else if (deficitKcal > 800) {
+              alertes.push({ niv: "med", txt: `Déficit énergétique notable : −${Math.round(deficitKcal)} kcal. Acceptable sur course courte, à éviter sur long.` });
+            }
+            
             // Transport dépassé par zone
             evals.forEach(e => {
               if (e.planifie.poidsG > strategy.transport.solideMaxG) {
@@ -1165,13 +1176,10 @@ export default function NutritionView({
                   const macros = isProd ? item : item.macros;
                   
                   // Détection eau pure pour affichage en flasques
-                  const isEauPure = isProd && (
-                    item.type === "Eau pure" ||
-                    (!item.type && item.boisson && (item.nom || "").toLowerCase().includes("eau"))
-                  );
-                  const flasqueMl = isEauPure ? (getNutritionStrategy(race)?.hydratation?.flasqueMl || 500) : 0;
-                  const nbFlasques = isEauPure && flasqueMl > 0 ? (qte / flasqueMl) : null;
-                  const showFlasques = isEauPure && nbFlasques != null && Number.isInteger(nbFlasques);
+                  const isEau = isEauPure(item);
+                  const flasqueMl = isEau ? (getNutritionStrategy(race)?.hydratation?.flasqueMl || 500) : 0;
+                  const nbFlasques = isEau && flasqueMl > 0 ? (qte / flasqueMl) : null;
+                  const showFlasques = isEau && nbFlasques != null && Number.isInteger(nbFlasques);
                   
                   return (
                     <div key={item.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
@@ -1179,20 +1187,20 @@ export default function NutritionView({
                       <div style={{flex:1}}>
                         <div style={{fontSize:13,fontWeight:500,color:C.inkLight}}>{item.nom}</div>
                         <div style={{fontSize:11,color:C.muted}}>
-                          {isEauPure
+                          {isEau
                             ? `Flasques de ${flasqueMl}ml`
                             : `${Math.round(macros?.kcal||0)} kcal · ${Math.round(macros?.glucides||0)}g gluc. / ${isProd?"100g":"portion"}`
                           }
                         </div>
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <button onClick={() => updateRavitoQte(ravitoId, item.id, isEauPure ? -flasqueMl : -1)}
+                        <button onClick={() => updateRavitoQte(ravitoId, item.id, isEau ? -flasqueMl : -1)}
                           style={{width:28,height:28,borderRadius:6,border:`1px solid ${C.border}`,
                             background:C.white,cursor:"pointer",fontSize:16,color:C.inkLight}}>−</button>
                         <span style={{fontFamily:"'DM Mono',monospace",fontSize:14,fontWeight:500,minWidth:showFlasques?56:30,textAlign:"center"}}>
                           {showFlasques ? `${nbFlasques} × ${flasqueMl}ml` : qte}
                         </span>
-                        <button onClick={() => updateRavitoQte(ravitoId, item.id, isEauPure ? flasqueMl : 1)}
+                        <button onClick={() => updateRavitoQte(ravitoId, item.id, isEau ? flasqueMl : 1)}
                           style={{width:28,height:28,borderRadius:6,border:`1px solid ${C.border}`,
                             background:C.white,cursor:"pointer",fontSize:16,color:C.inkLight}}>+</button>
                       </div>

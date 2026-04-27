@@ -17,11 +17,46 @@
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
+// Détection "Eau pure" : robuste (nom contient "eau" + macros nuls), pour gérer
+// les produits utilisateurs sans flag boisson explicite (cas legacy / import).
+export function isEauPure(it) {
+  if (it.type === "Eau pure") return true;
+  const nom = (it.nom || "").toLowerCase();
+  if (!nom.includes("eau")) return false;
+  // Eau = nutriments à zéro (sodium possible mais marginal)
+  const isProduit = it.itemType === "produit" || (!it.itemType && !it.macros);
+  if (isProduit) {
+    const k = it.kcal || 0, g = it.glucides || 0, p = it.proteines || 0, l = it.lipides || 0;
+    return k <= 5 && g <= 1 && p <= 1 && l <= 1;
+  }
+  // Recette : check macros
+  const m = it.macros || {};
+  return (m.kcal || 0) <= 5 && (m.glucides || 0) <= 1;
+}
+
+// Détection "Boisson énergétique" : tout liquide qui n'est pas de l'eau pure
+export function isBoissonEnergetique(it) {
+  if (it.type === "Boisson énergétique") return true;
+  if (isEauPure(it)) return false;
+  // Recette boisson : flag explicite ou volumeMlParPortion défini
+  if (it.itemType === "recette") {
+    return !!(it.boisson || (it.volumeMlParPortion && it.volumeMlParPortion > 0));
+  }
+  // Produit boisson : flag ou catégorie
+  return !!(it.boisson || (it.categorie || "").toLowerCase().includes("boisson"));
+}
+
+// Test "produit liquide" pour calcul de l'eauMl (utilisé par nutrimentsFor)
+function isLiquide(item) {
+  return isEauPure(item) || isBoissonEnergetique(item);
+}
+
 // Retourne le nutriment pour une quantité donnée d'un item (produit ou recette)
 // Pour un produit : quantite en grammes, valeurs en /100g
 // Pour une recette : quantite en portions
 function nutrimentsFor(item, quantite) {
   const isProduit = item.itemType === "produit";
+  const liquide = isLiquide(item);
   
   if (isProduit) {
     const factor = (parseFloat(quantite) || 0) / 100;
@@ -31,9 +66,9 @@ function nutrimentsFor(item, quantite) {
       proteines: (item.proteines || 0) * factor,
       lipides: (item.lipides || 0) * factor,
       sodium: (item.sodium || 0) * factor,
-      eauMl: item.boisson ? (parseFloat(quantite) || 0) : 0,  // 1g eau = 1ml
+      eauMl: liquide ? (parseFloat(quantite) || 0) : 0,  // 1g eau = 1ml
       poidsG: parseFloat(quantite) || 0,
-      volumeMl: item.boisson ? (parseFloat(quantite) || 0) : 0
+      volumeMl: liquide ? (parseFloat(quantite) || 0) : 0
     };
   }
   
@@ -49,9 +84,9 @@ function nutrimentsFor(item, quantite) {
     proteines: (macros.proteines || 0) * portions,
     lipides: (macros.lipides || 0) * portions,
     sodium: (macros.sodium || 0) * portions,
-    eauMl: item.boisson ? volumePortion * portions : 0,
+    eauMl: liquide ? volumePortion * portions : 0,
     poidsG: poidsPortion * portions,
-    volumeMl: item.boisson ? volumePortion * portions : 0
+    volumeMl: liquide ? volumePortion * portions : 0
   };
 }
 
@@ -75,7 +110,7 @@ function incrementQuantite(item) {
   if (item.grammesParUnite && item.grammesParUnite > 0) {
     return parseFloat(item.grammesParUnite);
   }
-  if (item.boisson) return 250;  // 250ml par dose boisson par défaut
+  if (isLiquide(item)) return 250;  // 250ml par dose boisson par défaut
   return 30;  // 30g de solide par incrément par défaut
 }
 
@@ -91,7 +126,7 @@ function arrondirQuantite(item, quantite) {
     return Math.max(unite, Math.round(quantite / unite) * unite);
   }
   
-  if (item.boisson) {
+  if (isLiquide(item)) {
     return Math.max(50, Math.round(quantite / 50) * 50);
   }
   
@@ -119,22 +154,14 @@ export function planPourZone({ besoin, bibliotheque, strategy, isDepart = false 
   };
 
   // ── CLASSIFICATION DES ITEMS ──
-  // On s'appuie sur le `type` défini dans la nouvelle architecture, avec fallback
-  // sur `boisson` pour les produits legacy.
-  const eauxPures = bibliotheque.filter(it =>
-    it.type === "Eau pure" ||
-    (!it.type && it.boisson && (it.nom || "").toLowerCase().includes("eau"))
-  );
-  const boissonsEnergie = bibliotheque.filter(it =>
-    it.type === "Boisson énergétique" ||
-    (!it.type && it.boisson && !(it.nom || "").toLowerCase().includes("eau"))
-  );
+  // Détection robuste via helpers (ne dépend pas du flag boisson uniquement).
+  const eauxPures = bibliotheque.filter(isEauPure);
+  const boissonsEnergie = bibliotheque.filter(isBoissonEnergetique);
   const pastillesSel = bibliotheque.filter(it => it.type === "Pastille sel / électrolytes");
   const solides = bibliotheque.filter(it =>
-    !it.boisson &&
-    it.type !== "Pastille sel / électrolytes" &&
-    it.type !== "Eau pure" &&
-    it.type !== "Boisson énergétique"
+    !isEauPure(it) &&
+    !isBoissonEnergetique(it) &&
+    it.type !== "Pastille sel / électrolytes"
   );
 
   // Tri solides par densité glucidique décroissante (optimiser poids transporté)
@@ -278,9 +305,7 @@ export function planPourZone({ besoin, bibliotheque, strategy, isDepart = false 
     const item = bibliotheque.find(b => b.id === p.id);
     if (!item) return p;
     // Eau pure : déjà arrondie au multiple de flasque, on ne touche pas
-    const isEauPure = item.type === "Eau pure" ||
-      (!item.type && item.boisson && (item.nom || "").toLowerCase().includes("eau"));
-    if (isEauPure) return p;
+    if (isEauPure(item)) return p;
     return { ...p, quantite: arrondirQuantite(item, p.quantite) };
   });
 }
@@ -393,21 +418,14 @@ export function calculerPlanComplet({ zones, bibliotheque, strategy }) {
  * Vise la diversité gustative tout en couvrant les besoins macros/eau/sodium.
  */
 function construirePalette(bibliotheque, zonesActives, strategy) {
-  // Classifications (mêmes que planPourZone pour cohérence)
-  const eauxPures = bibliotheque.filter(it =>
-    it.type === "Eau pure" ||
-    (!it.type && it.boisson && (it.nom || "").toLowerCase().includes("eau"))
-  );
-  const boissonsEnergie = bibliotheque.filter(it =>
-    it.type === "Boisson énergétique" ||
-    (!it.type && it.boisson && !(it.nom || "").toLowerCase().includes("eau"))
-  );
+  // Classifications via helpers (cohérent avec planPourZone)
+  const eauxPures = bibliotheque.filter(isEauPure);
+  const boissonsEnergie = bibliotheque.filter(isBoissonEnergetique);
   const pastillesSel = bibliotheque.filter(it => it.type === "Pastille sel / électrolytes");
   const solides = bibliotheque.filter(it =>
-    !it.boisson &&
-    it.type !== "Pastille sel / électrolytes" &&
-    it.type !== "Eau pure" &&
-    it.type !== "Boisson énergétique"
+    !isEauPure(it) &&
+    !isBoissonEnergetique(it) &&
+    it.type !== "Pastille sel / électrolytes"
   );
   
   const palette = {
@@ -429,27 +447,48 @@ function construirePalette(bibliotheque, zonesActives, strategy) {
     }
   }
   
-  // Solides : on cherche la diversité de profils.
-  // Tri par densité glucidique, mais on filtre en prenant 1 par "profil" (catégorie + texture)
+  // Solides : on cherche la diversité gustative.
+  // Tri par densité glucidique, on garde jusqu'à 4 solides différents par nom.
+  // La dédup par catégorie est appliquée seulement si on a beaucoup de candidats
+  // d'une même catégorie (sinon trop restrictif quand les catégories sont vides).
   if (solides.length > 0) {
     const sorted = [...solides].sort((a, b) => densiteGlucides(b) - densiteGlucides(a));
+    const TARGET_SOLIDES = Math.min(4, sorted.length);
     
-    // Heuristique : "profil" = combinaison catégorie + boisson/non
-    const profilsVus = new Set();
+    // Étape 1 : prendre les N meilleurs en évitant les doublons exacts (même nom)
+    const nomsVus = new Set();
     for (const s of sorted) {
-      const profil = `${s.categorie || "autre"}|${s.itemType || "produit"}`;
-      if (profilsVus.has(profil)) continue;
-      profilsVus.add(profil);
+      const nom = (s.nom || "").toLowerCase().trim();
+      if (nom && nomsVus.has(nom)) continue;
+      nomsVus.add(nom);
       palette.solides.push(s);
-      if (palette.solides.length >= 4) break;  // max 4 solides
+      if (palette.solides.length >= TARGET_SOLIDES) break;
     }
     
-    // Si on a moins de 2 solides après dedup catégorie, on complète sans filtrer
-    if (palette.solides.length < 2 && sorted.length >= 2) {
-      for (const s of sorted) {
-        if (!palette.solides.find(p => p.id === s.id)) {
-          palette.solides.push(s);
-          if (palette.solides.length >= 2) break;
+    // Étape 2 : si on a la place et plusieurs candidats d'une même catégorie,
+    // remplacer le moins efficace de cette cat par un de catégorie différente
+    // (prudent : ne casse pas l'invariant minimum 2 solides)
+    if (palette.solides.length >= 3) {
+      const parCat = {};
+      palette.solides.forEach(s => {
+        const c = s.categorie || "autre";
+        parCat[c] = (parCat[c] || 0) + 1;
+      });
+      const catDominante = Object.entries(parCat).find(([, n]) => n >= 3)?.[0];
+      if (catDominante) {
+        // Chercher un solide d'autre catégorie qu'on n'a pas encore pris
+        const alternative = sorted.find(s => 
+          (s.categorie || "autre") !== catDominante &&
+          !palette.solides.find(p => p.id === s.id)
+        );
+        if (alternative) {
+          // Remplacer le moins dense de la cat dominante
+          const aRemplacer = [...palette.solides]
+            .filter(s => (s.categorie || "autre") === catDominante)
+            .sort((a, b) => densiteGlucides(a) - densiteGlucides(b))[0];
+          if (aRemplacer) {
+            palette.solides = palette.solides.map(s => s.id === aRemplacer.id ? alternative : s);
+          }
         }
       }
     }
@@ -645,9 +684,7 @@ function remplirZone({ zone, palette, strategy, isDepart, dernieresUtilisations,
       : palette.boissons.find(b => b.id === p.id)
       || palette.solides.find(s => s.id === p.id);
     if (!item) return p;
-    const isEauPure = item.type === "Eau pure" ||
-      (!item.type && item.boisson && (item.nom || "").toLowerCase().includes("eau"));
-    if (isEauPure) return p;
+    if (isEauPure(item)) return p;
     return { ...p, quantite: arrondirQuantite(item, p.quantite) };
   });
 }
