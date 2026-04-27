@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { C, NUTRITION_PRESETS, detectPreset, applyPreset, matchPreset } from '../constants.js';
+import { C, NUTRITION_PRESETS, detectPreset, applyPreset, matchPreset, applyMeteoModifiers } from '../constants.js';
 import { fmtTime, calcNutrition } from '../utils.jsx';
 import { Btn, Modal, ConfirmDialog, KPI } from '../atoms.jsx';
 import { CIQUAL, CIQUAL_CATEGORIES } from '../data/ciqual.js';
@@ -842,24 +842,31 @@ export default function NutritionView({
               const dureeH = (segments || [])
                 .filter(s => s.type !== "ravito" && s.type !== "repos")
                 .reduce((acc, seg) => acc + (seg.endKm - seg.startKm) / (seg.speedKmh || 1) , 0);
-              const meteoOk = settings?.meteoFetched && settings?.tempC != null;
-              const presetAuto = meteoOk && dureeH > 0 ? detectPreset(dureeH, settings.tempC) : null;
+              const tempC = settings?.tempC;
+              const hasTemp = tempC != null;
+              const isApi = !!settings?.meteoFetched;
+              const conditions = { rain: !!settings?.rain, snow: !!settings?.snow, wind: !!settings?.wind };
+              const conditionsActives = conditions.rain || conditions.snow || conditions.wind;
+              const presetBase = hasTemp && dureeH > 0 ? detectPreset(dureeH, tempC) : null;
+              const presetAuto = presetBase ? applyMeteoModifiers(presetBase, conditions) : null;
               const currentStrat = getNutritionStrategy(race);
               const presetActuel = matchPreset(currentStrat);
-              const isAuto = presetAuto && presetActuel && presetAuto.id === presetActuel.id;
+              const sourceTag = isApi ? "Auto" : "Estimé";
+              const isPresetActuelAuto = presetAuto && presetActuel && presetActuel.id === presetAuto.id;
               const label = presetActuel
-                ? `${isAuto ? "Auto · " : ""}${presetActuel.icon} ${presetActuel.label}`
-                : meteoOk && presetAuto
-                  ? `Auto · ${presetAuto.icon} ${presetAuto.label}`
+                ? `${isPresetActuelAuto ? sourceTag + " · " : ""}${presetActuel.icon} ${presetActuel.label}`
+                : presetAuto
+                  ? `${sourceTag} · ${presetAuto.icon} ${presetAuto.label}`
                   : "Personnalisé";
 
-              const handlePick = (preset) => {
-                const next = applyPreset(currentStrat, preset);
+              const handlePick = (preset, withMeteo = false) => {
+                const final = withMeteo ? applyMeteoModifiers(preset, conditions) : preset;
+                const next = applyPreset(currentStrat, final);
                 setRace(r => ({ ...r, nutritionStrategy: next }));
                 setPresetMenuOpen(false);
               };
               const handleAuto = () => {
-                if (presetAuto) handlePick(presetAuto);
+                if (presetBase) handlePick(presetBase, true);
               };
 
               return (
@@ -885,20 +892,25 @@ export default function NutritionView({
 
                       {presetAuto && (
                         <div style={{marginBottom:12,padding:10,background:C.primaryPale,border:`1px solid ${C.primary}40`,borderRadius:6}}>
-                          <div style={{fontSize:10,fontWeight:600,color:C.primaryDeep,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Détecté automatiquement</div>
+                          <div style={{fontSize:10,fontWeight:600,color:C.primaryDeep,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>
+                            {isApi ? "Détecté automatiquement" : "Estimé selon ta saisie"}
+                          </div>
                           <button onClick={handleAuto}
                             style={{width:"100%",textAlign:"left",background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:8,fontSize:13,color:C.ink,fontWeight:500}}>
                             <span style={{fontSize:18}}>{presetAuto.icon}</span>
                             <span>{presetAuto.label}</span>
                             <span style={{fontSize:11,color:C.muted,marginLeft:"auto"}}>
-                              {Math.round(dureeH * 10) / 10}h · {settings.tempC}°C
+                              {Math.round(dureeH * 10) / 10}h · {tempC}°C
+                              {conditionsActives && (
+                                <> · {conditions.rain && "🌧️"}{conditions.snow && "❄️"}{conditions.wind && "💨"}</>
+                              )}
                             </span>
                           </button>
                         </div>
                       )}
-                      {!meteoOk && (
+                      {!hasTemp && (
                         <div style={{marginBottom:12,padding:10,background:C.stone,borderRadius:6,fontSize:11,color:C.muted}}>
-                          Météo non récupérée — l'auto-détection sera disponible une fois la météo chargée dans Profil de course.
+                          Renseigne la température dans Profil de course pour activer la suggestion.
                         </div>
                       )}
 
@@ -906,7 +918,7 @@ export default function NutritionView({
                         {NUTRITION_PRESETS.map(p => {
                           const active = presetActuel?.id === p.id;
                           return (
-                            <button key={p.id} onClick={() => handlePick(p)}
+                            <button key={p.id} onClick={() => handlePick(p, false)}
                               style={{
                                 background: active ? C.primaryPale : C.bgWhite,
                                 border: `1px solid ${active ? C.primary : C.stoneDeep}`,
@@ -925,19 +937,20 @@ export default function NutritionView({
                   )}
 
                   {presetInfoOpen && (
-                    <Modal open={presetInfoOpen} onClose={() => setPresetInfoOpen(false)} title="Comment fonctionne le preset auto ?" width={520}>
+                    <Modal open={presetInfoOpen} onClose={() => setPresetInfoOpen(false)} title="Comment fonctionne le preset ?" width={520}>
                       <div style={{fontSize:13,color:C.ink,lineHeight:1.6}}>
                         <p style={{marginTop:0}}>
-                          Le preset est calculé automatiquement à partir de deux paramètres récupérés dans <b>Profil de course</b> :
+                          Le preset est calculé en direct à partir des paramètres de <b>Profil de course</b> :
                         </p>
                         <ul style={{paddingLeft:18,margin:"8px 0"}}>
                           <li><b>Durée estimée</b> de la course (somme des segments à leur vitesse cible).</li>
-                          <li><b>Température moyenne</b> prévue le jour J, récupérée via l'API météo Open-Meteo.</li>
+                          <li><b>Température moyenne</b> du jour J : récupérée par l'API météo (jusqu'à J−14) ou saisie manuellement si la course est plus lointaine.</li>
+                          <li><b>Conditions</b> 🌧️ Pluie / ❄️ Neige / 💨 Vent : ajustent finement le preset (besoin thermique, manipulation).</li>
                         </ul>
-                        <p>9 combinaisons possibles : court/moyen/long × froid/neutre/chaud. Chacune ajuste l'eau, la boisson énergétique, les capacités de transport et la priorité de l'algo.</p>
-                        <p style={{margin:"10px 0 0",padding:10,background:C.stone,borderRadius:6,fontSize:12,color:C.muted}}>
-                          Tu peux à tout moment choisir un autre preset, ou affiner manuellement chaque valeur via <b>⚙️ Stratégie</b>.
+                        <p style={{margin:"10px 0"}}>
+                          <b>Auto</b> indique que la météo provient de l'API. <b>Estimé</b> indique que tu as saisi la température toi-même (course trop lointaine ou override manuel).
                         </p>
+                        <p>9 combinaisons de base : court/moyen/long × froid/neutre/chaud. Tu peux à tout moment choisir un autre preset, ou affiner manuellement chaque valeur via <b>⚙️ Stratégie</b>.</p>
                       </div>
                     </Modal>
                   )}

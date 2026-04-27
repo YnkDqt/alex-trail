@@ -269,6 +269,22 @@ export const applyPreset = (strategy, preset) => ({
   priorite: preset.priorite
 });
 
+// Module un preset selon les conditions évènementielles (pluie, neige, vent)
+// Retourne un nouveau preset modifié (pas de mutation)
+export const applyMeteoModifiers = (preset, { rain, snow, wind } = {}) => {
+  if (!preset) return preset;
+  let p = { ...preset };
+  if (rain || snow) {
+    // Pluie/neige : besoin thermique +, transpiration -
+    p = { ...p, solideMaxG: p.solideMaxG + 50, priorite: "kcal" };
+  }
+  if (wind) {
+    // Vent : manipulation pénible, on allège un peu le solide
+    p = { ...p, solideMaxG: Math.max(150, p.solideMaxG - 50) };
+  }
+  return p;
+};
+
 // Indique si la stratégie courante correspond exactement à un preset
 export const matchPreset = (strategy) => {
   return NUTRITION_PRESETS.find(p =>
