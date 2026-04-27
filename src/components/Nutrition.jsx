@@ -252,6 +252,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   const [prodInputMode, setProdInputMode] = useState("100g"); // state local, non persisté
   const [editProdId, setEditProdId] = useState(null);
   const [confirmProdId, setConfirmProdId] = useState(null);
+  const [showProdTypeErr, setShowProdTypeErr] = useState(false);
   
   // Recherche CIQUAL produits
   const [ciqualModal, setCiqualModal] = useState(false);
@@ -263,6 +264,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   const [recForm, setRecForm] = useState(emptyRecette());
   const [editRecId, setEditRecId] = useState(null);
   const [confirmRecId, setConfirmRecId] = useState(null);
+  const [showRecTypeErr, setShowRecTypeErr] = useState(false);
 
   // Recherche CIQUAL pour ingrédients recette
   const [ingCiqualModal, setIngCiqualModal] = useState(false);
@@ -281,6 +283,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
     setEditProdId(null);
     setProdForm(emptyProduit());
     setProdInputMode("100g");
+    setShowProdTypeErr(false);
     setProdModal(true);
   };
   
@@ -288,15 +291,18 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
     setEditProdId(p.id);
     setProdForm(loadProduitForEdit(p));
     setProdInputMode("100g");
+    setShowProdTypeErr(false);
     setProdModal(true);
   };
   
   const saveProduit = () => {
     if(!prodForm.nom.trim()) return;
+    if(!prodForm.type) { setShowProdTypeErr(true); return; }
     const normalized = normalizeProduit(prodForm, prodInputMode);
     const item = { ...normalized, id: editProdId || Date.now()+Math.random() };
     if(editProdId) setProduits(pp=>pp.map(p=>p.id===editProdId?item:p));
     else setProduits(pp=>[...pp,item]);
+    setShowProdTypeErr(false);
     setProdModal(false);
   };
   
@@ -336,21 +342,25 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   const openNewRec = () => {
     setEditRecId(null);
     setRecForm(emptyRecette());
+    setShowRecTypeErr(false);
     setRecModal(true);
   };
   
   const openEditRec = (r) => {
     setEditRecId(r.id);
     setRecForm(loadRecetteForEdit(r));
+    setShowRecTypeErr(false);
     setRecModal(true);
   };
   
   const saveRecette = () => {
     if(!recForm.nom.trim()) return;
+    if(!recForm.type) { setShowRecTypeErr(true); return; }
     const normalized = normalizeRecette(recForm);
     const item = { ...normalized, id: editRecId || Date.now()+Math.random() };
     if(editRecId) setRecettes(rr=>rr.map(r=>r.id===editRecId?item:r));
     else setRecettes(rr=>[...rr,item]);
+    setShowRecTypeErr(false);
     setRecModal(false);
   };
   
@@ -714,7 +724,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
           <Btn onClick={saveProduit}>{editProdId?"Enregistrer":"Ajouter"}</Btn>
         </>}
       >
-        <ProduitForm form={prodForm} setForm={setProdForm} onModeChange={setProdInputMode} />
+        <ProduitForm form={prodForm} setForm={setProdForm} onModeChange={setProdInputMode} showTypeError={showProdTypeErr} />
       </Modal>
 
       {/* ── MODAL RECETTE (nouveau formulaire unifié) ── */}
@@ -735,6 +745,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
           onOpenCiqualIng={()=>setIngCiqualModal(true)}
           onOpenMesProduitsIng={()=>setMesProduitsModal(true)}
           calcMacros={calcMacros}
+          showTypeError={showRecTypeErr}
         />
       </Modal>
 

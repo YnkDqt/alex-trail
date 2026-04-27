@@ -83,6 +83,8 @@ export default function NutritionView({
   const [strategyModal, setStrategyModal] = useState(false);
   const [presetMenuOpen, setPresetMenuOpen] = useState(false);
   const [presetInfoOpen, setPresetInfoOpen] = useState(false);
+  const [showProdTypeErr, setShowProdTypeErr] = useState(false);
+  const [showRecTypeErr, setShowRecTypeErr] = useState(false);
   const [sourcesOuvert, setSourcesOuvert] = useState(false);
 
   // emptyProduit/emptyRecette sont importés depuis ProduitRecetteForm.jsx
@@ -223,6 +225,7 @@ export default function NutritionView({
     setEditProdId(null);
     setProdForm(emptyProduit());
     setProdInputMode("100g");
+    setShowProdTypeErr(false);
     setProdModal(true);
   };
 
@@ -230,11 +233,13 @@ export default function NutritionView({
     setEditProdId(p.id);
     setProdForm(loadProduitForEdit(p));
     setProdInputMode("100g");
+    setShowProdTypeErr(false);
     setProdModal(true);
   };
 
   const saveProduit = () => {
     if(!prodForm.nom.trim()) return;
+    if(!prodForm.type) { setShowProdTypeErr(true); return; }
     const normalized = normalizeProduit(prodForm, prodInputMode);
     const item = { ...normalized, id: editProdId || Date.now()+Math.random() };
     if(editProdId) {
@@ -242,6 +247,7 @@ export default function NutritionView({
     } else {
       updBibliotheque({ ...bibliotheque, produits: [...bibliotheque.produits, item] });
     }
+    setShowProdTypeErr(false);
     setProdModal(false);
   };
 
@@ -277,17 +283,20 @@ export default function NutritionView({
   const openNewRec = () => {
     setEditRecId(null);
     setRecForm(emptyRecette());
+    setShowRecTypeErr(false);
     setRecModal(true);
   };
 
   const openEditRec = (r) => {
     setEditRecId(r.id);
     setRecForm(loadRecetteForEdit(r));
+    setShowRecTypeErr(false);
     setRecModal(true);
   };
 
   const saveRecette = () => {
     if(!recForm.nom.trim()) return;
+    if(!recForm.type) { setShowRecTypeErr(true); return; }
     const normalized = normalizeRecette(recForm);
     const item = { ...normalized, id: editRecId || Date.now()+Math.random() };
     if(editRecId) {
@@ -295,6 +304,7 @@ export default function NutritionView({
     } else {
       updBibliotheque({ ...bibliotheque, recettes: [...bibliotheque.recettes, item] });
     }
+    setShowRecTypeErr(false);
     setRecModal(false);
   };
 
@@ -1423,7 +1433,7 @@ export default function NutritionView({
           <Btn onClick={saveProduit}>{editProdId?"Enregistrer":"Créer"}</Btn>
         </>}
       >
-        <ProduitForm form={prodForm} setForm={setProdForm} onModeChange={setProdInputMode} />
+        <ProduitForm form={prodForm} setForm={setProdForm} onModeChange={setProdInputMode} showTypeError={showProdTypeErr} />
       </Modal>
 
       {/* ── MODAL RECETTE (formulaire unifié) ── */}
@@ -1444,6 +1454,7 @@ export default function NutritionView({
           onOpenCiqualIng={()=>setIngCiqualModal(true)}
           onOpenMesProduitsIng={()=>setIngMesProduitsModal(true)}
           calcMacros={calcMacros}
+          showTypeError={showRecTypeErr}
         />
       </Modal>
 

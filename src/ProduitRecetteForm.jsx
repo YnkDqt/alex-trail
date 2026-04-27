@@ -87,9 +87,10 @@ function Section({ title, optional, children, defaultOpen = false }) {
 }
 
 // ─── SELECT STYLE UNIFIÉ ─────────────────────────────────────────────────────
-function Select({ value, onChange, options, placeholder = "—", full = true }) {
+function Select({ value, onChange, options, placeholder = "—", full = true, error = false }) {
   return (
-    <select value={value || ""} onChange={e => onChange(e.target.value)} style={{ width: full ? "100%" : undefined }}>
+    <select value={value || ""} onChange={e => onChange(e.target.value)}
+      style={{ width: full ? "100%" : undefined, borderColor: error ? C.red : undefined }}>
       <option value="">{placeholder}</option>
       {options.map(o => <option key={o} value={o}>{o}</option>)}
     </select>
@@ -101,7 +102,7 @@ function Select({ value, onChange, options, placeholder = "—", full = true }) 
 //  - form, setForm : state du formulaire
 //  - onModeChange : callback(mode) appelé à chaque changement de mode de saisie
 //    Le parent doit stocker ce mode dans son state et le passer à normalizeProduit(form, mode) au save.
-export function ProduitForm({ form, setForm, onModeChange }) {
+export function ProduitForm({ form, setForm, onModeChange, showTypeError = false }) {
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   // Mode de saisie : 100g ou unité (state local, non persisté)
@@ -148,7 +149,7 @@ export function ProduitForm({ form, setForm, onModeChange }) {
             <input value={form.nom} onChange={e => upd("nom", e.target.value)} placeholder="ex: Gel SIS Go" style={inputStyle} />
           </Field>
           <Field label="Type *">
-            <Select value={form.type} onChange={v => upd("type", v)} options={PRODUIT_TYPES} placeholder="— Choisir —" />
+            <Select value={form.type} onChange={v => upd("type", v)} options={PRODUIT_TYPES} placeholder="— Choisir —" error={showTypeError && !form.type} />
           </Field>
           <Field label="Catégorie">
             <input value={form.categorie} onChange={e => upd("categorie", e.target.value)} placeholder="ex: Gels / Barres / Maison" style={inputStyle} />
@@ -373,7 +374,7 @@ export function loadProduitForEdit(p) {
 //  - allProduits : liste des produits disponibles pour ingrédients (biblio + CIQUAL résolu)
 //  - onOpenCiqualIng : callback pour ouvrir la modal CIQUAL (ajout ingrédient)
 //  - onOpenMesProduitsIng : callback pour ouvrir la modal Mes produits (ajout ingrédient)
-export function RecetteForm({ form, setForm, allProduits = [], onOpenCiqualIng, onOpenMesProduitsIng, calcMacros }) {
+export function RecetteForm({ form, setForm, allProduits = [], onOpenCiqualIng, onOpenMesProduitsIng, calcMacros, showTypeError = false }) {
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const isBoisson = TYPES_BOISSON.includes(form.type);
@@ -403,7 +404,7 @@ export function RecetteForm({ form, setForm, allProduits = [], onOpenCiqualIng, 
             <input value={form.nom} onChange={e => upd("nom", e.target.value)} placeholder="ex: Energy balls maison" style={inputStyle} />
           </Field>
           <Field label="Type *">
-            <Select value={form.type} onChange={v => upd("type", v)} options={PRODUIT_TYPES} placeholder="— Choisir —" />
+            <Select value={form.type} onChange={v => upd("type", v)} options={PRODUIT_TYPES} placeholder="— Choisir —" error={showTypeError && !form.type} />
           </Field>
           <Field label="Portions">
             <input type="number" min="1" value={form.portions} onChange={e => upd("portions", e.target.value)} style={inputStyle} />
