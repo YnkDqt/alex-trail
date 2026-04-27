@@ -182,10 +182,12 @@ function Objectifs({ objectifs, setObjectifs, seances, activites, vfcData, poids
   };
 
   // ── Couleurs par priorité ────────────────────────────────────────────────────
+  // Variantes countdown (très clair/très foncé) gardées hors palette : pas d'équivalent
+  // dans C{} et leur rôle visuel est très spécifique au pill du compte à rebours.
   const prioStyle = (p) => ({
-    A: { border:"#C4521A", bg:"#FAF0E8", head:"#993C1D", pill:"#E8F2EC", pillTxt:"#085041", countdown:"#F5C4B3", countdownTxt:"#712B13" },
-    B: { border:"#BA7517", bg:"#FDF6E3", head:"#854F0B", pill:"#FAEEDA", pillTxt:"#633806", countdown:"#FAC775", countdownTxt:"#412402" },
-    C: { border:"#888780", bg:"#F1EFE8", head:"#5F5E5A", pill:"#F1EFE8", pillTxt:"#444441", countdown:"#D3D1C7", countdownTxt:"#2C2C2A" },
+    A: { border:C.summit,         bg:C.summitPale,  head:"#993C1D", pill:C.forestPale, pillTxt:"#085041", countdown:"#F5C4B3", countdownTxt:"#712B13" },
+    B: { border:"#BA7517",         bg:C.yellowPale,  head:"#854F0B", pill:"#FAEEDA",    pillTxt:"#633806", countdown:"#FAC775", countdownTxt:"#412402" },
+    C: { border:C.stoneDeep,       bg:C.stone,       head:"#5F5E5A", pill:C.stone,      pillTxt:"#444441", countdown:C.stoneDark, countdownTxt:"#2C2C2A" },
   }[p||"A"]);
 
   const scoreColor = (s) => s>=70?C.green:s>=45?C.yellow:C.red;
@@ -351,8 +353,8 @@ function Objectifs({ objectifs, setObjectifs, seances, activites, vfcData, poids
       )}
 
       {/* Bandeau Course */}
-      <div style={{background:C.white,border:`1px solid ${C.summitPale||"#FAF0E8"}`,borderRadius:12,padding:"14px 20px",display:"flex",alignItems:"center",gap:16}}>
-        <div style={{width:36,height:36,borderRadius:8,background:"#FAF0E8",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🏔</div>
+      <div style={{background:C.white,border:`1px solid ${C.summitPale}`,borderRadius:12,padding:"14px 20px",display:"flex",alignItems:"center",gap:16}}>
+        <div style={{width:36,height:36,borderRadius:8,background:C.summitPale,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🏔</div>
         <div style={{flex:1}}>
           <div style={{fontSize:13,fontWeight:500,color:C.inkLight,marginBottom:2}}>Préparer une course</div>
           <div style={{fontSize:11,color:C.muted}}>La section Course analyse ton GPX, calcule ta stratégie de pace et gère ta nutrition de course.</div>

@@ -79,6 +79,7 @@ export default function NutritionView({
   const [confirmId, setConfirmId] = useState(null);
   const [confirmType, setConfirmType] = useState(null);
   const [autoCompletePreview, setAutoCompletePreview] = useState(null);
+  const [confirmVider, setConfirmVider] = useState(false);
   const [strategyModal, setStrategyModal] = useState(false);
   const [sourcesOuvert, setSourcesOuvert] = useState(false);
 
@@ -438,6 +439,17 @@ export default function NutritionView({
     setAutoCompletePreview(null);
   };
 
+  // ── VIDER TOUT LE PLAN ──
+  // Vide les produits du départ ET les produits de tous les ravitos.
+  // Ne touche pas aux produits/recettes de la bibliothèque ni à la stratégie.
+  const viderPlan = () => {
+    setProduitsDepartLocal([]);
+    if (ravitos.length > 0) {
+      updRavitos(ravitos.map(rv => ({ ...rv, produits: [] })));
+    }
+    setConfirmVider(false);
+  };
+
   const filteredCiqual = useMemo(()=>{
     let results = CIQUAL;
     if(ciqualCat!=="Toutes") results = results.filter(a=>a.c===ciqualCat);
@@ -765,6 +777,7 @@ export default function NutritionView({
           <div style={{display:"flex",gap:8}}>
             <Btn variant="soft" size="sm" onClick={()=>setStrategyModal(true)}>⚙️ Stratégie</Btn>
             <Btn variant="soft" size="sm" onClick={handleAutoComplete}>🤖 Auto-compléter</Btn>
+            <Btn variant="soft" size="sm" onClick={()=>setConfirmVider(true)}>🗑 Vider tout</Btn>
           </div>
         </div>
 
@@ -1396,6 +1409,13 @@ export default function NutritionView({
         message={`Supprimer ${confirmType==="produit"?"ce produit":"cette recette"} ?`}
         onConfirm={()=>confirmType==="produit"?delProduit(confirmId):delRecette(confirmId)} 
         onCancel={()=>{setConfirmId(null);setConfirmType(null);}}
+      />
+
+      <ConfirmDialog 
+        open={confirmVider} 
+        message="Vider tout le plan de ravitaillement ? Tous les produits du départ et des ravitos seront supprimés. La stratégie et la bibliothèque ne sont pas touchées."
+        onConfirm={viderPlan} 
+        onCancel={()=>setConfirmVider(false)}
       />
     </div>
   );

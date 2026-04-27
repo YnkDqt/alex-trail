@@ -487,6 +487,16 @@ function DonneesParamsView({
                         data.settings && saveEntrainementSettings(user.id, stg.planningType, stg.activityTypes, stg.entrainementFeatures, stg.courseFeatures, stg.profilType),
                         raceData && saveCurrentRace(user.id, raceData.race, raceData.segments, raceData.settings),
                       ]);
+                      // Restaurer l'historique des courses (saveCourse est par-course)
+                      if (Array.isArray(data.courses) && data.courses.length > 0) {
+                        const existing = await loadCourses(user.id);
+                        const existingIds = new Set(existing.map(c => c.id));
+                        const toAdd = data.courses.filter(c => !existingIds.has(c.id));
+                        for (const course of toAdd) {
+                          try { await saveCourse(user.id, course); }
+                          catch (err) { console.warn('Erreur import course:', course.id, err); }
+                        }
+                      }
                       alert('✅ Import réussi ! Recharge la page.');
                       window.location.reload();
                     } catch (err) {

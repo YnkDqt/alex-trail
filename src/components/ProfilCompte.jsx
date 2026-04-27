@@ -232,8 +232,8 @@ export default function ProfilCompte({ profil = {}, setProfil, settings = {}, se
       setMfaError("Code incorrect. Vérifie l'heure de ton téléphone et réessaie.");
       return;
     }
-    // Générer 10 codes de récupération
-    const codes = Array.from({ length: 10 }, () => {
+    // Générer 3 codes de récupération
+    const codes = Array.from({ length: 3 }, () => {
       const part = () => Math.random().toString(36).substring(2, 6).toUpperCase();
       return `${part()}-${part()}`;
     });
@@ -992,7 +992,7 @@ export default function ProfilCompte({ profil = {}, setProfil, settings = {}, se
             borderRadius:10, marginBottom:20, fontSize:13, color:C.red, lineHeight:1.6 }}>
             Ces codes te permettent d'accéder à ton compte si tu perds ton téléphone. Chaque code ne peut être utilisé qu'une seule fois. <strong>Copie-les maintenant</strong> — ils ne seront plus affichés.
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:20 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:8, marginBottom:20 }}>
             {recoveryCodes.map((code, i) => (
               <div key={i} style={{
                 padding:"8px 14px", background:"var(--surface-2)", borderRadius:8,
