@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   C, 
   PRODUIT_TYPES, 
@@ -106,11 +106,33 @@ export function ProduitForm({ form, setForm, onModeChange, showTypeError = false
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   // Mode de saisie : 100g ou unité (state local, non persisté)
-  const [mode, setModeLocal] = useState("100g");
+  // Init : si on ouvre un produit existant déjà saisi en unitaire (grammesParUnite > 0),
+  // on bascule en mode "unite" pour rester cohérent avec la saisie d'origine.
+  const initialMode = (parseFloat(form.grammesParUnite) > 0) ? "unite" : "100g";
+  const [mode, setModeLocal] = useState(initialMode);
   const setMode = (m) => {
     setModeLocal(m);
     if (onModeChange) onModeChange(m);
   };
+
+  // Notifier le parent du mode initial une seule fois au mount, pour qu'il
+  // reste synchro (sinon le parent garde son défaut "100g" alors qu'on est en "unite").
+  const initNotifiedRef = useRef(false);
+  useEffect(() => {
+    if (initNotifiedRef.current) return;
+    initNotifiedRef.current = true;
+    if (onModeChange) onModeChange(initialMode);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Si on change de produit (id différent), on recalcule le mode initial
+  const lastIdRef = useRef(form.id);
+  useEffect(() => {
+    if (form.id === lastIdRef.current) return;
+    lastIdRef.current = form.id;
+    const newMode = (parseFloat(form.grammesParUnite) > 0) ? "unite" : "100g";
+    setModeLocal(newMode);
+    if (onModeChange) onModeChange(newMode);
+  }, [form.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poids unitaire (obligatoire si mode = unite)
   const poidsUnit = parseFloat(form.grammesParUnite) || 0;
