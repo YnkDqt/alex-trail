@@ -417,7 +417,17 @@ export default function ProfilCompte({ profil = {}, setProfil, settings = {}, se
               const hiVal = override?.hi ?? z.hi;
               const updZone = (field, val) => {
                 const current = p.zonesFC || zones.map(zz => ({ z: zz.z, lo: zz.lo, hi: zz.hi }));
-                const updated = current.map(zz => zz.z === z.z ? { ...zz, [field]: parseInt(val) || zz[field] } : zz);
+                const idx = current.findIndex(zz => zz.z === z.z);
+                if (idx === -1) return;
+                const newVal = parseInt(val) || current[idx][field];
+                const updated = current.map((zz, i) => {
+                  if (i === idx) return { ...zz, [field]: newVal };
+                  // Auto-chaînage : si on change "hi" → la zone suivante prend "lo = hi + 1"
+                  if (field === "hi" && i === idx + 1) return { ...zz, lo: newVal + 1 };
+                  // Auto-chaînage : si on change "lo" → la zone précédente prend "hi = lo - 1"
+                  if (field === "lo" && i === idx - 1) return { ...zz, hi: newVal - 1 };
+                  return zz;
+                });
                 set("zonesFC", updated);
               };
               return (
