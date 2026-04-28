@@ -1305,45 +1305,57 @@ export default function App() {
   const pendingSavesRef = useRef({});
   // Flag pour éviter qu'un conflit ne soit traité plusieurs fois par les auto-saves parallèles
   const conflictHandlingRef = useRef(false);
+  // Mutex : ne laisser qu'un seul safeSave en cours pour éviter les races sur serverVersionRef
+  // (sinon plusieurs autosaves en parallèle peuvent désynchroniser la version locale).
+  const safeSaveQueueRef = useRef(Promise.resolve());
 
   // ── Save sécurisé avec détection de conflit ────────────────────────────
   // Avant chaque écriture, on relit la data_version côté serveur.
   // - Si identique à notre référence locale → l'écriture est sûre, on bump
   //   la version serveur et on mémorise le nouveau timestamp.
-  // - Si différente → une autre session a modifié entre temps. On bloque
-  //   tout via setConflictDetected(true) pour éviter l'écrasement.
+  // - Si différente → une autre session/onglet a modifié entre temps. On bloque
+  //   tout via setConflictDetected(true) pour éviter l'écrasement (écran explicite).
+  //
+  // Sérialisation : tous les safeSave passent par une queue (mutex). Garantit
+  // qu'aucun bumpDataVersion ne peut s'intercaler entre le getDataVersion et
+  // le bumpDataVersion d'un autre save → plus de fausse détection de conflit.
   const safeSave = useCallback(async (saveFn) => {
     if (!user?.id) return;
-    if (conflictDetected) return; // sécurité : déjà en conflit, on ne tente rien
-    if (conflictHandlingRef.current) return; // un autre auto-save gère déjà le conflit
+    if (conflictDetected) return;
+    if (conflictHandlingRef.current) return;
+
+    // On chaîne sur la queue : chaque save attend que le précédent finisse
+    const previous = safeSaveQueueRef.current;
+    let release;
+    safeSaveQueueRef.current = new Promise(resolve => { release = resolve; });
+
     try {
+      await previous; // attendre que le précédent finisse (succès ou échec)
+      // Re-checks après attente (état peut avoir changé pendant qu'on attendait)
+      if (conflictDetected) return;
+      if (conflictHandlingRef.current) return;
+
       const currentServerVersion = await getDataVersion(user.id);
-      // Cas particulier : pas encore de ligne entrainement_settings (premier save)
-      // → serverVersionRef.current est null ET currentServerVersion est null → OK
+      // Cas particulier : première écriture (aucune version stockée) → on passe
       if (serverVersionRef.current && currentServerVersion && currentServerVersion !== serverVersionRef.current) {
-        // Verrou : seul le premier appel en conflit traite la situation
-        if (conflictHandlingRef.current) return;
         conflictHandlingRef.current = true;
         console.warn('[conflict] version serveur a changé', { local: serverVersionRef.current, server: currentServerVersion });
-        // Si aucune save en attente → reload silencieux (l'utilisateur n'avait rien de local à perdre)
-        // pendingSavesRef contient les callbacks des auto-saves débouncés non encore exécutés
-        const hasPendingLocalChanges = Object.keys(pendingSavesRef.current).length > 0;
-        if (!hasPendingLocalChanges) {
-          console.info('[conflict] aucune modif locale en attente → reload silencieux');
-          window.location.reload();
-          return;
-        }
-        // Sinon : écran bloquant classique pour permettre téléchargement local
+        // Toujours afficher l'écran bloquant : l'utilisateur garde la main.
+        // Un reload silencieux peut produire une boucle si la cause est interne.
         setConflictDetected(true);
         return;
       }
       await saveFn();
       const newVersion = await bumpDataVersion(user.id);
-      serverVersionRef.current = newVersion;
+      // Garder la version la plus récente (filet anti-désordre des promesses)
+      if (!serverVersionRef.current || (newVersion && newVersion > serverVersionRef.current)) {
+        serverVersionRef.current = newVersion;
+      }
     } catch (err) {
       console.error('[safeSave] erreur:', err);
-      // Ne pas bloquer l'app sur une erreur réseau ponctuelle — on laisse
-      // le prochain save réessayer. Le conflit, lui, est persistant.
+      // Erreur réseau ponctuelle : on laisse le prochain save retenter.
+    } finally {
+      release(); // libère la queue pour le suivant
     }
   }, [user?.id, conflictDetected]);
 
