@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { C, RUNNER_LEVELS, TERRAIN_TYPES, DEFAULT_EQUIPMENT, PREP_TIMELINE, EMPTY_SETTINGS, DEFAULT_FLAT_SPEED } from '../constants.js';
 import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, exportRecap, exportGPXMontre, suggestSpeed, autoSegmentGPX, parseGarminCSV, buildElevationProfile, calcSlopeFromGPX, parseGPX, kcalDuStock, formatQuantiteStock } from '../utils.jsx';
+import { getNutritionStrategy } from '../NutritionStrategyModal.jsx';
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE TEAM ────────────────────────────────────────────────────────────────
@@ -17,6 +18,7 @@ export default function TeamView({ race, setRace, segments, setSegments, setting
 
   const ravitos = [...(race.ravitos || [])].sort((a, b) => a.km - b.km);
   const { times: passingTimes } = calcPassingTimes(segments, settings.startTime);
+  const flasqueMl = getNutritionStrategy(race)?.hydratation?.flasqueMl || 500;
 
   // Map segIndex → ravito pour retrouver les heures théoriques
   const ravitoSegs = segments
@@ -446,7 +448,7 @@ export default function TeamView({ race, setRace, segments, setSegments, setting
                     <div key={id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", background: "var(--surface)", borderRadius: 8, fontSize: 13 }}>
                       <span style={{ fontWeight: 600 }}>{p.nom}</span>
                       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                        <span style={{ color: "var(--muted-c)", fontSize: 12 }}>{formatQuantiteStock(p, quantite)}</span>
+                        <span style={{ color: "var(--muted-c)", fontSize: 12 }}>{formatQuantiteStock(p, quantite, flasqueMl)}</span>
                         <span style={{ color: C.red, fontWeight: 600, fontSize: 12 }}>
                           {kcalDuStock(p, quantite, allItems)} kcal
                         </span>
@@ -580,7 +582,7 @@ export default function TeamView({ race, setRace, segments, setSegments, setting
                                 <div key={id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 10px", background: "var(--surface)", borderRadius: 8, fontSize: 13 }}>
                                   <span style={{ fontWeight: 600 }}>{p.nom}</span>
                                   <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                                    <span style={{ color: "var(--muted-c)", fontSize: 12 }}>{formatQuantiteStock(p, quantite)}</span>
+                                    <span style={{ color: "var(--muted-c)", fontSize: 12 }}>{formatQuantiteStock(p, quantite, flasqueMl)}</span>
                                     <span style={{ color: C.red, fontWeight: 600, fontSize: 12 }}>
                                       {kcal} kcal
                                     </span>

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { C, DEFAULT_FLAT_SPEED, RUNNER_LEVELS, TERRAIN_TYPES } from './constants.js';
+import { isEauPure } from './autoCompleteAlgo.js';
 
 export function fmtTime(seconds) {
   if (!seconds || seconds <= 0) return "--:--:--";
@@ -1477,7 +1478,13 @@ export function kcalDuStock(item, quantite, allItems) {
 // - Recette → "× N" (portions)
 // - Produit boisson → "N ml" (1g de liquide ≈ 1ml)
 // - Produit solide → "N g"
-export function formatQuantiteStock(item, quantite) {
+export function formatQuantiteStock(item, quantite, flasqueMl = 500) {
+  // Eau pure : affichage en flasques si quantité multiple entier
+  if (isEauPure(item) && flasqueMl > 0) {
+    const n = quantite / flasqueMl;
+    if (Number.isInteger(n) && n > 0) return `${n} × ${flasqueMl}ml`;
+    return `${quantite} ml`;
+  }
   if (isRecette(item)) {
     // Recette : quantite = nb portions
     const portionMl = parseFloat(item.volumeMlParPortion) || 0;
