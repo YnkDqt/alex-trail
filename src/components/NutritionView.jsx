@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { C, NUTRITION_PRESETS, detectPreset, applyPreset, matchPreset, applyMeteoModifiers } from '../constants.js';
+import { C, NUTRITION_PRESETS, detectPreset, applyPreset, matchPreset, applyMeteoModifiers, TYPES_BOISSON } from '../constants.js';
 import { fmtTime, calcNutrition } from '../utils.jsx';
 import { Btn, Modal, ConfirmDialog, KPI } from '../atoms.jsx';
 import { CIQUAL, CIQUAL_CATEGORIES } from '../data/ciqual.js';
@@ -85,6 +85,7 @@ export default function NutritionView({
   const [presetInfoOpen, setPresetInfoOpen] = useState(false);
   const [showProdTypeErr, setShowProdTypeErr] = useState(false);
   const [showRecTypeErr, setShowRecTypeErr] = useState(false);
+  const [showRecPortionErr, setShowRecPortionErr] = useState(false);
   const [sourcesOuvert, setSourcesOuvert] = useState(false);
 
   // emptyProduit/emptyRecette sont importés depuis ProduitRecetteForm.jsx
@@ -284,6 +285,7 @@ export default function NutritionView({
     setEditRecId(null);
     setRecForm(emptyRecette());
     setShowRecTypeErr(false);
+    setShowRecPortionErr(false);
     setRecModal(true);
   };
 
@@ -291,12 +293,16 @@ export default function NutritionView({
     setEditRecId(r.id);
     setRecForm(loadRecetteForEdit(r));
     setShowRecTypeErr(false);
+    setShowRecPortionErr(false);
     setRecModal(true);
   };
 
   const saveRecette = () => {
     if(!recForm.nom.trim()) return;
     if(!recForm.type) { setShowRecTypeErr(true); return; }
+    const isBoissonRec = TYPES_BOISSON.includes(recForm.type);
+    const portionVal = parseFloat(isBoissonRec ? recForm.volumeMlParPortion : recForm.grammesParPortion) || 0;
+    if (portionVal <= 0) { setShowRecPortionErr(true); return; }
     const normalized = normalizeRecette(recForm);
     const item = { ...normalized, id: editRecId || Date.now()+Math.random() };
     if(editRecId) {
@@ -305,6 +311,7 @@ export default function NutritionView({
       updBibliotheque({ ...bibliotheque, recettes: [...bibliotheque.recettes, item] });
     }
     setShowRecTypeErr(false);
+    setShowRecPortionErr(false);
     setRecModal(false);
   };
 
@@ -1163,10 +1170,27 @@ export default function NutritionView({
                                 {items.map((it, idx) => {
                                   const prod = allBibItems.find(x => x.id === it.id);
                                   if (!prod) return null;
-                                  const isUnit = !!prod.unite && (prod.grammesParUnite || prod.volumeMlParUnite);
-                                  const qteAffichee = isUnit
-                                    ? `${Math.round(it.quantite / (prod.grammesParUnite || prod.volumeMlParUnite))} ${prod.unite}`
-                                    : (prod.boisson || prod.volumeMlParUnite ? `${Math.round(it.quantite)}ml` : `${Math.round(it.quantite)}g`);
+                                  const isProdItem = prod.itemType === "produit";
+                                  let qteAffichee;
+                                  if (!isProdItem) {
+                                    // Recette : it.quantite = nb portions
+                                    const portionMl = parseFloat(prod.volumeMlParPortion) || 0;
+                                    const portionG = parseFloat(prod.grammesParPortion) || 0;
+                                    const n = Math.round(it.quantite);
+                                    if (portionMl > 0) qteAffichee = `${n} × ${portionMl}ml`;
+                                    else if (portionG > 0) qteAffichee = `${n} × ${portionG}g`;
+                                    else qteAffichee = `${n} portion${n > 1 ? "s" : ""}`;
+                                  } else {
+                                    // Produit : it.quantite = grammes
+                                    const unitMl = parseFloat(prod.volumeMlParUnite) || 0;
+                                    const unitG = parseFloat(prod.grammesParUnite) || 0;
+                                    const isUnit = !!prod.unite && (unitG || unitMl);
+                                    if (isUnit) {
+                                      qteAffichee = `${Math.round(it.quantite / (unitG || unitMl))} ${prod.unite}`;
+                                    } else {
+                                      qteAffichee = (prod.boisson || unitMl) ? `${Math.round(it.quantite)}ml` : `${Math.round(it.quantite)}g`;
+                                    }
+                                  }
                                   return (
                                     <div key={idx} style={{fontSize:11, color:C.muted, display:"flex", justifyContent:"space-between"}}>
                                       <span>{prod.nom}</span>
@@ -1390,22 +1414,43 @@ export default function NutritionView({
                   const nbFlasques = isEau && flasqueMl > 0 ? (qte / flasqueMl) : null;
                   const showFlasques = isEau && nbFlasques != null && Number.isInteger(nbFlasques);
                   
-                  // Affichage "N × Xg" ou "N × Xml" pour produits/recettes ayant une unité de portion définie
+                  // Affichage "N × Xg" ou "N × Xml"
+                  // - Recette : qte EST le nombre de portions → affichage direct
+                  // - Produit avec unité de packaging : si qte est multiple entier de l'unité
                   let unitDisplay = null;
                   if (!isEau && qte > 0) {
-                    const portionG = isProd
-                      ? parseFloat(item.grammesParUnite) || 0
-                      : parseFloat(item.grammesParPortion) || 0;
-                    const portionMl = isProd
-                      ? parseFloat(item.volumeMlParUnite) || 0
-                      : parseFloat(item.volumeMlParPortion) || 0;
-                    if (portionMl > 0) {
-                      const n = qte / portionMl;
-                      if (Number.isInteger(n) && n > 0) unitDisplay = `${n} × ${portionMl}ml`;
-                    } else if (portionG > 0) {
-                      const n = qte / portionG;
-                      if (Number.isInteger(n) && n > 0) unitDisplay = `${n} × ${portionG}g`;
+                    if (!isProd) {
+                      // Recette : qte = nombre de portions
+                      const portionMl = parseFloat(item.volumeMlParPortion) || 0;
+                      const portionG = parseFloat(item.grammesParPortion) || 0;
+                      if (portionMl > 0) unitDisplay = `${qte} × ${portionMl}ml`;
+                      else if (portionG > 0) unitDisplay = `${qte} × ${portionG}g`;
+                    } else {
+                      // Produit : qte = grammes ; affichage unitaire si multiple entier
+                      const unitMl = parseFloat(item.volumeMlParUnite) || 0;
+                      const unitG = parseFloat(item.grammesParUnite) || 0;
+                      if (unitMl > 0) {
+                        const n = qte / unitMl;
+                        if (Number.isInteger(n) && n > 0) unitDisplay = `${n} × ${unitMl}ml`;
+                      } else if (unitG > 0) {
+                        const n = qte / unitG;
+                        if (Number.isInteger(n) && n > 0) unitDisplay = `${n} × ${unitG}g`;
+                      }
                     }
+                  }
+                  
+                  // Incrément des boutons +/- adapté à la nature de l'item :
+                  //  - Eau : par flasque
+                  //  - Recette : par portion (delta = 1)
+                  //  - Produit avec unité : par unité (gel 32g, barre 40g…)
+                  //  - Produit en vrac : par gramme (delta = 1)
+                  let delta;
+                  if (isEau) delta = flasqueMl;
+                  else if (!isProd) delta = 1; // recette = portion
+                  else {
+                    const unitMl = parseFloat(item.volumeMlParUnite) || 0;
+                    const unitG = parseFloat(item.grammesParUnite) || 0;
+                    delta = unitMl > 0 ? unitMl : (unitG > 0 ? unitG : 1);
                   }
                   
                   return (
@@ -1421,13 +1466,13 @@ export default function NutritionView({
                         </div>
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <button onClick={() => updateRavitoQte(ravitoId, item.id, isEau ? -flasqueMl : -1)}
+                        <button onClick={() => updateRavitoQte(ravitoId, item.id, -delta)}
                           style={{width:28,height:28,borderRadius:6,border:`1px solid ${C.border}`,
                             background:C.white,cursor:"pointer",fontSize:16,color:C.inkLight}}>−</button>
                         <span style={{fontFamily:"'DM Mono',monospace",fontSize:14,fontWeight:500,minWidth:(showFlasques||unitDisplay)?56:30,textAlign:"center"}}>
                           {showFlasques ? `${nbFlasques} × ${flasqueMl}ml` : (unitDisplay || qte)}
                         </span>
-                        <button onClick={() => updateRavitoQte(ravitoId, item.id, isEau ? flasqueMl : 1)}
+                        <button onClick={() => updateRavitoQte(ravitoId, item.id, delta)}
                           style={{width:28,height:28,borderRadius:6,border:`1px solid ${C.border}`,
                             background:C.white,cursor:"pointer",fontSize:16,color:C.inkLight}}>+</button>
                       </div>
@@ -1473,6 +1518,7 @@ export default function NutritionView({
           onOpenMesProduitsIng={()=>setIngMesProduitsModal(true)}
           calcMacros={calcMacros}
           showTypeError={showRecTypeErr}
+          showPortionError={showRecPortionErr}
         />
       </Modal>
 

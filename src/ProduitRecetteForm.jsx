@@ -374,7 +374,7 @@ export function loadProduitForEdit(p) {
 //  - allProduits : liste des produits disponibles pour ingrédients (biblio + CIQUAL résolu)
 //  - onOpenCiqualIng : callback pour ouvrir la modal CIQUAL (ajout ingrédient)
 //  - onOpenMesProduitsIng : callback pour ouvrir la modal Mes produits (ajout ingrédient)
-export function RecetteForm({ form, setForm, allProduits = [], onOpenCiqualIng, onOpenMesProduitsIng, calcMacros, showTypeError = false }) {
+export function RecetteForm({ form, setForm, allProduits = [], onOpenCiqualIng, onOpenMesProduitsIng, calcMacros, showTypeError = false, showPortionError = false }) {
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const isBoisson = TYPES_BOISSON.includes(form.type);
@@ -409,13 +409,18 @@ export function RecetteForm({ form, setForm, allProduits = [], onOpenCiqualIng, 
           <Field label="Portions">
             <input type="number" min="1" value={form.portions} onChange={e => upd("portions", e.target.value)} style={inputStyle} />
           </Field>
-          <Field label={isBoisson ? "Volume / portion (ml)" : "Poids / portion (g)"}>
+          <Field label={isBoisson ? "Volume / portion (ml) *" : "Poids / portion (g) *"}>
             <input 
               type="number" min="0" step={isBoisson ? "10" : "1"}
               value={isBoisson ? (form.volumeMlParPortion || "") : (form.grammesParPortion || "")}
               onChange={e => upd(isBoisson ? "volumeMlParPortion" : "grammesParPortion", e.target.value)}
               placeholder={isBoisson ? "ex: 500" : "ex: 40 (1 ball = 40g)"}
-              style={inputStyle}
+              style={{
+                ...inputStyle,
+                ...(showPortionError && !(parseFloat(isBoisson ? form.volumeMlParPortion : form.grammesParPortion) > 0)
+                  ? { borderColor: C.red }
+                  : {})
+              }}
             />
             {poidsTotal > 0 && (
               <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>

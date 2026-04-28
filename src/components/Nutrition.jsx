@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from "react";
-import { C, isRunning, fmtDate, localDate, exportJSON } from "../constants.js";
+import { C, isRunning, fmtDate, localDate, exportJSON, TYPES_BOISSON } from "../constants.js";
 import { Btn, Modal, Field, ConfirmDialog } from "../atoms.jsx";
 import { CIQUAL, CIQUAL_CATEGORIES } from "../data/ciqual.js";
 import {
@@ -265,6 +265,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   const [editRecId, setEditRecId] = useState(null);
   const [confirmRecId, setConfirmRecId] = useState(null);
   const [showRecTypeErr, setShowRecTypeErr] = useState(false);
+  const [showRecPortionErr, setShowRecPortionErr] = useState(false);
 
   // Recherche CIQUAL pour ingrédients recette
   const [ingCiqualModal, setIngCiqualModal] = useState(false);
@@ -343,6 +344,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
     setEditRecId(null);
     setRecForm(emptyRecette());
     setShowRecTypeErr(false);
+    setShowRecPortionErr(false);
     setRecModal(true);
   };
   
@@ -350,17 +352,22 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
     setEditRecId(r.id);
     setRecForm(loadRecetteForEdit(r));
     setShowRecTypeErr(false);
+    setShowRecPortionErr(false);
     setRecModal(true);
   };
   
   const saveRecette = () => {
     if(!recForm.nom.trim()) return;
     if(!recForm.type) { setShowRecTypeErr(true); return; }
+    const isBoissonRec = TYPES_BOISSON.includes(recForm.type);
+    const portionVal = parseFloat(isBoissonRec ? recForm.volumeMlParPortion : recForm.grammesParPortion) || 0;
+    if (portionVal <= 0) { setShowRecPortionErr(true); return; }
     const normalized = normalizeRecette(recForm);
     const item = { ...normalized, id: editRecId || Date.now()+Math.random() };
     if(editRecId) setRecettes(rr=>rr.map(r=>r.id===editRecId?item:r));
     else setRecettes(rr=>[...rr,item]);
     setShowRecTypeErr(false);
+    setShowRecPortionErr(false);
     setRecModal(false);
   };
   
@@ -746,6 +753,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
           onOpenMesProduitsIng={()=>setMesProduitsModal(true)}
           calcMacros={calcMacros}
           showTypeError={showRecTypeErr}
+          showPortionError={showRecPortionErr}
         />
       </Modal>
 
