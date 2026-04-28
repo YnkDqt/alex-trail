@@ -72,15 +72,43 @@ const convertDuration = (val) => {
   return cleanInt(val)
 }
 
-// ─── SAFE REPLACE : pattern INSERT-puis-DELETE pour éviter les pertes ────────
+// Dédup défensive côté load : garde la ligne la plus récente par clé.
+// Filet de sécurité au cas où des doublons subsistent en BDD malgré safeReplace.
+// Tri par updated_at desc (fallback sur id desc) puis on garde le 1er occurrence par clé.
+const dedupBy = (rows, keyFn) => {
+  const sorted = [...rows].sort((a, b) => {
+    const ua = a.updated_at ? new Date(a.updated_at).getTime() : 0
+    const ub = b.updated_at ? new Date(b.updated_at).getTime() : 0
+    if (ua !== ub) return ub - ua
+    return (b.id || 0) - (a.id || 0)
+  })
+  const seen = new Set()
+  const out = []
+  for (const row of sorted) {
+    const key = keyFn(row)
+    if (key == null || seen.has(key)) continue
+    seen.add(key)
+    out.push(row)
+  }
+  return out
+}
+
+// ─── SAFE REPLACE : pattern DELETE-puis-INSERT, atomique côté UX ─────────────
 // Pattern utilisé pour les tables time-series où on remplace tout le set d'un user.
 //
-// Sécurité 3 couches :
-//  1. Garde-fou : refuse si rows vide (sauf si allowEmpty=true explicite)
-//  2. INSERT d'abord avec un batch_id unique → si échec, l'ancien data est intact
-//  3. DELETE des anciens batch_id seulement après INSERT réussi
+// Pourquoi DELETE-puis-INSERT et pas l'inverse :
+//  - L'ancien pattern (INSERT-batch-puis-DELETE-anciens) laissait des doublons en BDD
+//    si le DELETE échouait silencieusement (RLS, timeout, OR mal résolu).
+//  - À chaque session, le `load` lisait ancien+nouveau → l'utilisateur voyait ses
+//    données dupliquées. Au save suivant, les doublons étaient ré-insérés → cumul.
+//  - DELETE-puis-INSERT est plus simple : si INSERT plante, on a perdu la session
+//    courante mais le load suivant retournera 0 ligne (état cohérent, pas de pollution).
 //
-// Si rows.length === 0 ET allowEmpty=true : appelle clearTable (action explicite)
+// Sécurité :
+//  1. Garde-fou : refuse si rows vide (sauf allowEmpty=true)
+//  2. DELETE de toutes les lignes du user
+//  3. INSERT du nouveau set
+//  4. Si INSERT plante après DELETE : on log, l'utilisateur peut re-tenter au save suivant
 async function safeReplace(table, userId, rows, { allowEmpty = false } = {}) {
   if (!userId) throw new Error(`safeReplace[${table}] : userId manquant`)
   
@@ -91,36 +119,28 @@ async function safeReplace(table, userId, rows, { allowEmpty = false } = {}) {
   }
   if (rows.length === 0) {
     if (allowEmpty) {
-      // Reset explicite : on supprime toutes les lignes du user
       return clearTable(table, userId)
     }
-    // Sinon : on refuse silencieusement (probable bug d'init/race condition)
     console.warn(`[safeReplace ${table}] rows vide sans allowEmpty → abort (protection)`)
     return
   }
   
-  // Couche 2 : INSERT d'abord avec un batch_id unique
-  const batchId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-  const rowsWithBatch = rows.map(r => ({ ...r, batch_id: batchId }))
-  
-  const { error: insertError } = await supabase.from(table).insert(rowsWithBatch)
-  if (insertError) {
-    // INSERT a échoué : on ne touche pas à l'ancien data, il est intact
-    console.error(`[safeReplace ${table}] INSERT échec, anciennes données préservées:`, insertError)
-    throw insertError
-  }
-  
-  // Couche 2 (suite) : DELETE des anciens batch (tous sauf le nouveau)
+  // Couche 2 : DELETE de tout le set existant du user
   const { error: deleteError } = await supabase
     .from(table)
     .delete()
     .eq('user_id', userId)
-    .or(`batch_id.is.null,batch_id.neq.${batchId}`)
   
   if (deleteError) {
-    // DELETE échoué : on a des doublons (ancien + nouveau batch). Pas grave.
-    // Le prochain save fera le ménage. On log mais on ne throw pas.
-    console.warn(`[safeReplace ${table}] DELETE anciens batch échoué (les nouvelles données sont quand même là):`, deleteError)
+    console.error(`[safeReplace ${table}] DELETE échec, abort INSERT:`, deleteError)
+    throw deleteError
+  }
+  
+  // Couche 3 : INSERT du nouveau set
+  const { error: insertError } = await supabase.from(table).insert(rows)
+  if (insertError) {
+    console.error(`[safeReplace ${table}] INSERT échec après DELETE, données perdues pour cette session:`, insertError)
+    throw insertError
   }
 }
 
@@ -351,7 +371,8 @@ export async function loadSommeil(userId) {
   
   if (error) throw error
   
-  return (data || []).map(s => {
+  const deduped = dedupBy(data || [], r => r.date)
+  return deduped.map(s => {
     const loaded = {
       id: s.id,
       date: s.date,
@@ -406,7 +427,8 @@ export async function loadVFC(userId) {
   
   if (error) throw error
   
-  return (data || []).map(v => ({
+  const deduped = dedupBy(data || [], r => r.date)
+  return deduped.map(v => ({
     id: v.id,
     date: v.date,
     vfc: v.vfc,
@@ -442,7 +464,8 @@ export async function loadPoids(userId) {
   
   if (error) throw error
   
-  return (data || []).map(p => ({
+  const deduped = dedupBy(data || [], r => r.date)
+  return deduped.map(p => ({
     id: p.id,
     date: p.date,
     poids: p.poids,
@@ -489,7 +512,8 @@ export async function loadObjectifs(userId) {
   
   if (error) throw error
   
-  return (data || []).map(o => ({
+  const deduped = dedupBy(data || [], r => `${r.date}|${r.nom || ''}`)
+  return deduped.map(o => ({
     id: o.id,
     date: o.date,
     nom: o.nom,
