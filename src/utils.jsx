@@ -1478,7 +1478,24 @@ export function kcalDuStock(item, quantite, allItems) {
 // - Produit boisson → "N ml" (1g de liquide ≈ 1ml)
 // - Produit solide → "N g"
 export function formatQuantiteStock(item, quantite) {
-  if (isRecette(item)) return `× ${quantite}`;
+  if (isRecette(item)) {
+    // Recette : quantite = nb portions
+    const portionMl = parseFloat(item.volumeMlParPortion) || 0;
+    const portionG = parseFloat(item.grammesParPortion) || 0;
+    if (portionMl > 0) return `${quantite} × ${portionMl}ml`;
+    if (portionG > 0) return `${quantite} × ${portionG}g`;
+    return `${quantite} portion${quantite > 1 ? "s" : ""}`;
+  }
+  // Produit : quantite = grammes (ou ml pour boisson)
+  const unitMl = parseFloat(item.volumeMlParUnite) || 0;
+  const unitG = parseFloat(item.grammesParUnite) || 0;
+  if (unitMl > 0) {
+    const n = quantite / unitMl;
+    if (Number.isInteger(n) && n > 0) return `${n} × ${unitMl}ml`;
+  } else if (unitG > 0) {
+    const n = quantite / unitG;
+    if (Number.isInteger(n) && n > 0) return `${n} × ${unitG}g`;
+  }
   const isLiq = item.boisson || (item.categorie || "").toLowerCase().includes("boisson");
   return isLiq ? `${quantite} ml` : `${quantite} g`;
 }
