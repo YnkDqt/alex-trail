@@ -185,8 +185,8 @@ function Dashboard({ setView, seances, vfcData, sommeil, poids, objectifs, race,
       </div>
 
       {/* Graphique km 12 semaines - FIX: height augmenté 80→120 */}
-      <div style={{...card,padding:"16px 20px",marginBottom:14}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+      <div style={{...card,padding:"20px 20px 16px",marginBottom:14}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <span style={{...lbl,marginBottom:0}}>Charge trail · 12 semaines</span>
           <div style={{display:"flex",gap:16,fontSize:11,color:C.muted}}>
             <span><b style={{color:C.inkLight}}>{weeklyKm.reduce((s,w)=>s+w.km,0).toFixed(0)} km</b> total</span>

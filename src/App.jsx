@@ -599,40 +599,6 @@ Annuler = tout effacer.`);if(ok)saveCourse();}
       {/* ── COMPTE ── */}
       {tab==="compte"&&(
         <div>
-          <Section title="Synchronisation cloud">
-            <div style={{background:C.skyPale,border:`1px solid ${C.sky}30`,
-              borderRadius:12,padding:"20px",marginBottom:8}}>
-              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-                <span style={{fontSize:28}}>☁️</span>
-                <div>
-                  <div style={{fontSize:15,fontWeight:600,color:C.sky,marginBottom:2}}>
-                    Supabase — bientôt disponible
-                  </div>
-                  <div style={{fontSize:12,color:C.muted}}>
-                    Accède à tes données depuis n'importe quel appareil
-                  </div>
-                </div>
-              </div>
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {[
-                  "Sauvegarde automatique dans le cloud",
-                  "Synchronisation mobile ↔ desktop",
-                  "Partage avec un coach",
-                  "Historique illimité",
-                ].map(f=>(
-                  <div key={f} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:C.sky}}>
-                    <span>→</span><span>{f}</span>
-                  </div>
-                ))}
-              </div>
-              <button disabled style={{marginTop:16,width:"100%",padding:"10px",borderRadius:10,
-                border:`1px solid ${C.sky}`,background:"transparent",color:C.sky,
-                cursor:"not-allowed",fontSize:13,fontWeight:500,fontFamily:"inherit",opacity:0.6}}>
-                Créer un compte — bientôt
-              </button>
-            </div>
-          </Section>
-
           <Section title="Stockage des données">
             <div style={{background:C.stone,borderRadius:12,padding:"16px",fontSize:12,color:C.muted,lineHeight:1.6}}>
               <div style={{marginBottom:8,fontWeight:600,color:C.inkLight}}>✅ Stockage Supabase actif</div>
