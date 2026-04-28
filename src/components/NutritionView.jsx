@@ -1390,6 +1390,24 @@ export default function NutritionView({
                   const nbFlasques = isEau && flasqueMl > 0 ? (qte / flasqueMl) : null;
                   const showFlasques = isEau && nbFlasques != null && Number.isInteger(nbFlasques);
                   
+                  // Affichage "N × Xg" ou "N × Xml" pour produits/recettes ayant une unité de portion définie
+                  let unitDisplay = null;
+                  if (!isEau && qte > 0) {
+                    const portionG = isProd
+                      ? parseFloat(item.grammesParUnite) || 0
+                      : parseFloat(item.grammesParPortion) || 0;
+                    const portionMl = isProd
+                      ? parseFloat(item.volumeMlParUnite) || 0
+                      : parseFloat(item.volumeMlParPortion) || 0;
+                    if (portionMl > 0) {
+                      const n = qte / portionMl;
+                      if (Number.isInteger(n) && n > 0) unitDisplay = `${n} × ${portionMl}ml`;
+                    } else if (portionG > 0) {
+                      const n = qte / portionG;
+                      if (Number.isInteger(n) && n > 0) unitDisplay = `${n} × ${portionG}g`;
+                    }
+                  }
+                  
                   return (
                     <div key={item.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
                       padding:"8px 12px",background:C.stone,borderRadius:8,marginBottom:6}}>
@@ -1406,8 +1424,8 @@ export default function NutritionView({
                         <button onClick={() => updateRavitoQte(ravitoId, item.id, isEau ? -flasqueMl : -1)}
                           style={{width:28,height:28,borderRadius:6,border:`1px solid ${C.border}`,
                             background:C.white,cursor:"pointer",fontSize:16,color:C.inkLight}}>−</button>
-                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:14,fontWeight:500,minWidth:showFlasques?56:30,textAlign:"center"}}>
-                          {showFlasques ? `${nbFlasques} × ${flasqueMl}ml` : qte}
+                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:14,fontWeight:500,minWidth:(showFlasques||unitDisplay)?56:30,textAlign:"center"}}>
+                          {showFlasques ? `${nbFlasques} × ${flasqueMl}ml` : (unitDisplay || qte)}
                         </span>
                         <button onClick={() => updateRavitoQte(ravitoId, item.id, isEau ? flasqueMl : 1)}
                           style={{width:28,height:28,borderRadius:6,border:`1px solid ${C.border}`,
