@@ -624,17 +624,33 @@ export async function loadCourses(userId) {
   
   if (error) throw error
   
-  return (data || []).map(c => ({
-    id: c.id,
-    savedAt: new Date(c.updated_at).getTime(),
-    name: c.name,
-    distance: c.distance,
-    elevPos: c.elevation,
-    date: c.date,
-    race: c.strategy_data?.race || {},
-    segments: c.strategy_data?.segments || [],
-    settings: c.nutrition_data || {}
-  }))
+  return (data || []).map(c => {
+    const segments = c.strategy_data?.segments || []
+    const settings = c.nutrition_data || {}
+    
+    // Fallback pour les courses anciennes qui n'ont pas ces champs en strategy_data
+    const segsCourse = segments.filter(s => s.type !== 'ravito' && s.type !== 'repos')
+    const fallbackSegCount = segsCourse.length
+    const fallbackTotalTime = segsCourse.reduce((sum, seg) => {
+      if (!seg.speedKmh || seg.speedKmh <= 0) return sum
+      return sum + (seg.endKm - seg.startKm) / seg.speedKmh * 3600
+    }, 0)
+    
+    return {
+      id: c.id,
+      savedAt: new Date(c.updated_at).getTime(),
+      name: c.name,
+      distance: c.distance,
+      elevPos: c.elevation,
+      date: c.date,
+      segCount: c.strategy_data?.segCount ?? fallbackSegCount,
+      startTime: c.strategy_data?.startTime ?? settings.startTime ?? null,
+      totalTime: c.strategy_data?.totalTime ?? fallbackTotalTime,
+      race: c.strategy_data?.race || {},
+      segments,
+      settings
+    }
+  })
 }
 
 export async function saveCourse(userId, course) {
@@ -647,7 +663,13 @@ export async function saveCourse(userId, course) {
       distance: course.distance,
       elevation: course.elevPos,
       date: course.date,
-      strategy_data: { race: course.race, segments: course.segments },
+      strategy_data: {
+        race: course.race,
+        segments: course.segments,
+        segCount: course.segCount,
+        startTime: course.startTime,
+        totalTime: course.totalTime
+      },
       nutrition_data: course.settings,
       updated_at: new Date().toISOString()
     }, {
