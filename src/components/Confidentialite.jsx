@@ -1,5 +1,6 @@
 import React from 'react';
 import { C } from '../constants.js';
+import { PageTitle } from '../atoms.jsx';
 
 export default function Confidentialite({ setView }) {
   const s = {
@@ -13,12 +14,7 @@ export default function Confidentialite({ setView }) {
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "32px 20px 80px" }}>
-      <div style={{ marginBottom: 40 }}>
-        <h1 style={{ fontFamily: "'Fraunces',serif", fontSize: 28, fontWeight: 500, color: C.inkLight, marginBottom: 8 }}>
-          Politique de confidentialité
-        </h1>
-        <p style={{ fontSize: 13, color: C.muted }}>Dernière mise à jour : {new Date().toLocaleDateString('fr-FR')}</p>
-      </div>
+      <PageTitle sub={`Dernière mise à jour : ${new Date().toLocaleDateString('fr-FR')}`}>Politique de confidentialité</PageTitle>
 
       <div style={s.sec}>
         <h2 style={s.h2}>1. Qui sommes-nous ?</h2>

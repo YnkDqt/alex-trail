@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer } from "recharts";
 import { C, localDate, fmtDate, daysUntil, isRunning, exportJSON, emptyObjectif } from "../constants.js";
-import { Btn, Modal, Field, FormGrid, ConfirmDialog } from "../atoms.jsx";
+import { Btn, Modal, Field, FormGrid, ConfirmDialog, PageTitle } from "../atoms.jsx";
 // ─── OBJECTIFS ───────────────────────────────────────────────────────────────
 function Objectifs({ objectifs, setObjectifs, seances, activites, vfcData, poids, profil, produits, recettes, allData, setView }) {
   const [modalObj,     setModalObj]     = useState(false);
@@ -212,13 +212,7 @@ function Objectifs({ objectifs, setObjectifs, seances, activites, vfcData, poids
 
       {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:12}}>
-        <div>
-          <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight,marginBottom:4}}>Objectifs</h1>
-          <p style={{fontSize:12,color:C.muted}}>
-            Saison {year}
-            {sorted.length>0&&` · ${sorted.length} course${sorted.length>1?"s":""} · ${sorted.reduce((s,o)=>s+(parseFloat(o.distance)||0),0)}km cumulés`}
-          </p>
-        </div>
+        <PageTitle sub={`Saison ${year}${sorted.length>0?` · ${sorted.length} course${sorted.length>1?"s":""} · ${sorted.reduce((s,o)=>s+(parseFloat(o.distance)||0),0)}km cumulés`:""}`}>Objectifs</PageTitle>
         <Btn onClick={()=>{setEditObjId(null);setFormObj(emptyObjectif());setModalObj(true);}}>＋ Ajouter une course</Btn>
       </div>
 

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from "react";
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { C, localDate, fmtDate, exportJSON, parseCSVSommeil, parseCSVVFC,
   emptyPoids, emptyVFC, emptySommeil } from "../constants.js";
-import { Btn, Modal, Field, ConfirmDialog } from "../atoms.jsx";
+import { Btn, Modal, Field, ConfirmDialog, PageTitle } from "../atoms.jsx";
 // ─── WRAPPERS FORME ──────────────────────────────────────────────────────────
 // Le composant Forme gère déjà VFC/Sommeil/Poids — on le wrap avec tab forcé
 function FormeVFC(props) {
@@ -108,10 +108,7 @@ function Forme({ sommeil, setSommeil, vfcData, setVfcData, poids, setPoids, acti
   return (
     <div className="anim" style={{padding:"24px 40px 80px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:8}}>
-        <div>
-          <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight}}>Forme</h1>
-          <p style={{fontSize:11,color:C.muted}}>VFC · Sommeil · Poids · Récupération</p>
-        </div>
+        <PageTitle sub="VFC · Sommeil · Poids · Récupération">Forme</PageTitle>
         <Btn variant="summit" size="sm" onClick={exportCourse}>→ Course</Btn>
       </div>
 

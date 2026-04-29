@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { C, COURSE_C, localDate, daysUntil, isRunning, actColor } from "../constants.js";
+import { PageTitle } from "../atoms.jsx";
 
 function Dashboard({ setView, seances, vfcData, sommeil, poids, objectifs, race, settings, profilType, setProfilType }) {
   const today = localDate(new Date());
@@ -70,18 +71,9 @@ function Dashboard({ setView, seances, vfcData, sommeil, poids, objectifs, race,
 
   return (
     <div style={{maxWidth:1180,margin:"0 auto",padding:"28px 24px 60px"}}>
-      <div style={{marginBottom:24}}>
-        <h1 style={{fontFamily:"'Fraunces',serif",fontSize:26,fontWeight:500,color:C.inkLight,letterSpacing:"-0.02em",lineHeight:1.2}}>
-          Tableau de bord
-        </h1>
-        {nextObj&&j!==null&&(
-          <div style={{fontSize:13,color:C.muted,marginTop:4}}>
-            <span style={{fontWeight:600,color:phaseColor}}>{phase}</span>
-            {" · "}{nextObj.nom} dans{" "}
-            <span style={{fontWeight:600,color:C.inkLight}}>{j} jour{j>1?"s":""}</span>
-          </div>
-        )}
-      </div>
+      <PageTitle sub={nextObj && j !== null ? (
+        <><span style={{fontWeight:600,color:phaseColor}}>{phase}</span>{" · "}{nextObj.nom} dans <span style={{fontWeight:600,color:C.inkLight}}>{j} jour{j>1?"s":""}</span></>
+      ) : null}>Tableau de bord</PageTitle>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:14}}>
         {/* Forme */}

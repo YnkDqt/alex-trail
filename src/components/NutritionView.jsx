@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { C, NUTRITION_PRESETS, detectPreset, applyPreset, matchPreset, applyMeteoModifiers, TYPES_BOISSON } from '../constants.js';
 import { fmtTime, calcNutrition } from '../utils.jsx';
-import { Btn, Modal, ConfirmDialog, KPI } from '../atoms.jsx';
+import { Btn, Modal, ConfirmDialog, KPI, PageTitle } from '../atoms.jsx';
 import { CIQUAL, CIQUAL_CATEGORIES } from '../data/ciqual.js';
 import {
   ProduitForm,
@@ -672,10 +672,7 @@ export default function NutritionView({
 
   return (
     <div className="anim" style={{padding:"24px 40px 80px"}}>
-      <div style={{marginBottom:20}}>
-        <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight,marginBottom:4}}>Nutrition course</h1>
-        <p style={{fontSize:12,color:C.muted}}>Besoins · Apports · Bibliothèque · Plan ravitaillement</p>
-      </div>
+      <PageTitle sub="Besoins · Apports · Bibliothèque · Plan ravitaillement">Nutrition course</PageTitle>
 
       {/* ── CALIBRATION (info de contexte) ── */}
       {(() => {

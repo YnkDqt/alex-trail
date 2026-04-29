@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from "react";
 import { C, fmtDate, actColor, actShort, parseCSVActivities } from "../constants.js";
-import { Btn } from "../atoms.jsx";
+import { Btn, PageTitle } from "../atoms.jsx";
 // ─── ACTIVITÉS ────────────────────────────────────────────────────────────────
 const AVEC_ZONES = ["Trailrunning","Cardio","Marche à pied","Trail","Course à pied sur tapis roulant"];
 
@@ -71,10 +71,7 @@ function Activites({ activites, setActivites, seances, setSeances }) {
         }
       `}</style>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:8}}>
-        <div>
-          <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight}}>Activités</h1>
-          <p style={{fontSize:11,color:C.muted}}>{activites.length} activité(s) · Cliquer sur l'ID pour le copier, puis le coller dans Programme</p>
-        </div>
+        <PageTitle sub={`${activites.length} activité(s) · Cliquer sur l'ID pour le copier, puis le coller dans Programme`}>Activités</PageTitle>
         <div style={{display:"flex",gap:8}}>
           <input ref={activitesRef} type="file" accept=".csv" style={{display:"none"}} onChange={handleImport}/>
           <Btn variant="sage" size="sm" onClick={()=>activitesRef.current?.click()}>⬆ Import Garmin CSV</Btn>

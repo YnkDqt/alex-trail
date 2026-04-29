@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from "react";
 import { C, localDate, fmtDate, daysUntil, isRunning, actColor, actShort, actColorPale,
   exportJSON, ACTIVITY_TYPES, DEFAULT_PLANNING, emptySeance } from "../constants.js";
-import { Btn } from "../atoms.jsx";
+import { Btn, PageTitle } from "../atoms.jsx";
 // ─── MON COACH IA ─────────────────────────────────────────────────────────────
 function MonCoachIA({ seances, setSeances, activites, sommeil, vfcData, poids, objectifs,
   planningType, produits, recettes, journalNutri, activityTypes }) {
@@ -327,8 +327,7 @@ Aide-moi à construire ma stratégie de ravitaillement pour cette course : fréq
 
   return (
     <div className="anim" style={{padding:"24px 40px 80px"}}>
-      <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight,marginBottom:4}}>Mon coach IA</h1>
-      <p style={{fontSize:12,color:C.muted,marginBottom:24}}>Ouvre ton IA préférée · copie des prompts pré-remplis · importe le programme généré</p>
+      <PageTitle sub="Ouvre ton IA préférée · copie des prompts pré-remplis · importe le programme généré">Mon coach IA</PageTitle>
 
       {/* ── Ouvrir une IA ── */}
       <div style={{marginBottom:8,fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:".07em",color:C.muted}}>Ouvrir une IA</div>

@@ -44,9 +44,9 @@ export const KPI = ({ label, value, sub, color, icon }) => {
 
 // ─── TYPOGRAPHY ──────────────────────────────────────────────────────────────
 export const PageTitle = ({ children, sub }) => (
-  <div style={{marginBottom:28}}>
-    <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:600,color:"var(--text-c)",lineHeight:1.2}}>{children}</h1>
-    {sub && <p style={{color:"var(--muted-c)",marginTop:6,fontSize:14}}>{sub}</p>}
+  <div style={{marginBottom:24}}>
+    <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:"var(--text-c)",lineHeight:1.2,letterSpacing:"-0.01em",margin:0}}>{children}</h1>
+    {sub && <p style={{color:"var(--muted-c)",marginTop:4,fontSize:14,margin:"4px 0 0"}}>{sub}</p>}
   </div>
 );
 

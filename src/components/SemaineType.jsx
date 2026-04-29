@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { C, DAY_NAMES, DEFAULT_PLANNING, ACTIVITY_TYPES, localDate, actIcon, emptySeance } from "../constants.js";
-import { Btn, Field } from "../atoms.jsx";
+import { Btn, Field, PageTitle } from "../atoms.jsx";
 // ─── SEMAINE TYPE (sous-onglet Entraînement) ─────────────────────────────────
 function SemaineType({ planningType, setPlanningType, seances, setSeances, activityTypes }) {
   const [form,      setForm]      = useState({...DEFAULT_PLANNING,...planningType});
@@ -61,8 +61,7 @@ function SemaineType({ planningType, setPlanningType, seances, setSeances, activ
 
   return (
     <div className="anim" style={{padding:"24px 40px 80px"}}>
-      <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight,marginBottom:4}}>Semaine type</h1>
-      <p style={{fontSize:12,color:C.muted,marginBottom:24}}>Planifiez votre semaine d'entraînement type. Les créneaux servent de base pour générer le programme annuel.</p>
+      <PageTitle sub="Planifiez votre semaine d'entraînement type. Les créneaux servent de base pour générer le programme annuel.">Semaine type</PageTitle>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:12,marginBottom:24}}>
         {DAY_NAMES.map(d=>(

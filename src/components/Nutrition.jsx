@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from "react";
 import { C, isRunning, fmtDate, localDate, exportJSON, TYPES_BOISSON } from "../constants.js";
-import { Btn, Modal, Field, ConfirmDialog } from "../atoms.jsx";
+import { Btn, Modal, Field, ConfirmDialog, PageTitle } from "../atoms.jsx";
 import { CIQUAL, CIQUAL_CATEGORIES } from "../data/ciqual.js";
 import {
   ProduitForm,
@@ -100,10 +100,7 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
   return (
     <div className="anim" style={{padding:"24px 40px 80px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:10}}>
-        <div>
-          <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight,marginBottom:4}}>Journal nutritionnel</h1>
-          <p style={{fontSize:12,color:C.muted}}>Suivi quotidien · Kcal brûlées vs consommées · Macros</p>
-        </div>
+        <PageTitle sub="Suivi quotidien · Kcal brûlées vs consommées · Macros">Journal nutritionnel</PageTitle>
         <div style={{display:"flex",gap:8}}>
           <input ref={fileRef} type="file" accept=".json" style={{display:"none"}} onChange={handleImport}/>
           <Btn variant="ghost" size="sm" onClick={()=>fileRef.current?.click()}>⬆ Importer JSON</Btn>
@@ -525,10 +522,7 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
   return (
     <div className="anim" style={{padding:"24px 40px 80px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:10}}>
-        <div>
-          <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,color:C.inkLight,marginBottom:4}}>Nutrition entraînement</h1>
-          <p style={{fontSize:12,color:C.muted}}>Ma bibliothèque · Historique</p>
-        </div>
+        <PageTitle sub="Ma bibliothèque · Historique">Nutrition entraînement</PageTitle>
       </div>
 
       {/* Tabs */}
