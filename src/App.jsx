@@ -1042,7 +1042,7 @@ export default function App() {
       reposModal={reposModal} setReposModal={setReposModal}
       reposForm={reposForm} setReposForm={setReposForm} addRepos={addRepos}
       loadData={loadData}
-      saveCourse={saveCourseFn} loadCourse={loadCourseFn}
+      onSaveCourse={saveCourseFn} loadCourse={loadCourseFn}
       deleteCourse={deleteCourseFn} updateCourse={updateCourseFn} overwriteCourse={overwriteCourseFn}
       navigate={navigate} hasRace={hasRace}
       isStandalone={isStandalone} installDone={installDone}

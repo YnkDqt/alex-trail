@@ -34,7 +34,7 @@ export default function AppLayout({
   view, setView, race, setRace, segments, setSegments, settings, setSettings,
   hasUnsaved, autoSaved, courses, drawerOpen, setDrawerOpen,
   reposModal, setReposModal, reposForm, setReposForm, addRepos,
-  loadData, saveCourse, loadCourse, deleteCourse, updateCourse, overwriteCourse,
+  loadData, onSaveCourse, loadCourse, deleteCourse, updateCourse, overwriteCourse,
   navigate, hasRace, isStandalone, installDone, handleInstall,
   features, toggleFeature, FEATURE_LABELS, NAVS_ACTIVE,
   entrainementFeatures, toggleEntrainementFeature, ENTRAINEMENT_FEATURE_LABELS,
@@ -338,19 +338,19 @@ export default function AppLayout({
             if(data.segments)setSegments(data.segments);
             if(data.settings)setSettings({...EMPTY_SETTINGS,...data.settings});
           }}/></div>}
-          {view==="mes_courses"&&<div style={{padding:"24px 32px"}}><MesCoursesView courses={courses} onLoad={loadCourse} onDelete={deleteCourse} onUpdate={updateCourse} onOverwrite={overwriteCourse} onSaveCurrent={()=>{saveCourse();alert("✅ Stratégie sauvegardée !");}} onLoadFile={loadData} onNewRace={()=>{
+          {view==="mes_courses"&&<div style={{padding:"24px 32px"}}><MesCoursesView courses={courses} onLoad={loadCourse} onDelete={deleteCourse} onUpdate={updateCourse} onOverwrite={overwriteCourse} onSaveCurrent={()=>{onSaveCourse();alert("✅ Stratégie sauvegardée !");}} onLoadFile={loadData} onNewRace={()=>{
             const hasData=race.gpxPoints?.length>0||segments.length>0;
             if(hasData){const ok=window.confirm(`Démarrer une nouvelle course ?
 
 OK = sauvegarder avant.
-Annuler = tout effacer.`);if(ok)saveCourse();}
+Annuler = tout effacer.`);if(ok)onSaveCourse();}
             const ns={...EMPTY_SETTINGS,produits:settings.produits||[],equipment:settings.equipment||DEFAULT_EQUIPMENT,darkMode:settings.darkMode};
             setRace({});setSegments([]);setSettings(ns);setView("profil_course");setDrawerOpen(false);
           }} race={race} segments={segments} settings={settings}/></div>}
           {/* Données & Params unifiés */}
           {view==="donnees_params"&&<DonneesParamsView
             saveAllData={saveAllData}
-            saveCourse={saveCourse} race={race} segments={segments} settings={settings}
+            race={race} segments={segments} settings={settings}
             isStandalone={isStandalone} installDone={installDone}
             handleInstall={handleInstall} setView={setView} setDrawerOpen={setDrawerOpen}
             seances={seances} setSeances={setSeances} activites={activites} setActivites={setActivites}

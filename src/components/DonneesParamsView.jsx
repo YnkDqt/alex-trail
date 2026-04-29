@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { Btn, Modal, ConfirmDialog, PageTitle } from '../atoms.jsx';
+import { Btn, Modal, ConfirmDialog } from '../atoms.jsx';
 import { C, COURSE_C } from '../constants.js';
 import {
   loadAthleteProfile, saveAthleteProfile,
   loadActivities, saveActivities, loadSeances, saveSeances,
   loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids,
   loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace,
-  loadCourses, loadNutrition, saveNutrition,
+  loadCourses, saveCourse, loadNutrition, saveNutrition,
   loadEntrainementSettings, saveEntrainementSettings,
   createSnapshot, listSnapshots, loadSnapshot,
   exportAllUserDataAsJSON,
@@ -14,7 +14,7 @@ import {
 
 // ─── DONNÉES & PARAMS VIEW ────────────────────────────────────────────────────
 export default function DonneesParamsView({
-  saveAllData, saveCourse, race, segments, settings,
+  saveAllData, race, segments, settings,
   isStandalone, installDone,
   handleInstall, setView, setDrawerOpen,
   seances, setSeances, activites, setActivites, sommeil, setSommeil,
@@ -211,7 +211,14 @@ export default function DonneesParamsView({
 
   return (
     <div style={{maxWidth:680,margin:"0 auto",padding:"28px 32px 60px"}}>
-      <PageTitle sub="Sauvegarde, import et personnalisation de l'app.">Données & Params</PageTitle>
+      {/* Header */}
+      <div style={{marginBottom:24}}>
+        <h1 style={{fontFamily:"'Fraunces',serif",fontSize:24,fontWeight:500,
+          color:C.inkLight,letterSpacing:"-0.02em",marginBottom:4}}>
+          Données & Params
+        </h1>
+        <p style={{fontSize:13,color:C.muted}}>Sauvegarde, import et personnalisation de l'app.</p>
+      </div>
 
       {/* Tabs */}
       <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,marginBottom:28}}>
