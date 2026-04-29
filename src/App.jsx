@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useAuth } from './AuthContext';
-import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse, loadNutrition, saveNutrition, loadEntrainementSettings, saveEntrainementSettings, getDataVersion, bumpDataVersion, clearUserData, hasSnapshotForCurrentPeriod, createSnapshot, listSnapshots, loadSnapshot } from './supabaseHelpers';
+import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse, loadNutrition, saveNutrition, loadEntrainementSettings, saveEntrainementSettings, getDataVersion, bumpDataVersion, clearUserData, hasSnapshotForCurrentPeriod, createSnapshot, listSnapshots, loadSnapshot, exportAllUserDataAsJSON } from './supabaseHelpers';
 import Login from './Login';
 
 // ─── COURSE IMPORTS ───────────────────────────────────────────────────────────
@@ -413,33 +413,7 @@ function DonneesParamsView({
               <ActionBtn onClick={async () => {
                 if (!user?.id) return;
                 try {
-                  const [profile, activities, seances, sommeil, vfc, poids, objectifs, nutrition, settings, currentRace, courses] = await Promise.all([
-                    loadAthleteProfile(user.id),
-                    loadActivities(user.id),
-                    loadSeances(user.id),
-                    loadSommeil(user.id),
-                    loadVFC(user.id),
-                    loadPoids(user.id),
-                    loadObjectifs(user.id),
-                    loadNutrition(user.id),
-                    loadEntrainementSettings(user.id),
-                    loadCurrentRace(user.id),
-                    loadCourses(user.id),
-                  ]);
-                  const exportData = {
-                    format: "alex-export-1.0",
-                    exportDate: new Date().toISOString(),
-                    userId: user.id,
-                    userEmail: user.email,
-                    profile, activities, seances, sommeil, vfc, poids, objectifs, nutrition, settings, currentRace, courses,
-                  };
-                  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `alex-export-${new Date().toISOString().slice(0,10)}.json`;
-                  a.click();
-                  URL.revokeObjectURL(url);
+                  await exportAllUserDataAsJSON(user);
                 } catch (err) {
                   console.error('Erreur export:', err);
                   alert('Erreur lors de l\'export');

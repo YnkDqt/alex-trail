@@ -765,6 +765,44 @@ export async function loadAllUserData(userId) {
   }
 }
 
+// ─── EXPORT RGPD : télécharge toutes les données user en un fichier JSON ─────
+// Couvre les 11 tables de données utilisateur (les snapshots auto sont exclus
+// volontairement — l'export est lui-même un snapshot manuel).
+// Utilisé par : page Profil (bouton RGPD) + Données & Params.
+export async function exportAllUserDataAsJSON(user) {
+  if (!user?.id) throw new Error('exportAllUserDataAsJSON : user manquant')
+
+  const [profile, activities, seances, sommeil, vfc, poids, objectifs, nutrition, settings, currentRace, courses] = await Promise.all([
+    loadAthleteProfile(user.id),
+    loadActivities(user.id),
+    loadSeances(user.id),
+    loadSommeil(user.id),
+    loadVFC(user.id),
+    loadPoids(user.id),
+    loadObjectifs(user.id),
+    loadNutrition(user.id),
+    loadEntrainementSettings(user.id),
+    loadCurrentRace(user.id),
+    loadCourses(user.id),
+  ])
+
+  const exportData = {
+    format: "alex-export-1.0",
+    exportDate: new Date().toISOString(),
+    userId: user.id,
+    userEmail: user.email,
+    profile, activities, seances, sommeil, vfc, poids, objectifs, nutrition, settings, currentRace, courses,
+  }
+
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `alex-export-${new Date().toISOString().slice(0,10)}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 // ─── VERSIONING & CONFLICT DETECTION ─────────────────────────────────────────
 // Le timestamp data_version est incrémenté côté serveur à chaque save. Les
 // sessions clientes le mémorisent et le comparent avant chaque écriture pour
