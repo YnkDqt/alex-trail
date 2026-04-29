@@ -5,7 +5,7 @@ import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, e
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE ANALYSE ─────────────────────────────────────────────────────────────
-export default function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
+export default function AnalyseView({ race, segments, settings, produits = [], recettes = [], isMobile, onNavigate }) {
   // Hooks toujours en haut, avant tout early return (règles React)
   const [activeTab, setActiveTab] = useState(null);
   const [showAll, setShowAll] = useState(false);
@@ -140,40 +140,114 @@ export default function AnalyseView({ race, segments, settings, isMobile, onNavi
   }
 
   // ── 2. COUVERTURE NUTRITIONNELLE ─────────────────────────────────────────
-  const planNutrition = race.planNutrition || {};
-  const produits = settings.produits || [];
-  const nutriTotals = segsNormaux.reduce((acc,seg) => {
-    const n=calcNutrition(seg,settings);
-    const dH=seg.speedKmh>0?(seg.endKm-seg.startKm)/seg.speedKmh:0;
-    return {kcal:acc.kcal+n.kcal, glucides:acc.glucides+Math.round(n.glucidesH*dH), eau:acc.eau+Math.round(n.eauH*dH)};
-  },{kcal:0,glucides:0,eau:0});
+  // Source réelle : bibliothèque (produits + recettes) + plan stocké dans race.depart.produits et chaque rv.produits
+  const allBibItems = [
+    ...produits.map(p => ({ ...p, itemType: "produit" })),
+    ...recettes.map(r => ({ ...r, itemType: "recette" }))
+  ];
 
-  const nutriProduit = (prod,qte) => {
-    const factor=prod.par100g?(prod.poids*qte/100):qte;
-    return {kcal:Math.round(prod.kcal*factor), glucides:Math.round((prod.glucides||0)*factor), eauMl:prod.boisson?Math.round((prod.par100g?prod.volumeMl*qte/100:prod.volumeMl*qte)||0):0};
+  // Helper interne : calcule les macros d'une recette (parcourt ingredients)
+  const calcMacrosRecette = (rec) => {
+    return (rec.ingredients || []).reduce((acc, ing) => {
+      const data = ing._ciqualData || produits.find(p => p.id === ing.produitId);
+      if (!data) return acc;
+      const factor = parseFloat(ing.quantite) || 0;
+      return {
+        kcal:      acc.kcal      + (data.kcal      || 0) * factor / 100,
+        glucides:  acc.glucides  + (data.glucides  || 0) * factor / 100,
+        sodium:    acc.sodium    + (data.sodium    || 0) * factor / 100,
+        potassium: acc.potassium + (data.potassium || 0) * factor / 100,
+        magnesium: acc.magnesium + (data.magnesium || 0) * factor / 100,
+      };
+    }, { kcal: 0, glucides: 0, sodium: 0, potassium: 0, magnesium: 0 });
   };
-  const totalEmporte = ["depart",...ravitos.map(r=>String(r.id))].reduce((acc,key)=>{
-    const items=planNutrition[key]||[];
-    return items.reduce((a,{produitId,quantite})=>{
-      const p=produits.find(x=>x.id===produitId); if(!p) return a;
-      const n=nutriProduit(p,quantite);
-      return {kcal:a.kcal+n.kcal,glucides:a.glucides+n.glucides,eauMl:a.eauMl+n.eauMl};
-    },acc);
-  },{kcal:0,glucides:0,eauMl:0});
+
+  // Détection liquide simple (eau pure ou boisson)
+  const isItemLiquide = (item) => {
+    if (item.type === "Eau pure" || item.type === "Boisson énergétique") return true;
+    if (item.boisson) return true;
+    const nom = (item.nom || "").toLowerCase();
+    if (nom.includes("eau") || nom.includes("boisson")) return true;
+    return false;
+  };
+
+  // Calcule kcal/glucides/eauMl/micros pour un item × quantité
+  // - Recette : quantite = nb portions
+  // - Produit : quantite = grammes (ou ml pour boisson)
+  const nutriItem = (item, quantite) => {
+    if (!item || !quantite) return { kcal: 0, glucides: 0, eauMl: 0, sodium: 0, potassium: 0, magnesium: 0 };
+    const liquide = isItemLiquide(item);
+    if (item.itemType === "recette") {
+      const macros = item.macros || calcMacrosRecette(item);
+      const ratio = quantite / (item.portions || 1);
+      const eauMl = liquide ? (item.volumeMlParPortion || 0) * ratio : 0;
+      return {
+        kcal:      Math.round(macros.kcal      * ratio),
+        glucides:  Math.round(macros.glucides  * ratio),
+        eauMl:     Math.round(eauMl),
+        sodium:    Math.round((macros.sodium    || 0) * ratio),
+        potassium: Math.round((macros.potassium || 0) * ratio),
+        magnesium: Math.round((macros.magnesium || 0) * ratio),
+      };
+    }
+    // Produit : ratio = grammes / 100
+    const ratio = quantite / 100;
+    const eauMl = liquide ? quantite : 0; // 1g liquide ≈ 1ml
+    return {
+      kcal:      Math.round((item.kcal      || 0) * ratio),
+      glucides:  Math.round((item.glucides  || 0) * ratio),
+      eauMl:     Math.round(eauMl),
+      sodium:    Math.round((item.sodium    || 0) * ratio),
+      potassium: Math.round((item.potassium || 0) * ratio),
+      magnesium: Math.round((item.magnesium || 0) * ratio),
+    };
+  };
+
+  // Récupère le plan d'un point (depart ou ravito) — array [{id, quantite}]
+  const planAt = (key) => {
+    if (key === "depart") return race.depart?.produits || [];
+    const rv = ravitos.find(r => String(r.id) === key);
+    return rv?.produits || [];
+  };
+
+  const nutriTotals = segsNormaux.reduce((acc, seg) => {
+    const n = calcNutrition(seg, settings);
+    const dH = seg.speedKmh > 0 ? (seg.endKm - seg.startKm) / seg.speedKmh : 0;
+    return {
+      kcal:     acc.kcal     + n.kcal,
+      glucides: acc.glucides + Math.round(n.glucidesH * dH),
+      eau:      acc.eau      + Math.round(n.eauH * dH),
+    };
+  }, { kcal: 0, glucides: 0, eau: 0 });
+
+  // Total emporté sur tous les points (départ + ravitos)
+  const allPlanKeys = ["depart", ...ravitos.map(r => String(r.id))];
+  const totalEmporte = allPlanKeys.reduce((acc, key) => {
+    return planAt(key).reduce((a, { id, quantite }) => {
+      const item = allBibItems.find(x => x.id === id);
+      if (!item) return a;
+      const n = nutriItem(item, quantite);
+      return {
+        kcal:     a.kcal     + n.kcal,
+        glucides: a.glucides + n.glucides,
+        eauMl:    a.eauMl    + n.eauMl,
+      };
+    }, acc);
+  }, { kcal: 0, glucides: 0, eauMl: 0 });
 
   // Micronutriments totaux emportés
-  const microEmporte = ["depart",...ravitos.map(r=>String(r.id))].reduce((acc,key)=>{
-    const items=planNutrition[key]||[];
-    return items.reduce((a,{produitId,quantite})=>{
-      const p=produits.find(x=>x.id===produitId); if(!p) return a;
-      const factor=p.par100g?(p.poids*quantite/100):quantite;
+  const microEmporte = allPlanKeys.reduce((acc, key) => {
+    return planAt(key).reduce((a, { id, quantite }) => {
+      const item = allBibItems.find(x => x.id === id);
+      if (!item) return a;
+      const n = nutriItem(item, quantite);
       return {
-        sodium:    a.sodium    + Math.round((p.sodium    ||0)*factor),
-        potassium: a.potassium + Math.round((p.potassium ||0)*factor),
-        magnesium: a.magnesium + Math.round((p.magnesium ||0)*factor),
+        sodium:    a.sodium    + n.sodium,
+        potassium: a.potassium + n.potassium,
+        magnesium: a.magnesium + n.magnesium,
       };
-    },acc);
-  },{sodium:0,potassium:0,magnesium:0});
+    }, acc);
+  }, { sodium: 0, potassium: 0, magnesium: 0 });
 
   // Cibles micronutriments basées sur la durée de course (mg total)
   const microCibles = {
@@ -204,11 +278,12 @@ export default function AnalyseView({ race, segments, settings, isMobile, onNavi
         return acc+calcNutrition(seg,settings).kcal*ratio;
       },0);
       // Calories emportées depuis ce point (produits planifiés à ce ravito/départ)
-      const items=planNutrition[pointKey]||[];
-      const emporteKcal=items.reduce((a,{produitId,quantite})=>{
-        const p=produits.find(x=>x.id===produitId); if(!p) return a;
-        return a+nutriProduit(p,quantite).kcal;
-      },0);
+      const items = planAt(pointKey);
+      const emporteKcal = items.reduce((a, { id, quantite }) => {
+        const item = allBibItems.find(x => x.id === id);
+        if (!item) return a;
+        return a + nutriItem(item, quantite).kcal;
+      }, 0);
       return {label,toLbl,from,to,pointKey,besoinKcal:Math.round(besoinKcal),emporteKcal,autonome};
     });
 
@@ -259,11 +334,21 @@ export default function AnalyseView({ race, segments, settings, isMobile, onNavi
   const poidsEquipG = activeItems.filter(i=>i.emporte!==false).reduce((s,i)=>s+(i.poidsG||0),0);
 
   // Poids nutrition emportée au départ uniquement (pas les ravitos — reçus sur place)
+  // - Produit : quantite est en grammes (ou ml pour liquide)
+  // - Recette : quantite est en portions, poids = quantite × grammesParPortion (ou volumeMlParPortion si liquide)
   const poidsNutriG = (() => {
-    const items = planNutrition["depart"] || [];
-    return items.reduce((s, {produitId, quantite}) => {
-      const p = produits.find(x => x.id === produitId); if (!p) return s;
-      return s + Math.round((p.poids||0) * (p.par100g ? quantite/100 : quantite));
+    const items = planAt("depart");
+    return items.reduce((s, { id, quantite }) => {
+      const item = allBibItems.find(x => x.id === id);
+      if (!item) return s;
+      if (item.itemType === "recette") {
+        const portionG = parseFloat(item.grammesParPortion) || 0;
+        const portionMl = parseFloat(item.volumeMlParPortion) || 0;
+        const grammes = (portionG > 0 ? portionG : portionMl) * quantite;
+        return s + Math.round(grammes);
+      }
+      // Produit : la quantite EST le poids (g ou ml ≈ g)
+      return s + Math.round(quantite);
     }, 0);
   })();
 
@@ -321,10 +406,10 @@ export default function AnalyseView({ race, segments, settings, isMobile, onNavi
       }, 0);
 
     // Calories emportées au départ
-    const kcalDepart = (planNutrition["depart"] || []).reduce((acc, {produitId, quantite}) => {
-      const p = produits.find(x => x.id === produitId); if (!p) return acc;
-      const factor = p.par100g ? (p.poids * quantite / 100) : quantite;
-      return acc + Math.round(p.kcal * factor);
+    const kcalDepart = planAt("depart").reduce((acc, { id, quantite }) => {
+      const item = allBibItems.find(x => x.id === id);
+      if (!item) return acc;
+      return acc + nutriItem(item, quantite).kcal;
     }, 0);
 
     const dureeH = segsNormaux
@@ -380,7 +465,8 @@ export default function AnalyseView({ race, segments, settings, isMobile, onNavi
     : null;
 
   // Score Nutrition : pondération kcal (40) + glucides (40) + eau (20)
-  const scoreNutrition = produits.length > 0
+  const hasNutritionData = allBibItems.length > 0;
+  const scoreNutrition = hasNutritionData
     ? Math.round(statusToPct(kcalStatus) * 0.4 + statusToPct(glucidesStatus) * 0.4 + statusToPct(eauStatus) * 0.2)
     : null;
 
@@ -578,9 +664,9 @@ export default function AnalyseView({ race, segments, settings, isMobile, onNavi
           <div>
             <SectionTitle>Couverture nutritionnelle</SectionTitle>
             <Card>
-              {produits.length === 0 ? (
+              {!hasNutritionData ? (
                 <div style={{padding:"20px",borderRadius:8,background:C.bluePale,border:`1px solid ${C.blue}30`,fontSize:12,color:C.blue}}>
-                  ℹ️ Ajoute des produits dans Nutrition pour activer ce score.
+                  ℹ️ Ajoute des produits ou recettes dans Nutrition pour activer ce score.
                 </div>
               ) : (
                 <>
