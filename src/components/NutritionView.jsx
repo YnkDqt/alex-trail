@@ -671,7 +671,7 @@ export default function NutritionView({
   };
 
   return (
-    <div className="anim" style={{padding:"24px 40px 80px"}}>
+    <div className="anim">
       <PageTitle sub="Besoins · Apports · Bibliothèque · Plan ravitaillement">Nutrition course</PageTitle>
 
       {/* ── CALIBRATION (info de contexte) ── */}
