@@ -3,7 +3,7 @@ import { C, COURSE_C, TEAL } from '../constants.js';
 import { G, COURSE_G } from '../globalStyles.js';
 import { ConfirmDialog } from '../atoms.jsx';
 import Dashboard from './Dashboard.jsx';
-import { EntrainementProgramme } from './Programme.jsx';
+import EntrainementProgramme from './EntrainementProgramme.jsx';
 import { FormeVFC, FormeSommeil, FormePoids } from './Forme.jsx';
 import { Activites } from './Activites.jsx';
 import Objectifs from './Objectifs.jsx';
