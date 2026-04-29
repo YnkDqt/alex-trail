@@ -6,6 +6,10 @@ import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, Cust
 
 // ─── VUE ANALYSE ─────────────────────────────────────────────────────────────
 export default function AnalyseView({ race, segments, settings, isMobile, onNavigate }) {
+  // Hooks toujours en haut, avant tout early return (règles React)
+  const [activeTab, setActiveTab] = useState(null);
+  const [showAll, setShowAll] = useState(false);
+
   const segsNormaux = segments.filter(s => s.type !== "ravito" && s.type !== "repos");
   const ravitos = [...(race.ravitos||[])].sort((a,b) => a.km - b.km).filter(rv => rv.assistancePresente !== false);
   const totalDistKm = race.totalDistance || segsNormaux.reduce((s,g) => s+g.endKm-g.startKm, 0);
@@ -366,178 +370,409 @@ export default function AnalyseView({ race, segments, settings, isMobile, onNavi
     pointsPrepa.push({status:"info",titre:"Bâtons prévus · terrain normal partout",valeur:"Aucun segment en terrain technique",explication:"Tous tes segments sont en terrain normal. Les bâtons sont optionnels — utiles sur les forts D+ mais peuvent ralentir en descente."});
   }
 
+  // ── SOUS-SCORES (refonte 28/04) ──────────────────────────────────────────
+  // Conversion status → score : ok=100, warn=70, alert=40, info=85
+  const statusToPct = (s) => s === "ok" ? 100 : s === "warn" ? 70 : s === "alert" ? 40 : s === "info" ? 85 : 70;
+
+  // Score Stratégie : moyenne des points stratégie (graph fatigue inclus via points)
+  const scoreStrategie = pointsStrategie.length > 0
+    ? Math.round(pointsStrategie.reduce((s, p) => s + statusToPct(p.status), 0) / pointsStrategie.length)
+    : null;
+
+  // Score Nutrition : pondération kcal (40) + glucides (40) + eau (20)
+  const scoreNutrition = produits.length > 0
+    ? Math.round(statusToPct(kcalStatus) * 0.4 + statusToPct(glucidesStatus) * 0.4 + statusToPct(eauStatus) * 0.2)
+    : null;
+
+  // Score Équipement : checklist (60%) + adaptation météo (40%)
+  // Adaptation météo : items critiques selon les conditions doivent être checked + emporte
+  const meteoChecks = [];
+  const eqByLabel = (rgx) => equipment.find(i => rgx.test(i.label));
+  const itemReady = (it) => it && it.actif && it.emporte && it.checked;
+  if (settings.rain) {
+    const veste = eqByLabel(/imper|veste|coupe[- ]?vent/i);
+    meteoChecks.push({ key:"rain", label:"Pluie prévue → veste imperméable", ok: itemReady(veste) });
+  }
+  if (settings.snow || tempC < 5) {
+    const chaud = eqByLabel(/veste|polaire|manches longues|chaud|imper/i);
+    meteoChecks.push({ key:"cold", label:"Froid prévu → vêtement chaud", ok: itemReady(chaud) });
+  }
+  if (tempC > 25) {
+    const casquette = eqByLabel(/casquette|buff|chapeau/i);
+    meteoChecks.push({ key:"hot", label:"Chaleur prévue → casquette / buff", ok: itemReady(casquette) });
+    const creme = eqByLabel(/cr[èe]me solaire|solaire/i);
+    if (creme) meteoChecks.push({ key:"hot_cream", label:"Chaleur prévue → crème solaire", ok: itemReady(creme) });
+  }
+  if (isNightArrival && lampeActive) {
+    const lampe = eqByLabel(/lampe|frontale/i);
+    meteoChecks.push({ key:"night", label:"Course de nuit → lampe frontale", ok: itemReady(lampe) });
+  }
+  const meteoAdapted = meteoChecks.length > 0
+    ? Math.round(meteoChecks.filter(c => c.ok).length / meteoChecks.length * 100)
+    : 100;
+
+  const scoreEquipement = activeItems.length > 0
+    ? Math.round(checklistPct * 0.6 + meteoAdapted * 0.4)
+    : null;
+
+  // Score global : moyenne pondérée (Stratégie 30% + Nutrition 35% + Équipement 35%)
+  // Entraînement et Forme à venir (algos à construire) — pondération à revoir quand ils arriveront.
+  const scoresCalcules = [
+    { val: scoreStrategie, w: 0.3 },
+    { val: scoreNutrition, w: 0.35 },
+    { val: scoreEquipement, w: 0.35 }
+  ].filter(s => s.val != null);
+  const totalWeights = scoresCalcules.reduce((s,x) => s+x.w, 0);
+  const scoreGlobal = totalWeights > 0
+    ? Math.round(scoresCalcules.reduce((s,x) => s + x.val*x.w, 0) / totalWeights)
+    : null;
+
+  // Comptage alertes / vigilances (pour le bandeau)
+  const allPoints = [...pointsStrategie, ...pointsPrepa];
+  const nbAlertes = allPoints.filter(p => p.status === "alert").length;
+  const nbVigilances = allPoints.filter(p => p.status === "warn").length;
+
+  // Helpers visuels
+  const scoreColor = (v) => v == null ? C.muted : v >= 85 ? C.green : v >= 65 ? C.yellow : C.red;
+  const ScoreBadge = ({ value, label, placeholder }) => (
+    <div style={{
+      background: placeholder ? "var(--surface-2)" : "var(--surface)",
+      border: `1px solid var(--border-c)`,
+      borderRadius: 10,
+      padding: "10px 12px",
+      textAlign: "center",
+      opacity: placeholder ? 0.65 : 1
+    }}>
+      <div style={{fontSize:10,fontWeight:500,color:C.muted,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>{label}</div>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:600,color:placeholder?C.muted:scoreColor(value),lineHeight:1}}>
+        {value != null ? value : "—"}
+      </div>
+      <div style={{fontSize:10,color:C.muted,marginTop:2}}>{placeholder ? "à venir" : (value != null ? "/ 100" : "—")}</div>
+    </div>
+  );
+
+  // Filtrage équipement par catégorie pour la colonne Équipement
+  const eqByCat = activeItems.reduce((acc, it) => {
+    (acc[it.cat] = acc[it.cat] || []).push(it);
+    return acc;
+  }, {});
+
+  // Onglet par défaut au mount : la section qui a le plus d'alertes (si state pas encore initialisé)
+  const computedDefaultTab = (() => {
+    const counts = {
+      strategie: pointsStrategie.filter(p => p.status === "alert").length,
+      nutrition: [kcalStatus, glucidesStatus, eauStatus].filter(s => s === "alert").length,
+      equipement: pointsPrepa.filter(p => p.status === "alert").length + meteoChecks.filter(c => !c.ok).length
+    };
+    const max = Math.max(counts.strategie, counts.nutrition, counts.equipement);
+    if (max === 0) return "strategie";
+    if (counts.strategie === max) return "strategie";
+    if (counts.nutrition === max) return "nutrition";
+    return "equipement";
+  })();
+  // Initialiser activeTab avec computedDefaultTab si pas encore défini par l'utilisateur
+  const effectiveTab = activeTab || computedDefaultTab;
+
   return (
     <div className="anim">
-      <PageTitle sub="Métriques et recommandations de préparation">Analyse</PageTitle>
+      <PageTitle sub="Score de préparation et recommandations">Analyse</PageTitle>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-
-        {/* ── BLOC 1 : STRATÉGIE ── */}
-        <div>
-          <SectionTitle>Stratégie de course</SectionTitle>
-
-          {/* Graphique fatigue */}
-          <Card style={{ marginBottom: 12 }}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-              <span style={{fontWeight:600,fontSize:13}}>Fatigue cumulée</span>
-              {fatigueData.some(d=>d.charge>=SEUIL)&&<span style={{fontSize:11,background:C.redPale,color:C.red,borderRadius:6,padding:"2px 8px",fontWeight:600}}>Zone critique atteinte</span>}
+      {/* ── BANDEAU SCORE GLOBAL + 5 SOUS-SCORES CLIQUABLES ─────────────── */}
+      <Card style={{marginBottom:14}}>
+        <div style={{display:"grid",gridTemplateColumns:"auto 1fr auto",gap:20,alignItems:"center"}}>
+          {/* Score global */}
+          <div style={{textAlign:"center",paddingRight:20,borderRight:`1px solid var(--border-c)`}}>
+            <div style={{fontSize:10,fontWeight:500,color:C.muted,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Préparation globale</div>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:42,fontWeight:600,color:scoreColor(scoreGlobal),lineHeight:1}}>
+              {scoreGlobal != null ? scoreGlobal : "—"}
             </div>
-            <div style={{display:"flex",gap:16,marginBottom:8,flexWrap:"wrap"}}>
-              {[{color:C.blue,label:"Charge"},{color:C.red,label:"Réserve",line:true},{color:C.yellow,label:"Seuil 80%",dashed:true}].map(({color,label,line,dashed})=>(
-                <span key={label} style={{fontSize:11,display:"flex",alignItems:"center",gap:4}}>
-                  {dashed?<span style={{width:12,borderTop:`2px dashed ${color}`,display:"inline-block"}}/>:line?<span style={{width:12,borderTop:`2px solid ${color}`,display:"inline-block"}}/>:<span style={{width:9,height:9,borderRadius:2,background:color,display:"inline-block"}}/>}
-                  <span style={{color:"var(--muted-c)"}}>{label}</span>
-                </span>
-              ))}
-            </div>
-            <ResponsiveContainer width="100%" height={180}>
-              <ComposedChart data={fatigueData} margin={{top:4,right:12,bottom:4,left:0}}>
-                <XAxis dataKey="label" tick={{fontSize:10,fill:C.muted}}/>
-                <YAxis domain={[0,100]} tick={{fontSize:10,fill:C.muted}} tickFormatter={v=>`${v}%`} width={32}/>
-                <RTooltip formatter={(v,n)=>[`${v}%`,n==="charge"?"Charge":"Réserve"]} labelFormatter={(l,p)=>{const d=p?.[0]?.payload;return d?.fullLabel?`${l} — ${d.fullLabel}`:l;}} contentStyle={{fontSize:11,borderRadius:8,border:`1px solid ${C.border}`}}/>
-                <ReferenceLine y={SEUIL} stroke={C.yellow} strokeDasharray="5 4" strokeWidth={1.5}/>
-                <Bar dataKey="charge" radius={[3,3,0,0]}>{fatigueData.map((d,i)=><Cell key={i} fill={d.type==="ravito"?C.green+"99":d.type==="repos"?C.blue+"55":d.charge>=SEUIL?C.red+"cc":d.charge>=60?C.yellow+"cc":C.blue+"cc"}/>)}</Bar>
-                <Line type="monotone" dataKey="reserve" stroke={C.red} strokeWidth={2} dot={{r:2,fill:C.red}}/>
-              </ComposedChart>
-            </ResponsiveContainer>
-            <div style={{fontSize:11,color:"var(--muted-c)",marginTop:4}}>
-              ITRA Effort Score · niveau <strong style={{color:"var(--text-c)"}}>{levelData.label}</strong> · coeff Garmin ×{garminCoeff}{paceStrat!==0&&<> · pace {paceStrat<0?"positif":"négatif"}</>}
-            </div>
-          </Card>
-
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {pointsStrategie.map((p,i)=><Point key={i} {...p}/>)}
+            <div style={{fontSize:10,color:C.muted,marginTop:2}}>{scoreGlobal != null ? "/ 100" : "données insuffisantes"}</div>
           </div>
-          <div style={{fontSize:11,color:"var(--muted-c)",marginTop:8}}>
-            Sources : ITRA Effort Score · Vernillo et al. (2017) · Millet et al. (2011) · données Garmin personnelles
-          </div>
-        </div>
-
-        {/* ── BLOC 2 : NUTRITION ── */}
-        <div>
-          <SectionTitle>Couverture nutritionnelle</SectionTitle>
-
-          {/* KPIs nutrition */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:12}}>
+          {/* 5 sous-scores cliquables */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
             {[
-              {label:"Calories emportées",val:`${totalEmporte.kcal} kcal`,sub:`besoin ${nutriTotals.kcal} kcal`,status:kcalStatus},
-              {label:"Glucides / heure",val:`${glucidesActuelH} g/h`,sub:glucidesTarget?`cible ${glucidesTarget} g/h`:"55% des kcal",status:glucidesStatus},
-              {label:"Eau (boissons)",val:`${(totalEmporte.eauMl/1000).toFixed(1)} L`,sub:`besoin ${(nutriTotals.eau/1000).toFixed(1)} L`,status:eauStatus},
-            ].map(({label,val,sub,status})=>(
-              <div key={label} style={{background:"var(--surface-2)",borderRadius:10,padding:"10px 12px",borderLeft:`3px solid ${statusText[status]}`}}>
-                <div style={{fontSize:11,color:"var(--muted-c)",marginBottom:3}}>{label}</div>
-                <div style={{fontSize:17,fontWeight:600,fontFamily:"'Playfair Display',serif",color:statusText[status]}}>{val}</div>
-                <div style={{fontSize:11,color:"var(--muted-c)",marginTop:2}}>{sub}</div>
-              </div>
-            ))}
+              {key:"entrainement",label:"Entraînement",value:null,placeholder:true},
+              {key:"forme",label:"Forme",value:null,placeholder:true},
+              {key:"nutrition",label:"Nutrition",value:scoreNutrition,placeholder:false},
+              {key:"strategie",label:"Stratégie",value:scoreStrategie,placeholder:false},
+              {key:"equipement",label:"Équipement",value:scoreEquipement,placeholder:false},
+            ].map(({key,label,value,placeholder})=>{
+              const isActive = !showAll && effectiveTab===key && !placeholder;
+              const clickable = !placeholder;
+              return (
+                <div key={key}
+                  onClick={clickable?()=>{setActiveTab(key);setShowAll(false);}:undefined}
+                  style={{
+                    background:placeholder?"var(--surface-2)":"var(--surface)",
+                    border:`${isActive?"2px":"1px"} solid ${isActive?scoreColor(value):"var(--border-c)"}`,
+                    borderRadius:10,
+                    padding:isActive?"9px 11px":"10px 12px",
+                    textAlign:"center",
+                    opacity:placeholder?0.65:1,
+                    cursor:clickable?"pointer":"default",
+                    transition:"all 0.15s"
+                  }}
+                  onMouseEnter={clickable?(e)=>{if(!isActive)e.currentTarget.style.background=C.stone+"60";}:undefined}
+                  onMouseLeave={clickable?(e)=>{if(!isActive)e.currentTarget.style.background="var(--surface)";}:undefined}
+                >
+                  <div style={{fontSize:10,fontWeight:500,color:C.muted,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>{label}</div>
+                  <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:600,color:placeholder?C.muted:scoreColor(value),lineHeight:1}}>
+                    {value != null ? value : "—"}
+                  </div>
+                  <div style={{fontSize:10,color:C.muted,marginTop:2}}>{placeholder ? "à venir" : (value != null ? "/ 100" : "—")}</div>
+                </div>
+              );
+            })}
           </div>
-
-          {/* Micronutriments */}
-          {produits.length > 0 && totalTimeH > 0 && (
-            <Card style={{marginBottom:12}}>
-              <div style={{fontWeight:600,fontSize:13,marginBottom:4}}>Équilibre micronutriments</div>
-              <div style={{fontSize:11,color:"var(--muted-c)",marginBottom:12}}>Basé sur {Math.round(totalTimeH)}h d'effort estimées · cibles par heure (littérature sportive)</div>
-              <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                {Object.entries(microCibles).map(([key,cible])=>{
-                  const val = microEmporte[key];
-                  const min = Math.round(cible.min);
-                  const max = Math.round(cible.max);
-                  let status, msg, barPct;
-                  if (val < min * 0.8) {
-                    status = "alert";
-                    msg = `⚠️ Insuffisant — ${cible.risk_low}`;
-                    barPct = Math.round(val / min * 100);
-                  } else if (val > max * 1.5) {
-                    status = "warn";
-                    msg = `🟠 Excédent important — ${cible.risk_high}`;
-                    barPct = 100;
-                  } else if (val > max) {
-                    status = "warn";
-                    msg = `À surveiller — légèrement au-dessus de la cible`;
-                    barPct = 100;
-                  } else {
-                    status = "ok";
-                    msg = `✅ Dans la fourchette optimale`;
-                    barPct = Math.round((val - min) / (max - min) * 100 + 80);
-                  }
-                  const color = status === "ok" ? C.green : status === "warn" ? C.yellow : C.red;
-                  const ecart = val - max;
-                  return (
-                    <div key={key}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
-                        <span style={{fontSize:13,fontWeight:600}}>{cible.label}</span>
-                        <div style={{textAlign:"right"}}>
-                          <span style={{fontFamily:"'Playfair Display',serif",fontSize:15,fontWeight:700,color}}>{val.toLocaleString()} {cible.unit}</span>
-                          <span style={{fontSize:11,color:"var(--muted-c)",marginLeft:6}}>cible {min.toLocaleString()}–{max.toLocaleString()} {cible.unit}</span>
-                        </div>
-                      </div>
-                      {/* Jauge */}
-                      <div style={{position:"relative",height:6,background:"var(--surface-2)",borderRadius:3,marginBottom:4}}>
-                        {/* Zone optimale */}
-                        <div style={{position:"absolute",left:"40%",width:"40%",height:"100%",background:C.green+"30",borderRadius:3}}/>
-                        {/* Valeur actuelle */}
-                        <div style={{position:"absolute",left:0,width:`${Math.min(barPct,100)}%`,height:"100%",background:color,borderRadius:3,transition:"width 0.4s"}}/>
-                      </div>
-                      <div style={{fontSize:11,color:status==="ok"?C.green:status==="warn"?C.yellow:C.red}}>{msg}</div>
-                      {ecart > 0 && <div style={{fontSize:11,color:"var(--muted-c)",marginTop:1}}>Excédent : +{ecart.toLocaleString()} {cible.unit} au-delà de la cible haute</div>}
-                      {val < min && <div style={{fontSize:11,color:"var(--muted-c)",marginTop:1}}>Manque : {(min-val).toLocaleString()} {cible.unit} sous la cible basse</div>}
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-          )}
-
-          {/* Couverture par tronçon */}
-          {zonesNutri.length > 0 && produits.length > 0 && (
-            <Card style={{marginBottom:12}}>
-              <div style={{fontWeight:600,fontSize:13,marginBottom:12}}>Couverture calorique par tronçon</div>
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                {zonesNutri.map((z,i)=>{
-                  const pct=z.pct??0;
-                  const barColor=pct>=85?C.green:pct>=60?C.yellow:C.red;
-                  return (
-                    <div key={i}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:12}}>
-                        <span style={{color:"var(--muted-c)"}}>{z.label}</span>
-                        <span style={{fontWeight:600,color:barColor}}>{z.pct!=null?`${pct}%`:"—"} {pct>=85?"✅":pct>=60?"⚠️":"🔴"}</span>
-                      </div>
-                      <div style={{height:5,background:"var(--surface-2)",borderRadius:3,overflow:"hidden"}}>
-                        <div style={{height:"100%",width:`${Math.min(pct,100)}%`,background:barColor,borderRadius:3,transition:"width 0.4s"}}/>
-                      </div>
-                      {z.pct!=null&&z.pct<85&&(
-                        <div style={{fontSize:11,color:"var(--muted-c)",marginTop:3}}>
-                          {z.besoinKcal} kcal estimés · {z.emporteKcal} emportés · {z.besoinKcal-z.emporteKcal} kcal manquantes
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-          )}
-
-          {produits.length === 0 && (
-            <div style={{padding:"12px 16px",borderRadius:12,background:C.bluePale,border:`1px solid ${C.blue}30`,fontSize:12,color:C.blue,marginBottom:12}}>
-              ℹ️ Ajoute des produits dans l'onglet Nutrition et planifie tes ravitos pour voir la couverture calorique par tronçon.
+          {/* Compteurs alertes / vigilances */}
+          <div style={{display:"flex",flexDirection:"column",gap:6,paddingLeft:12,borderLeft:`1px solid var(--border-c)`}}>
+            <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px",background:nbAlertes>0?C.redPale:"var(--surface-2)",borderRadius:14,fontSize:11,fontWeight:600,color:nbAlertes>0?C.red:C.muted}}>
+              <span style={{fontSize:13}}>🔴</span>{nbAlertes} alerte{nbAlertes>1?"s":""}
             </div>
-          )}
-
-          {glucidesTarget==null&&(
-            <div style={{padding:"10px 14px",borderRadius:10,background:"var(--surface-2)",fontSize:12,color:"var(--muted-c)"}}>
-              Cible glucides non définie — calcul automatique (55% des kcal). Configure ta cible dans Profil de course pour une analyse plus précise.
+            <div style={{display:"flex",alignItems:"center",gap:6,padding:"4px 10px",background:nbVigilances>0?C.yellowPale:"var(--surface-2)",borderRadius:14,fontSize:11,fontWeight:600,color:nbVigilances>0?C.yellow:C.muted}}>
+              <span style={{fontSize:13}}>⚠️</span>{nbVigilances} vigilance{nbVigilances>1?"s":""}
             </div>
-          )}
-        </div>
-
-        {/* ── BLOC 3 : PRÉPARATION GLOBALE ── */}
-        <div>
-          <SectionTitle>Préparation globale</SectionTitle>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {pointsPrepa.map((p,i)=><Point key={i} {...p}/>)}
           </div>
         </div>
+      </Card>
 
+      {/* ── BARRE ACTIONS : tout afficher / tout replier ─────────────────── */}
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:10}}>
+        <Btn variant="ghost" onClick={()=>setShowAll(s=>!s)} style={{fontSize:11}}>
+          {showAll ? "↑ Réduire" : "↓ Tout afficher"}
+        </Btn>
+      </div>
+
+      {/* ── ZONE DÉTAIL (1 ou tous les sous-scores) ──────────────────────── */}
+      {(() => {
+        // Sections détail (factorisées pour réutilisation : 1 affichage ou les 5 empilés)
+        const SectionEntrainement = () => (
+          <div>
+            <SectionTitle>Entraînement</SectionTitle>
+            <Card>
+              <div style={{textAlign:"center",padding:"32px 16px"}}>
+                <div style={{fontSize:40,marginBottom:10,opacity:0.4}}>🏃</div>
+                <div style={{fontSize:14,fontWeight:600,color:C.muted,marginBottom:8}}>Bientôt disponible</div>
+                <div style={{fontSize:12,color:C.muted,lineHeight:1.6,maxWidth:520,margin:"0 auto"}}>
+                  Évaluation du volume hebdomadaire, de la sortie longue maximale, de la régularité des entraînements, du dénivelé spécifique et de la phase d'affûtage par rapport à l'objectif de course.
+                </div>
+              </div>
+            </Card>
+          </div>
+        );
+        const SectionForme = () => (
+          <div>
+            <SectionTitle>Forme</SectionTitle>
+            <Card>
+              <div style={{textAlign:"center",padding:"32px 16px"}}>
+                <div style={{fontSize:40,marginBottom:10,opacity:0.4}}>💗</div>
+                <div style={{fontSize:14,fontWeight:600,color:C.muted,marginBottom:8}}>Bientôt disponible</div>
+                <div style={{fontSize:12,color:C.muted,lineHeight:1.6,maxWidth:520,margin:"0 auto"}}>
+                  Score basé sur ta variabilité cardiaque (VFC), ton sommeil et ta charge d'entraînement récente. Indiquera si tu es prêt physiquement le jour J.
+                </div>
+              </div>
+            </Card>
+          </div>
+        );
+        const SectionNutrition = () => (
+          <div>
+            <SectionTitle>Couverture nutritionnelle</SectionTitle>
+            <Card>
+              {produits.length === 0 ? (
+                <div style={{padding:"20px",borderRadius:8,background:C.bluePale,border:`1px solid ${C.blue}30`,fontSize:12,color:C.blue}}>
+                  ℹ️ Ajoute des produits dans Nutrition pour activer ce score.
+                </div>
+              ) : (
+                <>
+                  {/* 3 KPIs */}
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}}>
+                    {[
+                      {label:"Calories emportées",val:`${totalEmporte.kcal} kcal`,sub:`besoin ${nutriTotals.kcal} kcal`,status:kcalStatus},
+                      {label:"Glucides / heure",val:`${glucidesActuelH} g/h`,sub:glucidesTarget?`cible ${glucidesTarget} g/h`:"55% des kcal",status:glucidesStatus},
+                      {label:"Eau (boissons)",val:`${(totalEmporte.eauMl/1000).toFixed(1)} L`,sub:`besoin ${(nutriTotals.eau/1000).toFixed(1)} L`,status:eauStatus},
+                    ].map(({label,val,sub,status})=>(
+                      <div key={label} style={{background:"var(--surface)",border:`1px solid var(--border-c)`,borderLeft:`3px solid ${statusText[status]}`,borderRadius:8,padding:"10px 14px"}}>
+                        <div style={{fontSize:11,color:C.muted,marginBottom:3}}>{label}</div>
+                        <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:600,color:statusText[status]}}>{val}</div>
+                        <div style={{fontSize:11,color:C.muted,marginTop:2}}>{sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Couverture par tronçon */}
+                  {zonesNutri.length > 0 && (
+                    <div style={{marginBottom:14}}>
+                      <div style={{fontSize:11,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:8}}>Couverture par tronçon</div>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:8}}>
+                        {zonesNutri.map((z,i)=>{
+                          const pct=z.pct??0;
+                          const barColor=pct>=85?C.green:pct>=60?C.yellow:C.red;
+                          return (
+                            <div key={i}>
+                              <div style={{display:"flex",justifyContent:"space-between",marginBottom:3,fontSize:11}}>
+                                <span style={{color:"var(--text-c)",fontWeight:500}}>{z.label}</span>
+                                <span style={{fontWeight:600,color:barColor}}>{z.pct!=null?`${pct}%`:"—"}</span>
+                              </div>
+                              <div style={{height:6,background:"var(--surface-2)",borderRadius:3,overflow:"hidden"}}>
+                                <div style={{height:"100%",width:`${Math.min(pct,100)}%`,background:barColor,borderRadius:3}}/>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {/* Micros */}
+                  {totalTimeH > 0 && Object.keys(microCibles).length > 0 && (
+                    <details>
+                      <summary style={{cursor:"pointer",fontSize:11,fontWeight:600,color:C.primary,padding:"6px 0"}}>
+                        Micronutriments ({Object.keys(microCibles).length})
+                      </summary>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10,marginTop:10}}>
+                        {Object.entries(microCibles).map(([key,cible])=>{
+                          const val = microEmporte[key];
+                          const min = Math.round(cible.min);
+                          const max = Math.round(cible.max);
+                          let status, barPct;
+                          if (val < min * 0.8) { status="alert"; barPct=Math.round(val/min*100); }
+                          else if (val > max * 1.5) { status="warn"; barPct=100; }
+                          else if (val > max) { status="warn"; barPct=100; }
+                          else { status="ok"; barPct=Math.round((val-min)/(max-min)*100+80); }
+                          const color = status==="ok"?C.green:status==="warn"?C.yellow:C.red;
+                          return (
+                            <div key={key}>
+                              <div style={{display:"flex",justifyContent:"space-between",marginBottom:3,fontSize:11}}>
+                                <span style={{color:C.muted}}>{cible.label}</span>
+                                <span style={{fontWeight:600,color}}>{val.toLocaleString()} {cible.unit}</span>
+                              </div>
+                              <div style={{height:5,background:"var(--surface-2)",borderRadius:2,overflow:"hidden"}}>
+                                <div style={{height:"100%",width:`${Math.min(barPct,100)}%`,background:color}}/>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </details>
+                  )}
+                </>
+              )}
+            </Card>
+          </div>
+        );
+        const SectionStrategie = () => (
+          <div>
+            <SectionTitle>Stratégie de course</SectionTitle>
+            <Card style={{marginBottom:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                <span style={{fontWeight:600,fontSize:13}}>Fatigue cumulée</span>
+                {fatigueData.some(d=>d.charge>=SEUIL)&&<span style={{fontSize:11,background:C.redPale,color:C.red,borderRadius:6,padding:"2px 8px",fontWeight:600}}>Zone critique atteinte</span>}
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <ComposedChart data={fatigueData} margin={{top:8,right:12,bottom:8,left:0}}>
+                  <XAxis dataKey="label" tick={{fontSize:10,fill:C.muted}} interval="preserveStartEnd"/>
+                  <YAxis domain={[0,100]} tick={{fontSize:10,fill:C.muted}} tickFormatter={v=>`${v}%`} width={32}/>
+                  <RTooltip formatter={(v,n)=>[`${v}%`,n==="charge"?"Charge":"Réserve"]} labelFormatter={(l,p)=>{const d=p?.[0]?.payload;return d?.fullLabel?`${l} — ${d.fullLabel}`:l;}} contentStyle={{fontSize:11,borderRadius:8,border:`1px solid ${C.border}`}}/>
+                  <ReferenceLine y={SEUIL} stroke={C.yellow} strokeDasharray="5 4" strokeWidth={1} label={{value:"Seuil critique",fontSize:9,fill:C.yellow,position:"insideTopRight"}}/>
+                  <Bar dataKey="charge" radius={[3,3,0,0]}>{fatigueData.map((d,i)=><Cell key={i} fill={d.type==="ravito"?C.green+"99":d.type==="repos"?C.blue+"55":d.charge>=SEUIL?C.red+"cc":d.charge>=60?C.yellow+"cc":C.blue+"cc"}/>)}</Bar>
+                  <Line type="monotone" dataKey="reserve" stroke={C.red} strokeWidth={2} dot={{r:2,fill:C.red}}/>
+                </ComposedChart>
+              </ResponsiveContainer>
+              <div style={{fontSize:11,color:C.muted,marginTop:4}}>
+                Niveau {levelData.label} · Garmin ×{garminCoeff}{paceStrat!==0&&<> · pace {paceStrat>0?"négatif":"positif"}</>}
+              </div>
+            </Card>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {pointsStrategie.map((p,i)=><Point key={i} {...p}/>)}
+            </div>
+          </div>
+        );
+        const SectionEquipement = () => (
+          <div>
+            <SectionTitle>Équipement & checklist</SectionTitle>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12,marginBottom:12}}>
+              {/* Poids */}
+              {poidsTotalG > 0 && (
+                <div style={{background:"var(--surface)",border:`1px solid var(--border-c)`,borderLeft:`3px solid ${poidsTotalG>8000?C.red:poidsTotalG>6000?C.yellow:C.green}`,borderRadius:8,padding:"12px 14px"}}>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:3}}>Poids estimé au départ</div>
+                  <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:600,color:poidsTotalG>8000?C.red:poidsTotalG>6000?C.yellow:C.green}}>
+                    {poidsTotalG >= 1000 ? `${(poidsTotalG/1000).toFixed(1)} kg` : `${poidsTotalG} g`}
+                  </div>
+                  <div style={{fontSize:11,color:C.muted,marginTop:3}}>
+                    équipement {poidsEquipG >= 1000 ? `${(poidsEquipG/1000).toFixed(1)} kg` : `${poidsEquipG} g`} · nutrition {poidsNutriG >= 1000 ? `${(poidsNutriG/1000).toFixed(1)} kg` : `${poidsNutriG} g`}
+                  </div>
+                </div>
+              )}
+              {/* Adaptation météo */}
+              {meteoChecks.length > 0 && (
+                <div style={{background:"var(--surface)",border:`1px solid var(--border-c)`,borderRadius:8,padding:"12px 14px"}}>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:8,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.04em"}}>Adaptation météo</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                    {meteoChecks.map(c=>(
+                      <div key={c.key} style={{display:"flex",alignItems:"center",gap:8,fontSize:11,padding:"5px 9px",background:c.ok?C.greenPale:C.redPale,borderRadius:6,color:c.ok?C.green:C.red,fontWeight:500}}>
+                        <span>{c.ok?"✓":"✕"}</span>
+                        <span style={{flex:1}}>{c.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* Checklist par catégorie */}
+            {Object.keys(eqByCat).length > 0 && (
+              <Card>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                  <span style={{fontWeight:600,fontSize:13}}>Checklist équipement</span>
+                  <span style={{fontSize:12,color:checklistPct===100?C.green:checklistPct>=70?C.yellow:C.red,fontWeight:600}}>
+                    {checkedCount}/{activeItems.length} ({checklistPct}%)
+                  </span>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:10}}>
+                  {Object.entries(eqByCat).map(([cat,items])=>{
+                    const checkedInCat = items.filter(i=>i.checked).length;
+                    return (
+                      <div key={cat}>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:11}}>
+                          <span style={{color:"var(--text-c)",fontWeight:500}}>{cat}</span>
+                          <span style={{fontWeight:600,color:checkedInCat===items.length?C.green:C.muted}}>{checkedInCat}/{items.length}</span>
+                        </div>
+                        <div style={{height:6,background:"var(--surface-2)",borderRadius:3,overflow:"hidden"}}>
+                          <div style={{height:"100%",width:`${items.length>0?(checkedInCat/items.length*100):0}%`,background:checkedInCat===items.length?C.green:C.yellow,borderRadius:3}}/>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
+            {/* Autres points préparation (température, fc, etc.) */}
+            {pointsPrepa.length > 2 && (
+              <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:12}}>
+                {pointsPrepa.slice(2).map((p,i)=><Point key={i} {...p}/>)}
+              </div>
+            )}
+          </div>
+        );
+
+        if (showAll) {
+          return (
+            <div style={{display:"flex",flexDirection:"column",gap:24}}>
+              <SectionEntrainement/>
+              <SectionForme/>
+              <SectionNutrition/>
+              <SectionStrategie/>
+              <SectionEquipement/>
+            </div>
+          );
+        }
+        if (effectiveTab==="entrainement") return <SectionEntrainement/>;
+        if (effectiveTab==="forme") return <SectionForme/>;
+        if (effectiveTab==="nutrition") return <SectionNutrition/>;
+        if (effectiveTab==="strategie") return <SectionStrategie/>;
+        return <SectionEquipement/>;
+      })()}
+
+      {/* ── SOURCES ── */}
+      <div style={{fontSize:10,color:C.muted,marginTop:24,textAlign:"center"}}>
+        Sources : ITRA Effort Score · Vernillo et al. (2017) · Millet et al. (2011) · données Garmin personnelles
       </div>
     </div>
   );
