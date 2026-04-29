@@ -189,8 +189,8 @@ const TEAL_PALE = "#e8f5f0";
 
 // ─── DONNÉES & PARAMS VIEW ────────────────────────────────────────────────────
 function DonneesParamsView({
-  saveAllData, saveData, loadData, saveCourse, race, segments, settings,
-  setRace, setSegments, setSettings, hasUnsaved, isStandalone, installDone,
+  saveAllData, saveCourse, race, segments, settings,
+  isStandalone, installDone,
   handleInstall, setView, setDrawerOpen,
   seances, setSeances, activites, setActivites, sommeil, setSommeil,
   vfcData, setVfcData, poids, setPoids, planningType, objectifs,
@@ -488,36 +488,6 @@ function DonneesParamsView({
               </div>
             )}
           </Section>
-
-          <Section title="Stratégie de course">
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              <ActionBtn
-                onClick={saveData}
-                icon="📤"
-                label="Télécharger la stratégie courante"
-                badge={hasUnsaved?"Non sauvegardé":null}
-              />
-              <label style={{display:"block"}}>
-                <div style={{display:"flex",alignItems:"center",gap:10,padding:"11px 16px",
-                  borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",
-                  color:C.inkLight,cursor:"pointer",fontSize:13,fontWeight:500}}>
-                  <span style={{fontSize:16}}>📂</span>
-                  <span>Charger une stratégie</span>
-                </div>
-                <input type="file" accept=".json" style={{display:"none"}}
-                  onChange={e=>{if(e.target.files[0])loadData(e.target.files[0]);}}/>
-              </label>
-              <ActionBtn onClick={()=>{
-                const hasData=race.gpxPoints?.length>0||segments.length>0;
-                if(hasData){const ok=window.confirm(`Démarrer une nouvelle course ?
-
-OK = sauvegarder avant.
-Annuler = tout effacer.`);if(ok)saveCourse();}
-                const ns={...EMPTY_SETTINGS,produits:settings.produits||[],equipment:settings.equipment||DEFAULT_EQUIPMENT,darkMode:settings.darkMode};
-                setRace({});setSegments([]);setSettings(ns);setView("profil_course");setDrawerOpen(false);
-              }} icon="🔄" label="Nouvelle course"/>
-            </div>
-          </Section>
         </div>
       )}
 
@@ -655,7 +625,7 @@ function AppLayout({
   view, setView, race, setRace, segments, setSegments, settings, setSettings,
   hasUnsaved, autoSaved, courses, drawerOpen, setDrawerOpen,
   reposModal, setReposModal, reposForm, setReposForm, addRepos,
-  saveData, loadData, saveCourse, loadCourse, deleteCourse, updateCourse, overwriteCourse,
+  loadData, saveCourse, loadCourse, deleteCourse, updateCourse, overwriteCourse,
   navigate, hasRace, isStandalone, installDone, handleInstall,
   features, toggleFeature, FEATURE_LABELS, NAVS_ACTIVE,
   entrainementFeatures, toggleEntrainementFeature, ENTRAINEMENT_FEATURE_LABELS,
@@ -959,13 +929,20 @@ function AppLayout({
             if(data.segments)setSegments(data.segments);
             if(data.settings)setSettings({...EMPTY_SETTINGS,...data.settings});
           }}/></div>}
-          {view==="mes_courses"&&<div style={{padding:"24px 32px"}}><MesCoursesView courses={courses} onLoad={loadCourse} onDelete={deleteCourse} onUpdate={updateCourse} onOverwrite={overwriteCourse} onSaveCurrent={()=>{saveCourse();alert("✅ Stratégie sauvegardée !");}} race={race} segments={segments} settings={settings}/></div>}
+          {view==="mes_courses"&&<div style={{padding:"24px 32px"}}><MesCoursesView courses={courses} onLoad={loadCourse} onDelete={deleteCourse} onUpdate={updateCourse} onOverwrite={overwriteCourse} onSaveCurrent={()=>{saveCourse();alert("✅ Stratégie sauvegardée !");}} onLoadFile={loadData} onNewRace={()=>{
+            const hasData=race.gpxPoints?.length>0||segments.length>0;
+            if(hasData){const ok=window.confirm(`Démarrer une nouvelle course ?
+
+OK = sauvegarder avant.
+Annuler = tout effacer.`);if(ok)saveCourse();}
+            const ns={...EMPTY_SETTINGS,produits:settings.produits||[],equipment:settings.equipment||DEFAULT_EQUIPMENT,darkMode:settings.darkMode};
+            setRace({});setSegments([]);setSettings(ns);setView("profil_course");setDrawerOpen(false);
+          }} race={race} segments={segments} settings={settings}/></div>}
           {/* Données & Params unifiés */}
           {view==="donnees_params"&&<DonneesParamsView
-            saveAllData={saveAllData} saveData={saveData} loadData={loadData}
+            saveAllData={saveAllData}
             saveCourse={saveCourse} race={race} segments={segments} settings={settings}
-            setRace={setRace} setSegments={setSegments} setSettings={setSettings}
-            hasUnsaved={hasUnsaved} isStandalone={isStandalone} installDone={installDone}
+            isStandalone={isStandalone} installDone={installDone}
             handleInstall={handleInstall} setView={setView} setDrawerOpen={setDrawerOpen}
             seances={seances} setSeances={setSeances} activites={activites} setActivites={setActivites}
             sommeil={sommeil} setSommeil={setSommeil} vfcData={vfcData} setVfcData={setVfcData}
@@ -1717,13 +1694,6 @@ export default function App() {
     a.click();
     URL.revokeObjectURL(url);
   };
-  const saveData=()=>{
-    const json=JSON.stringify({race,segments,settings},null,2);
-    const blob=new Blob([json],{type:"application/json"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");a.href=url;a.download="alex-data.json";a.click();
-    URL.revokeObjectURL(url);setHasUnsaved(false);
-  };
   const loadData=file=>{
     const reader=new FileReader();
     reader.onload=e=>{
@@ -2016,7 +1986,7 @@ export default function App() {
       drawerOpen={drawerOpen} setDrawerOpen={setDrawerOpen}
       reposModal={reposModal} setReposModal={setReposModal}
       reposForm={reposForm} setReposForm={setReposForm} addRepos={addRepos}
-      saveData={saveData} loadData={loadData}
+      loadData={loadData}
       saveCourse={saveCourseFn} loadCourse={loadCourseFn}
       deleteCourse={deleteCourseFn} updateCourse={updateCourseFn} overwriteCourse={overwriteCourseFn}
       navigate={navigate} hasRace={hasRace}
