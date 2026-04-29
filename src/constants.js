@@ -43,6 +43,25 @@ export const C = {
   bluePale:    "#E8F2F8",
 };
 
+// ─── PALETTE COURSE (thème spécifique préparation de course) ─────────────────
+// Volontairement distincte de C — nuances plus chaudes (sable, terre).
+export const COURSE_C = { bg:"#F4F0EA", white:"#FDFCFA", sand:"#EDE8DF", sandDark:"#DDD5C8", primary:"#7C5C3E", primaryLight:"#9E7A58", primaryPale:"#F0E8DC", primaryDeep:"#4E3726", secondary:"#5C7A5C", secondaryPale:"#E8F0E8", secondaryDark:"#3D5C3D", text:"#2A2218", muted:"#8C7B6A", border:"#D8CEC0", green:"#5C8C6A", greenPale:"#E6F2EA", yellow:"#B8863A", yellowPale:"#FBF3E2", red:"#B84A3A", redPale:"#FBECEB", blue:"#4A7A9B", bluePale:"#E8F2F8" };
+
+// Couleur d'accent secondaire (boutons "valider", checkboxes actives)
+export const TEAL = "#1D9E75";
+export const TEAL_PALE = "#e8f5f0";
+
+// Navigation de la section Course
+export const COURSE_NAVS = [
+  { id: "profil",      label: "Profil de course",   icon: "🗺️", group: "Préparation" },
+  { id: "preparation", label: "Stratégie de course", icon: "🎯", group: "Préparation" },
+  { id: "nutrition",   label: "Nutrition",           icon: "🍌", group: "Préparation" },
+  { id: "parametres",  label: "Équipement",          icon: "🎒", group: "Préparation" },
+  { id: "analyse",     label: "Analyse",             icon: "📊", group: "Analyse" },
+  { id: "team",        label: "Team",                icon: "👥", group: "Équipe" },
+  { id: "courses",     label: "Mes courses",         icon: "📚", group: "Historique" },
+];
+
 // ─── CONSTANTES ENTRAINEMENT ─────────────────────────────────────────────────
 export const DAY_NAMES = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
 export const DAY_SHORT = ["Lu","Ma","Me","Je","Ve","Sa","Di"];
