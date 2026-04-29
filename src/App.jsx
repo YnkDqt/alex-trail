@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from "react"
 import { useAuth } from './AuthContext';
 import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse, loadNutrition, saveNutrition, loadEntrainementSettings, saveEntrainementSettings, getDataVersion, bumpDataVersion, clearUserData, hasSnapshotForCurrentPeriod, createSnapshot, listSnapshots, loadSnapshot, exportAllUserDataAsJSON } from './supabaseHelpers';
 import Login from './Login';
-import { C, COURSE_C, EMPTY_SETTINGS, DEFAULT_EQUIPMENT,
+import { C, COURSE_C, COURSE_NAVS, EMPTY_SETTINGS, DEFAULT_EQUIPMENT,
   ACTIVITY_TYPES, STATUT_OPTIONS, ACT_ICON,
   GARMIN_TO_ACTIVITE, TYPE_MIGRATION, DEFAULT_PLANNING,
   isRunning, exportJSON, localDate, fmtDate, daysUntil,
