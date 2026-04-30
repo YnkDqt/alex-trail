@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from "react";
 import { C, isRunning, fmtDate, localDate, exportJSON, TYPES_BOISSON } from "../constants.js";
-import { Btn, Modal, Field, ConfirmDialog, PageTitle } from "../atoms.jsx";
+import { Btn, Modal, Field, ConfirmDialog, PageTitle, ScrollableTable, ScrollableRow, ScrollableCell } from "../atoms.jsx";
 import { CIQUAL, CIQUAL_CATEGORIES } from "../data/ciqual.js";
 import {
   ProduitForm,
@@ -134,43 +134,47 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
           <div style={{fontSize:13,marginBottom:20}}>Enregistre tes données nutritionnelles quotidiennes</div>
           <Btn onClick={openNew}>＋ Ajouter aujourd'hui</Btn>
         </div>
-      ):(
-        <div style={{...card,overflow:"hidden"}}>
-          <div style={{display:"grid",gridTemplateColumns:"110px 1fr 1fr 90px 1fr 1fr 1fr 1fr 32px",
-            padding:"8px 16px",background:C.stone,gap:8,
-            fontSize:10,fontWeight:600,color:C.muted,textTransform:"uppercase",letterSpacing:"0.04em"}}>
-            <span>Date</span>
-            {COLS_KCAL.map(({l})=><span key={l} style={{textAlign:"right"}}>{l}</span>)}
-            <span style={{textAlign:"right"}}>Delta Kcal</span>
-            {COLS_MACRO.map(({l})=><span key={l} style={{textAlign:"right"}}>{l}</span>)}
-            <span>Notes</span>
-            <span/>
-          </div>
-          <div style={{maxHeight:520,overflowY:"auto"}}>
+      ):(() => {
+        const NUT_COLS = ["110px","1fr","1fr","90px","1fr","1fr","1fr","1fr","32px"];
+        return (
+          <ScrollableTable
+            columns={NUT_COLS}
+            minWidth={900}
+            maxHeight={520}
+            headerCells={[
+              <span key="d">Date</span>,
+              ...COLS_KCAL.map(({l})=><span key={l} style={{display:"block",textAlign:"right"}}>{l}</span>),
+              <span key="dk" style={{display:"block",textAlign:"right"}}>Delta Kcal</span>,
+              ...COLS_MACRO.map(({l})=><span key={l} style={{display:"block",textAlign:"right"}}>{l}</span>),
+              <span key="n">Notes</span>,
+              <span key="x" />
+            ]}
+          >
             {sorted.map(j=>{
               const delta = (parseFloat(j.kcalBrulees)||0)-(parseFloat(j.kcalConso)||0);
               const hasDelta = j.kcalBrulees&&j.kcalConso;
               const deltaColor = !hasDelta?C.muted:delta<-100?C.green:delta>100?C.red:C.muted;
               return (
-                <div key={j.id} style={{display:"grid",gridTemplateColumns:"110px 1fr 1fr 90px 1fr 1fr 1fr 1fr 32px",
-                  padding:"10px 16px",gap:8,borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:13}}>
-                  <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:C.inkLight}}>{fmtDate(j.date)}</span>
-                  {COLS_KCAL.map(({k,col})=><span key={k} style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:col,fontWeight:500}}>{j[k]||"—"}</span>)}
-                  <span style={{textAlign:"right",fontFamily:"'DM Mono',monospace",fontWeight:500,color:deltaColor}}>
+                <ScrollableRow key={j.id}>
+                  <ScrollableCell style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:C.inkLight}}>{fmtDate(j.date)}</ScrollableCell>
+                  {COLS_KCAL.map(({k,col})=><ScrollableCell key={k} align="right" style={{fontFamily:"'DM Mono',monospace",color:col,fontWeight:500}}>{j[k]||"—"}</ScrollableCell>)}
+                  <ScrollableCell align="right" style={{fontFamily:"'DM Mono',monospace",fontWeight:500,color:deltaColor}}>
                     {hasDelta?(delta>0?"+":"")+delta:"—"}
-                  </span>
-                  {COLS_MACRO.map(({k,col})=><span key={k} style={{textAlign:"right",fontFamily:"'DM Mono',monospace",color:col}}>{j[k]||"—"}</span>)}
-                  <span style={{fontSize:12,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={j.notes||""}>{j.notes||""}</span>
-                  <div style={{display:"flex",gap:2}}>
-                    <button onClick={()=>openEdit(j)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.forest}}>✎</button>
-                    <button onClick={()=>setConfirmId(j.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red}}>🗑</button>
-                  </div>
-                </div>
+                  </ScrollableCell>
+                  {COLS_MACRO.map(({k,col})=><ScrollableCell key={k} align="right" style={{fontFamily:"'DM Mono',monospace",color:col}}>{j[k]||"—"}</ScrollableCell>)}
+                  <ScrollableCell style={{fontSize:12,color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={j.notes||""}>{j.notes||""}</ScrollableCell>
+                  <ScrollableCell align="center">
+                    <div style={{display:"flex",gap:2,justifyContent:"center"}}>
+                      <button onClick={()=>openEdit(j)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.forest}}>✎</button>
+                      <button onClick={()=>setConfirmId(j.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:C.red}}>🗑</button>
+                    </div>
+                  </ScrollableCell>
+                </ScrollableRow>
               );
             })}
-          </div>
-        </div>
-      )}
+          </ScrollableTable>
+        );
+      })()}
 
       <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifier l'entrée":"Nouvelle entrée"} width={480}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
@@ -662,16 +666,19 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
             <div style={{fontSize:16,fontWeight:500,color:C.inkLight,marginBottom:6}}>Aucune séance</div>
             <div style={{fontSize:13}}>Tes séances d'entraînement effectuées apparaîtront ici</div>
           </div>
-        ):(
-          <div style={{...card,overflow:"hidden"}}>
-            <div style={{display:"grid",gridTemplateColumns:"100px 1fr 1fr",
-              padding:"8px 16px",background:C.stone,gap:8,fontSize:10,fontWeight:600,color:C.muted,
-              textTransform:"uppercase",letterSpacing:"0.04em"}}>
-              <span>Date</span>
-              <span>Activité</span>
-              <span>Nutrition liée</span>
-            </div>
-            <div style={{maxHeight:520,overflowY:"auto"}}>
+        ):(() => {
+          const SE_COLS = ["100px","1fr","1fr"];
+          return (
+            <ScrollableTable
+              columns={SE_COLS}
+              minWidth={600}
+              maxHeight={520}
+              headerCells={[
+                <span key="d">Date</span>,
+                <span key="a">Activité</span>,
+                <span key="n">Nutrition liée</span>
+              ]}
+            >
               {seancesEff.map(s=>{
                 const nutrition = s.nutrition || [];
                 const linkedItems = nutrition.map(n=>{
@@ -681,37 +688,38 @@ function Nutrition({ produits, setProduits, recettes, setRecettes, seances, setS
                 }).filter(x=>x.item);
                 
                 return (
-                  <div key={s.id} style={{display:"grid",gridTemplateColumns:"100px 1fr 1fr",
-                    padding:"10px 16px",gap:8,borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:13}}>
-                    <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:C.inkLight}}>{fmtDate(s.date)}</span>
-                    <span style={{fontWeight:500,color:C.inkLight}}>{s.activite}</span>
-                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                      {linkedItems.length>0?(
-                        <>
-                          <div style={{display:"flex",gap:4,flexWrap:"wrap",flex:1}}>
-                            {linkedItems.map(({item,qte},idx)=>(
-                              <span key={idx} style={{fontSize:11,background:C.stone,padding:"2px 8px",borderRadius:12,color:C.inkLight}}>
-                                {item.nom} <span style={{color:C.muted}}>×{qte}</span>
-                              </span>
-                            ))}
-                          </div>
-                          <button onClick={()=>openNutritionSeance(s)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:C.forest}}>✎</button>
-                          <button onClick={()=>unlinkNutritionSeance(s.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:C.red}}>✕</button>
-                        </>
-                      ):(
-                        <button onClick={()=>openNutritionSeance(s)} 
-                          style={{fontSize:12,padding:"4px 12px",borderRadius:6,border:`1px solid ${C.border}`,
-                            background:C.white,cursor:"pointer",color:C.muted}}>
-                          + Lier nutrition
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  <ScrollableRow key={s.id}>
+                    <ScrollableCell style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:C.inkLight}}>{fmtDate(s.date)}</ScrollableCell>
+                    <ScrollableCell style={{fontWeight:500,color:C.inkLight}}>{s.activite}</ScrollableCell>
+                    <ScrollableCell>
+                      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                        {linkedItems.length>0?(
+                          <>
+                            <div style={{display:"flex",gap:4,flexWrap:"wrap",flex:1}}>
+                              {linkedItems.map(({item,qte},idx)=>(
+                                <span key={idx} style={{fontSize:11,background:C.stone,padding:"2px 8px",borderRadius:12,color:C.inkLight}}>
+                                  {item.nom} <span style={{color:C.muted}}>×{qte}</span>
+                                </span>
+                              ))}
+                            </div>
+                            <button onClick={()=>openNutritionSeance(s)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:C.forest}}>✎</button>
+                            <button onClick={()=>unlinkNutritionSeance(s.id)} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:C.red}}>✕</button>
+                          </>
+                        ):(
+                          <button onClick={()=>openNutritionSeance(s)} 
+                            style={{fontSize:12,padding:"4px 12px",borderRadius:6,border:`1px solid ${C.border}`,
+                              background:C.white,cursor:"pointer",color:C.muted}}>
+                            + Lier nutrition
+                          </button>
+                        )}
+                      </div>
+                    </ScrollableCell>
+                  </ScrollableRow>
                 );
               })}
-            </div>
-          </div>
-        )
+            </ScrollableTable>
+          );
+        })()
       )}
 
       {/* ── MODAL PRODUIT (nouveau formulaire unifié) ── */}

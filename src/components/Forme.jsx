@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from "react";
 import { AreaChart, Area, LineChart, Line, BarChart, Bar, ComposedChart, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { C, localDate, fmtDate, exportJSON, parseCSVSommeil, parseCSVVFC,
   emptyPoids, emptyVFC, emptySommeil } from "../constants.js";
-import { Btn, Modal, Field, ConfirmDialog, PageTitle } from "../atoms.jsx";
+import { Btn, Modal, Field, ConfirmDialog, PageTitle, ScrollableTable, ScrollableRow, ScrollableCell } from "../atoms.jsx";
 // ─── WRAPPERS FORME ──────────────────────────────────────────────────────────
 // Le composant Forme gère déjà VFC/Sommeil/Poids — on le wrap avec tab forcé
 function FormeVFC(props) {
@@ -153,36 +153,49 @@ function Forme({ sommeil, setSommeil, vfcData, setVfcData, poids, setPoids, acti
           <div style={{display:"grid",gridTemplateColumns:"55fr 45fr",gap:14}}>
             
             {/* Tableau VFC */}
-            <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
-              <div style={{overflowX:"auto"}}>
-                <div style={{display:"grid",gridTemplateColumns:"115px 75px 110px 80px 80px 95px 95px 70px 28px",padding:"8px 14px",background:C.stone,fontSize:10,fontWeight:600,color:C.muted,gap:7,textTransform:"uppercase",letterSpacing:"0.04em",minWidth:760}}>
-                  <span>Date</span><span>VFC</span><span>Baseline</span><span>Moy 7j</span><span>VO2max</span><span>Ch. Aiguë</span><span>Ch. Chron.</span><span style={{color:C.forest}}>Ratio</span><span></span>
-                </div>
-                <div style={{maxHeight:600,overflowY:"auto"}}>
+            {(() => {
+              const VFC_COLS = ["115px","75px","110px","80px","80px","95px","95px","70px","28px"];
+              return (
+                <ScrollableTable
+                  columns={VFC_COLS}
+                  minWidth={760}
+                  maxHeight={600}
+                  headerCells={[
+                    <span key="d">Date</span>,
+                    <span key="v">VFC</span>,
+                    <span key="b">Baseline</span>,
+                    <span key="m">Moy 7j</span>,
+                    <span key="vo">VO2max</span>,
+                    <span key="ca">Ch. Aiguë</span>,
+                    <span key="cc">Ch. Chron.</span>,
+                    <span key="r" style={{color:C.forest}}>Ratio</span>,
+                    <span key="x" />
+                  ]}
+                >
                   {[...vfcData].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(v=>{
                     const ratio = v.chargeAigue && v.chargeChronique
                       ? Math.round(parseFloat(v.chargeAigue)/parseFloat(v.chargeChronique)*100)/100
                       : null;
                     const ratioColor = ratio===null?C.muted:ratio>1.3?C.red:ratio>1.1?C.yellow:ratio>=0.8?C.green:C.sky;
                     return (
-                      <div key={v.id} style={{display:"grid",gridTemplateColumns:"115px 75px 110px 80px 80px 95px 95px 70px 28px",padding:"6px 14px",borderTop:`1px solid ${C.border}`,alignItems:"center",gap:7,minWidth:760}}>
-                        <input type="date" value={v.date} onChange={e=>updVFC(v.id,"date",e.target.value)} style={{...inlineInput(113),textAlign:"left"}}/>
-                        <input value={v.vfc} onChange={e=>updVFC(v.id,"vfc",e.target.value)} placeholder="ms" style={inlineInput(73)}/>
-                        <input value={v.baseline} onChange={e=>updVFC(v.id,"baseline",e.target.value)} placeholder="63-83ms" style={{...inlineInput(108),fontSize:10}}/>
-                        <input value={v.moy7j} onChange={e=>updVFC(v.id,"moy7j",e.target.value)} placeholder="ms" style={inlineInput(78)}/>
-                        <input value={v.vo2max} onChange={e=>updVFC(v.id,"vo2max",e.target.value)} placeholder="—" style={inlineInput(78)}/>
-                        <input value={v.chargeAigue} onChange={e=>updVFC(v.id,"chargeAigue",e.target.value)} placeholder="—" style={inlineInput(93)}/>
-                        <input value={v.chargeChronique} onChange={e=>updVFC(v.id,"chargeChronique",e.target.value)} placeholder="—" style={inlineInput(93)}/>
-                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,fontWeight:600,color:ratioColor,textAlign:"center"}}>
+                      <ScrollableRow key={v.id}>
+                        <ScrollableCell><input type="date" value={v.date} onChange={e=>updVFC(v.id,"date",e.target.value)} style={{...inlineInput(113),textAlign:"left"}}/></ScrollableCell>
+                        <ScrollableCell><input value={v.vfc} onChange={e=>updVFC(v.id,"vfc",e.target.value)} placeholder="ms" style={inlineInput(73)}/></ScrollableCell>
+                        <ScrollableCell><input value={v.baseline} onChange={e=>updVFC(v.id,"baseline",e.target.value)} placeholder="63-83ms" style={{...inlineInput(108),fontSize:10}}/></ScrollableCell>
+                        <ScrollableCell><input value={v.moy7j} onChange={e=>updVFC(v.id,"moy7j",e.target.value)} placeholder="ms" style={inlineInput(78)}/></ScrollableCell>
+                        <ScrollableCell><input value={v.vo2max} onChange={e=>updVFC(v.id,"vo2max",e.target.value)} placeholder="—" style={inlineInput(78)}/></ScrollableCell>
+                        <ScrollableCell><input value={v.chargeAigue} onChange={e=>updVFC(v.id,"chargeAigue",e.target.value)} placeholder="—" style={inlineInput(93)}/></ScrollableCell>
+                        <ScrollableCell><input value={v.chargeChronique} onChange={e=>updVFC(v.id,"chargeChronique",e.target.value)} placeholder="—" style={inlineInput(93)}/></ScrollableCell>
+                        <ScrollableCell align="center" style={{fontFamily:"'DM Mono',monospace",fontSize:11,fontWeight:600,color:ratioColor}}>
                           {ratio!==null ? ratio.toFixed(2) : "—"}
-                        </span>
-                        <button onClick={()=>delVFC(v.id)} style={{background:"none",border:"none",cursor:"pointer",color:C.stoneDark,fontSize:12,padding:0}}>✕</button>
-                      </div>
+                        </ScrollableCell>
+                        <ScrollableCell align="center"><button onClick={()=>delVFC(v.id)} style={{background:"none",border:"none",cursor:"pointer",color:C.stoneDark,fontSize:12,padding:0}}>✕</button></ScrollableCell>
+                      </ScrollableRow>
                     );
                   })}
-                </div>
-              </div>
-            </div>
+                </ScrollableTable>
+              );
+            })()}
 
             {/* Graphiques VFC (stack vertical) */}
             {vfcChart.length>0 ? (
@@ -235,33 +248,49 @@ function Forme({ sommeil, setSommeil, vfcData, setVfcData, poids, setPoids, acti
           <div style={{display:"grid",gridTemplateColumns:"55fr 45fr",gap:14}}>
             
             {/* Tableau Sommeil */}
-            <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
-              <div style={{overflowX:"auto"}}>
-                <div style={{display:"grid",gridTemplateColumns:"100px 55px 75px 65px 50px 55px 55px 55px 55px 70px 70px 28px",padding:"8px 14px",background:C.stone,fontSize:10,fontWeight:600,color:C.muted,gap:6,textTransform:"uppercase",letterSpacing:"0.04em",minWidth:740}}>
-                  <span>Date</span><span>Score</span><span>Qualité</span><span>Durée</span><span>FC ♥</span><span>BB nuit</span><span>BB mat.</span><span>SpO2</span><span>Resp.</span><span>Coucher</span><span>Lever</span><span></span>
-                </div>
-                <div style={{maxHeight:600,overflowY:"auto"}}>
+            {(() => {
+              const SOM_COLS = ["100px","55px","75px","65px","50px","55px","55px","55px","55px","70px","70px","28px"];
+              return (
+                <ScrollableTable
+                  columns={SOM_COLS}
+                  minWidth={740}
+                  maxHeight={600}
+                  headerCells={[
+                    <span key="d">Date</span>,
+                    <span key="s">Score</span>,
+                    <span key="q">Qualité</span>,
+                    <span key="du">Durée</span>,
+                    <span key="fc">FC ♥</span>,
+                    <span key="bbn">BB nuit</span>,
+                    <span key="bbm">BB mat.</span>,
+                    <span key="sp">SpO2</span>,
+                    <span key="re">Resp.</span>,
+                    <span key="co">Coucher</span>,
+                    <span key="le">Lever</span>,
+                    <span key="x" />
+                  ]}
+                >
                   {[...sommeil].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(s=>(
-                    <div key={s.id} style={{display:"grid",gridTemplateColumns:"100px 55px 75px 65px 50px 55px 55px 55px 55px 70px 70px 28px",padding:"6px 14px",borderTop:`1px solid ${C.border}`,alignItems:"center",gap:6,minWidth:740}}>
-                      <input type="date" value={s.date} onChange={e=>updSommeil(s.id,"date",e.target.value)} style={{...inlineInput(98),textAlign:"left"}}/>
-                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,textAlign:"center",color:parseInt(s.score)>=80?C.green:parseInt(s.score)>=60?C.yellow:C.red,fontWeight:500}}>{s.score||"—"}</span>
-                      <select value={s.qualite||"Bon"} onChange={e=>updSommeil(s.id,"qualite",e.target.value)} style={{...inlineInput(73),padding:"1px 2px",fontSize:10}}>
+                    <ScrollableRow key={s.id}>
+                      <ScrollableCell><input type="date" value={s.date} onChange={e=>updSommeil(s.id,"date",e.target.value)} style={{...inlineInput(98),textAlign:"left"}}/></ScrollableCell>
+                      <ScrollableCell align="center" style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:parseInt(s.score)>=80?C.green:parseInt(s.score)>=60?C.yellow:C.red,fontWeight:500}}>{s.score||"—"}</ScrollableCell>
+                      <ScrollableCell><select value={s.qualite||"Bon"} onChange={e=>updSommeil(s.id,"qualite",e.target.value)} style={{...inlineInput(73),padding:"1px 2px",fontSize:10}}>
                         {["Excellent","Bon","Passable","Mauvais"].map(q=><option key={q}>{q}</option>)}
-                      </select>
-                      <input value={s.duree} onChange={e=>updSommeil(s.id,"duree",e.target.value)} placeholder="7h30" style={{...inlineInput(63),fontSize:10}}/>
-                      <input value={s.fcRepos||""} onChange={e=>updSommeil(s.id,"fcRepos",e.target.value)} placeholder="—" style={inlineInput(48)}/>
-                      <input value={s.bodyBattery||""} onChange={e=>updSommeil(s.id,"bodyBattery",e.target.value)} placeholder="—" style={inlineInput(53)}/>
-                      <input value={s.bodyBatteryMatin||""} onChange={e=>updSommeil(s.id,"bodyBatteryMatin",e.target.value)} placeholder="—" style={inlineInput(53)}/>
-                      <input value={s.spo2||""} onChange={e=>updSommeil(s.id,"spo2",e.target.value)} placeholder="—" style={inlineInput(53)}/>
-                      <input value={s.respiration||""} onChange={e=>updSommeil(s.id,"respiration",e.target.value)} placeholder="—" style={inlineInput(53)}/>
-                      <input value={s.coucher||""} onChange={e=>updSommeil(s.id,"coucher",e.target.value)} placeholder="23:30" style={{...inlineInput(68),fontSize:10}}/>
-                      <input value={s.lever||""} onChange={e=>updSommeil(s.id,"lever",e.target.value)} placeholder="06:30" style={{...inlineInput(68),fontSize:10}}/>
-                      <button onClick={()=>delSommeil(s.id)} style={{background:"none",border:"none",cursor:"pointer",color:C.stoneDark,fontSize:12,padding:0}}>✕</button>
-                    </div>
+                      </select></ScrollableCell>
+                      <ScrollableCell><input value={s.duree} onChange={e=>updSommeil(s.id,"duree",e.target.value)} placeholder="7h30" style={{...inlineInput(63),fontSize:10}}/></ScrollableCell>
+                      <ScrollableCell><input value={s.fcRepos||""} onChange={e=>updSommeil(s.id,"fcRepos",e.target.value)} placeholder="—" style={inlineInput(48)}/></ScrollableCell>
+                      <ScrollableCell><input value={s.bodyBattery||""} onChange={e=>updSommeil(s.id,"bodyBattery",e.target.value)} placeholder="—" style={inlineInput(53)}/></ScrollableCell>
+                      <ScrollableCell><input value={s.bodyBatteryMatin||""} onChange={e=>updSommeil(s.id,"bodyBatteryMatin",e.target.value)} placeholder="—" style={inlineInput(53)}/></ScrollableCell>
+                      <ScrollableCell><input value={s.spo2||""} onChange={e=>updSommeil(s.id,"spo2",e.target.value)} placeholder="—" style={inlineInput(53)}/></ScrollableCell>
+                      <ScrollableCell><input value={s.respiration||""} onChange={e=>updSommeil(s.id,"respiration",e.target.value)} placeholder="—" style={inlineInput(53)}/></ScrollableCell>
+                      <ScrollableCell><input value={s.coucher||""} onChange={e=>updSommeil(s.id,"coucher",e.target.value)} placeholder="23:30" style={{...inlineInput(68),fontSize:10}}/></ScrollableCell>
+                      <ScrollableCell><input value={s.lever||""} onChange={e=>updSommeil(s.id,"lever",e.target.value)} placeholder="06:30" style={{...inlineInput(68),fontSize:10}}/></ScrollableCell>
+                      <ScrollableCell align="center"><button onClick={()=>delSommeil(s.id)} style={{background:"none",border:"none",cursor:"pointer",color:C.stoneDark,fontSize:12,padding:0}}>✕</button></ScrollableCell>
+                    </ScrollableRow>
                   ))}
-                </div>
-              </div>
-            </div>
+                </ScrollableTable>
+              );
+            })()}
 
             {/* Graphiques Sommeil (stack vertical) */}
             {sommeilChart.length>0 ? (
@@ -346,38 +375,54 @@ function Forme({ sommeil, setSommeil, vfcData, setVfcData, poids, setPoids, acti
           <div style={{display:"grid",gridTemplateColumns:"55fr 45fr",gap:14}}>
             
             {/* Tableau Poids */}
-            <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
-              <div style={{overflowX:"auto"}}>
-                <div style={{display:"grid",gridTemplateColumns:"100px 60px 48px 48px 52px 56px 48px 48px 52px 52px 50px 50px 52px 28px",padding:"8px 14px",background:C.stone,fontSize:10,fontWeight:600,color:C.muted,gap:6,textTransform:"uppercase",letterSpacing:"0.03em",minWidth:750}}>
-                  <span>Date</span><span>Poids</span><span>Var.</span><span>Cou</span><span>Épau.</span><span>Poitrine</span><span>Bras</span><span>Taille</span><span>Ventre</span><span>Hanche</span><span>Cuisse</span><span>Mollet</span><span>%MG*</span><span></span>
-                </div>
-                <div style={{maxHeight:600,overflowY:"auto"}}>
+            {(() => {
+              const POIDS_COLS = ["100px","60px","48px","48px","52px","56px","48px","48px","52px","52px","50px","50px","52px","28px"];
+              return (
+                <ScrollableTable
+                  columns={POIDS_COLS}
+                  minWidth={750}
+                  maxHeight={600}
+                  headerCells={[
+                    <span key="d">Date</span>,
+                    <span key="p">Poids</span>,
+                    <span key="v">Var.</span>,
+                    <span key="c">Cou</span>,
+                    <span key="e">Épau.</span>,
+                    <span key="po">Poitrine</span>,
+                    <span key="b">Bras</span>,
+                    <span key="t">Taille</span>,
+                    <span key="ve">Ventre</span>,
+                    <span key="h">Hanche</span>,
+                    <span key="cu">Cuisse</span>,
+                    <span key="m">Mollet</span>,
+                    <span key="mg">%MG*</span>,
+                    <span key="x" />
+                  ]}
+                >
                   {[...poids].sort((a,b)=>new Date(b.date)-new Date(a.date)).map((p,i,arr)=>{
                     const prev=arr[i+1]; const diff=prev&&p.poids&&prev.poids?(parseFloat(p.poids)-parseFloat(prev.poids)).toFixed(1):null;
                     const bf=calcBF(p);
                     const inp=(w=50)=>({...inlineInput(w),fontSize:10});
                     return (
-                      <div key={p.id} style={{display:"grid",gridTemplateColumns:"100px 60px 48px 48px 52px 56px 48px 48px 52px 52px 50px 50px 52px 28px",padding:"6px 14px",borderTop:`1px solid ${C.border}`,alignItems:"center",gap:6,minWidth:750}}>
-                        <input type="date" value={p.date} onChange={e=>updPoids(p.id,"date",e.target.value)} style={{...inp(98),textAlign:"left"}}/>
-                        <div style={{display:"flex",alignItems:"center",gap:2}}>
-                          <input value={p.poids ? String(p.poids).replace('.', ',') : ''} 
-                            onChange={e=>updPoids(p.id,"poids",e.target.value.replace(',', '.'))} 
-                            placeholder="kg" style={{...inp(58),fontWeight:500,color:C.inkLight}}/>
-                        </div>
-                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,textAlign:"center",color:diff?parseFloat(diff)>0?C.red:C.green:C.stoneDeep}}>{diff?(parseFloat(diff)>0?"+":"")+diff.replace('.', ','):"—"}</span>
+                      <ScrollableRow key={p.id}>
+                        <ScrollableCell><input type="date" value={p.date} onChange={e=>updPoids(p.id,"date",e.target.value)} style={{...inp(98),textAlign:"left"}}/></ScrollableCell>
+                        <ScrollableCell><input value={p.poids ? String(p.poids).replace('.', ',') : ''} 
+                          onChange={e=>updPoids(p.id,"poids",e.target.value.replace(',', '.'))} 
+                          placeholder="kg" style={{...inp(58),fontWeight:500,color:C.inkLight}}/></ScrollableCell>
+                        <ScrollableCell align="center" style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:diff?parseFloat(diff)>0?C.red:C.green:C.stoneDeep}}>{diff?(parseFloat(diff)>0?"+":"")+diff.replace('.', ','):"—"}</ScrollableCell>
                         {["cou","epaules","poitrine","bras","taille_cm","ventre","hanche","cuisse","mollet"].map(k=>(
-                          <input key={k} value={p[k] ? String(p[k]).replace('.', ',') : ''} 
+                          <ScrollableCell key={k}><input value={p[k] ? String(p[k]).replace('.', ',') : ''} 
                             onChange={e=>updPoids(p.id,k,e.target.value.replace(',', '.'))} 
-                            placeholder="—" style={inp(["epaules","poitrine"].includes(k)?52:48)}/>
+                            placeholder="—" style={inp(["epaules","poitrine"].includes(k)?52:48)}/></ScrollableCell>
                         ))}
-                        <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,textAlign:"center",color:C.forest,fontWeight:500}}>{bf?`${bf}%`:"—"}</span>
-                        <button onClick={()=>delPoids(p.id)} style={{background:"none",border:"none",cursor:"pointer",color:C.stoneDark,fontSize:12,padding:0}}>✕</button>
-                      </div>
+                        <ScrollableCell align="center" style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:C.forest,fontWeight:500}}>{bf?`${bf}%`:"—"}</ScrollableCell>
+                        <ScrollableCell align="center"><button onClick={()=>delPoids(p.id)} style={{background:"none",border:"none",cursor:"pointer",color:C.stoneDark,fontSize:12,padding:0}}>✕</button></ScrollableCell>
+                      </ScrollableRow>
                     );
                   })}
-                </div>
-              </div>
-            </div>
+                </ScrollableTable>
+              );
+            })()}
 
             {/* Graphique Poids */}
             {poidsChart.length>1 ? (
