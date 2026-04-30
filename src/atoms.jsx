@@ -126,53 +126,78 @@ export const Empty = ({ icon, title, sub, action }) => (
 );
 
 // ─── SCROLLABLE TABLE ────────────────────────────────────────────────────────
-// Table avec header sticky aligné avec le body, scroll horizontal + vertical unifié.
-// Résout le bug "header désaligné quand on scrolle latéralement" en partageant
-// le même container scrollable pour header et body.
+// Table avec header sticky parfaitement aligné avec le body, scroll horizontal +
+// vertical unifié. Utilise un <table> HTML natif pour garantir l'alignement
+// header/body au scroll horizontal (le sticky+grid divs cassait l'alignement).
 //
 // Props :
-//  - columns : string CSS gridTemplateColumns (ex: "80px 1fr 60px 60px")
-//  - minWidth : largeur min en px avant déclenchement du scroll horizontal (ex: 780)
-//  - maxHeight : hauteur max en px avant scroll vertical (ex: 320 ; default null = pas de scroll Y)
-//  - header : JSX du header (les enfants directs du grid)
-//  - children : rows du body
-//
-// Le composant gère automatiquement :
-//  - background header (C.stone), font header (9px uppercase)
-//  - sticky du header au scroll vertical
-//  - alignement parfait header/body au scroll horizontal (même grille, même container)
-export const ScrollableTable = ({ columns, minWidth, maxHeight, header, children, headerStyle = {} }) => {
-  const baseHeaderStyle = {
-    display: "grid", gridTemplateColumns: columns, gap: 8,
-    padding: "7px 14px", background: C.stone, color: C.muted,
-    fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em",
-    position: "sticky", top: 0, zIndex: 1,
-    ...headerStyle
-  };
+//  - columns : array de largeurs CSS (ex: ["80px","1fr","60px","60px"])
+//              ou string gridTemplateColumns (ex: "80px 1fr 60px 60px") pour rétrocompat
+//  - minWidth : largeur min en px avant déclenchement du scroll horizontal (ex: 920)
+//  - maxHeight : hauteur max en px avant scroll vertical (ex: 320 ; default null)
+//  - headerCells : tableau de cellules header (JSX par cellule)
+//                  Si fourni, le composant génère <thead><tr><th> automatiquement.
+//  - children : <ScrollableRow> ou <tr> classiques
+//  - rowHeight : auto-calculé, pas besoin
+export const ScrollableTable = ({ columns, minWidth, maxHeight, headerCells, children }) => {
+  // Rétrocompat : accepter columns en string ou array
+  const colsArray = typeof columns === "string" ? columns.split(/\s+/) : columns;
   return (
     <div style={{
       background: C.white, border: `1px solid ${C.border}`, borderRadius: 12,
       overflow: "auto",
       maxHeight: maxHeight || undefined
     }}>
-      <div style={{ minWidth: minWidth || "auto" }}>
-        <div style={baseHeaderStyle}>{header}</div>
-        <div>{children}</div>
-      </div>
+      <table style={{
+        borderCollapse: "collapse",
+        minWidth: minWidth || "auto",
+        width: "100%",
+        tableLayout: "fixed"
+      }}>
+        <colgroup>
+          {colsArray.map((w, i) => <col key={i} style={{ width: w }} />)}
+        </colgroup>
+        {headerCells && (
+          <thead>
+            <tr>
+              {headerCells.map((cell, i) => (
+                <th key={i} style={{
+                  position: "sticky", top: 0, zIndex: 1,
+                  background: C.stone, color: C.muted,
+                  fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em",
+                  textAlign: cell?.props?.align || "left",
+                  padding: "7px 8px",
+                  whiteSpace: "nowrap"
+                }}>{cell}</th>
+              ))}
+            </tr>
+          </thead>
+        )}
+        <tbody>{children}</tbody>
+      </table>
     </div>
   );
 };
 
 // Composant compagnon : row pré-stylée pour ScrollableTable
-export const ScrollableRow = ({ columns, children, style = {} }) => (
-  <div style={{
-    display: "grid", gridTemplateColumns: columns, gap: 8,
-    padding: "9px 14px", borderBottom: `1px solid ${C.border}`,
-    alignItems: "center", fontSize: 12,
-    ...style
-  }}>
+// children = array de cellules JSX (une par colonne)
+export const ScrollableRow = ({ children, style = {}, onClick }) => (
+  <tr onClick={onClick} style={{ cursor: onClick ? "pointer" : "default", ...style }}>
     {children}
-  </div>
+  </tr>
+);
+
+// Cellule pré-stylée pour ScrollableRow.
+// Props : align ("left"|"right"|"center"), color, fontFamily, fontSize, children, style
+export const ScrollableCell = ({ children, align = "left", style = {} }) => (
+  <td style={{
+    padding: "9px 8px",
+    borderBottom: `1px solid ${C.border}`,
+    fontSize: 12,
+    textAlign: align,
+    verticalAlign: "middle",
+    ...style
+  }}>{children}</td>
 );
 
 // ─── UTILITIES ───────────────────────────────────────────────────────────────

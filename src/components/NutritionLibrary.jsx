@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { C, TYPES_BOISSON } from '../constants.js';
-import { Btn, Modal, ConfirmDialog, ScrollableTable, ScrollableRow } from '../atoms.jsx';
+import { Btn, Modal, ConfirmDialog, ScrollableTable, ScrollableRow, ScrollableCell } from '../atoms.jsx';
 import { CIQUAL, CIQUAL_CATEGORIES } from '../data/ciqual.js';
 import {
   ProduitForm,
@@ -264,35 +264,38 @@ export default function NutritionLibrary({
             <div style={{ fontSize: 12 }}>Ajoute des produits et recettes pour cette course</div>
           </div>
         ) : (() => {
-          const BIB_COLS = "80px 1fr 60px 60px 60px 60px 60px 60px 60px 60px 60px 32px";
+          const BIB_COLS = ["80px", "1fr", "60px", "60px", "60px", "60px", "60px", "60px", "60px", "60px", "60px", "32px"];
           return (
             <ScrollableTable
               columns={BIB_COLS}
-              minWidth={780}
+              minWidth={920}
               maxHeight={320}
-              header={<>
-                <span>Type</span><span>Nom</span>
-                <span style={{ textAlign: "right" }}>Kcal</span>
-                <span style={{ textAlign: "right" }}>Gluc. (g)</span>
-                <span style={{ textAlign: "right" }}>Prot. (g)</span>
-                <span style={{ textAlign: "right" }}>Lip. (g)</span>
-                <span style={{ textAlign: "right" }}>Na (mg)</span>
-                <span style={{ textAlign: "right" }}>K (mg)</span>
-                <span style={{ textAlign: "right" }}>Mg (mg)</span>
-                <span style={{ textAlign: "right" }}>Zn (mg)</span>
-                <span style={{ textAlign: "right" }}>Ca (mg)</span>
-                <span />
-              </>}
+              headerCells={[
+                <span key="t">Type</span>,
+                <span key="n">Nom</span>,
+                <span key="kc" style={{ display: "block", textAlign: "right" }}>Kcal</span>,
+                <span key="g" style={{ display: "block", textAlign: "right" }}>Gluc. (g)</span>,
+                <span key="p" style={{ display: "block", textAlign: "right" }}>Prot. (g)</span>,
+                <span key="l" style={{ display: "block", textAlign: "right" }}>Lip. (g)</span>,
+                <span key="na" style={{ display: "block", textAlign: "right" }}>Na (mg)</span>,
+                <span key="k" style={{ display: "block", textAlign: "right" }}>K (mg)</span>,
+                <span key="mg" style={{ display: "block", textAlign: "right" }}>Mg (mg)</span>,
+                <span key="zn" style={{ display: "block", textAlign: "right" }}>Zn (mg)</span>,
+                <span key="ca" style={{ display: "block", textAlign: "right" }}>Ca (mg)</span>,
+                <span key="x" />
+              ]}
             >
               {allBibItems.map(item => {
                 const isProd = item.itemType === "produit";
                 const macros = isProd ? item : item.macros;
                 return (
-                  <ScrollableRow key={item.id} columns={BIB_COLS}>
-                    <span style={{ fontSize: 10, fontWeight: 500, color: isProd ? C.forest : "#7F77DD" }}>
-                      {isProd ? "Produit" : "Recette"}
-                    </span>
-                    <div>
+                  <ScrollableRow key={item.id}>
+                    <ScrollableCell>
+                      <span style={{ fontSize: 10, fontWeight: 500, color: isProd ? C.forest : "#7F77DD" }}>
+                        {isProd ? "Produit" : "Recette"}
+                      </span>
+                    </ScrollableCell>
+                    <ScrollableCell>
                       <div style={{ fontWeight: 500, color: C.inkLight, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
                         <button onClick={() => toggleFavori(item)}
                           title={item.favori ? "Retirer des favoris" : "Marquer comme favori (priorisé par l'algo)"}
@@ -303,18 +306,20 @@ export default function NutritionLibrary({
                         {item.boisson && <span style={{ fontSize: 10, padding: "2px 6px", background: C.bluePale, color: C.blue, borderRadius: 4, fontWeight: 600 }}>💧</span>}
                       </div>
                       {item.categorie && <div style={{ fontSize: 10, color: C.muted }}>{item.categorie}</div>}
-                    </div>
-                    <span style={{ textAlign: "right", fontFamily: "'DM Mono',monospace", color: "#e65100", fontSize: 11 }}>{Math.round(macros?.kcal || 0)}</span>
-                    <span style={{ textAlign: "right", fontFamily: "'DM Mono',monospace", color: "#1d9e75", fontSize: 11 }}>{Math.round(macros?.glucides || 0)}</span>
-                    <span style={{ textAlign: "right", fontFamily: "'DM Mono',monospace", color: "#185FA5", fontSize: 11 }}>{Math.round(macros?.proteines || 0)}</span>
-                    <span style={{ textAlign: "right", fontFamily: "'DM Mono',monospace", color: "#7F77DD", fontSize: 11 }}>{Math.round(macros?.lipides || 0)}</span>
-                    <span style={{ textAlign: "right", fontFamily: "'DM Mono',monospace", color: C.muted, fontSize: 10 }}>{Math.round(macros?.sodium || 0)}</span>
-                    <span style={{ textAlign: "right", fontFamily: "'DM Mono',monospace", color: C.muted, fontSize: 10 }}>{Math.round(macros?.potassium || 0)}</span>
-                    <span style={{ textAlign: "right", fontFamily: "'DM Mono',monospace", color: C.muted, fontSize: 10 }}>{Math.round(macros?.magnesium || 0)}</span>
-                    <span style={{ textAlign: "right", fontFamily: "'DM Mono',monospace", color: C.muted, fontSize: 10 }}>{Math.round(macros?.zinc || 0)}</span>
-                    <span style={{ textAlign: "right", fontFamily: "'DM Mono',monospace", color: C.muted, fontSize: 10 }}>{Math.round(macros?.calcium || 0)}</span>
-                    <button onClick={() => { setConfirmId(item.id); setConfirmType(item.itemType); }}
-                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: C.red }}>✕</button>
+                    </ScrollableCell>
+                    <ScrollableCell align="right" style={{ fontFamily: "'DM Mono',monospace", color: "#e65100", fontSize: 11 }}>{Math.round(macros?.kcal || 0)}</ScrollableCell>
+                    <ScrollableCell align="right" style={{ fontFamily: "'DM Mono',monospace", color: "#1d9e75", fontSize: 11 }}>{Math.round(macros?.glucides || 0)}</ScrollableCell>
+                    <ScrollableCell align="right" style={{ fontFamily: "'DM Mono',monospace", color: "#185FA5", fontSize: 11 }}>{Math.round(macros?.proteines || 0)}</ScrollableCell>
+                    <ScrollableCell align="right" style={{ fontFamily: "'DM Mono',monospace", color: "#7F77DD", fontSize: 11 }}>{Math.round(macros?.lipides || 0)}</ScrollableCell>
+                    <ScrollableCell align="right" style={{ fontFamily: "'DM Mono',monospace", color: C.muted, fontSize: 10 }}>{Math.round(macros?.sodium || 0)}</ScrollableCell>
+                    <ScrollableCell align="right" style={{ fontFamily: "'DM Mono',monospace", color: C.muted, fontSize: 10 }}>{Math.round(macros?.potassium || 0)}</ScrollableCell>
+                    <ScrollableCell align="right" style={{ fontFamily: "'DM Mono',monospace", color: C.muted, fontSize: 10 }}>{Math.round(macros?.magnesium || 0)}</ScrollableCell>
+                    <ScrollableCell align="right" style={{ fontFamily: "'DM Mono',monospace", color: C.muted, fontSize: 10 }}>{Math.round(macros?.zinc || 0)}</ScrollableCell>
+                    <ScrollableCell align="right" style={{ fontFamily: "'DM Mono',monospace", color: C.muted, fontSize: 10 }}>{Math.round(macros?.calcium || 0)}</ScrollableCell>
+                    <ScrollableCell align="center">
+                      <button onClick={() => { setConfirmId(item.id); setConfirmType(item.itemType); }}
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: C.red }}>✕</button>
+                    </ScrollableCell>
                   </ScrollableRow>
                 );
               })}
