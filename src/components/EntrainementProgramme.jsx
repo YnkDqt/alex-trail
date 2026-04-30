@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from "react";
 import { C, localDate, fmtDate, isRunning, actColor, actIcon,
   emptySeance, ACTIVITY_TYPES, TYPE_MIGRATION, DAY_NAMES } from "../constants.js";
-import { Btn, Modal, Field, ConfirmDialog } from "../atoms.jsx";
+import { Btn, Modal, Field, ConfirmDialog, ScrollableTable, ScrollableRow, ScrollableCell } from "../atoms.jsx";
 // ─── ENTRAÎNEMENT PROGRAMME (vue principale fusionnée) ───────────────────────
 // Statuts enrichis
 const STATUTS = [
@@ -202,9 +202,6 @@ function EntrainementProgramme({ seances, setSeances, activites, setActivites, o
     "Annulé":"transparent","Planifié":"transparent"
   }[st]||"transparent");
 
-  // Colonnes de la grille
-  const GRID = "88px 110px 140px 140px minmax(80px,1fr) 70px 68px 58px 58px 48px 50px 70px 68px 58px 58px 48px 50px 36px 36px 36px 36px 36px";
-
   // Dates et mois de course pour mise en avant visuelle
   const raceDates  = useMemo(()=>new Set(objectifs.map(o=>o.date).filter(Boolean)),[objectifs]);
   const raceMonths = useMemo(()=>new Set(objectifs.map(o=>o.date?.slice(0,7)).filter(Boolean)),[objectifs]);
@@ -312,165 +309,199 @@ function EntrainementProgramme({ seances, setSeances, activites, setActivites, o
               </div>
 
               {/* Tableau séances */}
-              {isOpen&&(
-                <>
-                  {/* En-têtes colonnes */}
-                  <div style={{display:"grid",gridTemplateColumns:GRID,
-                    padding:"4px 16px",gap:0,overflowX:"auto",minWidth:900}}>
-                    {/* Groupe info */}
-                    <div style={{gridColumn:"1/6",fontSize:9,fontWeight:500,textTransform:"uppercase",letterSpacing:".05em",color:C.muted,padding:"4px 0"}}>Date · Activité · Commentaire</div>
-                    <div style={{gridColumn:"6/12",fontSize:9,fontWeight:500,color:C.forest,textAlign:"center",padding:"4px 0",borderLeft:`1.5px solid ${C.forest}33`}}>— Prévu —</div>
-                    <div style={{gridColumn:"12/18",fontSize:9,fontWeight:500,color:"#BA7517",textAlign:"center",padding:"4px 0",borderLeft:`1.5px solid #BA751744`}}>— Réalisé —</div>
-                    <div style={{gridColumn:"18/23",fontSize:9,fontWeight:500,color:"#534AB7",textAlign:"center",padding:"4px 0",borderLeft:`1.5px solid #7F77DD44`}}>Zones FC %</div>
-                  </div>
-                  <div style={{display:"grid",gridTemplateColumns:GRID,
-                    padding:"0 16px",gap:0,borderTop:`0.5px solid ${C.border}`,minWidth:900}}>
-                    <div style={{padding:"3px 0",fontSize:9,color:C.muted}}>Statut</div>
-                    <div style={{padding:"3px 0",fontSize:9,color:C.muted}}>Date · Créne.</div>
-                    <div style={{padding:"3px 0",fontSize:9,color:C.muted}}>Activité prévue</div>
-                    <div style={{padding:"3px 0",fontSize:9,color:C.muted}}>Activité réalisée</div>
-                    <div style={{padding:"3px 0",fontSize:9,color:C.muted}}>Commentaire</div>
-                    {["Durée","Km","D+","Allure","Ratio","FC"].map(h=><div key={h} style={{padding:"3px 4px",fontSize:9,color:C.forest,textAlign:"right",borderLeft:h==="Durée"?`1.5px solid ${C.forest}33`:"none"}}>{h}</div>)}
-                    {["Durée","Km","D+","Allure","Ratio","FC"].map(h=><div key={h+"r"} style={{padding:"3px 4px",fontSize:9,color:"#BA7517",textAlign:"right",borderLeft:h==="Durée"?"1.5px solid #BA751744":"none"}}>{h}</div>)}
-                    {["Z1","Z2","Z3","Z4","Z5"].map((z,i)=><div key={z} style={{padding:"3px 2px",fontSize:9,textAlign:"center",borderLeft:i===0?"1.5px solid #7F77DD44":"none",color:["#378ADD","#639922","#BA7517","#D85A30","#A32D2D"][i]}}>{z}</div>)}
-                  </div>
+              {isOpen&&(() => {
+                const COLS = ["88px","110px","140px","140px","minmax(80px,1fr)","70px","68px","58px","58px","48px","50px","70px","68px","58px","58px","48px","50px","36px","36px","36px","36px","36px"];
+                const PREVU_COL = C.forest;
+                const REAL_COL = "#BA7517";
+                const ZONES_COL = "#534AB7";
+                const ZONE_COLORS = ["#378ADD","#639922","#BA7517","#D85A30","#A32D2D"];
+                // Header ligne 1 : groupes (colSpan)
+                const headerRow1 = [
+                  { content: "Date · Activité · Commentaire", colSpan: 5, style: { textTransform:"uppercase", letterSpacing:".05em", color: C.muted, padding:"4px 8px", background: C.white, fontWeight: 500 } },
+                  { content: "— Prévu —", colSpan: 6, align:"center", style: { color: PREVU_COL, padding:"4px 8px", background: C.white, fontWeight: 500, borderLeft: `1.5px solid ${PREVU_COL}33`, textTransform:"none", letterSpacing:0 } },
+                  { content: "— Réalisé —", colSpan: 6, align:"center", style: { color: REAL_COL, padding:"4px 8px", background: C.white, fontWeight: 500, borderLeft: `1.5px solid ${REAL_COL}44`, textTransform:"none", letterSpacing:0 } },
+                  { content: "Zones FC %", colSpan: 5, align:"center", style: { color: ZONES_COL, padding:"4px 8px", background: C.white, fontWeight: 500, borderLeft: "1.5px solid #7F77DD44", textTransform:"none", letterSpacing:0 } },
+                ];
+                // Header ligne 2 : colonnes
+                const baseTh = { padding:"3px 4px", background: C.white, color: C.muted, textTransform:"none", letterSpacing:0 };
+                const headerRow2 = [
+                  { content: "Statut", style: baseTh },
+                  { content: "Date · Créne.", style: baseTh },
+                  { content: "Activité prévue", style: baseTh },
+                  { content: "Activité réalisée", style: baseTh },
+                  { content: "Commentaire", style: baseTh },
+                  ...["Durée","Km","D+","Allure","Ratio","FC"].map((h,i) => ({
+                    content: h, align:"right",
+                    style: { ...baseTh, color: PREVU_COL, borderLeft: i===0?`1.5px solid ${PREVU_COL}33`:"none" }
+                  })),
+                  ...["Durée","Km","D+","Allure","Ratio","FC"].map((h,i) => ({
+                    content: h, align:"right",
+                    style: { ...baseTh, color: REAL_COL, borderLeft: i===0?`1.5px solid ${REAL_COL}44`:"none" }
+                  })),
+                  ...["Z1","Z2","Z3","Z4","Z5"].map((z,i) => ({
+                    content: z, align:"center",
+                    style: { ...baseTh, padding:"3px 2px", color: ZONE_COLORS[i], borderLeft: i===0?"1.5px solid #7F77DD44":"none" }
+                  })),
+                ];
 
-                  {/* Lignes */}
-                  {wSlots.map(({dateStr,slot,dayName,half,seance,defaultType})=>{
-                    if(!seance&&!defaultType) return null;
-                    const s=seance;
-                    const st=s?.statut||"Planifié";
-                    const isDone=st==="Effectué"||st==="Partiel"||st==="Remplacé";
-                    const actPrev=s?.activite||defaultType;
-                    const actReal=s?._garminId 
-                      ? (activites.find(a=>a.dateHeure===s._garminId)?.type || actPrev)
-                      : (isDone ? actPrev : null);
-                    return (
-                      <div key={dateStr+slot} onClick={()=>s&&openEdit(s)}
-                        style={{display:"grid",gridTemplateColumns:GRID,
-                          padding:"0 16px",gap:0,
-                          borderTop:raceDates.has(dateStr)?`1.5px solid ${C.summit}44`:`0.5px solid ${C.border}`,
-                          cursor:s?"pointer":"default",
-                          background:raceDates.has(dateStr)?"#FFF3E022":isDone?rowBg(st):"transparent",
-                          opacity:st==="Annulé"?0.45:1,minWidth:900}}>
-                        {/* Statut */}
-                        <div style={{padding:"8px 4px 8px 0",display:"flex",alignItems:"center"}}>
-                          {s ? (
-                            <select
-                              value={st}
-                              onChange={e => updateField(s.id, "statut", e.target.value)}
-                              onClick={e => e.stopPropagation()}
-                              style={{
-                                fontSize:10,
-                                padding:"2px 6px",
-                                borderRadius:5,
-                                border:`1px solid ${statutCfg(st).col}44`,
-                                background:statutCfg(st).bg,
-                                color:statutCfg(st).col,
-                                fontWeight:500,
-                                cursor:"pointer",
-                                width:"100%",
-                                maxWidth:90
-                              }}>
-                              {STATUTS.map(s => <option key={s.id} value={s.id}>{s.icon} {s.id}</option>)}
-                            </select>
-                          ) : (
-                            <span style={{fontSize:10,color:C.sky}}>● Planifié</span>
-                          )}
-                        </div>
-                        {/* Date + Créneau */}
-                        <div style={{padding:"8px 4px",display:"flex",flexDirection:"column",gap:1}}>
-                          <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",fontWeight:500,color:raceDates.has(dateStr)?C.summit:s?.date===today?C.forest:C.inkLight}}>{fmtDate(dateStr)}{raceDates.has(dateStr)&&<span style={{marginLeft:4}}>🏔</span>}</span>
-                          <span style={{fontSize:10,color:C.muted}}>{dayName.slice(0,3)} {half}</span>
-                        </div>
-                        {/* Activité prévue */}
-                        <div style={{padding:"8px 4px",display:"flex",alignItems:"center"}}><ActCell type={actPrev}/></div>
-                        {/* Activité réalisée */}
-                        <div style={{padding:"8px 4px",display:"flex",alignItems:"center"}}>
-                          {actReal?<ActCell type={actReal} muted/>:<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
-                        </div>
-                        {/* Commentaire */}
-                        <div style={{padding:"8px 4px",display:"flex",alignItems:"center",overflow:"hidden"}}>
-                          <span style={{fontSize:11,color:C.muted,fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s?.commentaire||""}</span>
-                        </div>
-                        {/* Prévu */}
-                        <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end",borderLeft:`1.5px solid ${C.forest}22`}}>
-                          <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:C.stoneDeep}}>{s?.dureeObj||"—"}</span>
-                        </div>
-                        <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
-                          <span style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.stoneDeep}}>{s?.kmObj?`${s.kmObj}km`:"—"}</span>
-                        </div>
-                        <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
-                          <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:C.stoneDeep}}>{s?.dpObj?`${s.dpObj}m`:"—"}</span>
-                        </div>
-                        <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
-                          {(()=>{const a=calcAllure(s?.dureeObj,s?.kmObj);return <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:a?C.sky:C.stoneDeep}}>{a?`${a}/km`:"—"}</span>;})()}
-                        </div>
-                        {/* Ratio Prévu (D+/km) */}
-                        <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
-                          {(()=>{
-                            const dp=parseFloat(s?.dpObj);
-                            const km=parseFloat(s?.kmObj);
-                            if(!dp||!km||km===0) return <span style={{fontSize:11,color:C.stoneDeep}}>—</span>;
-                            const ratio=Math.round(dp/km);
-                            return <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:C.stoneDeep}}>{ratio}</span>;
-                          })()}
-                        </div>
-                        <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
-                          <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:C.stoneDeep}}>{s?.fcObj||"—"}</span>
-                        </div>
-                        {/* Réalisé */}
-                        <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end",borderLeft:"1.5px solid #BA751744"}}>
-                          {isDone?<DiffSpan real={s?.dureeGarmin} plan={s?.dureeObj} isDuration={true}/>:<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
-                        </div>
-                        <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
-                          {isDone?<DiffSpan real={s?.kmGarmin} plan={s?.kmObj} unit="km"/>:<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
-                        </div>
-                        <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
-                          {isDone?<DiffSpan real={s?.dpGarmin} plan={s?.dpObj} unit="m"/>:<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
-                        </div>
-                        <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
-                          {isDone&&(()=>{const a=calcAllure(s?.dureeGarmin,s?.kmGarmin);const ap=calcAllure(s?.dureeObj,s?.kmObj);if(!a) return <span style={{fontSize:11,color:C.stoneDeep}}>—</span>;const col=!ap?C.summit:a<ap?C.green:a>ap?C.red:C.muted;return <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:col,fontWeight:500}}>{a}/km</span>;})()}
-                          {!isDone&&<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
-                        </div>
-                        {/* Ratio Réalisé (D+/km) */}
-                        <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
-                          {isDone&&(()=>{
-                            const dp=parseFloat(s?.dpGarmin);
-                            const km=parseFloat(s?.kmGarmin);
-                            const dpPlan=parseFloat(s?.dpObj);
-                            const kmPlan=parseFloat(s?.kmObj);
-                            if(!dp||!km||km===0) return <span style={{fontSize:11,color:C.stoneDeep}}>—</span>;
-                            const ratio=Math.round(dp/km);
-                            const ratioPlan=(dpPlan&&kmPlan&&kmPlan>0)?Math.round(dpPlan/kmPlan):null;
-                            const col=!ratioPlan?C.summit:ratio>ratioPlan?C.red:ratio<ratioPlan?C.green:C.muted;
-                            return <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:col,fontWeight:500}}>{ratio}</span>;
-                          })()}
-                          {!isDone&&<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
-                        </div>
-                        <div style={{padding:"8px 6px",display:"flex",alignItems:"center",justifyContent:"flex-end"}}>
-                          {isDone?<span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:C.forest}}>{s?.fcMoy||"—"}</span>:<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
-                        </div>
-                        {/* Zones FC — après Réalisé */}
-                        {["z1","z2","z3","z4","z5"].map((z,i)=>(
-                          <div key={z} style={{padding:"8px 2px",display:"flex",alignItems:"center",justifyContent:"center",borderLeft:i===0?"1.5px solid #7F77DD44":"none"}}>
-                            {isDone&&s?.[z]?<span style={{fontSize:11,fontFamily:"'DM Mono',monospace",fontWeight:500,color:["#378ADD","#639922","#BA7517","#D85A30","#A32D2D"][i]}}>{s[z]}</span>:<span style={{fontSize:10,color:C.stoneDeep}}>—</span>}
+                const cellBase = { padding:"8px 6px", verticalAlign:"middle" };
+
+                return (
+                  <ScrollableTable
+                    columns={COLS}
+                    minWidth={900}
+                    headerRows={[headerRow1, headerRow2]}
+                    noBorder
+                    footer={
+                      <tr>
+                        <td colSpan={22} style={{
+                          padding:"6px 16px",
+                          background:C.stone,
+                          borderTop:`0.5px solid ${C.border}`,
+                          fontSize:10,
+                          color:C.stoneDeep
+                        }}>
+                          <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+                            {ACTIVITY_TYPES.filter(t=>t!=="Repos").map(t=>(
+                              <span key={t}><span style={{color:actColor(t)}}>{actIcon(t)}</span> {t}</span>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    );
-                  })}
-
-                  {/* Légende icônes */}
-                  <div style={{display:"flex",gap:12,flexWrap:"wrap",padding:"6px 16px",
-                    background:C.stone,borderTop:`0.5px solid ${C.border}`,
-                    fontSize:10,color:C.stoneDeep}}>
-                    {ACTIVITY_TYPES.filter(t=>t!=="Repos").map(t=>(
-                      <span key={t}><span style={{color:actColor(t)}}>{actIcon(t)}</span> {t}</span>
-                    ))}
-                  </div>
-                </>
-              )}
+                        </td>
+                      </tr>
+                    }
+                  >
+                    {wSlots.map(({dateStr,slot,dayName,half,seance,defaultType})=>{
+                      if(!seance&&!defaultType) return null;
+                      const s=seance;
+                      const st=s?.statut||"Planifié";
+                      const isDone=st==="Effectué"||st==="Partiel"||st==="Remplacé";
+                      const actPrev=s?.activite||defaultType;
+                      const actReal=s?._garminId 
+                        ? (activites.find(a=>a.dateHeure===s._garminId)?.type || actPrev)
+                        : (isDone ? actPrev : null);
+                      const rowStyle = {
+                        borderTop: raceDates.has(dateStr) ? `1.5px solid ${C.summit}44` : `0.5px solid ${C.border}`,
+                        background: raceDates.has(dateStr) ? "#FFF3E022" : isDone ? rowBg(st) : "transparent",
+                        opacity: st==="Annulé" ? 0.45 : 1
+                      };
+                      return (
+                        <ScrollableRow key={dateStr+slot} onClick={()=>s&&openEdit(s)} style={rowStyle}>
+                          {/* Statut */}
+                          <ScrollableCell style={{...cellBase, padding:"8px 4px 8px 0"}}>
+                            {s ? (
+                              <select
+                                value={st}
+                                onChange={e => updateField(s.id, "statut", e.target.value)}
+                                onClick={e => e.stopPropagation()}
+                                style={{
+                                  fontSize:10, padding:"2px 6px", borderRadius:5,
+                                  border:`1px solid ${statutCfg(st).col}44`,
+                                  background:statutCfg(st).bg, color:statutCfg(st).col,
+                                  fontWeight:500, cursor:"pointer", width:"100%", maxWidth:90
+                                }}>
+                                {STATUTS.map(s => <option key={s.id} value={s.id}>{s.icon} {s.id}</option>)}
+                              </select>
+                            ) : (
+                              <span style={{fontSize:10,color:C.sky}}>● Planifié</span>
+                            )}
+                          </ScrollableCell>
+                          {/* Date + Créneau */}
+                          <ScrollableCell style={{...cellBase, padding:"8px 4px"}}>
+                            <div style={{display:"flex",flexDirection:"column",gap:1}}>
+                              <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",fontWeight:500,color:raceDates.has(dateStr)?C.summit:s?.date===today?C.forest:C.inkLight}}>
+                                {fmtDate(dateStr)}{raceDates.has(dateStr)&&<span style={{marginLeft:4}}>🏔</span>}
+                              </span>
+                              <span style={{fontSize:10,color:C.muted}}>{dayName.slice(0,3)} {half}</span>
+                            </div>
+                          </ScrollableCell>
+                          {/* Activité prévue */}
+                          <ScrollableCell style={{...cellBase, padding:"8px 4px"}}><ActCell type={actPrev}/></ScrollableCell>
+                          {/* Activité réalisée */}
+                          <ScrollableCell style={{...cellBase, padding:"8px 4px"}}>
+                            {actReal?<ActCell type={actReal} muted/>:<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
+                          </ScrollableCell>
+                          {/* Commentaire */}
+                          <ScrollableCell style={{...cellBase, padding:"8px 4px", overflow:"hidden"}}>
+                            <span style={{fontSize:11,color:C.muted,fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{s?.commentaire||""}</span>
+                          </ScrollableCell>
+                          {/* Prévu — Durée */}
+                          <ScrollableCell align="right" style={{...cellBase, borderLeft:`1.5px solid ${PREVU_COL}22`}}>
+                            <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:C.stoneDeep}}>{s?.dureeObj||"—"}</span>
+                          </ScrollableCell>
+                          {/* Prévu — Km */}
+                          <ScrollableCell align="right" style={cellBase}>
+                            <span style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.stoneDeep}}>{s?.kmObj?`${s.kmObj}km`:"—"}</span>
+                          </ScrollableCell>
+                          {/* Prévu — D+ */}
+                          <ScrollableCell align="right" style={cellBase}>
+                            <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:C.stoneDeep}}>{s?.dpObj?`${s.dpObj}m`:"—"}</span>
+                          </ScrollableCell>
+                          {/* Prévu — Allure */}
+                          <ScrollableCell align="right" style={cellBase}>
+                            {(()=>{const a=calcAllure(s?.dureeObj,s?.kmObj);return <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:a?C.sky:C.stoneDeep}}>{a?`${a}/km`:"—"}</span>;})()}
+                          </ScrollableCell>
+                          {/* Prévu — Ratio */}
+                          <ScrollableCell align="right" style={cellBase}>
+                            {(()=>{
+                              const dp=parseFloat(s?.dpObj);
+                              const km=parseFloat(s?.kmObj);
+                              if(!dp||!km||km===0) return <span style={{fontSize:11,color:C.stoneDeep}}>—</span>;
+                              const ratio=Math.round(dp/km);
+                              return <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:C.stoneDeep}}>{ratio}</span>;
+                            })()}
+                          </ScrollableCell>
+                          {/* Prévu — FC */}
+                          <ScrollableCell align="right" style={cellBase}>
+                            <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:C.stoneDeep}}>{s?.fcObj||"—"}</span>
+                          </ScrollableCell>
+                          {/* Réalisé — Durée */}
+                          <ScrollableCell align="right" style={{...cellBase, borderLeft:"1.5px solid #BA751744"}}>
+                            {isDone?<DiffSpan real={s?.dureeGarmin} plan={s?.dureeObj} isDuration={true}/>:<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
+                          </ScrollableCell>
+                          {/* Réalisé — Km */}
+                          <ScrollableCell align="right" style={cellBase}>
+                            {isDone?<DiffSpan real={s?.kmGarmin} plan={s?.kmObj} unit="km"/>:<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
+                          </ScrollableCell>
+                          {/* Réalisé — D+ */}
+                          <ScrollableCell align="right" style={cellBase}>
+                            {isDone?<DiffSpan real={s?.dpGarmin} plan={s?.dpObj} unit="m"/>:<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
+                          </ScrollableCell>
+                          {/* Réalisé — Allure */}
+                          <ScrollableCell align="right" style={cellBase}>
+                            {isDone&&(()=>{const a=calcAllure(s?.dureeGarmin,s?.kmGarmin);const ap=calcAllure(s?.dureeObj,s?.kmObj);if(!a) return <span style={{fontSize:11,color:C.stoneDeep}}>—</span>;const col=!ap?C.summit:a<ap?C.green:a>ap?C.red:C.muted;return <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:col,fontWeight:500}}>{a}/km</span>;})()}
+                            {!isDone&&<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
+                          </ScrollableCell>
+                          {/* Réalisé — Ratio */}
+                          <ScrollableCell align="right" style={cellBase}>
+                            {isDone&&(()=>{
+                              const dp=parseFloat(s?.dpGarmin);
+                              const km=parseFloat(s?.kmGarmin);
+                              const dpPlan=parseFloat(s?.dpObj);
+                              const kmPlan=parseFloat(s?.kmObj);
+                              if(!dp||!km||km===0) return <span style={{fontSize:11,color:C.stoneDeep}}>—</span>;
+                              const ratio=Math.round(dp/km);
+                              const ratioPlan=(dpPlan&&kmPlan&&kmPlan>0)?Math.round(dpPlan/kmPlan):null;
+                              const col=!ratioPlan?C.summit:ratio>ratioPlan?C.red:ratio<ratioPlan?C.green:C.muted;
+                              return <span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:col,fontWeight:500}}>{ratio}</span>;
+                            })()}
+                            {!isDone&&<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
+                          </ScrollableCell>
+                          {/* Réalisé — FC */}
+                          <ScrollableCell align="right" style={cellBase}>
+                            {isDone?<span style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:C.forest}}>{s?.fcMoy||"—"}</span>:<span style={{fontSize:11,color:C.stoneDeep}}>—</span>}
+                          </ScrollableCell>
+                          {/* Zones FC */}
+                          {["z1","z2","z3","z4","z5"].map((z,i)=>(
+                            <ScrollableCell key={z} align="center" style={{...cellBase, padding:"8px 2px", borderLeft: i===0?"1.5px solid #7F77DD44":"none"}}>
+                              {isDone&&s?.[z]?<span style={{fontSize:11,fontFamily:"'DM Mono',monospace",fontWeight:500,color:ZONE_COLORS[i]}}>{s[z]}</span>:<span style={{fontSize:10,color:C.stoneDeep}}>—</span>}
+                            </ScrollableCell>
+                          ))}
+                        </ScrollableRow>
+                      );
+                    })}
+                  </ScrollableTable>
+                );
+              })()}
             </div>
           );
         })}

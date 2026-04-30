@@ -128,23 +128,54 @@ export const Empty = ({ icon, title, sub, action }) => (
 // ─── SCROLLABLE TABLE ────────────────────────────────────────────────────────
 // Table avec header sticky parfaitement aligné avec le body, scroll horizontal +
 // vertical unifié. Utilise un <table> HTML natif pour garantir l'alignement
-// header/body au scroll horizontal (le sticky+grid divs cassait l'alignement).
+// header/body au scroll horizontal.
 //
 // Props :
 //  - columns : array de largeurs CSS (ex: ["80px","1fr","60px","60px"])
 //              ou string gridTemplateColumns (ex: "80px 1fr 60px 60px") pour rétrocompat
 //  - minWidth : largeur min en px avant déclenchement du scroll horizontal (ex: 920)
 //  - maxHeight : hauteur max en px avant scroll vertical (ex: 320 ; default null)
-//  - headerCells : tableau de cellules header. Chaque entrée peut être :
-//                  - du JSX direct (ex: <span>Date</span>)
-//                  - un objet { content, className, align, onClick, style }
+//  - headerCells : tableau de cellules header (1 ligne).
+//                  Chaque entrée = JSX direct OU { content, className, align, onClick, style, colSpan }
+//  - headerRows : alternative à headerCells si plusieurs lignes (ex: groupes + colonnes).
+//                 Array d'arrays, chaque sous-array = une ligne de header.
 //  - children : <ScrollableRow> contenant des <ScrollableCell>
-export const ScrollableTable = ({ columns, minWidth, maxHeight, headerCells, children }) => {
+//  - footer : JSX optionnel rendu dans <tfoot> (ex: légende, totaux)
+//  - noBorder : true pour retirer border + radius (utile quand le tableau est imbriqué)
+export const ScrollableTable = ({ columns, minWidth, maxHeight, headerCells, headerRows, children, footer, noBorder }) => {
   const colsArray = typeof columns === "string" ? columns.split(/\s+/) : columns;
   const isObjectCell = (c) => c && typeof c === "object" && !c.$$typeof && ("content" in c || "className" in c);
+  const renderHeaderRow = (row, rowIdx) => (
+    <tr key={rowIdx}>
+      {row.map((cell, i) => {
+        const obj = isObjectCell(cell);
+        const content = obj ? cell.content : cell;
+        const className = obj ? cell.className : undefined;
+        const align = obj ? cell.align : (cell?.props?.align);
+        const onClick = obj ? cell.onClick : undefined;
+        const colSpan = obj ? cell.colSpan : undefined;
+        const extraStyle = obj ? (cell.style || {}) : {};
+        return (
+          <th key={i} className={className} onClick={onClick} colSpan={colSpan} style={{
+            position: "sticky", top: rowIdx === 0 ? 0 : undefined, zIndex: 1,
+            background: C.stone, color: C.muted,
+            fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em",
+            textAlign: align || "left",
+            padding: "7px 8px",
+            whiteSpace: "nowrap",
+            cursor: onClick ? "pointer" : undefined,
+            ...extraStyle
+          }}>{content}</th>
+        );
+      })}
+    </tr>
+  );
+  const rows = headerRows || (headerCells ? [headerCells] : null);
   return (
     <div style={{
-      background: C.white, border: `1px solid ${C.border}`, borderRadius: 12,
+      background: C.white,
+      border: noBorder ? "none" : `1px solid ${C.border}`,
+      borderRadius: noBorder ? 0 : 12,
       overflow: "auto",
       maxHeight: maxHeight || undefined
     }}>
@@ -157,33 +188,9 @@ export const ScrollableTable = ({ columns, minWidth, maxHeight, headerCells, chi
         <colgroup>
           {colsArray.map((w, i) => <col key={i} style={{ width: w }} />)}
         </colgroup>
-        {headerCells && (
-          <thead>
-            <tr>
-              {headerCells.map((cell, i) => {
-                const obj = isObjectCell(cell);
-                const content = obj ? cell.content : cell;
-                const className = obj ? cell.className : undefined;
-                const align = obj ? cell.align : (cell?.props?.align);
-                const onClick = obj ? cell.onClick : undefined;
-                const extraStyle = obj ? (cell.style || {}) : {};
-                return (
-                  <th key={i} className={className} onClick={onClick} style={{
-                    position: "sticky", top: 0, zIndex: 1,
-                    background: C.stone, color: C.muted,
-                    fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em",
-                    textAlign: align || "left",
-                    padding: "7px 8px",
-                    whiteSpace: "nowrap",
-                    cursor: onClick ? "pointer" : undefined,
-                    ...extraStyle
-                  }}>{content}</th>
-                );
-              })}
-            </tr>
-          </thead>
-        )}
+        {rows && <thead>{rows.map(renderHeaderRow)}</thead>}
         <tbody>{children}</tbody>
+        {footer && <tfoot>{footer}</tfoot>}
       </table>
     </div>
   );
