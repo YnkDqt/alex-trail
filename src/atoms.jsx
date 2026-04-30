@@ -125,6 +125,56 @@ export const Empty = ({ icon, title, sub, action }) => (
   </div>
 );
 
+// ─── SCROLLABLE TABLE ────────────────────────────────────────────────────────
+// Table avec header sticky aligné avec le body, scroll horizontal + vertical unifié.
+// Résout le bug "header désaligné quand on scrolle latéralement" en partageant
+// le même container scrollable pour header et body.
+//
+// Props :
+//  - columns : string CSS gridTemplateColumns (ex: "80px 1fr 60px 60px")
+//  - minWidth : largeur min en px avant déclenchement du scroll horizontal (ex: 780)
+//  - maxHeight : hauteur max en px avant scroll vertical (ex: 320 ; default null = pas de scroll Y)
+//  - header : JSX du header (les enfants directs du grid)
+//  - children : rows du body
+//
+// Le composant gère automatiquement :
+//  - background header (C.stone), font header (9px uppercase)
+//  - sticky du header au scroll vertical
+//  - alignement parfait header/body au scroll horizontal (même grille, même container)
+export const ScrollableTable = ({ columns, minWidth, maxHeight, header, children, headerStyle = {} }) => {
+  const baseHeaderStyle = {
+    display: "grid", gridTemplateColumns: columns, gap: 8,
+    padding: "7px 14px", background: C.stone, color: C.muted,
+    fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em",
+    position: "sticky", top: 0, zIndex: 1,
+    ...headerStyle
+  };
+  return (
+    <div style={{
+      background: C.white, border: `1px solid ${C.border}`, borderRadius: 12,
+      overflow: "auto",
+      maxHeight: maxHeight || undefined
+    }}>
+      <div style={{ minWidth: minWidth || "auto" }}>
+        <div style={baseHeaderStyle}>{header}</div>
+        <div>{children}</div>
+      </div>
+    </div>
+  );
+};
+
+// Composant compagnon : row pré-stylée pour ScrollableTable
+export const ScrollableRow = ({ columns, children, style = {} }) => (
+  <div style={{
+    display: "grid", gridTemplateColumns: columns, gap: 8,
+    padding: "9px 14px", borderBottom: `1px solid ${C.border}`,
+    alignItems: "center", fontSize: 12,
+    ...style
+  }}>
+    {children}
+  </div>
+);
+
 // ─── UTILITIES ───────────────────────────────────────────────────────────────
 export const Hr = () => <div style={{height:1,background:"var(--border-c)",margin:"20px 0"}}/>;
 

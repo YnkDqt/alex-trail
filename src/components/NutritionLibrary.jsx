@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { C, TYPES_BOISSON } from '../constants.js';
-import { Btn, Modal, ConfirmDialog } from '../atoms.jsx';
+import { Btn, Modal, ConfirmDialog, ScrollableTable, ScrollableRow } from '../atoms.jsx';
 import { CIQUAL, CIQUAL_CATEGORIES } from '../data/ciqual.js';
 import {
   ProduitForm,
@@ -13,7 +13,6 @@ import {
   loadRecetteForEdit
 } from '../ProduitRecetteForm.jsx';
 
-const card = { background: C.white, border: `1px solid ${C.border}`, borderRadius: 12 };
 const lbl = { fontSize: 10, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", color: C.muted };
 
 export default function NutritionLibrary({
@@ -264,34 +263,32 @@ export default function NutritionLibrary({
             <div style={{ fontSize: 14, marginBottom: 8 }}>Bibliothèque vide</div>
             <div style={{ fontSize: 12 }}>Ajoute des produits et recettes pour cette course</div>
           </div>
-        ) : (
-          <div style={{ ...card, overflow: "hidden" }}>
-            <div style={{
-              display: "grid", gridTemplateColumns: "80px 1fr 60px 60px 60px 60px 60px 60px 60px 60px 60px 32px",
-              padding: "7px 14px", background: C.stone, gap: 8, fontSize: 9, fontWeight: 600, color: C.muted,
-              textTransform: "uppercase", letterSpacing: "0.04em"
-            }}>
-              <span>Type</span><span>Nom</span>
-              <span style={{ textAlign: "right" }}>Kcal</span>
-              <span style={{ textAlign: "right" }}>Gluc. (g)</span>
-              <span style={{ textAlign: "right" }}>Prot. (g)</span>
-              <span style={{ textAlign: "right" }}>Lip. (g)</span>
-              <span style={{ textAlign: "right" }}>Na (mg)</span>
-              <span style={{ textAlign: "right" }}>K (mg)</span>
-              <span style={{ textAlign: "right" }}>Mg (mg)</span>
-              <span style={{ textAlign: "right" }}>Zn (mg)</span>
-              <span style={{ textAlign: "right" }}>Ca (mg)</span>
-              <span />
-            </div>
-            <div style={{ maxHeight: 320, overflowY: "auto" }}>
+        ) : (() => {
+          const BIB_COLS = "80px 1fr 60px 60px 60px 60px 60px 60px 60px 60px 60px 32px";
+          return (
+            <ScrollableTable
+              columns={BIB_COLS}
+              minWidth={780}
+              maxHeight={320}
+              header={<>
+                <span>Type</span><span>Nom</span>
+                <span style={{ textAlign: "right" }}>Kcal</span>
+                <span style={{ textAlign: "right" }}>Gluc. (g)</span>
+                <span style={{ textAlign: "right" }}>Prot. (g)</span>
+                <span style={{ textAlign: "right" }}>Lip. (g)</span>
+                <span style={{ textAlign: "right" }}>Na (mg)</span>
+                <span style={{ textAlign: "right" }}>K (mg)</span>
+                <span style={{ textAlign: "right" }}>Mg (mg)</span>
+                <span style={{ textAlign: "right" }}>Zn (mg)</span>
+                <span style={{ textAlign: "right" }}>Ca (mg)</span>
+                <span />
+              </>}
+            >
               {allBibItems.map(item => {
                 const isProd = item.itemType === "produit";
                 const macros = isProd ? item : item.macros;
                 return (
-                  <div key={item.id} style={{
-                    display: "grid", gridTemplateColumns: "80px 1fr 60px 60px 60px 60px 60px 60px 60px 60px 60px 32px",
-                    padding: "9px 14px", gap: 8, borderBottom: `1px solid ${C.border}`, alignItems: "center", fontSize: 12
-                  }}>
+                  <ScrollableRow key={item.id} columns={BIB_COLS}>
                     <span style={{ fontSize: 10, fontWeight: 500, color: isProd ? C.forest : "#7F77DD" }}>
                       {isProd ? "Produit" : "Recette"}
                     </span>
@@ -318,12 +315,12 @@ export default function NutritionLibrary({
                     <span style={{ textAlign: "right", fontFamily: "'DM Mono',monospace", color: C.muted, fontSize: 10 }}>{Math.round(macros?.calcium || 0)}</span>
                     <button onClick={() => { setConfirmId(item.id); setConfirmType(item.itemType); }}
                       style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: C.red }}>✕</button>
-                  </div>
+                  </ScrollableRow>
                 );
               })}
-            </div>
-          </div>
-        )}
+            </ScrollableTable>
+          );
+        })()}
       </div>
 
       {/* ── MODAL PRODUIT (formulaire unifié) ── */}
