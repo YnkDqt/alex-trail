@@ -135,13 +135,13 @@ export const Empty = ({ icon, title, sub, action }) => (
 //              ou string gridTemplateColumns (ex: "80px 1fr 60px 60px") pour rétrocompat
 //  - minWidth : largeur min en px avant déclenchement du scroll horizontal (ex: 920)
 //  - maxHeight : hauteur max en px avant scroll vertical (ex: 320 ; default null)
-//  - headerCells : tableau de cellules header (JSX par cellule)
-//                  Si fourni, le composant génère <thead><tr><th> automatiquement.
-//  - children : <ScrollableRow> ou <tr> classiques
-//  - rowHeight : auto-calculé, pas besoin
+//  - headerCells : tableau de cellules header. Chaque entrée peut être :
+//                  - du JSX direct (ex: <span>Date</span>)
+//                  - un objet { content, className, align, onClick, style }
+//  - children : <ScrollableRow> contenant des <ScrollableCell>
 export const ScrollableTable = ({ columns, minWidth, maxHeight, headerCells, children }) => {
-  // Rétrocompat : accepter columns en string ou array
   const colsArray = typeof columns === "string" ? columns.split(/\s+/) : columns;
+  const isObjectCell = (c) => c && typeof c === "object" && !c.$$typeof && ("content" in c || "className" in c);
   return (
     <div style={{
       background: C.white, border: `1px solid ${C.border}`, borderRadius: 12,
@@ -160,16 +160,26 @@ export const ScrollableTable = ({ columns, minWidth, maxHeight, headerCells, chi
         {headerCells && (
           <thead>
             <tr>
-              {headerCells.map((cell, i) => (
-                <th key={i} style={{
-                  position: "sticky", top: 0, zIndex: 1,
-                  background: C.stone, color: C.muted,
-                  fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em",
-                  textAlign: cell?.props?.align || "left",
-                  padding: "7px 8px",
-                  whiteSpace: "nowrap"
-                }}>{cell}</th>
-              ))}
+              {headerCells.map((cell, i) => {
+                const obj = isObjectCell(cell);
+                const content = obj ? cell.content : cell;
+                const className = obj ? cell.className : undefined;
+                const align = obj ? cell.align : (cell?.props?.align);
+                const onClick = obj ? cell.onClick : undefined;
+                const extraStyle = obj ? (cell.style || {}) : {};
+                return (
+                  <th key={i} className={className} onClick={onClick} style={{
+                    position: "sticky", top: 0, zIndex: 1,
+                    background: C.stone, color: C.muted,
+                    fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em",
+                    textAlign: align || "left",
+                    padding: "7px 8px",
+                    whiteSpace: "nowrap",
+                    cursor: onClick ? "pointer" : undefined,
+                    ...extraStyle
+                  }}>{content}</th>
+                );
+              })}
             </tr>
           </thead>
         )}
@@ -180,22 +190,24 @@ export const ScrollableTable = ({ columns, minWidth, maxHeight, headerCells, chi
 };
 
 // Composant compagnon : row pré-stylée pour ScrollableTable
-// children = array de cellules JSX (une par colonne)
-export const ScrollableRow = ({ children, style = {}, onClick }) => (
-  <tr onClick={onClick} style={{ cursor: onClick ? "pointer" : "default", ...style }}>
+export const ScrollableRow = ({ children, style = {}, onClick, className, onMouseEnter, onMouseLeave }) => (
+  <tr onClick={onClick} className={className}
+    onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}
+    style={{ cursor: onClick ? "pointer" : "default", ...style }}>
     {children}
   </tr>
 );
 
 // Cellule pré-stylée pour ScrollableRow.
-// Props : align ("left"|"right"|"center"), color, fontFamily, fontSize, children, style
-export const ScrollableCell = ({ children, align = "left", style = {} }) => (
-  <td style={{
+// Props : align ("left"|"right"|"center"), className, style, children, title, onClick, colSpan
+export const ScrollableCell = ({ children, align = "left", style = {}, className, title, onClick, colSpan }) => (
+  <td className={className} title={title} onClick={onClick} colSpan={colSpan} style={{
     padding: "9px 8px",
     borderBottom: `1px solid ${C.border}`,
     fontSize: 12,
     textAlign: align,
     verticalAlign: "middle",
+    cursor: onClick ? "pointer" : undefined,
     ...style
   }}>{children}</td>
 );

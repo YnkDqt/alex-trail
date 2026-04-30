@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { C, fmtDate, actColor, actShort, parseCSVActivities } from "../constants.js";
-import { Btn, PageTitle } from "../atoms.jsx";
+import { Btn, PageTitle, ScrollableTable, ScrollableRow, ScrollableCell } from "../atoms.jsx";
 // ─── ACTIVITÉS ────────────────────────────────────────────────────────────────
 const AVEC_ZONES = ["Trailrunning","Cardio","Marche à pied","Trail","Course à pied sur tapis roulant"];
 
@@ -12,7 +12,14 @@ function Activites({ activites, setActivites, seances, setSeances }) {
   const [sortDir,   setSortDir]   = useState(-1);
   const [copied,    setCopied]    = useState(null);
   const [linkAct,   setLinkAct]   = useState(null);
+  const [isMobile,  setIsMobile]  = useState(typeof window !== "undefined" && window.innerWidth <= 768);
   const activitesRef = useRef();
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   const copyID = (dateHeure) => {
     navigator.clipboard.writeText(dateHeure).then(()=>{
@@ -49,11 +56,9 @@ function Activites({ activites, setActivites, seances, setSeances }) {
   },[activites,search,sortKey,sortDir]);
 
   const thStyle = (k) => ({
-    cursor:"pointer", userSelect:"none", padding:"6px 6px",
-    fontSize:9, fontWeight:600, color:sortKey===k?C.forest:C.muted,
-    textTransform:"uppercase", letterSpacing:"0.04em",
-    background:C.stone, borderRight:`1px solid ${C.border}`,
-    whiteSpace:"nowrap",
+    cursor: k ? "pointer" : "default",
+    color: sortKey===k ? C.forest : undefined,
+    borderRight: `1px solid ${C.border}`,
   });
   const sort = (k) => { if(sortKey===k) setSortDir(d=>-d); else {setSortKey(k);setSortDir(-1);}};
 
@@ -61,15 +66,6 @@ function Activites({ activites, setActivites, seances, setSeances }) {
 
   return (
     <div className="anim" style={{padding:"24px 40px 80px"}}>
-      <style>{`
-        @media (max-width: 768px) {
-          .act-header, .act-row { 
-            grid-template-columns: 60px 140px 100px 1fr 70px 80px 60px 40px !important; 
-            min-width: 650px !important;
-          }
-          .act-hide-mobile { display: none !important; }
-        }
-      `}</style>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:8}}>
         <PageTitle sub={`${activites.length} activité(s) · Cliquer sur l'ID pour le copier, puis le coller dans Programme`}>Activités</PageTitle>
         <div style={{display:"flex",gap:8}}>
@@ -85,90 +81,123 @@ function Activites({ activites, setActivites, seances, setSeances }) {
       />
 
       {/* Tableau */}
-      <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
-        <div style={{overflowX:"auto"}}>
-          {/* Header */}
-          <div className="act-header" style={{display:"grid",gridTemplateColumns:"60px 140px 100px 1fr 70px 80px 60px 60px 60px 70px 48px 48px 48px 48px 48px 40px",minWidth:1200,borderBottom:`1px solid ${C.border}`}}>
-            {[["","Statut"],["dateHeure","ID (date + heure)"],["type","Type"],["titre","Titre"],["distance","Dist."],["duree","Durée"],["fcMoy","FC Ø"],["fcMax","FC Max"],["dp","D+"],["calories","Cal."],["z1","Z1%"],["z2","Z2%"],["z3","Z3%"],["z4","Z4%"],["z5","Z5%"],["",""]].map(([k,l],idx)=>{
-              const hideMobile = idx >= 7 && idx <= 14; // FC Max, D+, Cal, Z1-Z5
-              return (
-                <div key={k||`col-${idx}`} className={hideMobile?"act-hide-mobile":""} style={{...thStyle(k)}} onClick={()=>k&&sort(k)}>{l}{sortKey===k?sortDir>0?" ↑":" ↓":""}</div>
-              );
-            })}
-          </div>
-          {/* Rows */}
-          <div style={{maxHeight:800,overflowY:"auto"}}>
+      {(() => {
+        // Définition complète des colonnes (desktop)
+        const ALL_COLS = [
+          { key: "",           label: "Statut",            w: "60px",  hideMobile: false },
+          { key: "dateHeure",  label: "ID (date + heure)", w: "140px", hideMobile: false },
+          { key: "type",       label: "Type",              w: "100px", hideMobile: false },
+          { key: "titre",      label: "Titre",             w: "1fr",   hideMobile: false },
+          { key: "distance",   label: "Dist.",             w: "70px",  hideMobile: false },
+          { key: "duree",      label: "Durée",             w: "80px",  hideMobile: false },
+          { key: "fcMoy",      label: "FC Ø",              w: "60px",  hideMobile: false },
+          { key: "fcMax",      label: "FC Max",            w: "60px",  hideMobile: true  },
+          { key: "dp",         label: "D+",                w: "60px",  hideMobile: true  },
+          { key: "calories",   label: "Cal.",              w: "70px",  hideMobile: true  },
+          { key: "z1",         label: "Z1%",               w: "48px",  hideMobile: true  },
+          { key: "z2",         label: "Z2%",               w: "48px",  hideMobile: true  },
+          { key: "z3",         label: "Z3%",               w: "48px",  hideMobile: true  },
+          { key: "z4",         label: "Z4%",               w: "48px",  hideMobile: true  },
+          { key: "z5",         label: "Z5%",               w: "48px",  hideMobile: true  },
+          { key: "",           label: "",                  w: "40px",  hideMobile: false }, // colonne supprimer
+        ];
+        const visibleCols = isMobile ? ALL_COLS.filter(c => !c.hideMobile) : ALL_COLS;
+        const minWidth = isMobile ? 650 : 1200;
+
+        return (
+          <ScrollableTable
+            columns={visibleCols.map(c => c.w)}
+            minWidth={minWidth}
+            maxHeight={800}
+            headerCells={visibleCols.map((c, idx) => ({
+              content: <>{c.label}{sortKey===c.key?sortDir>0?" ↑":" ↓":""}</>,
+              onClick: c.key ? () => sort(c.key) : undefined,
+              style: thStyle(c.key)
+            }))}
+          >
             {filtered.length===0 && (
-              <div style={{padding:"32px",textAlign:"center",color:C.muted,fontSize:13}}>Aucune activité · Importer un fichier Activities.csv depuis Garmin Connect</div>
+              <ScrollableRow>
+                <ScrollableCell align="center" style={{padding:"32px",color:C.muted,fontSize:13}} colSpan={visibleCols.length}>
+                  Aucune activité · Importer un fichier Activities.csv depuis Garmin Connect
+                </ScrollableCell>
+              </ScrollableRow>
             )}
             {filtered.map(a=>{
-              const showZ=true; // zones FC pour toutes les activités
-              const isCopied=copied===a.dateHeure;
+              const isCopied = copied===a.dateHeure;
               return (
-                <div key={a.id} className="act-row" style={{display:"grid",gridTemplateColumns:"60px 140px 100px 1fr 70px 80px 60px 60px 60px 70px 48px 48px 48px 48px 48px 40px",borderTop:`1px solid ${C.border}`,alignItems:"center",minWidth:1200,background:"transparent",transition:"background .15s"}}
+                <ScrollableRow key={a.id}
                   onMouseEnter={e=>e.currentTarget.style.background=C.stone+"30"}
                   onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                  {/* Statut lié + bouton lier */}
-                  <div style={{padding:"8px 6px",display:"flex",flexDirection:"column",gap:4,alignItems:"center",borderRight:`1px solid ${C.border}`}}>
-                    <span style={{
-                      fontSize:9,fontWeight:600,padding:"2px 6px",borderRadius:4,whiteSpace:"nowrap",
-                      background:liees.has(a.dateHeure)?C.forestPale:C.stone,
-                      color:liees.has(a.dateHeure)?C.forest:C.stoneDeep,
-                    }}>
-                      {liees.has(a.dateHeure)?"✓ Lié":"Libre"}
-                    </span>
-                    <button onClick={()=>setLinkAct(a)}
-                      style={{fontSize:9,padding:"2px 6px",borderRadius:4,cursor:"pointer",fontWeight:500,
-                        border:`0.5px solid ${liees.has(a.dateHeure)?C.forest:C.sky}`,
-                        background:liees.has(a.dateHeure)?C.forestPale:C.skyPale,
-                        color:liees.has(a.dateHeure)?C.forest:C.sky,whiteSpace:"nowrap"}}>
-                      {liees.has(a.dateHeure)?"→":"Lier"}
-                    </button>
-                  </div>
+                  {/* Statut */}
+                  <ScrollableCell align="center" style={{padding:"8px 6px",borderRight:`1px solid ${C.border}`}}>
+                    <div style={{display:"flex",flexDirection:"column",gap:4,alignItems:"center"}}>
+                      <span style={{
+                        fontSize:9,fontWeight:600,padding:"2px 6px",borderRadius:4,whiteSpace:"nowrap",
+                        background:liees.has(a.dateHeure)?C.forestPale:C.stone,
+                        color:liees.has(a.dateHeure)?C.forest:C.stoneDeep,
+                      }}>
+                        {liees.has(a.dateHeure)?"✓ Lié":"Libre"}
+                      </span>
+                      <button onClick={()=>setLinkAct(a)}
+                        style={{fontSize:9,padding:"2px 6px",borderRadius:4,cursor:"pointer",fontWeight:500,
+                          border:`0.5px solid ${liees.has(a.dateHeure)?C.forest:C.sky}`,
+                          background:liees.has(a.dateHeure)?C.forestPale:C.skyPale,
+                          color:liees.has(a.dateHeure)?C.forest:C.sky,whiteSpace:"nowrap"}}>
+                        {liees.has(a.dateHeure)?"→":"Lier"}
+                      </button>
+                    </div>
+                  </ScrollableCell>
                   {/* ID cliquable */}
-                  <div
+                  <ScrollableCell
                     onClick={()=>copyID(a.dateHeure)}
                     title="Cliquer pour copier l'ID"
-                    style={{padding:"8px 6px",cursor:"pointer",fontFamily:"'DM Mono',monospace",fontSize:10,
+                    style={{padding:"8px 6px",fontFamily:"'DM Mono',monospace",fontSize:10,
                       color:isCopied?C.green:C.sky,background:isCopied?C.greenPale:C.skyPale+"66",
-                      borderRight:`1px solid ${C.border}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
-                      display:"flex",alignItems:"center",gap:4}}>
-                    <span style={{fontSize:9,flexShrink:0}}>{isCopied?"✓":"⎘"}</span>
-                    {isCopied?"Copié !" : a.dateHeure}
-                  </div>
-                  <div style={{padding:"8px 6px",fontSize:11,color:C.inkLight,borderRight:`1px solid ${C.border}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:4}}>
-                    <span style={{display:"inline-block",width:7,height:7,borderRadius:2,background:actColor(a.type||"Trail"),flexShrink:0}}/>
-                    {a.type||"—"}
-                  </div>
-                  <div style={{padding:"8px 6px",fontSize:11,color:C.inkLight,borderRight:`1px solid ${C.border}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={a.titre}>{a.titre||"—"}</div>
+                      borderRight:`1px solid ${C.border}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:4}}>
+                      <span style={{fontSize:9,flexShrink:0}}>{isCopied?"✓":"⎘"}</span>
+                      {isCopied?"Copié !" : a.dateHeure}
+                    </div>
+                  </ScrollableCell>
+                  {/* Type */}
+                  <ScrollableCell title={a.type} style={{padding:"8px 6px",fontSize:11,color:C.inkLight,borderRight:`1px solid ${C.border}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:4}}>
+                      <span style={{display:"inline-block",width:7,height:7,borderRadius:2,background:actColor(a.type||"Trail"),flexShrink:0}}/>
+                      {a.type||"—"}
+                    </div>
+                  </ScrollableCell>
+                  {/* Titre */}
+                  <ScrollableCell title={a.titre} style={{padding:"8px 6px",fontSize:11,color:C.inkLight,borderRight:`1px solid ${C.border}`,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {a.titre||"—"}
+                  </ScrollableCell>
+                  {/* Champs numériques (filtrés selon mobile) */}
                   {[
-                    {k:"distance",u:"km",hide:false},{k:"duree",u:"",hide:false},{k:"fcMoy",u:"",hide:false},{k:"fcMax",u:"",hide:true},{k:"dp",u:"m",hide:true},{k:"calories",u:"",hide:true},
-                  ].map(({k,u,hide})=>(
-                    <div key={k} className={hide?"act-hide-mobile":""} style={{padding:"8px 4px",borderRight:`1px solid ${C.border}`}}>
+                    {k:"distance",hide:false},{k:"duree",hide:false},{k:"fcMoy",hide:false},
+                    {k:"fcMax",hide:true},{k:"dp",hide:true},{k:"calories",hide:true},
+                  ].filter(({hide}) => !isMobile || !hide).map(({k})=>(
+                    <ScrollableCell key={k} style={{padding:"8px 4px",borderRight:`1px solid ${C.border}`}}>
                       <input value={a[k]||""} onChange={e=>updAct(a.id,k,e.target.value)}
                         style={{fontSize:11,padding:"2px 4px",border:`1px solid ${C.border}`,borderRadius:4,width:"100%",background:C.bg,fontFamily:"'DM Mono',monospace",textAlign:"right"}}/>
-                    </div>
+                    </ScrollableCell>
                   ))}
-                  {/* Zones FC */}
-                  {["z1","z2","z3","z4","z5"].map(z=>(
-                    <div key={z} className="act-hide-mobile" style={{padding:"8px 4px",borderRight:`1px solid ${C.border}`}}>
-                      {showZ
-                        ? <input type="number" min="0" max="100" step="1" value={a[z] != null ? a[z] : ""}
-                            onChange={e=>updAct(a.id,z,e.target.value)}
-                            style={{fontSize:11,padding:"2px 4px",border:`1px solid ${C.border}`,borderRadius:4,width:"100%",textAlign:"center",background:C.bg,fontFamily:"'DM Mono',monospace"}}/>
-                        : <span style={{fontSize:9,color:C.border,padding:"0 4px"}}>—</span>
-                      }
-                    </div>
+                  {/* Zones FC (cachées en mobile) */}
+                  {!isMobile && ["z1","z2","z3","z4","z5"].map(z=>(
+                    <ScrollableCell key={z} style={{padding:"8px 4px",borderRight:`1px solid ${C.border}`}}>
+                      <input type="number" min="0" max="100" step="1" value={a[z] != null ? a[z] : ""}
+                        onChange={e=>updAct(a.id,z,e.target.value)}
+                        style={{fontSize:11,padding:"2px 4px",border:`1px solid ${C.border}`,borderRadius:4,width:"100%",textAlign:"center",background:C.bg,fontFamily:"'DM Mono',monospace"}}/>
+                    </ScrollableCell>
                   ))}
-                  <div style={{padding:"8px 4px",display:"flex",justifyContent:"center"}}>
+                  {/* Suppression */}
+                  <ScrollableCell align="center" style={{padding:"8px 4px"}}>
                     <button onClick={()=>delAct(a.id)} style={{background:"none",border:"none",cursor:"pointer",color:C.stoneDark,fontSize:11,padding:0}}>✕</button>
-                  </div>
-                </div>
+                  </ScrollableCell>
+                </ScrollableRow>
               );
             })}
-          </div>
-        </div>
-      </div>
+          </ScrollableTable>
+        );
+      })()}
       <LinkModal linkAct={linkAct} seances={seances} setSeances={setSeances} onClose={()=>setLinkAct(null)}/>
     </div>
   );
