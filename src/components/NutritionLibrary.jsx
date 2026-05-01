@@ -23,7 +23,8 @@ export default function NutritionLibrary({
   recettes,
   calcMacros,
   context = "training",       // "training" | "course" — change la sémantique du bouton ✕
-  onRemoveFromCourse           // (item) => void — utilisé en context "course" uniquement
+  onRemoveFromCourse,          // (item) => void — utilisé en context "course" uniquement
+  selectedIds = null           // Array<id> — en context "course", filtre l'affichage aux items sélectionnés
 }) {
   // ── États modaux bibliothèque ──
   const [prodModal, setProdModal] = useState(false);
@@ -220,8 +221,14 @@ export default function NutritionLibrary({
   const allBibItems = useMemo(() => {
     const prods = bibliotheque.produits.map(p => ({ ...p, itemType: "produit" }));
     const recs = bibliotheque.recettes.map(r => ({ ...r, itemType: "recette", macros: calcMacros(r) }));
-    return [...prods, ...recs];
-  }, [bibliotheque, calcMacros]);
+    const all = [...prods, ...recs];
+    // En context "course" + selectedIds fourni : ne montrer que les items sélectionnés dans la course
+    if (context === "course" && Array.isArray(selectedIds)) {
+      const set = new Set(selectedIds);
+      return all.filter(it => set.has(it.id));
+    }
+    return all;
+  }, [bibliotheque, calcMacros, context, selectedIds]);
 
   const filteredCiqual = useMemo(() => {
     let results = CIQUAL;
@@ -263,8 +270,17 @@ export default function NutritionLibrary({
 
         {allBibItems.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px 20px", color: C.muted, background: C.stone, borderRadius: 10 }}>
-            <div style={{ fontSize: 14, marginBottom: 8 }}>Bibliothèque vide</div>
-            <div style={{ fontSize: 12 }}>Ajoute des produits et recettes pour cette course</div>
+            {context === "course" && Array.isArray(selectedIds) ? (
+              <>
+                <div style={{ fontSize: 14, marginBottom: 8 }}>Aucun produit sélectionné pour cette course</div>
+                <div style={{ fontSize: 12 }}>Ajoute des produits depuis le plan de ravitaillement plus bas</div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: 14, marginBottom: 8 }}>Bibliothèque vide</div>
+                <div style={{ fontSize: 12 }}>Ajoute des produits et recettes pour cette course</div>
+              </>
+            )}
           </div>
         ) : (() => {
           const BIB_COLS = ["80px", "1fr", "60px", "60px", "60px", "60px", "60px", "60px", "60px", "60px", "60px", "32px"];

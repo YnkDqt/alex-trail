@@ -471,6 +471,10 @@ export default function NutritionView({
         calcMacros={calcMacros}
         context="course"
         onRemoveFromCourse={removeItemFromCourse}
+        selectedIds={[
+          ...produitsDepartLocal.map(p => p.id),
+          ...ravitos.flatMap(rv => (rv.produits || []).map(p => p.id))
+        ]}
       />
 
       {/* ── PLAN RAVITAILLEMENT ── */}
