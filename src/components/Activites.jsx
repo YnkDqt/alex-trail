@@ -62,7 +62,7 @@ function Activites({ activites, setActivites, seances, setSeances }) {
   });
   const sort = (k) => { if(sortKey===k) setSortDir(d=>-d); else {setSortKey(k);setSortDir(-1);}};
 
-  const inpZ = {fontSize:10,padding:"1px 3px",borderRadius:4,border:`1px solid ${C.border}`,width:38,textAlign:"center",background:C.bg,fontFamily:"'DM Mono',monospace"};
+  
 
   return (
     <div className="anim" style={{padding:"24px 40px 80px"}}>

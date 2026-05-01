@@ -84,7 +84,6 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
   const avgKcalConso   = avg("kcalConso");
   const avgDelta       = avgKcalBrulees&&avgKcalConso ? avgKcalBrulees-avgKcalConso : null;
 
-  const card = {background:C.white,border:`1px solid ${C.border}`,borderRadius:12};
   const lbl  = {fontSize:10,fontWeight:500,textTransform:"uppercase",letterSpacing:"0.06em",color:C.muted};
 
   const COLS_KCAL = [
