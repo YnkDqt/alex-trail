@@ -69,6 +69,18 @@ export default function NutritionView({
     });
   };
 
+  // Ajoute un item à la sélection course (zone Départ par défaut, qte=0).
+  // No-op si l'id est déjà sélectionné quelque part (départ ou ravito).
+  const addItemToCourse = (id) => {
+    if (id == null) return;
+    setRace(r => {
+      const inDepart = (r.depart?.produits || []).some(p => p.id === id);
+      const inRavito = (r.ravitos || []).some(rv => (rv.produits || []).some(p => p.id === id));
+      if (inDepart || inRavito) return r;
+      return { ...r, depart: { ...(r.depart || {}), produits: [...(r.depart?.produits || []), { id, quantite: 0 }] } };
+    });
+  };
+
   // ── États (autocomplete, stratégie, presets, vider plan) ──
   const [autoCompletePreview, setAutoCompletePreview] = useState(null);
   const [confirmVider, setConfirmVider] = useState(false);
@@ -406,6 +418,16 @@ export default function NutritionView({
     return [...prods, ...recs];
   }, [bibliotheque]);
 
+  // Items réellement présents dans la sélection course (départ + tous ravitos).
+  // Sert à filtrer les lignes du Plan de ravitaillement par cohérence avec la Sélection course.
+  const allBibItemsInCourse = useMemo(() => {
+    const selected = new Set([
+      ...produitsDepartLocal.map(p => p.id),
+      ...ravitos.flatMap(rv => (rv.produits || []).map(p => p.id))
+    ]);
+    return allBibItems.filter(it => selected.has(it.id));
+  }, [allBibItems, produitsDepartLocal, ravitos]);
+
   const card = {background:C.white,border:`1px solid ${C.border}`,borderRadius:12};
   const lbl = {fontSize:10,fontWeight:500,textTransform:"uppercase",letterSpacing:"0.06em",color:C.muted};
 
@@ -471,7 +493,8 @@ export default function NutritionView({
         calcMacros={calcMacros}
         context="course"
         onRemoveFromCourse={removeItemFromCourse}
-        selectedIds={[
+        onAddToCourse={addItemToCourse}
+        courseSelectedIds={[
           ...produitsDepartLocal.map(p => p.id),
           ...ravitos.flatMap(rv => (rv.produits || []).map(p => p.id))
         ]}
@@ -1029,7 +1052,7 @@ export default function NutritionView({
                   )}
                 </div>
               ) : (
-                allBibItems.map(item => {
+                allBibItemsInCourse.map(item => {
                   const existing = ravitoProds.find(p => p.id === item.id);
                   const qte = existing?.quantite || 0;
                   const isProd = item.itemType === "produit";

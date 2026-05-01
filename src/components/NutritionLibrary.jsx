@@ -22,9 +22,10 @@ export default function NutritionLibrary({
   produits,
   recettes,
   calcMacros,
-  context = "training",       // "training" | "course" — change la sémantique du bouton ✕
-  onRemoveFromCourse,          // (item) => void — utilisé en context "course" uniquement
-  selectedIds = null           // Array<id> — en context "course", filtre l'affichage aux items sélectionnés
+  context = "training",          // "training" | "course"
+  onRemoveFromCourse,             // (item) => void — utilisé en context "course" uniquement
+  courseSelectedIds = null,       // Array<id> — en context "course", filtre l'affichage aux items sélectionnés
+  onAddToCourse                   // (id) => void — appelé en context "course" à chaque création/import biblio
 }) {
   // ── États modaux bibliothèque ──
   const [prodModal, setProdModal] = useState(false);
@@ -80,6 +81,7 @@ export default function NutritionLibrary({
       updBibliotheque({ ...bibliotheque, produits: bibliotheque.produits.map(p => p.id === editProdId ? item : p) });
     } else {
       updBibliotheque({ ...bibliotheque, produits: [...bibliotheque.produits, item] });
+      if (context === "course" && onAddToCourse) onAddToCourse(item.id);
     }
     setShowProdTypeErr(false);
     setProdModal(false);
@@ -103,6 +105,7 @@ export default function NutritionLibrary({
       boisson: isBoisson
     };
     updBibliotheque({ ...bibliotheque, produits: [...bibliotheque.produits, newProd] });
+    if (context === "course" && onAddToCourse) onAddToCourse(newProd.id);
     setCiqualModal(false);
     setCiqualSearch("");
   };
@@ -111,6 +114,7 @@ export default function NutritionLibrary({
     const selected = produits.filter(p => selectedIds.includes(p.id));
     const newProds = selected.map(p => ({ ...p, id: Date.now() + Math.random(), source: "entrainement" }));
     updBibliotheque({ ...bibliotheque, produits: [...bibliotheque.produits, ...newProds] });
+    if (context === "course" && onAddToCourse) newProds.forEach(p => onAddToCourse(p.id));
     setEntrainementProdModal(false);
   };
 
@@ -142,6 +146,7 @@ export default function NutritionLibrary({
       updBibliotheque({ ...bibliotheque, recettes: bibliotheque.recettes.map(r => r.id === editRecId ? item : r) });
     } else {
       updBibliotheque({ ...bibliotheque, recettes: [...bibliotheque.recettes, item] });
+      if (context === "course" && onAddToCourse) onAddToCourse(item.id);
     }
     setShowRecTypeErr(false);
     setShowRecPortionErr(false);
@@ -171,6 +176,7 @@ export default function NutritionLibrary({
     const selected = recettes.filter(r => selectedIds.includes(r.id));
     const newRecs = selected.map(r => ({ ...r, id: Date.now() + Math.random(), source: "entrainement" }));
     updBibliotheque({ ...bibliotheque, recettes: [...bibliotheque.recettes, ...newRecs] });
+    if (context === "course" && onAddToCourse) newRecs.forEach(r => onAddToCourse(r.id));
     setEntrainementRecModal(false);
   };
 
@@ -222,13 +228,13 @@ export default function NutritionLibrary({
     const prods = bibliotheque.produits.map(p => ({ ...p, itemType: "produit" }));
     const recs = bibliotheque.recettes.map(r => ({ ...r, itemType: "recette", macros: calcMacros(r) }));
     const all = [...prods, ...recs];
-    // En context "course" + selectedIds fourni : ne montrer que les items sélectionnés dans la course
-    if (context === "course" && Array.isArray(selectedIds)) {
-      const set = new Set(selectedIds);
+    // En context "course" + courseSelectedIds fourni : ne montrer que les items sélectionnés dans la course
+    if (context === "course" && Array.isArray(courseSelectedIds)) {
+      const set = new Set(courseSelectedIds);
       return all.filter(it => set.has(it.id));
     }
     return all;
-  }, [bibliotheque, calcMacros, context, selectedIds]);
+  }, [bibliotheque, calcMacros, context, courseSelectedIds]);
 
   const filteredCiqual = useMemo(() => {
     let results = CIQUAL;
@@ -270,7 +276,7 @@ export default function NutritionLibrary({
 
         {allBibItems.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px 20px", color: C.muted, background: C.stone, borderRadius: 10 }}>
-            {context === "course" && Array.isArray(selectedIds) ? (
+            {context === "course" && Array.isArray(courseSelectedIds) ? (
               <>
                 <div style={{ fontSize: 14, marginBottom: 8 }}>Aucun produit sélectionné pour cette course</div>
                 <div style={{ fontSize: 12 }}>Ajoute des produits depuis le plan de ravitaillement plus bas</div>
