@@ -257,16 +257,18 @@ export default function NutritionView({
   // ── AUTOCOMPLÉTION (Phase 4a) ──
   // Utilise l'algo autoCompleteAlgo.js qui calcule un plan zone par zone
   // en respectant la stratégie nutrition (hydratation, transport, glucides).
+  // La source de l'algo = la SÉLECTION COURSE (pas la biblio entière), pour respecter
+  // les choix de l'utilisateur : on ne ressuscite pas un item qu'il a retiré.
   const handleAutoComplete = () => {
-    if (allBibItems.length === 0) {
-      alert("Bibliothèque vide. Ajoute des produits ou recettes avant d'autocompléter.");
+    if (allBibItemsInCourse.length === 0) {
+      alert("Sélection course vide. Ajoute des produits ou recettes avant d'autocompléter.");
       return;
     }
     
     const strategy = getNutritionStrategy(race);
     const newPlan = calculerPlanComplet({
       zones,
-      bibliotheque: allBibItems,
+      bibliotheque: allBibItemsInCourse,
       strategy
     });
     
@@ -303,8 +305,8 @@ export default function NutritionView({
   // Utilise planPourZone (algo single-zone) — ne préserve pas la diversité inter-zones,
   // mais c'est volontaire : l'utilisateur veut juste re-proposer cette zone.
   const handleRegenererZone = (zone) => {
-    if (allBibItems.length === 0) {
-      alert("Bibliothèque vide. Ajoute des produits ou recettes avant de régénérer.");
+    if (allBibItemsInCourse.length === 0) {
+      alert("Sélection course vide. Ajoute des produits ou recettes avant de régénérer.");
       return;
     }
     const strategy = getNutritionStrategy(race);
@@ -321,7 +323,7 @@ export default function NutritionView({
     // Si tu veux régénérer avec report, il faut le passer ici (TODO)
     const newPlan = planPourZone({
       besoin: zone.besoin,
-      bibliotheque: allBibItems,
+      bibliotheque: allBibItemsInCourse,
       strategy,
       isDepart: zone.pointKey === "depart"
     });
