@@ -1,7 +1,6 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { C } from '../constants.js';
-import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, exportRecap, exportGPXMontre, suggestSpeed, autoSegmentGPX, parseGarminCSV, buildElevationProfile, calcSlopeFromGPX, parseGPX } from '../utils.jsx';
-import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, CustomTooltip } from '../atoms.jsx';
+import { useState, useRef } from 'react';
+import { fmtTime } from '../utils.jsx';
+import { Btn, Card, PageTitle, ConfirmDialog, Empty } from '../atoms.jsx';
 
 // ─── VUE MES COURSES ─────────────────────────────────────────────────────────
 export default function MesCoursesView({ courses, onLoad, onDelete, onUpdate, onOverwrite, onSaveCurrent, onLoadFile, onNewRace, race, segments, settings }) {

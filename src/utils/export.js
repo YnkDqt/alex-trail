@@ -1,5 +1,5 @@
 // Export récap (page web + image) pour la course
-import { fmtTime, fmtHeure, isNight } from './time.js';
+import { fmtTime } from './time.js';
 import { calcNutrition } from './nutrition.js';
 
 export function exportRecap(race, segments, settings, profile, passingTimes) {

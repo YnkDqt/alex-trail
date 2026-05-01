@@ -1,5 +1,4 @@
-import React, { useState, useMemo } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer } from "recharts";
+import React, { useState } from "react";
 import { C, localDate, fmtDate, daysUntil, isRunning, exportJSON, emptyObjectif } from "../constants.js";
 import { Btn, Modal, Field, FormGrid, ConfirmDialog, PageTitle } from "../atoms.jsx";
 // ─── OBJECTIFS ───────────────────────────────────────────────────────────────

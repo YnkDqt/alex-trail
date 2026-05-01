@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from "react";
-import { C, isRunning, fmtDate, localDate, exportJSON, TYPES_BOISSON } from "../constants.js";
+import { C, isRunning, fmtDate, localDate, TYPES_BOISSON } from "../constants.js";
 import { Btn, Modal, Field, ConfirmDialog, PageTitle, ScrollableTable, ScrollableRow, ScrollableCell } from "../atoms.jsx";
 import { CIQUAL, CIQUAL_CATEGORIES } from "../data/ciqual.js";
 import {
@@ -84,6 +84,7 @@ function JournalNutri({ journalNutri, setJournalNutri }) {
   const avgKcalConso   = avg("kcalConso");
   const avgDelta       = avgKcalBrulees&&avgKcalConso ? avgKcalBrulees-avgKcalConso : null;
 
+  const card = {background:C.white,border:`1px solid ${C.border}`,borderRadius:12};
   const lbl  = {fontSize:10,fontWeight:500,textTransform:"uppercase",letterSpacing:"0.06em",color:C.muted};
 
   const COLS_KCAL = [

@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { C } from '../constants.js';
-import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, exportRecap, exportGPXMontre, suggestSpeed, autoSegmentGPX, parseGarminCSV, buildElevationProfile, calcSlopeFromGPX, parseGPX, kcalDuStock, formatQuantiteStock } from '../utils.jsx';
+import { fmtHeure, isNight, calcNutrition, calcPassingTimes, kcalDuStock, formatQuantiteStock } from '../utils.jsx';
 import { getNutritionStrategy } from '../NutritionStrategyModal.jsx';
-import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, CustomTooltip } from '../atoms.jsx';
+import { Btn, Card, KPI, PageTitle, Empty } from '../atoms.jsx';
 
 // ─── VUE TEAM ────────────────────────────────────────────────────────────────
 function wazeUrl(query) {

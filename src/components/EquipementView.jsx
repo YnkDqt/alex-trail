@@ -1,7 +1,6 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { C, DEFAULT_EQUIPMENT, PREP_TIMELINE } from '../constants.js';
-import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, exportRecap, exportGPXMontre, suggestSpeed, autoSegmentGPX, parseGarminCSV, buildElevationProfile, calcSlopeFromGPX, parseGPX } from '../utils.jsx';
-import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, CustomTooltip } from '../atoms.jsx';
+import { Btn, Card, KPI, PageTitle, Modal } from '../atoms.jsx';
 
 // ─── VUE PARAMÈTRES ──────────────────────────────────────────────────────────
 export default function ParamètresView({ settings, setSettings, race, setRace, segments, isMobile }) {

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { C, NUTRITION_PRESETS, detectPreset, applyPreset, matchPreset, applyMeteoModifiers } from '../constants.js';
-import { fmtTime, calcNutrition } from '../utils.jsx';
-import { Btn, Modal, ConfirmDialog, KPI, PageTitle } from '../atoms.jsx';
+import { calcNutrition } from '../utils.jsx';
+import { Btn, Modal, ConfirmDialog, PageTitle } from '../atoms.jsx';
 import NutritionStrategyModal, { getNutritionStrategy } from '../NutritionStrategyModal.jsx';
 import { calculerPlanComplet, planPourZone, evaluerPlan, isEauPure, isBoissonEnergetique } from '../autoCompleteAlgo.js';
 import NutritionKPIs from './NutritionKPIs.jsx';

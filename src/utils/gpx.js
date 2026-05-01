@@ -1,6 +1,6 @@
 // GPX : parsing, élévation, segments, export montre, passing times
 import { RUNNER_LEVELS } from '../constants.js';
-import { fmtPace, fmtHeure } from './time.js';
+import { fmtPace } from './time.js';
 
 // ─── parseGPX ───────────────────────────────────────────────────────────
 export function parseGPX(xmlText) {

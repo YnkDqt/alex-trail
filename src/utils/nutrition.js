@@ -1,5 +1,4 @@
 // Calculs nutrition + helpers stock/recette
-import { C } from '../constants.js';
 import { isEauPure } from '../autoCompleteAlgo.js';
 
 // ─── calcNutrition ──────────────────────────────────────────────────────

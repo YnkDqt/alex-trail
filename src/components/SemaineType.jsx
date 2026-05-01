@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { C, DAY_NAMES, DEFAULT_PLANNING, ACTIVITY_TYPES, localDate, actIcon, emptySeance } from "../constants.js";
-import { Btn, Field, PageTitle } from "../atoms.jsx";
+import { Btn, PageTitle } from "../atoms.jsx";
 // ─── SEMAINE TYPE (sous-onglet Entraînement) ─────────────────────────────────
 function SemaineType({ planningType, setPlanningType, seances, setSeances, activityTypes }) {
   const [form,      setForm]      = useState({...DEFAULT_PLANNING,...planningType});
