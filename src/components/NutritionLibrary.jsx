@@ -112,9 +112,22 @@ export default function NutritionLibrary({
 
   const addFromEntrainementProduits = (selectedIds) => {
     const selected = produits.filter(p => selectedIds.includes(p.id));
-    const newProds = selected.map(p => ({ ...p, id: Date.now() + Math.random(), source: "entrainement" }));
-    updBibliotheque({ ...bibliotheque, produits: [...bibliotheque.produits, ...newProds] });
-    if (context === "course" && onAddToCourse) newProds.forEach(p => onAddToCourse(p.id));
+    const idsToAddInCourse = [];
+    const newProdsToAddInBib = [];
+    selected.forEach(p => {
+      const existing = bibliotheque.produits.find(bp => bp.nom === p.nom);
+      if (existing) {
+        idsToAddInCourse.push(existing.id);
+      } else {
+        const cloned = { ...p, id: Date.now() + Math.random(), source: "entrainement" };
+        newProdsToAddInBib.push(cloned);
+        idsToAddInCourse.push(cloned.id);
+      }
+    });
+    if (newProdsToAddInBib.length > 0) {
+      updBibliotheque({ ...bibliotheque, produits: [...bibliotheque.produits, ...newProdsToAddInBib] });
+    }
+    if (context === "course" && onAddToCourse) idsToAddInCourse.forEach(id => onAddToCourse(id));
     setEntrainementProdModal(false);
   };
 
@@ -174,9 +187,24 @@ export default function NutritionLibrary({
 
   const addFromEntrainementRecettes = (selectedIds) => {
     const selected = recettes.filter(r => selectedIds.includes(r.id));
-    const newRecs = selected.map(r => ({ ...r, id: Date.now() + Math.random(), source: "entrainement" }));
-    updBibliotheque({ ...bibliotheque, recettes: [...bibliotheque.recettes, ...newRecs] });
-    if (context === "course" && onAddToCourse) newRecs.forEach(r => onAddToCourse(r.id));
+    // Pour chaque recette à importer : si elle existe déjà en biblio (par nom), on la réutilise.
+    // Sinon on la clone avec un nouvel id et on l'ajoute à la biblio.
+    const idsToAddInCourse = [];
+    const newRecsToAddInBib = [];
+    selected.forEach(r => {
+      const existing = bibliotheque.recettes.find(br => br.nom === r.nom);
+      if (existing) {
+        idsToAddInCourse.push(existing.id);
+      } else {
+        const cloned = { ...r, id: Date.now() + Math.random(), source: "entrainement" };
+        newRecsToAddInBib.push(cloned);
+        idsToAddInCourse.push(cloned.id);
+      }
+    });
+    if (newRecsToAddInBib.length > 0) {
+      updBibliotheque({ ...bibliotheque, recettes: [...bibliotheque.recettes, ...newRecsToAddInBib] });
+    }
+    if (context === "course" && onAddToCourse) idsToAddInCourse.forEach(id => onAddToCourse(id));
     setEntrainementRecModal(false);
   };
 
@@ -499,26 +527,32 @@ export default function NutritionLibrary({
       <Modal open={entrainementRecModal} onClose={() => setEntrainementRecModal(false)} title="Mes recettes entraînement" width={700}>
         {recettes.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px 20px", color: C.muted }}>Aucune recette</div>
-        ) : (
-          <div style={{ maxHeight: 500, overflowY: "auto" }}>
-            {recettes.map(r => {
-              const added = bibliotheque.recettes.some(br => br.nom === r.nom);
-              return (
-                <div key={r.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500, color: C.inkLight }}>{r.nom}</div>
-                    <div style={{ fontSize: 12, color: C.muted }}>{r.description || "—"}</div>
+        ) : (() => {
+          const selectedSet = new Set(Array.isArray(courseSelectedIds) ? courseSelectedIds : []);
+          return (
+            <div style={{ maxHeight: 500, overflowY: "auto" }}>
+              {recettes.map(r => {
+                // En context course : marqué "Ajoutée" si déjà dans la sélection course (par id ou par nom).
+                // Le check par nom couvre le cas où la recette existe déjà en biblio depuis l'entraînement
+                // mais sous un id différent (import = clone avec nouvel id).
+                const inSelection = selectedSet.has(r.id) || bibliotheque.recettes.some(br => br.nom === r.nom && selectedSet.has(br.id));
+                return (
+                  <div key={r.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 500, color: C.inkLight }}>{r.nom}</div>
+                      <div style={{ fontSize: 12, color: C.muted }}>{r.description || "—"}</div>
+                    </div>
+                    {inSelection ? (
+                      <span style={{ fontSize: 12, color: C.muted }}>✓ Ajoutée</span>
+                    ) : (
+                      <Btn size="sm" onClick={() => addFromEntrainementRecettes([r.id])}>＋</Btn>
+                    )}
                   </div>
-                  {added ? (
-                    <span style={{ fontSize: 12, color: C.muted }}>✓ Ajoutée</span>
-                  ) : (
-                    <Btn size="sm" onClick={() => addFromEntrainementRecettes([r.id])}>＋</Btn>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          );
+        })()}
       </Modal>
 
       <Modal open={entrainementProdModal} onClose={() => setEntrainementProdModal(false)} title="Mes produits entraînement" width={700}>
@@ -527,17 +561,19 @@ export default function NutritionLibrary({
           if (produitsImportables.length === 0) {
             return <div style={{ textAlign: "center", padding: "40px 20px", color: C.muted }}>Aucun produit à emporter disponible</div>;
           }
+          const selectedSet = new Set(Array.isArray(courseSelectedIds) ? courseSelectedIds : []);
           return (
             <div style={{ maxHeight: 500, overflowY: "auto" }}>
               {produitsImportables.map(p => {
-                const added = bibliotheque.produits.some(bp => bp.nom === p.nom);
+                // Marqué "Ajouté" si déjà dans la sélection course (par id ou par nom).
+                const inSelection = selectedSet.has(p.id) || bibliotheque.produits.some(bp => bp.nom === p.nom && selectedSet.has(bp.id));
                 return (
                   <div key={p.id} style={{ padding: "12px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 14, fontWeight: 500, color: C.inkLight }}>{p.nom}</div>
                       {p.categorie && <div style={{ fontSize: 11, color: C.muted }}>{p.categorie}</div>}
                     </div>
-                    {added ? (
+                    {inSelection ? (
                       <span style={{ fontSize: 12, color: C.muted }}>✓ Ajouté</span>
                     ) : (
                       <Btn size="sm" onClick={() => addFromEntrainementProduits([p.id])}>＋</Btn>
