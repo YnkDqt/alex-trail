@@ -255,7 +255,7 @@ export default function NutritionLibrary({
       {/* ── BIBLIOTHÈQUE ── */}
       <div style={{ marginBottom: 30 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ ...lbl }}>Bibliothèque de produits</div>
+          <div style={{ ...lbl }}>{context === "course" ? "Sélection course" : "Bibliothèque de produits"}</div>
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ fontSize: 11, color: C.muted, alignSelf: "center", fontStyle: "italic" }}>
               Modifs depuis Entraînement = rechargez la page

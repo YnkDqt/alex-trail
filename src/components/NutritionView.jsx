@@ -411,7 +411,7 @@ export default function NutritionView({
 
   return (
     <div className="anim">
-      <PageTitle sub="Besoins · Apports · Bibliothèque · Plan ravitaillement">Nutrition course</PageTitle>
+      <PageTitle sub="Besoins · Apports · Sélection course · Plan ravitaillement">Nutrition course</PageTitle>
 
       {/* ── CALIBRATION (info de contexte) ── */}
       {(() => {
