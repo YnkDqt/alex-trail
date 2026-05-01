@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useAuth } from '../AuthContext';
 import { Modal, Btn } from '../atoms.jsx';
 import {
-  loadAthleteProfile, saveAthleteProfile,
   exportAllUserDataAsJSON,
 } from '../supabaseHelpers';
 import { C } from '../constants.js';
@@ -75,25 +74,10 @@ export default function ProfilCompte({ profil = {}, setProfil, settings = {}, se
   const { user, deleteAccount, updatePassword, mfaEnroll, mfaVerify, mfaVerifyChallenge, mfaUnenroll, mfaListFactors, mfaSaveRecoveryCodes, mfaUseRecoveryCode } = useAuth();
   const p = profil;
 
-  // Load profil from Supabase on mount
-  useEffect(() => {
-    if (!user?.id) return;
-    loadAthleteProfile(user.id).then(data => {
-      if (data && Object.keys(data).length > 2) {
-        setProfil(prev => ({ ...prev, ...data }));
-      }
-    }).catch(err => console.error('Erreur load profil:', err));
-  }, [user?.id, setProfil]);
-
+  // Le profil est chargé et persisté par App.jsx (load au mount global, save débouncé sur changement).
+  // ProfilCompte ne fait que modifier le state React via setProfil.
   const set = (k, v) => {
-    const updated = { ...p, [k]: v };
     setProfil(prev => ({ ...prev, [k]: v }));
-
-    // Auto-save to Supabase
-    if (user?.id) {
-      saveAthleteProfile(user.id, updated)
-        .catch(err => console.error('Erreur save profil:', err));
-    }
   };
 
   // Helper pour les settings (calibration nutritionnelle)

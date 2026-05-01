@@ -1,8 +1,14 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useAuth } from './AuthContext';
-import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse, loadNutrition, saveNutrition, loadEntrainementSettings, saveEntrainementSettings, getDataVersion, bumpDataVersion, clearUserData, hasSnapshotForCurrentPeriod, createSnapshot } from './supabaseHelpers';
+import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse, loadNutrition, saveNutrition, loadEntrainementSettings, saveEntrainementSettings, getDataVersion, bumpDataVersion, clearUserData, hasSnapshotForCurrentPeriod, createSnapshot, listSnapshots, loadSnapshot, exportAllUserDataAsJSON } from './supabaseHelpers';
 import Login from './Login';
-import { COURSE_NAVS, EMPTY_SETTINGS, DEFAULT_EQUIPMENT, ACTIVITY_TYPES, GARMIN_TO_ACTIVITE, TYPE_MIGRATION, DEFAULT_PLANNING } from './constants.js';
+import { C, COURSE_C, COURSE_NAVS, EMPTY_SETTINGS, DEFAULT_EQUIPMENT,
+  ACTIVITY_TYPES, STATUT_OPTIONS, ACT_ICON,
+  GARMIN_TO_ACTIVITE, TYPE_MIGRATION, DEFAULT_PLANNING,
+  isRunning, exportJSON, localDate, fmtDate, daysUntil,
+  actColor, actColorPale, actIcon, actShort,
+  parseCSVActivities, parseCSVSommeil, parseCSVVFC,
+  emptySeance, emptyObjectif, emptyPoids, emptyVFC, emptySommeil } from './constants.js';
 import AppLayout from './components/AppLayout.jsx';
 
 // ─── PARTAGE STRATÉGIE ────────────────────────────────────────────────────────
@@ -475,8 +481,12 @@ export default function App() {
   }, [planningType, activityTypes, entrainementFeatures, courseFeatures, profilType, user?.id, dataLoaded, conflictDetected, safeSave]);
 
   // Auto-save profil athlète (BPM, FC zones, glucides cible, taille, sexe, etc.)
+  // Garde anti-écrasement : on ne sauvegarde que si le profil a au moins un champ utilisateur
+  // (prenom ou dateNaissance). Sinon on est probablement dans un état initial/transitoire,
+  // sauvegarder écraserait la DB avec un profil vide.
   useEffect(()=>{
     if (!user?.id || !dataLoaded || conflictDetected) return;
+    if (!profil?.prenom && !profil?.dateNaissance) return;
     pendingSavesRef.current.profil = () => safeSave(() => saveAthleteProfile(user.id, profil));
     const timer = setTimeout(() => {
       safeSave(() => saveAthleteProfile(user.id, profil));
