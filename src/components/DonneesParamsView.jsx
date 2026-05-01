@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Btn, Modal, ConfirmDialog } from '../atoms.jsx';
-import { C, COURSE_C } from '../constants.js';
+import { C, COURSE_C, TEAL } from '../constants.js';
 import {
   loadAthleteProfile, saveAthleteProfile,
   loadActivities, saveActivities, loadSeances, saveSeances,
