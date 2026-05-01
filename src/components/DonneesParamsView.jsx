@@ -6,7 +6,7 @@ import {
   loadActivities, saveActivities, loadSeances, saveSeances,
   loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids,
   loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace,
-  loadCourses, saveCourse, loadNutrition, saveNutrition,
+  loadCourses, saveCourse, deleteAllCourses, loadNutrition, saveNutrition,
   loadEntrainementSettings, saveEntrainementSettings,
   createSnapshot, listSnapshots, loadSnapshot,
   exportAllUserDataAsJSON,
@@ -270,6 +270,26 @@ export default function DonneesParamsView({
                         alert('Format de fichier invalide');
                         return;
                       }
+                      // Sémantique courses : demander seulement si le fichier en contient
+                      const importedCourses = Array.isArray(data.courses) ? data.courses : [];
+                      let coursesMode = null; // 'replace' | 'merge' | null (rien à faire)
+                      if (importedCourses.length > 0) {
+                        const choice = window.prompt(
+                          `Le fichier contient ${importedCourses.length} course(s) dans l'historique.\n\n` +
+                          "Comment veux-tu les importer ?\n\n" +
+                          "  REPLACE → supprime tes courses actuelles et remplace par celles du fichier\n" +
+                          "  MERGE   → ajoute uniquement celles qui n'existent pas déjà\n\n" +
+                          "Tape REPLACE ou MERGE :",
+                          "MERGE"
+                        );
+                        if (choice === null) return; // annulé
+                        const c = choice.trim().toUpperCase();
+                        if (c !== 'REPLACE' && c !== 'MERGE') {
+                          alert('Choix invalide. Import annulé.');
+                          return;
+                        }
+                        coursesMode = c.toLowerCase();
+                      }
                       // Restaurer tout dans Supabase
                       const raceData = data.currentRace?.race?.race ? data.currentRace.race : data.currentRace;
                       const nutr = data.nutrition || {};
@@ -286,6 +306,22 @@ export default function DonneesParamsView({
                         data.settings && saveEntrainementSettings(user.id, stg.planningType, stg.activityTypes, stg.entrainementFeatures, stg.courseFeatures, stg.profilType),
                         raceData && saveCurrentRace(user.id, raceData.race, raceData.segments, raceData.settings),
                       ]);
+                      // Courses : séquentiel après le reste, selon mode choisi
+                      if (coursesMode === 'replace') {
+                        await deleteAllCourses(user.id);
+                        for (const course of importedCourses) {
+                          try { await saveCourse(user.id, course); }
+                          catch (err) { console.warn('Erreur import course:', course.id, err); }
+                        }
+                      } else if (coursesMode === 'merge') {
+                        const existing = await loadCourses(user.id);
+                        const existingIds = new Set(existing.map(c => c.id));
+                        const toAdd = importedCourses.filter(c => !existingIds.has(c.id));
+                        for (const course of toAdd) {
+                          try { await saveCourse(user.id, course); }
+                          catch (err) { console.warn('Erreur import course:', course.id, err); }
+                        }
+                      }
                       alert('✅ Import réussi ! Recharge la page.');
                       window.location.reload();
                     } catch (err) {

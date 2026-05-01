@@ -689,6 +689,15 @@ export async function deleteCourse(userId, courseId) {
   if (error) throw error
 }
 
+export async function deleteAllCourses(userId) {
+  const { error } = await supabase
+    .from('courses')
+    .delete()
+    .eq('user_id', userId)
+  
+  if (error) throw error
+}
+
 // ─── CURRENT RACE (race/segments/settings en cours) ───────────────────────────
 export async function loadCurrentRace(userId) {
   const { data, error } = await supabase
