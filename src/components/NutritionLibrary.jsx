@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { C, TYPES_BOISSON } from '../constants.js';
 import { Btn, Modal, ConfirmDialog, ScrollableTable, ScrollableRow, ScrollableCell } from '../atoms.jsx';
 import { CIQUAL, CIQUAL_CATEGORIES } from '../data/ciqual.js';
@@ -537,11 +538,11 @@ export default function NutritionLibrary({
           ? bibliotheque.recettes.filter(r => (r.ingredients || []).some(i => i.produitId === confirmId)).length
           : 0;
         const closeAll = () => { setConfirmId(null); setConfirmType(null); };
-        return (
+        return createPortal(
           <div onClick={closeAll}
             style={{position:"fixed",inset:0,background:"rgba(28,25,22,0.6)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
             <div onClick={e=>e.stopPropagation()}
-              style={{background:C.white,borderRadius:14,padding:28,maxWidth:420,width:"100%",boxShadow:"0 16px 48px rgba(0,0,0,0.2)"}}>
+              style={{background:C.white,borderRadius:14,padding:28,maxWidth:420,width:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 16px 48px rgba(0,0,0,0.2)"}}>
               <div style={{fontSize:32,marginBottom:12,textAlign:"center"}}>⚠️</div>
               <div style={{fontSize:15,fontWeight:600,color:C.ink,marginBottom:8,textAlign:"center"}}>
                 {item?.nom || (confirmType === "produit" ? "Ce produit" : "Cette recette")}
@@ -562,7 +563,8 @@ export default function NutritionLibrary({
                 <Btn variant="ghost" onClick={closeAll}>Annuler</Btn>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         );
       })()}
 
