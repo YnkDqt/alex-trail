@@ -29,6 +29,17 @@ function decodeStrategy(encoded) {
   } catch { return null; }
 }
 
+// Construit un snapshot des items biblio référencés par une course.
+// Permet aux courses passées de rester lisibles même si l'item est ensuite
+// supprimé/modifié dans la bibliothèque.
+function buildItemsSnapshot(race, produits, recettes) {
+  const ids = new Set();
+  (race?.depart?.produits || []).forEach(p => p?.id != null && ids.add(p.id));
+  (race?.ravitos || []).forEach(rv => (rv?.produits || []).forEach(p => p?.id != null && ids.add(p.id)));
+  const all = [...(produits || []), ...(recettes || [])];
+  return all.filter(it => ids.has(it.id));
+}
+
 
 
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
@@ -779,7 +790,8 @@ export default function App() {
     const totalCourse=segsCourse.reduce((s,seg)=>s+(seg.endKm-seg.startKm)/seg.speedKmh*3600,0);
     const totalReposSec=segments.filter(s=>s.type==="repos").reduce((s,seg)=>s+(seg.dureeMin||0)*60,0);
     const totalRavitoSec=(race.ravitos?.length||0)*(settings.ravitoTimeMin||3)*60;
-    const entry={id,savedAt,name:settings.raceName||race.name||"Course sans nom",distance:race.totalDistance||0,elevPos:race.totalElevPos||0,segCount:segsCourse.length,startTime:settings.startTime||"07:00",totalTime:totalCourse+totalReposSec+totalRavitoSec,race,segments,settings};
+    const raceWithSnapshot={...race,depart:{...(race.depart||{}),produitsSnapshot:buildItemsSnapshot(race,produits,recettes)}};
+    const entry={id,savedAt,name:settings.raceName||race.name||"Course sans nom",distance:race.totalDistance||0,elevPos:race.totalElevPos||0,segCount:segsCourse.length,startTime:settings.startTime||"07:00",totalTime:totalCourse+totalReposSec+totalRavitoSec,race:raceWithSnapshot,segments,settings};
     if (user?.id) {
       saveCourse(user.id, entry).catch(err => console.error('Erreur save course:', err));
     }
@@ -810,9 +822,10 @@ export default function App() {
   }));
   const overwriteCourseFn=id=>{
     const totalTime=segments.filter(s=>s.type!=="ravito"&&s.type!=="repos").reduce((s,seg)=>s+(seg.endKm-seg.startKm)/seg.speedKmh*3600,0);
+    const raceWithSnapshot={...race,depart:{...(race.depart||{}),produitsSnapshot:buildItemsSnapshot(race,produits,recettes)}};
     setCourses(prev=>prev.map(c=>{
       if(c.id!==id)return c;
-      const u={...c,name:settings.raceName||race.name||c.name,distance:race.totalDistance||0,elevPos:race.totalElevPos||0,segCount:segments.filter(s=>s.type!=="ravito"&&s.type!=="repos").length,startTime:settings.startTime||"07:00",totalTime,race,segments,settings,updatedAt:Date.now()};
+      const u={...c,name:settings.raceName||race.name||c.name,distance:race.totalDistance||0,elevPos:race.totalElevPos||0,segCount:segments.filter(s=>s.type!=="ravito"&&s.type!=="repos").length,startTime:settings.startTime||"07:00",totalTime,race:raceWithSnapshot,segments,settings,updatedAt:Date.now()};
       if (user?.id) {
         saveCourse(user.id, u).catch(err => console.error('Erreur overwrite course:', err));
       }

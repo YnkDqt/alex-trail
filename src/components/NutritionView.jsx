@@ -21,34 +21,30 @@ export default function NutritionView({
   isMobile
 }) {
   // Bibliothèque globale (produits + recettes), partagée avec Gut Training
-  // Garantit la présence de "Eau" comme produit par défaut
-  const bibliotheque = useMemo(() => {
-    const hasEau = produits.some(p => (p.nom || "").toLowerCase() === "eau" || p.source === "default");
-    if (!hasEau) {
-      const eauDefaut = {
-        id: "eau-default",
-        nom: "Eau",
-        kcal: 0, glucides: 0, proteines: 0, lipides: 0,
-        sodium: 0, potassium: 0, magnesium: 0, zinc: 0, calcium: 0,
-        categorie: "Boisson", source: "default", notes: "Eau pure",
-        boisson: true, aEmporter: true
-      };
-      return { produits: [eauDefaut, ...produits], recettes };
-    }
-    return { produits, recettes };
-  }, [produits, recettes]);
+  const bibliotheque = useMemo(() => ({ produits, recettes }), [produits, recettes]);
   
   // Adapter à la nouvelle structure : on modifie produits/recettes globaux directement
   const updBibliotheque = (newBib) => {
-    if (setProduits) setProduits(newBib.produits.filter(p => p.source !== "default"));
+    if (setProduits) setProduits(newBib.produits);
     if (setRecettes) setRecettes(newBib.recettes);
+  };
+
+  // Snapshot embarqué dans race.depart : items figés au moment de la sauvegarde
+  // Sert de fallback si un item référencé par la course n'est plus dans la biblio
+  // (supprimé après sauvegarde de la course).
+  const itemsSnapshot = race.depart?.produitsSnapshot || [];
+  // Helper de résolution d'un item par id : biblio actuelle d'abord, snapshot en filet
+  const resolveItem = (id) => {
+    const fromBib = [...bibliotheque.produits, ...bibliotheque.recettes].find(p => p.id === id);
+    if (fromBib) return fromBib;
+    return itemsSnapshot.find(p => p.id === id) || null;
   };
 
   const userWeight = profil?.poids || [...(poids || [])].sort((a,b) => new Date(b.date) - new Date(a.date))[0]?.poids || 70;
 
   // Produits départ (persistés dans race.depart)
   const produitsDepartLocal = race.depart?.produits || [];
-  const setProduitsDepartLocal = (prods) => setRace(r => ({ ...r, depart: { produits: prods } }));
+  const setProduitsDepartLocal = (prods) => setRace(r => ({ ...r, depart: { ...(r.depart || {}), produits: prods } }));
 
   // Ravitaillements (filtrer assistant présente + exclure km=0 automatique)
   const ravitos = useMemo(() => 
@@ -58,6 +54,20 @@ export default function NutritionView({
   , [race.ravitos]);
 
   const updRavitos = (newRavitos) => setRace(r => ({ ...r, ravitos: newRavitos }));
+
+  // Retire un item (produit ou recette) de la sélection course (départ + tous ravitos)
+  // sans toucher à la bibliothèque. Appelé par NutritionLibrary en context="course".
+  const removeItemFromCourse = (item) => {
+    if (!item?.id) return;
+    setRace(r => {
+      const newDepart = (r.depart?.produits || []).filter(p => p.id !== item.id);
+      const newRavitos = (r.ravitos || []).map(rv => ({
+        ...rv,
+        produits: (rv.produits || []).filter(p => p.id !== item.id)
+      }));
+      return { ...r, depart: { ...(r.depart || {}), produits: newDepart }, ravitos: newRavitos };
+    });
+  };
 
   // ── États (autocomplete, stratégie, presets, vider plan) ──
   const [autoCompletePreview, setAutoCompletePreview] = useState(null);
@@ -103,8 +113,6 @@ export default function NutritionView({
 
   // ── CALCULS PLANIFIÉS ──
   const nutriPlanifies = useMemo(() => {
-    const allItems = [...bibliotheque.produits, ...bibliotheque.recettes];
-    
     // Inclure produits départ + ravitos
     const allProduits = [
       ...produitsDepartLocal,
@@ -112,7 +120,7 @@ export default function NutritionView({
     ];
     
     return allProduits.reduce((total, item) => {
-        const prod = allItems.find(p => p.id === item.id);
+        const prod = resolveItem(item.id);
         if (!prod) return total;
         
         const qte = item.quantite || 0;
@@ -120,7 +128,7 @@ export default function NutritionView({
         if (prod.ingredients) {
           const macros = (prod.ingredients || []).reduce((m, ing) => {
             // Gère les deux cas : ingrédient CIQUAL inline OU produit bibliothèque
-            const ingProd = ing._ciqualData || [...produits, ...bibliotheque.produits].find(p => p.id === ing.produitId);
+            const ingProd = ing._ciqualData || resolveItem(ing.produitId) || produits.find(p => p.id === ing.produitId);
             if (!ingProd) return m;
             const qteGrammes = ing.quantite || 0;
             
@@ -178,15 +186,18 @@ export default function NutritionView({
           calcium: total.calcium + (prod.calcium || 0) * factor
         };
     }, { kcal: 0, eau: 0, proteines: 0, lipides: 0, glucides: 0, sodium: 0, potassium: 0, magnesium: 0, zinc: 0, calcium: 0 });
-  }, [ravitos, produitsDepartLocal, bibliotheque, produits]);
+  }, [ravitos, produitsDepartLocal, bibliotheque, produits, itemsSnapshot]);
 
   // ── Helpers utilisés par autocomplétion + plan ravitaillement ──
   // allProduitsForIngredients : utilisé par calcMacros pour résoudre les ingrédients
   // d'une recette qui pointent vers la bibliothèque produits OU les produits entraînement.
+  // Inclut le snapshot pour que les recettes des courses passées restent calculables
+  // même si un ingrédient a été supprimé de la biblio depuis.
   const allProduitsForIngredients = useMemo(() => [
     ...bibliotheque.produits,
-    ...produits.map(p=>({...p, fromEntrainement: true}))
-  ], [bibliotheque.produits, produits]);
+    ...produits.map(p=>({...p, fromEntrainement: true})),
+    ...itemsSnapshot.filter(it => !it.ingredients) // produits du snapshot uniquement
+  ], [bibliotheque.produits, produits, itemsSnapshot]);
 
   const calcMacros = (rec) => {
     return (rec.ingredients||[]).reduce((acc, ing)=>{
@@ -458,6 +469,8 @@ export default function NutritionView({
         produits={produits}
         recettes={recettes}
         calcMacros={calcMacros}
+        context="course"
+        onRemoveFromCourse={removeItemFromCourse}
       />
 
       {/* ── PLAN RAVITAILLEMENT ── */}

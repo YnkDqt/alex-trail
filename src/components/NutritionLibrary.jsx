@@ -20,7 +20,9 @@ export default function NutritionLibrary({
   updBibliotheque,
   produits,
   recettes,
-  calcMacros
+  calcMacros,
+  context = "training",       // "training" | "course" — change la sémantique du bouton ✕
+  onRemoveFromCourse           // (item) => void — utilisé en context "course" uniquement
 }) {
   // ── États modaux bibliothèque ──
   const [prodModal, setProdModal] = useState(false);
@@ -525,12 +527,54 @@ export default function NutritionLibrary({
         })()}
       </Modal>
 
-      <ConfirmDialog
-        open={!!confirmId}
-        message={`Supprimer ${confirmType === "produit" ? "ce produit" : "cette recette"} ?`}
-        onConfirm={() => confirmType === "produit" ? delProduit(confirmId) : delRecette(confirmId)}
-        onCancel={() => { setConfirmId(null); setConfirmType(null); }}
-      />
+      {/* En context "course" : 3 choix (Annuler / Retirer course / Suppr définitif) */}
+      {context === "course" && !!confirmId && (() => {
+        const item = confirmType === "produit"
+          ? bibliotheque.produits.find(p => p.id === confirmId)
+          : bibliotheque.recettes.find(r => r.id === confirmId);
+        // Combien de recettes utilisent ce produit (impact visible)
+        const usedByRecettes = confirmType === "produit"
+          ? bibliotheque.recettes.filter(r => (r.ingredients || []).some(i => i.produitId === confirmId)).length
+          : 0;
+        const closeAll = () => { setConfirmId(null); setConfirmType(null); };
+        return (
+          <div onClick={closeAll}
+            style={{position:"fixed",inset:0,background:"rgba(28,25,22,0.6)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <div onClick={e=>e.stopPropagation()}
+              style={{background:C.white,borderRadius:14,padding:28,maxWidth:420,width:"100%",boxShadow:"0 16px 48px rgba(0,0,0,0.2)"}}>
+              <div style={{fontSize:32,marginBottom:12,textAlign:"center"}}>⚠️</div>
+              <div style={{fontSize:15,fontWeight:600,color:C.ink,marginBottom:8,textAlign:"center"}}>
+                {item?.nom || (confirmType === "produit" ? "Ce produit" : "Cette recette")}
+              </div>
+              <div style={{fontSize:13,color:C.muted,marginBottom:20,lineHeight:1.6}}>
+                <div style={{marginBottom:10}}><b>Retirer de cette course</b> : l'item reste dans ta bibliothèque, seule la sélection de cette course est nettoyée.</div>
+                <div><b>Supprimer définitivement</b> : retire l'item de ta bibliothèque. Impact : Gut Training et toutes les courses futures.
+                {usedByRecettes > 0 && <div style={{marginTop:6,color:C.red}}>⚠️ {usedByRecettes} recette(s) utilisent ce produit comme ingrédient.</div>}
+                </div>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                <Btn variant="primary" onClick={() => { if (item && onRemoveFromCourse) onRemoveFromCourse(item); closeAll(); }}>
+                  Retirer de cette course
+                </Btn>
+                <Btn variant="danger" onClick={() => confirmType === "produit" ? delProduit(confirmId) : delRecette(confirmId)}>
+                  Supprimer définitivement
+                </Btn>
+                <Btn variant="ghost" onClick={closeAll}>Annuler</Btn>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* En context "training" : confirmation simple (delete biblio) */}
+      {context !== "course" && (
+        <ConfirmDialog
+          open={!!confirmId}
+          message={`Supprimer ${confirmType === "produit" ? "ce produit" : "cette recette"} ? Cet item disparaîtra définitivement de ta bibliothèque.`}
+          onConfirm={() => confirmType === "produit" ? delProduit(confirmId) : delRecette(confirmId)}
+          onCancel={() => { setConfirmId(null); setConfirmType(null); }}
+        />
+      )}
     </>
   );
 }
