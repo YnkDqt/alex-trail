@@ -108,6 +108,90 @@ export function parseGarminCSV(text) {
   };
 }
 
+// ─── COMPUTE GARMIN STATS DEPUIS LE STATE `activites` ─────────────────────────
+// Source unique : l'onglet Activités (utilisé partout au lieu de re-uploader le CSV).
+// Reproduit le format produit par parseGarminCSV pour rester drop-in compatible.
+const TRAIL_TYPES_RX = /trail|course à pied|running|run/i;
+const parsePaceStr = (str) => {
+  if (!str || str === "--") return null;
+  const m = str.toString().match(/^(\d+):(\d{2})$/);
+  if (!m) return null;
+  const totalMin = parseInt(m[1]) + parseInt(m[2]) / 60;
+  return totalMin > 0 ? 60 / totalMin : null;
+};
+
+export function computeStatsFromActivities(activites) {
+  if (!Array.isArray(activites) || !activites.length) return null;
+  const rows = [];
+  for (const a of activites) {
+    if (!TRAIL_TYPES_RX.test(a.type || "")) continue;
+    const dist = parseFloat((a.distance || "").toString().replace(",", "."));
+    if (!dist || dist < 2) continue;
+    const gap = parsePaceStr(a.gapMoy);
+    if (!gap) continue;
+    const kcal = parseFloat((a.calories || "").toString().replace(",", "."));
+    const ascent = parseFloat((a.dp || "").toString().replace(",", "."));
+    const fcMoy = parseInt(a.fcMoy || "");
+    const fcMax = parseInt(a.fcMax || "");
+    const te = parseFloat((a.teAero || "").toString().replace(",", "."));
+    rows.push({
+      gap, dist,
+      kcal: isNaN(kcal) || kcal < 10 ? null : kcal,
+      ascent: isNaN(ascent) ? 0 : ascent,
+      fcMoy: isNaN(fcMoy) ? null : fcMoy,
+      fcMax: isNaN(fcMax) ? null : fcMax,
+      te: isNaN(te) ? null : te,
+    });
+  }
+  if (!rows.length) return null;
+  const totalDist = rows.reduce((s, r) => s + r.dist, 0);
+  const avgGapKmh = rows.reduce((s, r) => s + r.gap * r.dist, 0) / totalDist;
+
+  let kcalPerKmFlat = null, kcalPerKmUphill = null, kcalActivityCount = 0;
+  const kcalRows = rows.filter(r => r.kcal !== null);
+  if (kcalRows.length >= 3) {
+    kcalActivityCount = kcalRows.length;
+    const pts = kcalRows.map(r => ({ x: r.ascent / r.dist, y: r.kcal / r.dist }));
+    const n = pts.length;
+    const sumX = pts.reduce((s, p) => s + p.x, 0);
+    const sumY = pts.reduce((s, p) => s + p.y, 0);
+    const sumXY = pts.reduce((s, p) => s + p.x * p.y, 0);
+    const sumX2 = pts.reduce((s, p) => s + p.x * p.x, 0);
+    const denom = n * sumX2 - sumX * sumX;
+    if (Math.abs(denom) > 0.001) {
+      const b = (n * sumXY - sumX * sumY) / denom;
+      const a = (sumY - b * sumX) / n;
+      kcalPerKmFlat = Math.round(Math.max(40, Math.min(120, a)));
+      kcalPerKmUphill = Math.round(Math.max(50, Math.min(180, a + b * 100)));
+    } else {
+      kcalPerKmFlat = Math.round(sumY / n);
+    }
+  }
+
+  const fcMaxRows = rows.filter(r => r.fcMax && r.fcMax > 100);
+  const fcMaxObs = fcMaxRows.length ? Math.max(...fcMaxRows.map(r => r.fcMax)) : null;
+
+  let gapZone2Kmh = null;
+  const z2Threshold = fcMaxObs ? fcMaxObs * 0.70 : null;
+  const z2Rows = rows.filter(r => {
+    if (r.te !== null) return r.te < 2.5 && r.gap;
+    if (z2Threshold && r.fcMoy) return r.fcMoy < z2Threshold && r.gap;
+    return false;
+  });
+  if (z2Rows.length >= 3) {
+    const totalDistZ2 = z2Rows.reduce((s, r) => s + r.dist, 0);
+    gapZone2Kmh = +(z2Rows.reduce((s, r) => s + r.gap * r.dist, 0) / totalDistZ2).toFixed(2);
+  }
+
+  return {
+    count: rows.length, avgGapKmh: +avgGapKmh.toFixed(2),
+    coeff: +(avgGapKmh / DEFAULT_FLAT_SPEED).toFixed(3),
+    lastDate: new Date().toLocaleDateString("fr-FR"),
+    kcalPerKmFlat, kcalPerKmUphill, kcalActivityCount,
+    fcMaxObs, gapZone2Kmh, z2Count: z2Rows.length,
+  };
+}
+
 // ─── NUTRITION ───────────────────────────────────────────────────────────────
 // Cibles horaires basées sur la littérature scientifique (trail/ultra-endurance).
 // Sources :

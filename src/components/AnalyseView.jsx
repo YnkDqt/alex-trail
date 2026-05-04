@@ -1,11 +1,11 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { AreaChart, Area, BarChart, Bar, ComposedChart, Line, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 import { C, RUNNER_LEVELS } from '../constants.js';
-import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, exportRecap, exportGPXMontre, suggestSpeed, autoSegmentGPX, parseGarminCSV, buildElevationProfile, calcSlopeFromGPX, parseGPX } from '../utils.jsx';
+import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, exportRecap, exportGPXMontre, suggestSpeed, autoSegmentGPX, parseGarminCSV, computeStatsFromActivities, buildElevationProfile, calcSlopeFromGPX, parseGPX } from '../utils.jsx';
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, Hr, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE ANALYSE ─────────────────────────────────────────────────────────────
-export default function AnalyseView({ race, segments, settings, produits = [], recettes = [], isMobile, onNavigate }) {
+export default function AnalyseView({ race, segments, settings, produits = [], recettes = [], activites = [], isMobile, onNavigate }) {
   // Hooks toujours en haut, avant tout early return (règles React)
   const [activeTab, setActiveTab] = useState(null);
   const [showAll, setShowAll] = useState(false);
@@ -18,7 +18,8 @@ export default function AnalyseView({ race, segments, settings, produits = [], r
   const totalTimeH  = totalTime / 3600;
   const levelData   = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel||"intermediaire")) || RUNNER_LEVELS[1];
   const garminCoeff = settings.garminCoeff || 1;
-  const gs          = settings.garminStats;
+  // Source : onglet Activités (calcul à la volée). Fallback sur settings.garminStats pour rétro-compat.
+  const gs          = useMemo(() => computeStatsFromActivities(activites) || settings.garminStats || null, [activites, settings.garminStats]);
   const paceStrat   = settings.paceStrategy || 0;
 
   const hasData = segsNormaux.length > 0;
@@ -118,7 +119,7 @@ export default function AnalyseView({ race, segments, settings, produits = [], r
     pointsStrategie.push({status:"info",
       titre:"Allure vs historique (normalisée en dénivelé)",
       valeur:"Données Garmin non disponibles",
-      explication:"Charge ton Activities.csv dans Profil de course pour comparer ton allure GAP stratégie à ton niveau réel. La comparaison est normalisée en dénivelé via la formule Minetti."
+      explication:"Importe ton CSV d'activités Garmin dans l'onglet Activités pour comparer ton allure GAP stratégie à ton niveau réel. La comparaison est normalisée en dénivelé via la formule Minetti."
     });
   }
   const dpS=dplusPerH>500?"alert":dplusPerH>300?"warn":"ok";

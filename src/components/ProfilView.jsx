@@ -591,12 +591,26 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                         <span style={{ fontSize: 14 }}>🏆</span>
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Arrivée</div>
-                        <input value={race.endAddress || ""} onChange={e => setRace(r => ({ ...r, endAddress: e.target.value }))} placeholder="Adresse ou lieu d'arrivée" style={{ fontSize: 12, width: "100%" }} disabled={race.sameAddress} />
-                        <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 11, color: "var(--muted-c)", marginTop: 5 }}>
-                          <input type="checkbox" checked={!!race.sameAddress} onChange={e => setRace(r => ({ ...r, sameAddress: e.target.checked, endAddress: e.target.checked ? r.startAddress : r.endAddress }))} />
-                          Même adresse que le départ (boucle)
-                        </label>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600 }}>Arrivée</span>
+                          <button
+                            type="button"
+                            onClick={() => setRace(r => ({ ...r, sameAddress: !r.sameAddress, endAddress: !r.sameAddress ? r.startAddress : r.endAddress }))}
+                            style={{
+                              fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 10,
+                              border: `1px solid ${race.sameAddress ? C.primary : "var(--border-c)"}`,
+                              background: race.sameAddress ? C.primary : "transparent",
+                              color: race.sameAddress ? "#fff" : "var(--muted-c)",
+                              cursor: "pointer", whiteSpace: "nowrap", lineHeight: 1.6,
+                            }}
+                            title={race.sameAddress ? "Course en boucle (même adresse de départ et d'arrivée)" : "Cliquer pour utiliser la même adresse que le départ"}
+                          >
+                            {race.sameAddress ? "↻ Boucle" : "Boucle ?"}
+                          </button>
+                        </div>
+                        {!race.sameAddress && (
+                          <input value={race.endAddress || ""} onChange={e => setRace(r => ({ ...r, endAddress: e.target.value }))} placeholder="Adresse ou lieu d'arrivée" style={{ fontSize: 12, width: "100%" }} />
+                        )}
                       </div>
                     </div>
                   </div>

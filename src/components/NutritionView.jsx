@@ -367,10 +367,12 @@ export default function NutritionView({
       const n = calcNutrition(seg, { ...effectiveSettings, weight: userWeight });
       const dH = (seg.endKm - seg.startKm) / seg.speedKmh * ratio;
       return { 
-        kcal: acc.kcal + Math.round(n.kcalH * dH), 
-        eau: acc.eau + Math.round(n.eauH * dH), 
-        glucides: acc.glucides + Math.round(n.glucidesH * dH),
-        sodium: acc.sodium + Math.round((n.sodiumH || 0) * dH)
+        // kcal : on utilise n.kcal × ratio pour rester cohérent avec le total
+        // (sinon les arrondis successifs de kcalH × dH font diverger zone vs total).
+        kcal: acc.kcal + n.kcal * ratio,
+        eau: acc.eau + n.eauH * dH,
+        glucides: acc.glucides + n.glucidesH * dH,
+        sodium: acc.sodium + (n.sodiumH || 0) * dH
       };
     }, { kcal: 0, eau: 0, glucides: 0, sodium: 0 });
     
@@ -970,7 +972,7 @@ export default function NutritionView({
                   )}
                 </div>
                 <div style={{fontSize:11,color:C.muted,marginBottom:2}}>
-                  <strong>Besoin :</strong> {z.besoin.kcal} kcal · {z.besoin.glucides}g glucides · {(z.besoin.eau/1000).toFixed(1)}L eau
+                  <strong>Besoin :</strong> {Math.round(z.besoin.kcal)} kcal · {Math.round(z.besoin.glucides)}g glucides · {(z.besoin.eau/1000).toFixed(1)}L eau
                 </div>
                 {reporteIci && (
                   <div style={{fontSize:11,color:C.primary,marginBottom:2}}>
