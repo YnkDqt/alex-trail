@@ -1,11 +1,11 @@
 import { useState, useMemo, useRef } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { C, RUNNER_LEVELS, TERRAIN_TYPES, EMPTY_SETTINGS } from '../constants.js';
-import { fmtTime, fmtPace, calcNutrition, calcPassingTimes, suggestSpeed, autoSegmentGPX, parseGarminCSV, buildElevationProfile, calcSlopeFromGPX, parseGPX, enrichElevation } from '../utils.jsx';
+import { fmtTime, fmtPace, calcNutrition, calcPassingTimes, suggestSpeed, autoSegmentGPX, parseGarminCSV, computeStatsFromActivities, computeRaceLevel, buildElevationProfile, calcSlopeFromGPX, parseGPX, enrichElevation } from '../utils.jsx';
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
-export default function ProfilView({ race, setRace, segments, setSegments, settings, setSettings, onOpenRepos, isMobile, profilDetail = true, profil, poids }) {
+export default function ProfilView({ race, setRace, segments, setSegments, settings, setSettings, onOpenRepos, isMobile, profilDetail = true, profil, poids, activites = [] }) {
   const [gpxError, setGpxError]       = useState(null);
   const [gpxStatus, setGpxStatus]     = useState(null);
   const [dragging, setDragging]       = useState(false);
@@ -66,6 +66,22 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
     const durationH = seg.speedKmh > 0 ? (seg.endKm - seg.startKm) / seg.speedKmh : 0;
     return { kcal: acc.kcal + n.kcal, eau: acc.eau + Math.round(n.eauH * durationH), glucides: acc.glucides + Math.round(n.glucidesH * durationH), sel: acc.sel + Math.round(n.selH * durationH) };
   }, { kcal: 0, eau: 0, glucides: 0, sel: 0 }), [segments, effectiveSettings, userWeight]);
+
+  // Niveau auto-détecté depuis Garmin (filtres TE ≤ 4 + ratio D+/km flottant)
+  const totalDistKm = race.totalDistance || segsNormaux.reduce((s,g) => s + g.endKm - g.startKm, 0);
+  const totalDplus = race.totalElevPos || 0;
+  const raceDplusPerKm = totalDistKm > 0 ? totalDplus / totalDistKm : 0;
+  const gs = useMemo(
+    () => computeStatsFromActivities(activites, { raceDplusPerKm, maxTE: 4 }) || settings.garminStats || null,
+    [activites, raceDplusPerKm, settings.garminStats]
+  );
+  const totalTimeH = totalTime / 3600;
+  const raceLevel = useMemo(() => computeRaceLevel(gs, totalTimeH), [gs, totalTimeH]);
+  const isAutoLevel = (settings.levelMode || (raceLevel ? "auto" : "manual")) === "auto" && raceLevel != null;
+  // Coeff effectif : en auto on prend le raceCoeff (allure de course), sinon garminCoeff historique
+  const effectiveCoeff = isAutoLevel ? raceLevel.raceCoeff : (settings.garminCoeff || 1);
+  // Settings transmis à suggestSpeed/autoSegmentGPX : on injecte levelMode pour neutraliser levelCoeff côté algo
+  const algoSettings = useMemo(() => ({ ...settings, levelMode: isAutoLevel ? "auto" : "manual" }), [settings, isAutoLevel]);
 
   const highlightData = useMemo(() => {
     if (!profile.length) return profile;
@@ -192,9 +208,9 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
       const nf = { ...f, [key]: val };
       if (key === "startKm" || key === "endKm") {
         const slope = race.gpxPoints?.length ? calcSlopeFromGPX(race.gpxPoints, parseFloat(nf.startKm)||0, parseFloat(nf.endKm)||0) : nf.slopePct;
-        nf.slopePct = slope; nf.speedKmh = suggestSpeed(slope, settings.garminCoeff, settings);
+        nf.slopePct = slope; nf.speedKmh = suggestSpeed(slope, effectiveCoeff, algoSettings);
       }
-      if (key === "slopePct") nf.speedKmh = suggestSpeed(val, settings.garminCoeff, settings);
+      if (key === "slopePct") nf.speedKmh = suggestSpeed(val, effectiveCoeff, algoSettings);
       return nf;
     });
   };
@@ -212,7 +228,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
     if (!race.gpxPoints?.length) return;
     setComputing(true);
     setTimeout(() => {
-      const newSegs = autoSegmentGPX(race.gpxPoints, settings.garminCoeff, settings);
+      const newSegs = autoSegmentGPX(race.gpxPoints, effectiveCoeff, algoSettings);
       // Préserver ravitos et repos existants, remplacer uniquement les segments normaux
       const preserved = segments.filter(s => s.type === "ravito" || s.type === "repos");
       setSegments([...newSegs, ...preserved].sort((a, b) => (a.startKm ?? 0) - (b.startKm ?? 0)));
@@ -651,6 +667,43 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                 <Card style={!profilDetail ? { gridColumn: "1 / -1" } : {}}>
                   <SLabel>Performance & objectif</SLabel>
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {/* ── Niveau auto-détecté (Garmin) ── */}
+                    {raceLevel && (
+                      <div style={{
+                        padding: "10px 12px", borderRadius: 10,
+                        background: isAutoLevel ? C.greenPale : "var(--surface-2)",
+                        border: `1px solid ${isAutoLevel ? C.green + "40" : "var(--border-c)"}`,
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, gap: 8 }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-c)" }}>
+                            🎯 Niveau détecté depuis tes activités
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updS("levelMode", isAutoLevel ? "manual" : "auto")}
+                            style={{
+                              fontSize: 10, fontWeight: 600, padding: "3px 9px", borderRadius: 10,
+                              border: `1px solid ${isAutoLevel ? C.green : "var(--border-c)"}`,
+                              background: isAutoLevel ? C.green : "transparent",
+                              color: isAutoLevel ? "#fff" : "var(--muted-c)",
+                              cursor: "pointer", whiteSpace: "nowrap",
+                            }}
+                          >
+                            {isAutoLevel ? "✓ Auto" : "Manuel"}
+                          </button>
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--muted-c)", lineHeight: 1.5 }}>
+                          GAP entraînement : <strong style={{ color: "var(--text-c)" }}>{fmtPace(raceLevel.enduranceGapKmh)}/km</strong>
+                          {" → "}
+                          GAP course estimée : <strong style={{ color: C.primary }}>{fmtPace(raceLevel.raceGapKmh)}/km</strong>
+                          {" "}<span style={{ color: C.green }}>(+{raceLevel.bonusPct}%)</span>
+                        </div>
+                        <div style={{ fontSize: 10, color: "var(--muted-c)", marginTop: 3, fontStyle: "italic" }}>
+                          Bonus course basé sur durée estimée : {raceLevel.durationBucket} · {gs.count} activités utilisées
+                        </div>
+                      </div>
+                    )}
+                    {!isAutoLevel && (
                     <div>
                       <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 6 }}>Niveau coureur</div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 }}>
@@ -669,6 +722,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                       </div>
                       {(() => { const lvl = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel || "intermediaire")); return <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>{lvl?.desc} — coeff ×{lvl?.coeff}</div>; })()}
                     </div>
+                    )}
                     <div>
                       <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 6 }}>Objectif</div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -975,7 +1029,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                 const isActive = (segForm.terrain || "normal") === t.key;
                 return (
                   <div key={t.key} onClick={() => {
-                    const baseSpeed = suggestSpeed(segForm.slopePct, settings.garminCoeff, settings);
+                    const baseSpeed = suggestSpeed(segForm.slopePct, effectiveCoeff, algoSettings);
                     updSeg("terrain", t.key);
                     setSegForm(f => ({ ...f, terrain: t.key, speedKmh: Math.max(2, +(baseSpeed * terrainCoeff).toFixed(1)) }));
                   }} style={{

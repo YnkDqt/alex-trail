@@ -259,9 +259,11 @@ export function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, t
   else if (slopePct >= -13) base = 9.0;
   else                      base = 7.5;
 
-  // Niveau coureur
+  // Niveau coureur — Mode auto (Garmin) : levelCoeff neutralisé car le coeff (1er param)
+  // contient déjà le raceCoeff calculé depuis l'historique. Mode manuel : RUNNER_LEVELS s'applique.
+  const isAutoLevel = settings.levelMode === "auto";
   const levelData = RUNNER_LEVELS.find(l => l.key === settings.runnerLevel) || RUNNER_LEVELS[1];
-  const levelCoeff = levelData.coeff;
+  const levelCoeff = isAutoLevel ? 1 : levelData.coeff;
 
   // Coefficient fatigue progressif
   // Effort cumulé = distance parcourue + D+ cumulé / 100 (le dénivelé épuise plus)

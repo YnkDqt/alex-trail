@@ -2,7 +2,7 @@
 // Les vrais modules sont dans ./utils/
 
 export { fmtTime, fmtPace, fmtHeure, isNight } from './utils/time.js';
-export { parseGarminCSV, computeStatsFromActivities } from './utils/csv.js';
+export { parseGarminCSV, computeStatsFromActivities, computeRaceLevel } from './utils/csv.js';
 export {
   parseGPX, enrichElevation, buildElevationProfile,
   suggestSpeed, calcSlopeFromGPX, autoSegmentGPX,

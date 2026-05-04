@@ -228,6 +228,31 @@ export function computeStatsFromActivities(activites, opts = {}) {
   };
 }
 
+// ─── COMPUTE RACE LEVEL ──────────────────────────────────────────────────────
+// Convertit le GAP d'endurance habituel (Garmin) en allure de course estimée,
+// avec un bonus dépendant de la durée prévue de la course.
+//
+// Bonus selon durée (basé sur Millet et al. 2011 et analyses pacing UTMB) :
+//   < 2h   : +10% (compétition courte, on tire fort)
+//   2-4h   : +6%  (gestion mais on pousse)
+//   4-8h   : +3%  (gestion fine, peu de marge)
+//   > 8h   : 0%   (ultra : allure de course = allure d'endurance)
+//
+// Renvoie null si pas de stats Garmin exploitables.
+export function computeRaceLevel(gs, totalTimeH = 0) {
+  if (!gs || !gs.avgGapKmh) return null;
+  let bonusPct, durationBucket;
+  if (totalTimeH <= 0)      { bonusPct = 6; durationBucket = "indéterminée"; }
+  else if (totalTimeH < 2)  { bonusPct = 10; durationBucket = "< 2h (compétition courte)"; }
+  else if (totalTimeH < 4)  { bonusPct = 6;  durationBucket = "2-4h (course moyenne)"; }
+  else if (totalTimeH < 8)  { bonusPct = 3;  durationBucket = "4-8h (course longue)"; }
+  else                      { bonusPct = 0;  durationBucket = "> 8h (ultra-endurance)"; }
+  const enduranceGapKmh = gs.avgGapKmh;
+  const raceGapKmh = +(enduranceGapKmh * (1 + bonusPct / 100)).toFixed(2);
+  const raceCoeff = +(raceGapKmh / DEFAULT_FLAT_SPEED).toFixed(3);
+  return { enduranceGapKmh, raceGapKmh, raceCoeff, bonusPct, durationBucket };
+}
+
 // ─── NUTRITION ───────────────────────────────────────────────────────────────
 // Cibles horaires basées sur la littérature scientifique (trail/ultra-endurance).
 // Sources :
