@@ -5,7 +5,7 @@ import { fmtTime, fmtPace, calcNutrition, calcPassingTimes, suggestSpeed, autoSe
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
-export default function ProfilView({ race, setRace, segments, setSegments, settings, setSettings, onOpenRepos, isMobile, profilDetail = true, profil }) {
+export default function ProfilView({ race, setRace, segments, setSegments, settings, setSettings, onOpenRepos, isMobile, profilDetail = true, profil, poids }) {
   const [gpxError, setGpxError]       = useState(null);
   const [gpxStatus, setGpxStatus]     = useState(null);
   const [dragging, setDragging]       = useState(false);
@@ -46,12 +46,26 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
   const totalTime    = segsNormaux.reduce((s, seg) => s + (seg.speedKmh > 0 ? ((seg.endKm - seg.startKm) / seg.speedKmh) * 3600 : 0), 0);
   const totalReposSec = segsRepos.reduce((s, seg) => s + (seg.dureeMin || 0) * 60, 0);
   const totalRavitoSec = (race.ravitos?.length || 0) * (settings.ravitoTimeMin || 3) * 60;
+
+  // Aligné avec NutritionView : cascade profil → settings + poids depuis profil/poids[]
+  const userWeight = profil?.poids || [...(poids || [])].sort((a,b) => new Date(b.date) - new Date(a.date))[0]?.poids || 70;
+  const effectiveSettings = useMemo(() => {
+    const override = race?.nutritionStrategy?.glucidesTargetGh;
+    return {
+      ...settings,
+      kcalSource: profil?.kcalSource || settings.kcalSource,
+      kcalPerKm: profil?.kcalPerKm ?? settings.kcalPerKm,
+      kcalPerKmUphill: profil?.kcalPerKmUphill ?? settings.kcalPerKmUphill,
+      glucidesTargetGh: override != null ? override : (profil?.glucidesTargetGh ?? settings.glucidesTargetGh)
+    };
+  }, [settings, profil, race?.nutritionStrategy?.glucidesTargetGh]);
+
   const nutriTotals = useMemo(() => segments.reduce((acc, seg) => {
     if (seg.type === "ravito" || seg.type === "repos") return acc;
-    const n = calcNutrition(seg, settings);
+    const n = calcNutrition(seg, { ...effectiveSettings, weight: userWeight });
     const durationH = seg.speedKmh > 0 ? (seg.endKm - seg.startKm) / seg.speedKmh : 0;
     return { kcal: acc.kcal + n.kcal, eau: acc.eau + Math.round(n.eauH * durationH), glucides: acc.glucides + Math.round(n.glucidesH * durationH), sel: acc.sel + Math.round(n.selH * durationH) };
-  }, { kcal: 0, eau: 0, glucides: 0, sel: 0 }), [segments, settings]);
+  }, { kcal: 0, eau: 0, glucides: 0, sel: 0 }), [segments, effectiveSettings, userWeight]);
 
   const highlightData = useMemo(() => {
     if (!profile.length) return profile;
