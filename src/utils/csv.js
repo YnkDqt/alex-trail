@@ -132,14 +132,21 @@ const parseDistanceFR = (raw) => {
   return n > 200 ? n / 100 : n;
 };
 
-export function computeStatsFromActivities(activites) {
+export function computeStatsFromActivities(activites, opts = {}) {
+  // opts.raceDplusPerKm : ratio D+/km de la course cible (active filtre flottant 75/50/25%)
+  // opts.maxTE : seuil TE max (défaut 4) — exclut séances haute intensité
   if (!Array.isArray(activites) || !activites.length) return null;
-  const rows = [];
+  const maxTE = opts.maxTE != null ? opts.maxTE : 4;
+  const raceRatio = opts.raceDplusPerKm || 0;
+
+  // 1) Pré-filtrage commun : type pertinent + distance + GAP exploitable + TE OK
+  const allRows = [];
   for (const a of activites) {
-    if (!TRAIL_TYPES_RX.test(a.type || "")) continue;
+    // Type : on accepte "trail" uniquement (exclut "course à pied", "running" qui sont presque toujours du plat)
+    // Note : si l'utilisateur classe ses séances trail intense en "trail", elles seront filtrées par TE/ratio en aval
+    if (!/trail/i.test(a.type || "")) continue;
     const dist = parseDistanceFR(a.distance);
     if (!dist || dist < 2) continue;
-    // gapMoy d'abord, fallback sur allure (anciens exports sans colonne GAP)
     const gap = parsePaceStr(a.gapMoy) || parsePaceStr(a.allure);
     if (!gap) continue;
     const kcal = parseFloat((a.calories || "").toString().replace(",", "."));
@@ -147,8 +154,11 @@ export function computeStatsFromActivities(activites) {
     const fcMoy = parseInt(a.fcMoy || "");
     const fcMax = parseInt(a.fcMax || "");
     const te = parseFloat((a.teAero || "").toString().replace(",", "."));
-    rows.push({
+    // Filtre intensité : TE renseigné ET supérieur au seuil → exclu (séances quali)
+    if (!isNaN(te) && te > maxTE) continue;
+    allRows.push({
       gap, dist,
+      ratio: ascent && !isNaN(ascent) ? ascent / dist : 0,
       kcal: isNaN(kcal) || kcal < 10 ? null : kcal,
       ascent: isNaN(ascent) ? 0 : ascent,
       fcMoy: isNaN(fcMoy) ? null : fcMoy,
@@ -156,7 +166,19 @@ export function computeStatsFromActivities(activites) {
       te: isNaN(te) ? null : te,
     });
   }
-  if (!rows.length) return null;
+  if (!allRows.length) return null;
+
+  // 2) Filtre flottant D+/km : 75% → 50% → 25% → 0% (no filter), prend le 1er seuil avec ≥ 5 activités
+  let rows = allRows;
+  let appliedRatioPct = 0; // 0 = no filter
+  if (raceRatio > 0) {
+    const seuils = [0.75, 0.50, 0.25];
+    for (const s of seuils) {
+      const filtered = allRows.filter(r => r.ratio >= raceRatio * s);
+      if (filtered.length >= 5) { rows = filtered; appliedRatioPct = Math.round(s * 100); break; }
+    }
+  }
+
   const totalDist = rows.reduce((s, r) => s + r.dist, 0);
   const avgGapKmh = rows.reduce((s, r) => s + r.gap * r.dist, 0) / totalDist;
 
@@ -202,6 +224,7 @@ export function computeStatsFromActivities(activites) {
     lastDate: new Date().toLocaleDateString("fr-FR"),
     kcalPerKmFlat, kcalPerKmUphill, kcalActivityCount,
     fcMaxObs, gapZone2Kmh, z2Count: z2Rows.length,
+    appliedRatioPct, totalCount: allRows.length,
   };
 }
 

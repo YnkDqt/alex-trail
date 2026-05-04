@@ -18,8 +18,13 @@ export default function AnalyseView({ race, segments, settings, produits = [], r
   const totalTimeH  = totalTime / 3600;
   const levelData   = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel||"intermediaire")) || RUNNER_LEVELS[1];
   const garminCoeff = settings.garminCoeff || 1;
-  // Source : onglet Activités (calcul à la volée). Fallback sur settings.garminStats pour rétro-compat.
-  const gs          = useMemo(() => computeStatsFromActivities(activites) || settings.garminStats || null, [activites, settings.garminStats]);
+  // Source : onglet Activités (calcul à la volée). Filtre TE ≤ 4 + ratio D+/km flottant 75/50/25%.
+  // Fallback sur settings.garminStats pour rétro-compat (anciens uploads CSV).
+  const raceDplusPerKm = totalDistKm > 0 ? totalDplus / totalDistKm : 0;
+  const gs = useMemo(
+    () => computeStatsFromActivities(activites, { raceDplusPerKm, maxTE: 4 }) || settings.garminStats || null,
+    [activites, raceDplusPerKm, settings.garminStats]
+  );
   const paceStrat   = settings.paceStrategy || 0;
 
   const hasData = segsNormaux.length > 0;
@@ -106,11 +111,15 @@ export default function AnalyseView({ race, segments, settings, produits = [], r
   const pointsStrategie = [];
   if (allureEcart!==null) {
     const s=allureEcart<=5?"ok":allureEcart<=15?"warn":"alert";
+    // Détail filtre : n activités utilisées + seuil D+/km appliqué (si raceDplusPerKm > 0)
+    const filterInfo = gs?.count
+      ? ` · ${gs.count} activité${gs.count>1?"s":""}${gs.appliedRatioPct ? ` (D+/km ≥ ${gs.appliedRatioPct}% course)` : raceDplusPerKm > 0 ? " (filtre D+/km désactivé : trop peu d'échantillons)" : ""}`
+      : "";
     pointsStrategie.push({status:s,
       titre:"Allure vs historique Garmin (normalisée en dénivelé)",
-      valeur:`GAP stratégie estimé : ${fmtPace(gapEquivStrategie)}/km · GAP habituel Garmin : ${fmtPace(garminGapKmh)}/km · écart ${allureEcart>0?"+":""}${allureEcart}%`,
+      valeur:`GAP stratégie estimé : ${fmtPace(gapEquivStrategie)}/km · GAP habituel Garmin : ${fmtPace(garminGapKmh)}/km · écart ${allureEcart>0?"+":""}${allureEcart}%${filterInfo}`,
       explication: s==="ok"
-        ? `L'allure de ta stratégie, convertie en équivalent plat (formule Minetti), est proche de ton GAP Garmin habituel. Stratégie cohérente avec ton niveau.`
+        ? `L'allure de ta stratégie, convertie en équivalent plat (formule Minetti), est proche de ton GAP Garmin habituel. Stratégie cohérente avec ton niveau. Filtres : trail uniquement, intensité ≤ TE 4, dénivelé/km comparable à la course.`
         : s==="warn"
         ? `Ton GAP stratégie est ${allureEcart}% au-dessus de ton GAP habituel. Ambitieux — surveille les premiers segments pour ne pas partir trop vite.`
         : `Ton GAP stratégie est ${allureEcart}% au-dessus de ton niveau habituel. Risque de blow-up en 2e moitié. Envisage de réviser les vitesses à la baisse.`
@@ -120,10 +129,10 @@ export default function AnalyseView({ race, segments, settings, produits = [], r
     pointsStrategie.push({status:"info",
       titre:"Allure vs historique (normalisée en dénivelé)",
       valeur: hasActivities
-        ? `${activites.length} activité${activites.length>1?"s":""} importée${activites.length>1?"s":""} mais aucune n'a de GAP/allure exploitable`
+        ? `${activites.length} activité${activites.length>1?"s":""} importée${activites.length>1?"s":""} mais aucune ne passe les filtres (type Trail, TE ≤ 4, GAP/allure exploitable)`
         : "Aucune activité importée",
       explication: hasActivities
-        ? "Tes activités n'ont ni colonne 'GAP moyen' ni colonne 'Allure moyenne' exploitable, ou aucune n'est de type Trail/Course à pied (≥ 2 km). Réimporte un export Garmin récent pour bénéficier de cette analyse."
+        ? "Pour cette analyse, on ne garde que les sorties Trail (type contient 'trail'), avec une intensité aérobie raisonnable (TE ≤ 4, exclut VMA/seuil) et un GAP ou une allure renseignés. Vérifie le type de tes activités dans Garmin."
         : "Importe ton CSV d'activités Garmin dans l'onglet Activités pour comparer ton allure GAP stratégie à ton niveau réel. La comparaison est normalisée en dénivelé via la formule Minetti."
     });
   }
