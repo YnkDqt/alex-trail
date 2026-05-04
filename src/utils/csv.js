@@ -112,12 +112,24 @@ export function parseGarminCSV(text) {
 // Source unique : l'onglet Activités (utilisé partout au lieu de re-uploader le CSV).
 // Reproduit le format produit par parseGarminCSV pour rester drop-in compatible.
 const TRAIL_TYPES_RX = /trail|course à pied|running|run/i;
+// Accepte "5:30", "5:30 /km", "5:30/km", etc.
 const parsePaceStr = (str) => {
   if (!str || str === "--") return null;
-  const m = str.toString().match(/^(\d+):(\d{2})$/);
+  const m = str.toString().match(/(\d+):(\d{2})/);
   if (!m) return null;
   const totalMin = parseInt(m[1]) + parseInt(m[2]) / 60;
   return totalMin > 0 ? 60 / totalMin : null;
+};
+// Distance stockée par parseCSVActivities = cleanNum (virgules/espaces supprimés).
+// Donc "12,34" → "1234" et "12.34" → "12.34". Heuristique : si pas de "." et > 200, on divise par 100.
+const parseDistanceFR = (raw) => {
+  if (!raw) return NaN;
+  const s = raw.toString();
+  if (s.includes(".")) return parseFloat(s);
+  const n = parseFloat(s);
+  if (isNaN(n)) return NaN;
+  // Distances réalistes < 200km en course à pied. Au-delà → centièmes mangés par cleanNum.
+  return n > 200 ? n / 100 : n;
 };
 
 export function computeStatsFromActivities(activites) {
@@ -125,9 +137,10 @@ export function computeStatsFromActivities(activites) {
   const rows = [];
   for (const a of activites) {
     if (!TRAIL_TYPES_RX.test(a.type || "")) continue;
-    const dist = parseFloat((a.distance || "").toString().replace(",", "."));
+    const dist = parseDistanceFR(a.distance);
     if (!dist || dist < 2) continue;
-    const gap = parsePaceStr(a.gapMoy);
+    // gapMoy d'abord, fallback sur allure (anciens exports sans colonne GAP)
+    const gap = parsePaceStr(a.gapMoy) || parsePaceStr(a.allure);
     if (!gap) continue;
     const kcal = parseFloat((a.calories || "").toString().replace(",", "."));
     const ascent = parseFloat((a.dp || "").toString().replace(",", "."));

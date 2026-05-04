@@ -116,10 +116,15 @@ export default function AnalyseView({ race, segments, settings, produits = [], r
         : `Ton GAP stratégie est ${allureEcart}% au-dessus de ton niveau habituel. Risque de blow-up en 2e moitié. Envisage de réviser les vitesses à la baisse.`
     });
   } else {
+    const hasActivities = Array.isArray(activites) && activites.length > 0;
     pointsStrategie.push({status:"info",
       titre:"Allure vs historique (normalisée en dénivelé)",
-      valeur:"Données Garmin non disponibles",
-      explication:"Importe ton CSV d'activités Garmin dans l'onglet Activités pour comparer ton allure GAP stratégie à ton niveau réel. La comparaison est normalisée en dénivelé via la formule Minetti."
+      valeur: hasActivities
+        ? `${activites.length} activité${activites.length>1?"s":""} importée${activites.length>1?"s":""} mais aucune n'a de GAP/allure exploitable`
+        : "Aucune activité importée",
+      explication: hasActivities
+        ? "Tes activités n'ont ni colonne 'GAP moyen' ni colonne 'Allure moyenne' exploitable, ou aucune n'est de type Trail/Course à pied (≥ 2 km). Réimporte un export Garmin récent pour bénéficier de cette analyse."
+        : "Importe ton CSV d'activités Garmin dans l'onglet Activités pour comparer ton allure GAP stratégie à ton niveau réel. La comparaison est normalisée en dénivelé via la formule Minetti."
     });
   }
   const dpS=dplusPerH>500?"alert":dplusPerH>300?"warn":"ok";
