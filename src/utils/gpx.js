@@ -260,17 +260,12 @@ export function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, t
   else                      base = 7.5;
 
   // Niveau coureur
-  // Mode AUTO : on ignore coeff + levelCoeff. À la place on rescale la base
-  // proportionnellement à ton GAP de course réel (settings.autoFlatSpeed en km/h).
-  // La table de bases (3.5 → 10.5) est calibrée sur un Confirmé à 9.5 km/h plat,
-  // donc le ratio autoFlatSpeed/9.5 met toute l'échelle au bon niveau.
-  // Mode MANUEL : comportement historique (coeff Garmin × levelCoeff).
-  const isAutoLevel = settings.levelMode === "auto" && settings.autoFlatSpeed > 0;
+  // Mode AUTO : levelCoeff = settings.autoLevelCoeff (interpolé entre Inter et Confirmé
+  // depuis le GAP Garmin réel). coeff garde sa valeur (garminCoeff historique).
+  // Mode MANUEL : RUNNER_LEVELS classique.
+  const isAutoLevel = settings.levelMode === "auto" && settings.autoLevelCoeff > 0;
   const levelData = RUNNER_LEVELS.find(l => l.key === settings.runnerLevel) || RUNNER_LEVELS[1];
-  const levelCoeff = isAutoLevel ? 1 : levelData.coeff;
-  const effectiveCoeff = isAutoLevel ? 1 : coeff;
-  const flatScale = isAutoLevel ? settings.autoFlatSpeed / 9.5 : 1;
-  base = base * flatScale;
+  const levelCoeff = isAutoLevel ? settings.autoLevelCoeff : levelData.coeff;
 
   // Coefficient fatigue progressif
   // Effort cumulé = distance parcourue + D+ cumulé / 100 (le dénivelé épuise plus)
@@ -303,7 +298,7 @@ export function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, t
   const hasRainJacket = equipment.some(e => e.label?.toLowerCase().includes("veste") && e.emporte !== false);
   const rainMalus = (hasRainJacket && settings.rain) ? 0.90 : 1;
 
-  return +(base * effectiveCoeff * levelCoeff * fatigueCoeff
+  return +(base * coeff * levelCoeff * fatigueCoeff
     * weightPenalty
     * polesBonus
     * rainMalus

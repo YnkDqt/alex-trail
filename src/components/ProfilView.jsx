@@ -76,16 +76,37 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
     [activites, raceDplusPerKm, settings.garminStats]
   );
   const totalTimeH = totalTime / 3600;
-  const raceLevel = useMemo(() => computeRaceLevel(gs, totalTimeH), [gs, totalTimeH]);
+
+  // Vitesses moyennes course attendues pour Inter et Confirmé (référentiel pour mapping option 3).
+  // On simule suggestSpeed sur les segments actuels avec les coeffs RUNNER_LEVELS (0.88 et 1.00),
+  // sans coeff Garmin (=1) ni équipement/météo (settings nu) pour avoir une référence "pure niveau".
+  const refVelocities = useMemo(() => {
+    if (!segsNormaux.length) return null;
+    const totalDist = segsNormaux.reduce((s, g) => s + (g.endKm - g.startKm), 0);
+    if (totalDist <= 0) return null;
+    const baseSettings = { runnerLevel: "intermediaire", paceStrategy: 0, weight: 70, equipment: [], tempC: 15 };
+    const meanSpeed = (level) => {
+      const setts = { ...baseSettings, runnerLevel: level };
+      let totalTime = 0;
+      segsNormaux.forEach((seg, i) => {
+        const v = suggestSpeed(seg.slopePct || 0, 1, setts, i, segsNormaux.length, totalDist, seg.startKm);
+        const dist = seg.endKm - seg.startKm;
+        if (v > 0) totalTime += dist / v;
+      });
+      return totalTime > 0 ? totalDist / totalTime : 0;
+    };
+    return { vInter: meanSpeed("intermediaire"), vConfirme: meanSpeed("confirme") };
+  }, [segsNormaux]);
+
+  const raceLevel = useMemo(() => computeRaceLevel(gs, totalTimeH, refVelocities), [gs, totalTimeH, refVelocities]);
   const isAutoLevel = (settings.levelMode || (raceLevel ? "auto" : "manual")) === "auto" && raceLevel != null;
-  // En mode auto, on transmet la vitesse plat réelle via settings.autoFlatSpeed.
-  // suggestSpeed rescale toute sa table de bases dessus, et neutralise coeff+levelCoeff.
-  // Le 1er argument coeff devient inutile en auto, on passe 1.
-  const effectiveCoeff = isAutoLevel ? 1 : (settings.garminCoeff || 1);
+  // En mode auto on garde le coeff Garmin (effectiveCoeff = garminCoeff) et on passe
+  // autoLevelCoeff via settings pour remplacer le levelCoeff manuel côté suggestSpeed.
+  const effectiveCoeff = settings.garminCoeff || 1;
   const algoSettings = useMemo(() => ({
     ...settings,
     levelMode: isAutoLevel ? "auto" : "manual",
-    autoFlatSpeed: isAutoLevel ? raceLevel.raceGapKmh : 0,
+    autoLevelCoeff: isAutoLevel ? raceLevel.autoLevelCoeff : 0,
   }), [settings, isAutoLevel, raceLevel]);
 
   const highlightData = useMemo(() => {
@@ -704,7 +725,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                           {" "}<span style={{ color: C.green }}>(+{raceLevel.bonusPct}%)</span>
                         </div>
                         <div style={{ fontSize: 10, color: "var(--muted-c)", marginTop: 3, fontStyle: "italic" }}>
-                          Bonus course basé sur durée estimée : {raceLevel.durationBucket} · {gs.count} activités utilisées
+                          Bonus +{raceLevel.bonusPct}% · {raceLevel.intensityBucket} · {raceLevel.durationBucket} · coeff niveau ×{raceLevel.autoLevelCoeff} · {gs.count} activités
                         </div>
                       </div>
                     )}

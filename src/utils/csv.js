@@ -218,6 +218,14 @@ export function computeStatsFromActivities(activites, opts = {}) {
     gapZone2Kmh = +(z2Rows.reduce((s, r) => s + r.gap * r.dist, 0) / totalDistZ2).toFixed(2);
   }
 
+  // TE moyen pondéré par distance (sur les rows ayant un TE renseigné)
+  const teRows = rows.filter(r => r.te !== null);
+  let avgTE = null;
+  if (teRows.length >= 3) {
+    const totalDistTE = teRows.reduce((s, r) => s + r.dist, 0);
+    avgTE = +(teRows.reduce((s, r) => s + r.te * r.dist, 0) / totalDistTE).toFixed(2);
+  }
+
   return {
     count: rows.length, avgGapKmh: +avgGapKmh.toFixed(2),
     coeff: +(avgGapKmh / DEFAULT_FLAT_SPEED).toFixed(3),
@@ -225,32 +233,63 @@ export function computeStatsFromActivities(activites, opts = {}) {
     kcalPerKmFlat, kcalPerKmUphill, kcalActivityCount,
     fcMaxObs, gapZone2Kmh, z2Count: z2Rows.length,
     appliedRatioPct, totalCount: allRows.length,
+    avgTE,
   };
 }
 
 // ─── COMPUTE RACE LEVEL ──────────────────────────────────────────────────────
-// Convertit le GAP d'endurance habituel (Garmin) en allure de course estimée,
-// avec un bonus dépendant de la durée prévue de la course.
+// Convertit le GAP d'endurance habituel (Garmin) en niveau de course personnalisé.
 //
-// Bonus selon durée (basé sur Millet et al. 2011 et analyses pacing UTMB) :
-//   < 2h   : +10% (compétition courte, on tire fort)
-//   2-4h   : +6%  (gestion mais on pousse)
-//   4-8h   : +3%  (gestion fine, peu de marge)
-//   > 8h   : 0%   (ultra : allure de course = allure d'endurance)
+// Bonus selon TE moyen entraînement (intensité réelle observée) :
+//   TE < 2.5         → +10% (Z2 pur, grosse marge en course)
+//   TE 2.5 - 3.0     → +6%  (mix endurance/tempo, marge moyenne)
+//   TE 3.0 - 3.5     → +3%  (entraînement déjà soutenu)
+//   TE > 3.5 ou null → 0%   (proche du seuil, pas de marge)
+//
+// autoLevelCoeff (option 3) : interpole entre Intermédiaire (0.88) et Confirmé (1.00)
+// selon la position de raceGapKmh entre les vitesses moyennes attendues d'un Inter
+// et d'un Confirmé sur la même course (refVelocities). Si refVelocities absent,
+// fallback sur la formule simple raceGapKmh / 9.5.
 //
 // Renvoie null si pas de stats Garmin exploitables.
-export function computeRaceLevel(gs, totalTimeH = 0) {
+export function computeRaceLevel(gs, totalTimeH = 0, refVelocities = null) {
   if (!gs || !gs.avgGapKmh) return null;
-  let bonusPct, durationBucket;
-  if (totalTimeH <= 0)      { bonusPct = 6; durationBucket = "indéterminée"; }
-  else if (totalTimeH < 2)  { bonusPct = 10; durationBucket = "< 2h (compétition courte)"; }
-  else if (totalTimeH < 4)  { bonusPct = 6;  durationBucket = "2-4h (course moyenne)"; }
-  else if (totalTimeH < 8)  { bonusPct = 3;  durationBucket = "4-8h (course longue)"; }
-  else                      { bonusPct = 0;  durationBucket = "> 8h (ultra-endurance)"; }
+  // Bonus selon TE moyen (granulaire)
+  let bonusPct, intensityBucket;
+  const te = gs.avgTE;
+  if (te === null || te === undefined) {
+    bonusPct = 0; intensityBucket = "TE non disponible";
+  } else if (te < 2.5)  { bonusPct = 10; intensityBucket = `TE moyen ${te} (Z2 pur)`; }
+  else if (te < 3.0)    { bonusPct = 6;  intensityBucket = `TE moyen ${te} (endurance soutenue)`; }
+  else if (te < 3.5)    { bonusPct = 3;  intensityBucket = `TE moyen ${te} (tempo)`; }
+  else                  { bonusPct = 0;  intensityBucket = `TE moyen ${te} (intense)`; }
+
+  let durationBucket;
+  if (totalTimeH <= 0)      durationBucket = "indéterminée";
+  else if (totalTimeH < 2)  durationBucket = "< 2h";
+  else if (totalTimeH < 4)  durationBucket = "2-4h";
+  else if (totalTimeH < 8)  durationBucket = "4-8h";
+  else                      durationBucket = "> 8h (ultra)";
+
   const enduranceGapKmh = gs.avgGapKmh;
   const raceGapKmh = +(enduranceGapKmh * (1 + bonusPct / 100)).toFixed(2);
-  const raceCoeff = +(raceGapKmh / DEFAULT_FLAT_SPEED).toFixed(3);
-  return { enduranceGapKmh, raceGapKmh, raceCoeff, bonusPct, durationBucket };
+
+  // autoLevelCoeff : option 3 si refVelocities fournies, sinon fallback simple
+  let autoLevelCoeff;
+  if (refVelocities && refVelocities.vInter > 0 && refVelocities.vConfirme > refVelocities.vInter) {
+    // Position relative de raceGapKmh entre vInter (coeff 0.88) et vConfirme (coeff 1.00)
+    const t = (raceGapKmh - refVelocities.vInter) / (refVelocities.vConfirme - refVelocities.vInter);
+    // Interpole : t=0 → 0.88, t=1 → 1.00. Pas de cap pour permettre Expert (>1.00) ou faible (<0.88).
+    autoLevelCoeff = +(0.88 + t * (1.00 - 0.88)).toFixed(3);
+  } else {
+    autoLevelCoeff = +(raceGapKmh / DEFAULT_FLAT_SPEED).toFixed(3);
+  }
+  // raceCoeff conservé pour rétro-compat (ancien naming) — même valeur qu'autoLevelCoeff
+  const raceCoeff = autoLevelCoeff;
+  return {
+    enduranceGapKmh, raceGapKmh, raceCoeff, autoLevelCoeff,
+    bonusPct, durationBucket, intensityBucket,
+  };
 }
 
 // ─── NUTRITION ───────────────────────────────────────────────────────────────
