@@ -78,10 +78,15 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
   const totalTimeH = totalTime / 3600;
   const raceLevel = useMemo(() => computeRaceLevel(gs, totalTimeH), [gs, totalTimeH]);
   const isAutoLevel = (settings.levelMode || (raceLevel ? "auto" : "manual")) === "auto" && raceLevel != null;
-  // Coeff effectif : en auto on prend le raceCoeff (allure de course), sinon garminCoeff historique
-  const effectiveCoeff = isAutoLevel ? raceLevel.raceCoeff : (settings.garminCoeff || 1);
-  // Settings transmis à suggestSpeed/autoSegmentGPX : on injecte levelMode pour neutraliser levelCoeff côté algo
-  const algoSettings = useMemo(() => ({ ...settings, levelMode: isAutoLevel ? "auto" : "manual" }), [settings, isAutoLevel]);
+  // En mode auto, on transmet la vitesse plat réelle via settings.autoFlatSpeed.
+  // suggestSpeed rescale toute sa table de bases dessus, et neutralise coeff+levelCoeff.
+  // Le 1er argument coeff devient inutile en auto, on passe 1.
+  const effectiveCoeff = isAutoLevel ? 1 : (settings.garminCoeff || 1);
+  const algoSettings = useMemo(() => ({
+    ...settings,
+    levelMode: isAutoLevel ? "auto" : "manual",
+    autoFlatSpeed: isAutoLevel ? raceLevel.raceGapKmh : 0,
+  }), [settings, isAutoLevel, raceLevel]);
 
   const highlightData = useMemo(() => {
     if (!profile.length) return profile;
