@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { C, RUNNER_LEVELS, TERRAIN_TYPES, EMPTY_SETTINGS } from '../constants.js';
-import { fmtTime, fmtPace, calcNutrition, calcPassingTimes, suggestSpeed, autoSegmentGPX, parseGarminCSV, computeStatsFromActivities, computeRaceLevel, buildElevationProfile, calcSlopeFromGPX, parseGPX, enrichElevation, buildPoidsZones, poidsNutritionAtKm } from '../utils.jsx';
+import { fmtTime, fmtPace, calcNutrition, calcPassingTimes, suggestSpeed, autoSegmentGPX, parseGarminCSV, computeStatsFromActivities, computeRaceLevel, buildElevationProfile, calcSlopeFromGPX, parseGPX, enrichElevation, buildPoidsZones } from '../utils.jsx';
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
@@ -246,15 +246,11 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
   const updSeg = (key, val) => {
     setSegForm(f => {
       const nf = { ...f, [key]: val };
-      // Poids nutrition au km moyen du segment édité — cohérence avec autoSegmentGPX
-      const midKm = ((parseFloat(nf.startKm) || 0) + (parseFloat(nf.endKm) || 0)) / 2;
-      const poidsNutritionG = poidsZones?.length ? poidsNutritionAtKm(midKm, poidsZones) : 0;
-      const segSettings = { ...algoSettings, poidsNutritionG };
       if (key === "startKm" || key === "endKm") {
         const slope = race.gpxPoints?.length ? calcSlopeFromGPX(race.gpxPoints, parseFloat(nf.startKm)||0, parseFloat(nf.endKm)||0) : nf.slopePct;
-        nf.slopePct = slope; nf.speedKmh = suggestSpeed(slope, effectiveCoeff, segSettings);
+        nf.slopePct = slope; nf.speedKmh = suggestSpeed(slope, effectiveCoeff, algoSettings);
       }
-      if (key === "slopePct") nf.speedKmh = suggestSpeed(val, effectiveCoeff, segSettings);
+      if (key === "slopePct") nf.speedKmh = suggestSpeed(val, effectiveCoeff, algoSettings);
       return nf;
     });
   };
@@ -268,6 +264,34 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
     setSegModal(false);
   };
   const deleteSeg = id => { setSegments(s => s.filter(x => x.id !== id)); setConfirmId(null); };
+
+  // ── Sélection multiple pour bulk apply terrain ──────────────────────────────
+  const [selectedSegIds, setSelectedSegIds] = useState(() => new Set());
+  const selectableSegs = segments.filter(s => s.type !== "ravito" && s.type !== "repos");
+  const allSelectableSelected = selectableSegs.length > 0 && selectableSegs.every(s => selectedSegIds.has(s.id));
+  const toggleSelect = id => setSelectedSegIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const toggleSelectAll = () => setSelectedSegIds(prev => {
+    if (selectableSegs.every(s => prev.has(s.id))) return new Set();
+    return new Set(selectableSegs.map(s => s.id));
+  });
+  const clearSelection = () => setSelectedSegIds(new Set());
+  const bulkSetTerrain = (terrainKey) => {
+    const terrain = TERRAIN_TYPES.find(t => t.key === terrainKey);
+    if (!terrain) return;
+    setSegments(prev => prev.map(seg => {
+      if (!selectedSegIds.has(seg.id)) return seg;
+      if (seg.type === "ravito" || seg.type === "repos") return seg;
+      const midKm = ((seg.startKm || 0) + (seg.endKm || 0)) / 2;
+      const poidsNutritionG = poidsZones?.length ? poidsNutritionAtKm(midKm, poidsZones) : 0;
+      const baseSpeed = suggestSpeed(seg.slopePct, effectiveCoeff, { ...algoSettings, poidsNutritionG });
+      return { ...seg, terrain: terrainKey, speedKmh: Math.max(2, +(baseSpeed * terrain.coeff).toFixed(1)) };
+    }));
+    clearSelection();
+  };
   const autoSegment = () => {
     if (!race.gpxPoints?.length) return;
     setComputing(true);
@@ -276,19 +300,9 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
       // Préserver ravitos et repos existants, remplacer uniquement les segments normaux
       const preserved = segments.filter(s => s.type === "ravito" || s.type === "repos");
       setSegments([...newSegs, ...preserved].sort((a, b) => (a.startKm ?? 0) - (b.startKm ?? 0)));
-      // Snapshot du poidsZones pour détecter ultérieurement une désynchro nutrition/segments
-      updS("lastPoidsZonesSnapshot", JSON.stringify(poidsZones || []));
       setComputing(false);
     }, 50);
   };
-
-  // Détection désynchronisation nutrition vs segments : poidsZones a changé depuis
-  // le dernier découpage auto → bandeau d'alerte pour proposer un recalcul.
-  const poidsDesynchro = useMemo(() => {
-    if (!segments.some(s => s.type !== "ravito" && s.type !== "repos")) return false;
-    if (!settings.lastPoidsZonesSnapshot) return false;
-    return JSON.stringify(poidsZones || []) !== settings.lastPoidsZonesSnapshot;
-  }, [poidsZones, segments, settings.lastPoidsZonesSnapshot]);
 
   const minEle = profile.length ? Math.min(...profile.map(p => p.ele)) - 20 : 0;
 
@@ -990,19 +1004,24 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                   <Btn size="sm" onClick={openNewSeg}>+ Segment</Btn>
                 </div>
               </div>
-              {poidsDesynchro && (
+              {selectedSegIds.size > 0 && (
                 <div style={{
                   margin: "0 20px 12px", padding: "10px 14px",
-                  background: C.yellowPale, border: `1px solid ${C.yellow}`, borderRadius: 8,
+                  background: C.primaryPale, border: `1px solid ${C.primary}`, borderRadius: 8,
                   display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-                  fontSize: 13,
+                  fontSize: 13, flexWrap: "wrap",
                 }}>
-                  <div style={{ color: C.ink }}>
-                    Ta nutrition a changé — le poids transporté n'est plus aligné avec tes segments actuels.
+                  <div style={{ color: C.primaryDeep, fontWeight: 600 }}>
+                    {selectedSegIds.size} segment{selectedSegIds.size > 1 ? "s" : ""} sélectionné{selectedSegIds.size > 1 ? "s" : ""} · Tagger en lot :
                   </div>
-                  <Btn size="sm" variant="sage" onClick={autoSegment} disabled={computing}>
-                    {computing ? "Calcul…" : "Recalculer"}
-                  </Btn>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {TERRAIN_TYPES.map(t => (
+                      <Btn key={t.key} size="sm" variant="ghost" onClick={() => bulkSetTerrain(t.key)}>
+                        {t.label}
+                      </Btn>
+                    ))}
+                    <Btn size="sm" variant="ghost" onClick={clearSelection}>Désélectionner</Btn>
+                  </div>
                 </div>
               )}
               {!segments.length ? (
@@ -1016,6 +1035,15 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                     return (
                   <table>
                     <thead><tr>
+                      <th style={{ width: 28 }}>
+                        <input
+                          type="checkbox"
+                          checked={allSelectableSelected}
+                          onChange={toggleSelectAll}
+                          style={{ cursor: "pointer", margin: 0 }}
+                          title={allSelectableSelected ? "Tout désélectionner" : "Tout sélectionner"}
+                        />
+                      </th>
                       <th>#</th><th>Début</th><th>Fin</th><th>Pente moy.</th><th>Vitesse</th><th>Allure</th><th>Durée</th><th>Cum.</th><th></th>
                     </tr></thead>
                     <tbody>{(() => {
@@ -1027,6 +1055,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                           return (
                             <tr key={seg.id} style={{ background: C.green + "10", cursor: "default" }}
                               onMouseEnter={() => setHoveredSeg(seg)} onMouseLeave={() => setHoveredSeg(null)}>
+                              <td style={{ width: 28 }}></td>
                               <td style={{ fontSize: 16 }}>🥤</td>
                               <td style={{ fontWeight: 600, color: C.green }} colSpan={3}>{seg.label} — km {seg.startKm}</td>
                               <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 12 }}>{seg.dureeMin} min</td>
@@ -1043,6 +1072,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                           return (
                             <tr key={seg.id} style={{ background: "var(--surface-2)", cursor: "default" }}
                               onMouseEnter={() => setHoveredSeg(seg)} onMouseLeave={() => setHoveredSeg(null)}>
+                              <td style={{ width: 28 }}></td>
                               <td style={{ fontSize: 16 }}>💤</td>
                               <td style={{ fontWeight: 600, color: C.blue }} colSpan={3}>{seg.label} — km {seg.startKm}</td>
                               <td colSpan={2} style={{ color: "var(--muted-c)", fontSize: 12 }}>{seg.dureeMin} min</td>
@@ -1072,7 +1102,15 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                             onMouseEnter={() => setHoveredSeg(seg)}
                             onMouseLeave={() => setHoveredSeg(null)}
                             onClick={() => openEditSeg(seg)}
-                            style={{ background: isH ? C.yellowPale : undefined, cursor: "pointer" }}>
+                            style={{ background: isH ? C.yellowPale : selectedSegIds.has(seg.id) ? C.primaryPale : undefined, cursor: "pointer" }}>
+                            <td onClick={e => e.stopPropagation()} style={{ width: 28 }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedSegIds.has(seg.id)}
+                                onChange={() => toggleSelect(seg.id)}
+                                style={{ cursor: "pointer", margin: 0 }}
+                              />
+                            </td>
                             <td style={{ color: isH ? C.yellow : "var(--muted-c)", fontWeight: isH ? 700 : 400 }}>{segNum}</td>
                             <td style={{ fontWeight: isH ? 700 : 400 }}>{seg.startKm} km</td>
                             <td style={{ fontWeight: isH ? 700 : 400 }}>{seg.endKm} km</td>
@@ -1227,9 +1265,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                 const isActive = (segForm.terrain || "normal") === t.key;
                 return (
                   <div key={t.key} onClick={() => {
-                    const midKm = ((parseFloat(segForm.startKm) || 0) + (parseFloat(segForm.endKm) || 0)) / 2;
-                    const poidsNutritionG = poidsZones?.length ? poidsNutritionAtKm(midKm, poidsZones) : 0;
-                    const baseSpeed = suggestSpeed(segForm.slopePct, effectiveCoeff, { ...algoSettings, poidsNutritionG });
+                    const baseSpeed = suggestSpeed(segForm.slopePct, effectiveCoeff, algoSettings);
                     updSeg("terrain", t.key);
                     setSegForm(f => ({ ...f, terrain: t.key, speedKmh: Math.max(2, +(baseSpeed * terrainCoeff).toFixed(1)) }));
                   }} style={{
