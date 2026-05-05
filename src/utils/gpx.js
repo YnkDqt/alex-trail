@@ -280,12 +280,28 @@ export function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, t
   const poidsCoureur = settings.weight || 70;
   const equipment = settings.equipment || [];
 
-  // Poids total des items emportés (équipement + nutrition transportée).
-  // - Équipement : items avec emporte !== false (logique EquipementView)
+  // Helper rétrocompat : déduit le type d'un item. Priorité au champ explicite
+  // `item.type`, sinon fallback sur le label pour les items historiques.
+  const inferType = (it) => {
+    if (it.type) return it.type;
+    const l = (it.label || "").toLowerCase();
+    if (l.includes("bâton") || l.includes("baton")) return "batons";
+    if (l.includes("veste") || l.includes("imper") || l.includes("k-way") || l.includes("goretex")) return "imper";
+    return "autre";
+  };
+  // Helper rétrocompat : un item est "course" (= compté dans le poids) si
+  // usage === "course", ou si pas de usage défini et cat === "Équipement".
+  const isCourseUsage = (it) => {
+    if (it.usage) return it.usage === "course";
+    return (it.cat || "").toLowerCase() === "équipement";
+  };
+
+  // Poids total des items emportés (équipement de course + nutrition transportée).
+  // - Équipement : items usage="course" avec emporte !== false
   // - Nutrition : settings.poidsNutritionG (calculé en amont par segment via
   //   poidsNutritionAtKm — décroît linéairement entre rechargements)
   const poidsEquipementKg = equipment
-    .filter(e => e.emporte !== false)
+    .filter(e => isCourseUsage(e) && e.emporte !== false)
     .reduce((s, e) => s + (e.poidsG || 0), 0) / 1000;
   const poidsNutritionKg = (settings.poidsNutritionG || 0) / 1000;
   const poidsTransporteKg = poidsEquipementKg + poidsNutritionKg;
@@ -303,11 +319,11 @@ export function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, t
   const weightPenalty = Math.max(0.40, 1 - penLin - penQuad);
 
   // Bâtons emportés → +3% sur les montées (slope ≥ 5%)
-  const hasPoles = equipment.some(e => e.label?.toLowerCase().includes("bâton") && e.emporte !== false);
+  const hasPoles = equipment.some(e => inferType(e) === "batons" && e.emporte !== false);
   const polesBonus = (hasPoles && slopePct >= 5) ? 1.03 : 1;
 
   // Veste imper emportée + pluie active → -10%
-  const hasRainJacket = equipment.some(e => e.label?.toLowerCase().includes("veste") && e.emporte !== false);
+  const hasRainJacket = equipment.some(e => inferType(e) === "imper" && e.emporte !== false);
   const rainMalus = (hasRainJacket && settings.rain) ? 0.90 : 1;
 
   return +(base * coeff * levelCoeff * fatigueCoeff
