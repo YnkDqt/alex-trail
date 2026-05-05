@@ -295,10 +295,15 @@ export function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, t
     if (it.usage) return it.usage === "course";
     return (it.cat || "").toLowerCase() === "équipement";
   };
-  // Un item compte dans l'algo s'il est actif ET emporté. `actif` reflète
-  // "j'utilise ce matériel" (toggle de la biblio), `emporte` un futur 2e niveau
-  // pour adapter par course.
-  const isAlgoActive = (it) => it.actif !== false && it.emporte !== false;
+  // Un item compte dans l'algo s'il est actif globalement ET emporté pour
+  // cette course. La sélection par-course se fait via settings.equipementEmportes
+  // (array d'IDs). Fallback rétrocompat : si l'array n'est pas fourni, on utilise
+  // l'ancien flag global `emporte` sur l'item.
+  const equipementEmportes = settings.equipementEmportes;
+  const isEmported = (it) => Array.isArray(equipementEmportes)
+    ? equipementEmportes.includes(it.id)
+    : it.emporte !== false;
+  const isAlgoActive = (it) => it.actif !== false && isEmported(it);
 
   // Poids total des items emportés (équipement de course + nutrition transportée).
   // - Équipement : items usage="course" actifs et emportés

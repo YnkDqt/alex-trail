@@ -121,7 +121,8 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
     levelMode: isAutoLevel ? "auto" : "manual",
     autoLevelCoeff: isAutoLevel ? raceLevel.autoLevelCoeff : 0,
     poidsZones,
-  }), [settings, isAutoLevel, raceLevel, poidsZones]);
+    equipementEmportes: race.equipementEmportes,
+  }), [settings, isAutoLevel, raceLevel, poidsZones, race.equipementEmportes]);
 
   const highlightData = useMemo(() => {
     if (!profile.length) return profile;
@@ -305,19 +306,38 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
       // Préserver ravitos et repos existants, remplacer uniquement les segments normaux
       const preserved = segments.filter(s => s.type === "ravito" || s.type === "repos");
       setSegments([...newSegs, ...preserved].sort((a, b) => (a.startKm ?? 0) - (b.startKm ?? 0)));
-      // Snapshot du poidsZones pour détecter ultérieurement une désynchro nutrition/segments
+      // Snapshots pour détecter ultérieurement une désynchro nutrition/équipement
       updS("lastPoidsZonesSnapshot", JSON.stringify(poidsZones || []));
+      updS("lastEquipementSnapshot", buildEquipementSnapshot(settings.equipment, race.equipementEmportes));
       setComputing(false);
     }, 50);
   };
 
-  // Détection désynchronisation nutrition vs segments : poidsZones a changé depuis
-  // le dernier découpage auto → bandeau d'alerte pour proposer un recalcul.
+  // Snapshot équipement = signature stable des items qui comptent dans l'algo
+  // (id, type, poidsG) filtré par actif + emportés sur cette course.
+  function buildEquipementSnapshot(equipment, emportes) {
+    const list = (equipment || [])
+      .filter(e => e.actif !== false)
+      .filter(e => Array.isArray(emportes) ? emportes.includes(e.id) : e.emporte !== false)
+      .map(e => ({ id: e.id, t: e.type || "", p: e.poidsG || 0 }))
+      .sort((a, b) => a.id - b.id);
+    return JSON.stringify(list);
+  }
+
+  // Détection désynchro nutrition vs segments : poidsZones a changé depuis dernier découpage.
   const poidsDesynchro = useMemo(() => {
     if (!segments.some(s => s.type !== "ravito" && s.type !== "repos")) return false;
     if (!settings.lastPoidsZonesSnapshot) return false;
     return JSON.stringify(poidsZones || []) !== settings.lastPoidsZonesSnapshot;
   }, [poidsZones, segments, settings.lastPoidsZonesSnapshot]);
+
+  // Détection désynchro équipement vs segments : changement d'item algo depuis dernier découpage.
+  const equipementDesynchro = useMemo(() => {
+    if (!segments.some(s => s.type !== "ravito" && s.type !== "repos")) return false;
+    if (!settings.lastEquipementSnapshot) return false;
+    return buildEquipementSnapshot(settings.equipment, race.equipementEmportes) !== settings.lastEquipementSnapshot;
+  }, [settings.equipment, race.equipementEmportes, segments, settings.lastEquipementSnapshot]);
+
 
   const minEle = profile.length ? Math.min(...profile.map(p => p.ele)) - 20 : 0;
 
@@ -1019,7 +1039,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                   <Btn size="sm" onClick={openNewSeg}>+ Segment</Btn>
                 </div>
               </div>
-              {poidsDesynchro && (
+              {(poidsDesynchro || equipementDesynchro) && (
                 <div style={{
                   margin: "0 20px 12px", padding: "10px 14px",
                   background: C.yellowPale, border: `1px solid ${C.yellow}`, borderRadius: 8,
@@ -1027,7 +1047,11 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                   fontSize: 13,
                 }}>
                   <div style={{ color: C.ink }}>
-                    Ta nutrition a changé — le poids transporté n'est plus aligné avec tes segments actuels.
+                    {poidsDesynchro && equipementDesynchro
+                      ? "Ta nutrition et ton équipement ont changé — le poids transporté n'est plus aligné avec tes segments actuels."
+                      : poidsDesynchro
+                      ? "Ta nutrition a changé — le poids transporté n'est plus aligné avec tes segments actuels."
+                      : "Ton équipement a changé — le poids ou les bonus algo ne sont plus alignés avec tes segments actuels."}
                   </div>
                   <Btn size="sm" variant="sage" onClick={autoSegment} disabled={computing}>
                     {computing ? "Calcul…" : "Recalculer"}

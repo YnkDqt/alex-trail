@@ -53,7 +53,9 @@ const PHASES_LABELS = { "J−30": "J-30", "J−14": "J-14", "J−7": "J-7", "H�
 
 export default function EquipementView({ settings, setSettings, race, setRace, segments, isMobile }) {
   const upd = (k, v) => setSettings(s => ({ ...s, [k]: v }));
+  const updRace = (k, v) => setRace(r => ({ ...r, [k]: v }));
   const [bibliModal, setBibliModal] = useState(false);
+  const [addBibliModal, setAddBibliModal] = useState(false);
   const [newItem, setNewItem] = useState("");
   const [newUsage, setNewUsage] = useState("course");
   const [newType, setNewType] = useState("autre");
@@ -66,25 +68,51 @@ export default function EquipementView({ settings, setSettings, race, setRace, s
     type: inferType(it),
   }));
 
+  // Sélection par course (equipementEmportes = array d'IDs).
+  // Migration douce : si l'array n'existe pas sur la race, on le pré-remplit
+  // avec les items historiquement actifs ET emportés (ancienne logique).
+  const equipementEmportes = useMemo(() => {
+    if (Array.isArray(race?.equipementEmportes)) return race.equipementEmportes;
+    return equipment.filter(e => e.actif !== false && e.emporte !== false).map(e => e.id);
+  }, [race?.equipementEmportes, equipment]);
+  const isEmported = id => equipementEmportes.includes(id);
+  const toggleEmporte = id => {
+    const next = isEmported(id) ? equipementEmportes.filter(x => x !== id) : [...equipementEmportes, id];
+    updRace("equipementEmportes", next);
+  };
+
   const toggleItem    = id => upd("equipment", equipment.map(i => i.id === id ? { ...i, checked: !i.checked } : i));
-  const toggleActif   = id => upd("equipment", equipment.map(i => i.id === id ? { ...i, actif: !i.actif, checked: false } : i));
+  const toggleActif   = id => {
+    const item = equipment.find(i => i.id === id);
+    const newActif = !(item?.actif !== false);
+    upd("equipment", equipment.map(i => i.id === id ? { ...i, actif: newActif, checked: false } : i));
+    // Si désactivé : retirer de la course. Si réactivé : ne pas auto-ajouter (l'utilisateur choisit).
+    if (!newActif && isEmported(id)) updRace("equipementEmportes", equipementEmportes.filter(x => x !== id));
+  };
   const updItemField  = (id, field, val) => upd("equipment", equipment.map(i => i.id === id ? { ...i, [field]: val } : i));
-  const deleteItem    = id => upd("equipment", equipment.filter(i => i.id !== id));
+  const deleteItem    = id => {
+    upd("equipment", equipment.filter(i => i.id !== id));
+    if (isEmported(id)) updRace("equipementEmportes", equipementEmportes.filter(x => x !== id));
+  };
   const addItem = () => {
     if (!newItem.trim()) return;
+    const id = Date.now();
     upd("equipment", [...equipment, {
-      id: Date.now(),
+      id,
       label: newItem.trim(),
       usage: newUsage,
       type: newUsage === "course" ? newType : "autre",
       poidsG: parseInt(newPoidsG) || 0,
-      checked: false, actif: true, emporte: true,
+      checked: false, actif: true,
     }]);
+    // Nouveau item ajouté → automatiquement emporté pour cette course
+    updRace("equipementEmportes", [...equipementEmportes, id]);
     setNewItem(""); setNewPoidsG(""); setNewType("autre");
   };
   const resetChecks = () => upd("equipment", equipment.map(i => ({ ...i, checked: false })));
 
-  const activeItems = equipment.filter(i => i.actif !== false);
+  // Items "à emporter" sur cette course = actifs ET dans equipementEmportes
+  const activeItems = equipment.filter(i => i.actif !== false && isEmported(i.id));
   const checkedCount = activeItems.filter(i => i.checked).length;
 
   // Tâches timeline
@@ -96,8 +124,8 @@ export default function EquipementView({ settings, setSettings, race, setRace, s
   const phaseInfo = useMemo(() => computePhaseFromRaceDate(settings.raceDate), [settings.raceDate]);
   const currentPhaseKey = phaseInfo?.phase || null;
 
-  // Poids embarqué (uniquement items usage="course")
-  const itemsCourse = activeItems.filter(i => i.usage === "course" && i.emporte !== false);
+  // Poids embarqué (uniquement items usage="course" parmi ceux emportés)
+  const itemsCourse = activeItems.filter(i => i.usage === "course");
   const poidsEquipG = itemsCourse.reduce((s, i) => s + (i.poidsG || 0), 0);
   const poidsCorporel = settings.weight || 70;
   const poidsPct = poidsEquipG > 0 ? Math.round(poidsEquipG / (poidsCorporel * 1000) * 100) : 0;
@@ -254,7 +282,8 @@ export default function EquipementView({ settings, setSettings, race, setRace, s
 
           {activeItems.length === 0 ? (
             <div style={{ textAlign: "center", color: "var(--muted-c)", fontSize: 13, padding: "20px 0" }}>
-              Aucun item actif. <span style={{ color: C.primary, cursor: "pointer", textDecoration: "underline" }} onClick={() => setBibliModal(true)}>Configure ta bibliothèque</span>.
+              Aucun item dans cette course.{" "}
+              <span style={{ color: C.primary, cursor: "pointer", textDecoration: "underline" }} onClick={() => setAddBibliModal(true)}>Ajouter depuis ma biblio</span>.
             </div>
           ) : (
             USAGES.map(u => {
@@ -298,6 +327,9 @@ export default function EquipementView({ settings, setSettings, race, setRace, s
                             }}>{item.type === "batons" ? "bâtons" : "imper"}</span>
                           )}
                           {showWeight && <span style={{ fontSize: 11, color: "var(--muted-c)" }}>{item.poidsG} g</span>}
+                          <span onClick={(e) => { e.stopPropagation(); toggleEmporte(item.id); }}
+                            title="Retirer de cette course"
+                            style={{ fontSize: 13, color: "var(--muted-c)", opacity: 0.4, cursor: "pointer", padding: "0 4px", marginLeft: 2 }}>×</span>
                         </div>
                       );
                     })}
@@ -307,9 +339,10 @@ export default function EquipementView({ settings, setSettings, race, setRace, s
             })
           )}
 
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <Btn size="sm" variant="ghost" onClick={resetChecks} style={{ flex: 1 }}>Tout décocher</Btn>
-            <Btn size="sm" variant="soft" onClick={() => setBibliModal(true)} style={{ flex: 1 }}>Configurer la biblio</Btn>
+          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            <Btn size="sm" variant="ghost" onClick={resetChecks} style={{ flex: "1 1 100px" }}>Tout décocher</Btn>
+            <Btn size="sm" variant="soft" onClick={() => setAddBibliModal(true)} style={{ flex: "1 1 100px" }}>+ Ajouter</Btn>
+            <Btn size="sm" variant="ghost" onClick={() => setBibliModal(true)} style={{ flex: "1 1 100px" }}>Biblio</Btn>
           </div>
         </Card>
 
@@ -412,8 +445,12 @@ export default function EquipementView({ settings, setSettings, race, setRace, s
         </p>
 
         {USAGES.map(u => {
-          const items = equipment.filter(i => i.usage === u.key);
-          if (!items.length) return null;
+          const itemsAll = equipment.filter(i => i.usage === u.key);
+          if (!itemsAll.length) return null;
+          // Actifs en haut, inactifs grisés en bas
+          const itemsActifs = itemsAll.filter(i => i.actif !== false);
+          const itemsInactifs = itemsAll.filter(i => i.actif === false);
+          const items = [...itemsActifs, ...itemsInactifs];
           return (
             <div key={u.key} style={{ marginBottom: 18 }}>
               <div style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{u.label}</div>
@@ -484,6 +521,53 @@ export default function EquipementView({ settings, setSettings, race, setRace, s
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
           <Btn onClick={() => setBibliModal(false)}>Fermer</Btn>
+        </div>
+      </Modal>
+      {/* ─── MODAL AJOUTER DEPUIS BIBLIO ──────────────────────────── */}
+      <Modal open={addBibliModal} onClose={() => setAddBibliModal(false)} title="Ajouter depuis ma bibliothèque">
+        <p style={{ fontSize: 13, color: "var(--muted-c)", marginBottom: 14 }}>
+          Coche les items à inclure dans cette course. Tu peux toujours en retirer ensuite.
+        </p>
+        {(() => {
+          const candidats = equipment.filter(e => e.actif !== false && !isEmported(e.id));
+          if (!candidats.length) {
+            return (
+              <div style={{ textAlign: "center", color: "var(--muted-c)", fontSize: 13, padding: "16px 0" }}>
+                Tous tes items actifs sont déjà inclus dans cette course. Pour en ajouter d'autres, configure ta biblio.
+              </div>
+            );
+          }
+          return USAGES.map(u => {
+            const items = candidats.filter(i => i.usage === u.key);
+            if (!items.length) return null;
+            return (
+              <div key={u.key} style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>{u.label}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {items.map(item => (
+                    <div key={item.id} onClick={() => toggleEmporte(item.id)} style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+                      borderRadius: 8, background: "var(--surface-2)",
+                      border: `1px solid var(--border-c)`, cursor: "pointer",
+                    }}>
+                      <div style={{
+                        width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                        border: `2px solid var(--border-c)`, background: "transparent",
+                      }} />
+                      <span style={{ fontSize: 13, flex: 1 }}>{item.label}</span>
+                      {item.usage === "course" && item.poidsG > 0 && (
+                        <span style={{ fontSize: 11, color: "var(--muted-c)" }}>{item.poidsG} g</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          });
+        })()}
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, gap: 8 }}>
+          <Btn variant="ghost" size="sm" onClick={() => { setAddBibliModal(false); setBibliModal(true); }}>Configurer la biblio</Btn>
+          <Btn onClick={() => setAddBibliModal(false)}>Fermer</Btn>
         </div>
       </Modal>
     </div>
