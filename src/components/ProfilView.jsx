@@ -276,9 +276,19 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
       // Préserver ravitos et repos existants, remplacer uniquement les segments normaux
       const preserved = segments.filter(s => s.type === "ravito" || s.type === "repos");
       setSegments([...newSegs, ...preserved].sort((a, b) => (a.startKm ?? 0) - (b.startKm ?? 0)));
+      // Snapshot du poidsZones pour détecter ultérieurement une désynchro nutrition/segments
+      updS("lastPoidsZonesSnapshot", JSON.stringify(poidsZones || []));
       setComputing(false);
     }, 50);
   };
+
+  // Détection désynchronisation nutrition vs segments : poidsZones a changé depuis
+  // le dernier découpage auto → bandeau d'alerte pour proposer un recalcul.
+  const poidsDesynchro = useMemo(() => {
+    if (!segments.some(s => s.type !== "ravito" && s.type !== "repos")) return false;
+    if (!settings.lastPoidsZonesSnapshot) return false;
+    return JSON.stringify(poidsZones || []) !== settings.lastPoidsZonesSnapshot;
+  }, [poidsZones, segments, settings.lastPoidsZonesSnapshot]);
 
   const minEle = profile.length ? Math.min(...profile.map(p => p.ele)) - 20 : 0;
 
@@ -980,6 +990,21 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                   <Btn size="sm" onClick={openNewSeg}>+ Segment</Btn>
                 </div>
               </div>
+              {poidsDesynchro && (
+                <div style={{
+                  margin: "0 20px 12px", padding: "10px 14px",
+                  background: C.yellowPale, border: `1px solid ${C.yellow}`, borderRadius: 8,
+                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                  fontSize: 13,
+                }}>
+                  <div style={{ color: C.ink }}>
+                    Ta nutrition a changé — le poids transporté n'est plus aligné avec tes segments actuels.
+                  </div>
+                  <Btn size="sm" variant="sage" onClick={autoSegment} disabled={computing}>
+                    {computing ? "Calcul…" : "Recalculer"}
+                  </Btn>
+                </div>
+              )}
               {!segments.length ? (
                 <div style={{ padding: "24px 20px", textAlign: "center", color: "var(--muted-c)", fontSize: 13 }}>
                   Aucun segment — utilise le découpage auto ou ajoute-en un manuellement.
