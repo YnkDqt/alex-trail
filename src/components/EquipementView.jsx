@@ -54,8 +54,9 @@ const PHASES_LABELS = { "J−30": "J-30", "J−14": "J-14", "J−7": "J-7", "H�
 export default function EquipementView({ settings, setSettings, race, setRace, segments, isMobile }) {
   const upd = (k, v) => setSettings(s => ({ ...s, [k]: v }));
   const updRace = (k, v) => setRace(r => ({ ...r, [k]: v }));
-  const [bibliModal, setBibliModal] = useState(false);
-  const [addBibliModal, setAddBibliModal] = useState(false);
+  const [gearModal, setGearModal] = useState(false);
+  const [gearTab, setGearTab] = useState("course");
+  const openGear = (tab = "course") => { setGearTab(tab); setGearModal(true); };
   const [newItem, setNewItem] = useState("");
   const [newUsage, setNewUsage] = useState("course");
   const [newType, setNewType] = useState("autre");
@@ -283,7 +284,7 @@ export default function EquipementView({ settings, setSettings, race, setRace, s
           {activeItems.length === 0 ? (
             <div style={{ textAlign: "center", color: "var(--muted-c)", fontSize: 13, padding: "20px 0" }}>
               Aucun item dans cette course.{" "}
-              <span style={{ color: C.primary, cursor: "pointer", textDecoration: "underline" }} onClick={() => setAddBibliModal(true)}>Ajouter depuis ma biblio</span>.
+              <span style={{ color: C.primary, cursor: "pointer", textDecoration: "underline" }} onClick={() => openGear("course")}>Ajouter depuis ma bibliothèque</span>.
             </div>
           ) : (
             USAGES.map(u => {
@@ -340,9 +341,8 @@ export default function EquipementView({ settings, setSettings, race, setRace, s
           )}
 
           <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-            <Btn size="sm" variant="ghost" onClick={resetChecks} style={{ flex: "1 1 100px" }}>Tout décocher</Btn>
-            <Btn size="sm" variant="soft" onClick={() => setAddBibliModal(true)} style={{ flex: "1 1 100px" }}>+ Ajouter</Btn>
-            <Btn size="sm" variant="ghost" onClick={() => setBibliModal(true)} style={{ flex: "1 1 100px" }}>Biblio</Btn>
+            <Btn size="sm" variant="ghost" onClick={resetChecks} style={{ flex: "1 1 120px" }}>Tout décocher</Btn>
+            <Btn size="sm" variant="soft" onClick={() => openGear("course")} style={{ flex: "1 1 160px" }}>Gérer mon équipement</Btn>
           </div>
         </Card>
 
@@ -438,136 +438,171 @@ export default function EquipementView({ settings, setSettings, race, setRace, s
         </Card>
       </div>
 
-      {/* ─── MODAL BIBLIOTHÈQUE ─────────────────────────────────────── */}
-      <Modal open={bibliModal} onClose={() => setBibliModal(false)} title="Configurer ma bibliothèque">
-        <p style={{ fontSize: 13, color: "var(--muted-c)", marginBottom: 16 }}>
-          Active les items que tu utilises. Ceux qui ont un type algo (bâtons, imper) déclenchent des bonus/malus dans le calcul de vitesse.
-        </p>
-
-        {USAGES.map(u => {
-          const itemsAll = equipment.filter(i => i.usage === u.key);
-          if (!itemsAll.length) return null;
-          // Actifs en haut, inactifs grisés en bas
-          const itemsActifs = itemsAll.filter(i => i.actif !== false);
-          const itemsInactifs = itemsAll.filter(i => i.actif === false);
-          const items = [...itemsActifs, ...itemsInactifs];
-          return (
-            <div key={u.key} style={{ marginBottom: 18 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{u.label}</div>
-              <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 8 }}>{u.desc}</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {items.map(item => {
-                  const isActif = item.actif !== false;
-                  return (
-                    <div key={item.id} style={{
-                      display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
-                      borderRadius: 9, background: isActif ? C.primaryPale : "var(--surface-2)",
-                      border: `1px solid ${isActif ? C.primary + "40" : "var(--border-c)"}`,
-                      transition: "all 0.15s", flexWrap: "wrap",
-                    }}>
-                      <div onClick={() => toggleActif(item.id)} style={{
-                        width: 32, height: 18, borderRadius: 9, flexShrink: 0, cursor: "pointer",
-                        background: isActif ? C.primary : "var(--border-c)",
-                        position: "relative", transition: "background 0.2s",
-                      }}>
-                        <div style={{
-                          position: "absolute", top: 2, left: isActif ? 14 : 2,
-                          width: 14, height: 14, borderRadius: "50%", background: "#fff",
-                          transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                        }} />
-                      </div>
-                      <span style={{ fontSize: 13, flex: "1 1 140px", fontWeight: isActif ? 500 : 400, color: isActif ? "var(--text-c)" : "var(--muted-c)" }}>
-                        {item.label}
-                      </span>
-                      {u.key === "course" && (
-                        <>
-                          <select value={item.type} onChange={e => updItemField(item.id, "type", e.target.value)} style={{ fontSize: 11, padding: "3px 5px" }}>
-                            {TYPES_ALGO.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-                          </select>
-                          <input type="number" value={item.poidsG || ""} onChange={e => updItemField(item.id, "poidsG", parseInt(e.target.value) || 0)} placeholder="g" style={{ width: 60, fontSize: 11, padding: "3px 6px" }} />
-                        </>
-                      )}
-                      <span style={{ fontSize: 14, color: "var(--muted-c)", opacity: 0.5, cursor: "pointer", padding: "0 4px" }}
-                        onClick={() => deleteItem(item.id)}>✕</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-
-        <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 14, marginTop: 4 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted-c)", marginBottom: 8 }}>Ajouter un item</div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-            <select value={newUsage} onChange={e => setNewUsage(e.target.value)} style={{ fontSize: 13 }}>
-              {USAGES.map(u => <option key={u.key} value={u.key}>{u.label}</option>)}
-            </select>
-            <input value={newItem} onChange={e => setNewItem(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && addItem()}
-              placeholder="Ex : Buff thermique..."
-              style={{ flex: 1, minWidth: 140, fontSize: 13 }} />
-          </div>
-          {newUsage === "course" && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-              <select value={newType} onChange={e => setNewType(e.target.value)} style={{ fontSize: 13 }}>
-                {TYPES_ALGO.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
-              </select>
-              <input type="number" value={newPoidsG} onChange={e => setNewPoidsG(e.target.value)}
-                placeholder="Poids (g)" style={{ width: 100, fontSize: 13 }} />
-            </div>
-          )}
-          <Btn size="sm" onClick={addItem}>Ajouter</Btn>
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
-          <Btn onClick={() => setBibliModal(false)}>Fermer</Btn>
-        </div>
-      </Modal>
-      {/* ─── MODAL AJOUTER DEPUIS BIBLIO ──────────────────────────── */}
-      <Modal open={addBibliModal} onClose={() => setAddBibliModal(false)} title="Ajouter depuis ma bibliothèque">
-        <p style={{ fontSize: 13, color: "var(--muted-c)", marginBottom: 14 }}>
-          Coche les items à inclure dans cette course. Tu peux toujours en retirer ensuite.
-        </p>
-        {(() => {
-          const candidats = equipment.filter(e => e.actif !== false && !isEmported(e.id));
-          if (!candidats.length) {
+      {/* ─── MODAL UNIFIÉE — GÉRER MON ÉQUIPEMENT ─────────────────── */}
+      <Modal open={gearModal} onClose={() => setGearModal(false)} title="Gérer mon équipement">
+        {/* Onglets */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 14, borderBottom: `1px solid var(--border-c)` }}>
+          {[
+            { key: "course", label: "Cette course" },
+            { key: "biblio", label: "Ma bibliothèque" },
+          ].map(t => {
+            const active = gearTab === t.key;
             return (
-              <div style={{ textAlign: "center", color: "var(--muted-c)", fontSize: 13, padding: "16px 0" }}>
-                Tous tes items actifs sont déjà inclus dans cette course. Pour en ajouter d'autres, configure ta biblio.
-              </div>
+              <div key={t.key} onClick={() => setGearTab(t.key)} style={{
+                padding: "10px 16px", cursor: "pointer", fontSize: 13, fontWeight: active ? 600 : 500,
+                color: active ? C.primary : "var(--muted-c)",
+                borderBottom: `2px solid ${active ? C.primary : "transparent"}`,
+                marginBottom: -1, transition: "all 0.15s",
+              }}>{t.label}</div>
             );
-          }
-          return USAGES.map(u => {
-            const items = candidats.filter(i => i.usage === u.key);
-            if (!items.length) return null;
-            return (
-              <div key={u.key} style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>{u.label}</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  {items.map(item => (
-                    <div key={item.id} onClick={() => toggleEmporte(item.id)} style={{
-                      display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
-                      borderRadius: 8, background: "var(--surface-2)",
-                      border: `1px solid var(--border-c)`, cursor: "pointer",
-                    }}>
-                      <div style={{
-                        width: 16, height: 16, borderRadius: 4, flexShrink: 0,
-                        border: `2px solid var(--border-c)`, background: "transparent",
-                      }} />
-                      <span style={{ fontSize: 13, flex: 1 }}>{item.label}</span>
-                      {item.usage === "course" && item.poidsG > 0 && (
-                        <span style={{ fontSize: 11, color: "var(--muted-c)" }}>{item.poidsG} g</span>
-                      )}
-                    </div>
-                  ))}
+          })}
+        </div>
+
+        {/* Intro contextuelle */}
+        <p style={{ fontSize: 12, color: "var(--muted-c)", marginBottom: 14, lineHeight: 1.5 }}>
+          {gearTab === "course"
+            ? "Sélectionne ce que tu emportes pour cette course uniquement. Les changements ici n'affectent pas tes autres courses."
+            : "Configure ton équipement à long terme : poids, type algo, items réutilisables sur toutes tes courses."}
+        </p>
+
+        {/* ── ONGLET CETTE COURSE ── */}
+        {gearTab === "course" && (
+          <>
+            {USAGES.map(u => {
+              const itemsActifs = equipment.filter(i => i.usage === u.key && i.actif !== false);
+              if (!itemsActifs.length) return null;
+              return (
+                <div key={u.key} style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 6 }}>
+                    {u.label}
+                    {u.key === "course" && <span style={{ color: C.primary, marginLeft: 6, textTransform: "none", letterSpacing: 0, fontSize: 10, fontWeight: 500 }}>· compté dans le poids algo</span>}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {itemsActifs.map(item => {
+                      const cocheCourse = isEmported(item.id);
+                      return (
+                        <div key={item.id} onClick={() => toggleEmporte(item.id)} style={{
+                          display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+                          borderRadius: 8, cursor: "pointer",
+                          background: cocheCourse ? C.primaryPale : "var(--surface-2)",
+                          border: `1px solid ${cocheCourse ? C.primary + "40" : "var(--border-c)"}`,
+                          transition: "all 0.15s",
+                        }}>
+                          <div style={{
+                            width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                            border: `2px solid ${cocheCourse ? C.primary : "var(--border-c)"}`,
+                            background: cocheCourse ? C.primary : "transparent",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}>
+                            {cocheCourse && <span style={{ color: "#fff", fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>}
+                          </div>
+                          <span style={{ fontSize: 13, flex: 1, fontWeight: cocheCourse ? 500 : 400 }}>{item.label}</span>
+                          {u.key === "course" && (item.type === "batons" || item.type === "imper") && (
+                            <span style={{
+                              fontSize: 9, padding: "2px 6px", borderRadius: 4, fontWeight: 700,
+                              letterSpacing: "0.04em", textTransform: "uppercase",
+                              background: item.type === "imper" ? C.summitPale : C.primaryPale,
+                              color: item.type === "imper" ? C.summit : C.primaryDeep,
+                            }}>{item.type === "batons" ? "bâtons" : "imper"}</span>
+                          )}
+                          {u.key === "course" && item.poidsG > 0 && (
+                            <span style={{ fontSize: 11, color: "var(--muted-c)" }}>{item.poidsG} g</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
+              );
+            })}
+            {equipment.filter(i => i.actif !== false).length === 0 && (
+              <div style={{ textAlign: "center", color: "var(--muted-c)", fontSize: 13, padding: "16px 0" }}>
+                Aucun item actif dans ta bibliothèque. Va sur l'onglet « Ma bibliothèque » pour en ajouter.
               </div>
-            );
-          });
-        })()}
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, gap: 8 }}>
-          <Btn variant="ghost" size="sm" onClick={() => { setAddBibliModal(false); setBibliModal(true); }}>Configurer la biblio</Btn>
-          <Btn onClick={() => setAddBibliModal(false)}>Fermer</Btn>
+            )}
+          </>
+        )}
+
+        {/* ── ONGLET BIBLIO ── */}
+        {gearTab === "biblio" && (
+          <>
+            {USAGES.map(u => {
+              const items = equipment.filter(i => i.usage === u.key);
+              if (!items.length) return null;
+              return (
+                <div key={u.key} style={{ marginBottom: 18 }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: "var(--muted-c)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{u.label}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 8 }}>{u.desc}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {items.map(item => {
+                      const isActif = item.actif !== false;
+                      return (
+                        <div key={item.id} style={{
+                          display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+                          borderRadius: 9, background: isActif ? C.primaryPale : "var(--surface-2)",
+                          border: `1px solid ${isActif ? C.primary + "40" : "var(--border-c)"}`,
+                          opacity: isActif ? 1 : 0.6,
+                          transition: "all 0.15s", flexWrap: "wrap",
+                        }}>
+                          <div onClick={() => toggleActif(item.id)} style={{
+                            width: 32, height: 18, borderRadius: 9, flexShrink: 0, cursor: "pointer",
+                            background: isActif ? C.primary : "var(--border-c)",
+                            position: "relative", transition: "background 0.2s",
+                          }}>
+                            <div style={{
+                              position: "absolute", top: 2, left: isActif ? 14 : 2,
+                              width: 14, height: 14, borderRadius: "50%", background: "#fff",
+                              transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+                            }} />
+                          </div>
+                          <span style={{ fontSize: 13, flex: "1 1 140px", fontWeight: isActif ? 500 : 400, color: isActif ? "var(--text-c)" : "var(--muted-c)" }}>
+                            {item.label}
+                          </span>
+                          {u.key === "course" && (
+                            <>
+                              <select value={item.type} onChange={e => updItemField(item.id, "type", e.target.value)} style={{ fontSize: 11, padding: "3px 5px" }}>
+                                {TYPES_ALGO.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+                              </select>
+                              <input type="number" value={item.poidsG || ""} onChange={e => updItemField(item.id, "poidsG", parseInt(e.target.value) || 0)} placeholder="g" style={{ width: 60, fontSize: 11, padding: "3px 6px" }} />
+                            </>
+                          )}
+                          <span style={{ fontSize: 14, color: "var(--muted-c)", opacity: 0.5, cursor: "pointer", padding: "0 4px" }}
+                            onClick={() => deleteItem(item.id)}>✕</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+
+            <div style={{ borderTop: "1px solid var(--border-c)", paddingTop: 14, marginTop: 4 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted-c)", marginBottom: 8 }}>Ajouter un item</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                <select value={newUsage} onChange={e => setNewUsage(e.target.value)} style={{ fontSize: 13 }}>
+                  {USAGES.map(u => <option key={u.key} value={u.key}>{u.label}</option>)}
+                </select>
+                <input value={newItem} onChange={e => setNewItem(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && addItem()}
+                  placeholder="Ex : Buff thermique..."
+                  style={{ flex: 1, minWidth: 140, fontSize: 13 }} />
+              </div>
+              {newUsage === "course" && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                  <select value={newType} onChange={e => setNewType(e.target.value)} style={{ fontSize: 13 }}>
+                    {TYPES_ALGO.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+                  </select>
+                  <input type="number" value={newPoidsG} onChange={e => setNewPoidsG(e.target.value)}
+                    placeholder="Poids (g)" style={{ width: 100, fontSize: 13 }} />
+                </div>
+              )}
+              <Btn size="sm" onClick={addItem}>Ajouter</Btn>
+            </div>
+          </>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+          <Btn onClick={() => setGearModal(false)}>Fermer</Btn>
         </div>
       </Modal>
     </div>
