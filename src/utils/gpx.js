@@ -290,10 +290,17 @@ export function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, t
   const poidsNutritionKg = (settings.poidsNutritionG || 0) / 1000;
   const poidsTransporteKg = poidsEquipementKg + poidsNutritionKg;
 
-  // Seuil dynamique = 10% poids corporel — au-delà : -3% par kg
-  const seuilKg = poidsCoureur * 0.10;
-  const surplusKg = Math.max(0, poidsTransporteKg - seuilKg);
-  const weightPenalty = 1 - surplusKg * 0.03;
+  // Pénalité poids — non-linéaire avec cap.
+  // Sources : Cureton & Sparling 1980 (linéaire jusqu'à ~10% du poids corporel),
+  // Knapik et al. 1996 (dégradation accélérée au-delà), Quesada et al. 2000 (rupture
+  // de pente vers 15-20%). Modèle : composante linéaire + composante quadratique
+  // déclenchée au seuil. Cap inférieur à 0.40 pour éviter les vitesses absurdes
+  // sur charges extrêmes (>40% du poids corporel).
+  const ratio = poidsCoureur > 0 ? poidsTransporteKg / poidsCoureur : 0;
+  const seuilRatio = 0.10;
+  const penLin  = 0.30 * ratio;
+  const penQuad = 6.0  * Math.max(0, ratio - seuilRatio) ** 2;
+  const weightPenalty = Math.max(0.40, 1 - penLin - penQuad);
 
   // Bâtons emportés → +3% sur les montées (slope ≥ 5%)
   const hasPoles = equipment.some(e => e.label?.toLowerCase().includes("bâton") && e.emporte !== false);

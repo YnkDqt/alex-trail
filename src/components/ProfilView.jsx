@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { C, RUNNER_LEVELS, TERRAIN_TYPES, EMPTY_SETTINGS } from '../constants.js';
-import { fmtTime, fmtPace, calcNutrition, calcPassingTimes, suggestSpeed, autoSegmentGPX, parseGarminCSV, computeStatsFromActivities, computeRaceLevel, buildElevationProfile, calcSlopeFromGPX, parseGPX, enrichElevation, buildPoidsZones } from '../utils.jsx';
+import { fmtTime, fmtPace, calcNutrition, calcPassingTimes, suggestSpeed, autoSegmentGPX, parseGarminCSV, computeStatsFromActivities, computeRaceLevel, buildElevationProfile, calcSlopeFromGPX, parseGPX, enrichElevation, buildPoidsZones, poidsNutritionAtKm } from '../utils.jsx';
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
@@ -246,11 +246,15 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
   const updSeg = (key, val) => {
     setSegForm(f => {
       const nf = { ...f, [key]: val };
+      // Poids nutrition au km moyen du segment édité — cohérence avec autoSegmentGPX
+      const midKm = ((parseFloat(nf.startKm) || 0) + (parseFloat(nf.endKm) || 0)) / 2;
+      const poidsNutritionG = poidsZones?.length ? poidsNutritionAtKm(midKm, poidsZones) : 0;
+      const segSettings = { ...algoSettings, poidsNutritionG };
       if (key === "startKm" || key === "endKm") {
         const slope = race.gpxPoints?.length ? calcSlopeFromGPX(race.gpxPoints, parseFloat(nf.startKm)||0, parseFloat(nf.endKm)||0) : nf.slopePct;
-        nf.slopePct = slope; nf.speedKmh = suggestSpeed(slope, effectiveCoeff, algoSettings);
+        nf.slopePct = slope; nf.speedKmh = suggestSpeed(slope, effectiveCoeff, segSettings);
       }
-      if (key === "slopePct") nf.speedKmh = suggestSpeed(val, effectiveCoeff, algoSettings);
+      if (key === "slopePct") nf.speedKmh = suggestSpeed(val, effectiveCoeff, segSettings);
       return nf;
     });
   };
@@ -1198,7 +1202,9 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                 const isActive = (segForm.terrain || "normal") === t.key;
                 return (
                   <div key={t.key} onClick={() => {
-                    const baseSpeed = suggestSpeed(segForm.slopePct, effectiveCoeff, algoSettings);
+                    const midKm = ((parseFloat(segForm.startKm) || 0) + (parseFloat(segForm.endKm) || 0)) / 2;
+                    const poidsNutritionG = poidsZones?.length ? poidsNutritionAtKm(midKm, poidsZones) : 0;
+                    const baseSpeed = suggestSpeed(segForm.slopePct, effectiveCoeff, { ...algoSettings, poidsNutritionG });
                     updSeg("terrain", t.key);
                     setSegForm(f => ({ ...f, terrain: t.key, speedKmh: Math.max(2, +(baseSpeed * terrainCoeff).toFixed(1)) }));
                   }} style={{
