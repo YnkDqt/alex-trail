@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { C, RUNNER_LEVELS, TERRAIN_TYPES, EMPTY_SETTINGS } from '../constants.js';
-import { fmtTime, fmtPace, calcNutrition, calcPassingTimes, suggestSpeed, autoSegmentGPX, parseGarminCSV, computeStatsFromActivities, computeRaceLevel, buildElevationProfile, calcSlopeFromGPX, parseGPX, enrichElevation, buildPoidsZones, poidsNutritionAtKm } from '../utils.jsx';
+import { fmtTime, fmtPace, calcNutrition, calcPassingTimes, suggestSpeed, autoSegmentGPX, computeStatsFromActivities, computeRaceLevel, buildElevationProfile, calcSlopeFromGPX, parseGPX, enrichElevation, buildPoidsZones, poidsNutritionAtKm } from '../utils.jsx';
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
@@ -589,17 +589,6 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                 updS("meteoLoading", false);
                 alert("Impossible de récupérer la météo. Vérifie ta connexion et réessaie.");
               }
-            };
-
-            const handleGarmin = e => {
-              const file = e.target.files[0]; if (!file) return;
-              const reader = new FileReader();
-              reader.onload = ev => {
-                const result = parseGarminCSV(ev.target.result);
-                if (result) { updS("garminCoeff", result.coeff); updS("garminStats", result); if (result.kcalPerKmFlat) updS("kcalSource", "garmin"); }
-                else alert("Fichier CSV Garmin non reconnu. Vérifie le format Activities.csv.");
-              };
-              reader.readAsText(file);
             };
 
             const EFFORT_OPTIONS_P = [

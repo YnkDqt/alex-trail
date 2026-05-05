@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, Cell } from 'recharts';
 import { C, TERRAIN_TYPES } from '../constants.js';
-import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, exportRecap, exportGPXMontre, suggestSpeed, autoSegmentGPX, buildElevationProfile, calcSlopeFromGPX } from '../utils.jsx';
+import { fmtTime, fmtPace, fmtHeure, isNight, calcNutrition, calcPassingTimes, exportRecap, exportGPXMontre, suggestSpeed, autoSegmentGPX, buildElevationProfile, calcSlopeFromGPX, buildPoidsZones, poidsNutritionAtKm } from '../utils.jsx';
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, Empty, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE STRATÉGIE DE COURSE ─────────────────────────────────────────────────
-export default function StrategieView({ race, segments, setSegments, settings, setSettings, onOpenRepos, isMobile, profil }) {
+export default function StrategieView({ race, segments, setSegments, settings, setSettings, onOpenRepos, isMobile, profil, produits, recettes }) {
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
@@ -41,17 +41,28 @@ export default function StrategieView({ race, segments, setSegments, settings, s
   }, [profil]);
 
   const updS = (k, v) => setSettings(s => ({ ...s, [k]: v }));
+
+  // Poids nutrition transporté : zones entre points de rechargement.
+  // Aligné sur ProfilView pour cohérence de l'algo entre les deux vues.
+  const allItems = useMemo(() => [...(produits || []), ...(recettes || [])], [produits, recettes]);
+  const poidsZones = useMemo(() => buildPoidsZones(race, allItems), [race, allItems]);
+  const algoSettingsAt = (km) => {
+    const poidsNutritionG = poidsZones?.length ? poidsNutritionAtKm(km, poidsZones) : 0;
+    return { ...settings, poidsNutritionG };
+  };
+
   const openNew  = ()  => { setEditId(null);   setForm(emptyForm); setModal(true); };
   const openEdit = seg => { setEditId(seg.id); setForm(seg);       setModal(true); };
   const updForm = (key, val) => {
     setForm(f => {
       const nf = { ...f, [key]: val };
+      const midKm = ((parseFloat(nf.startKm)||0) + (parseFloat(nf.endKm)||0)) / 2;
       if (key === "startKm" || key === "endKm") {
         const slope = race.gpxPoints?.length ? calcSlopeFromGPX(race.gpxPoints, parseFloat(nf.startKm)||0, parseFloat(nf.endKm)||0) : nf.slopePct;
         nf.slopePct = slope;
-        nf.speedKmh = suggestSpeed(slope, settings.garminCoeff, settings);
+        nf.speedKmh = suggestSpeed(slope, settings.garminCoeff, algoSettingsAt(midKm));
       }
-      if (key === "slopePct") nf.speedKmh = suggestSpeed(val, settings.garminCoeff, settings);
+      if (key === "slopePct") nf.speedKmh = suggestSpeed(val, settings.garminCoeff, algoSettingsAt(midKm));
       return nf;
     });
   };
@@ -280,7 +291,8 @@ export default function StrategieView({ race, segments, setSegments, settings, s
                 const isActive = (form.terrain || "normal") === t.key;
                 return (
                   <div key={t.key} onClick={() => {
-                    const baseSpeed = suggestSpeed(form.slopePct, settings.garminCoeff, settings);
+                    const midKm = ((parseFloat(form.startKm)||0) + (parseFloat(form.endKm)||0)) / 2;
+                    const baseSpeed = suggestSpeed(form.slopePct, settings.garminCoeff, algoSettingsAt(midKm));
                     setForm(f => ({ ...f, terrain: t.key, speedKmh: Math.max(2, +(baseSpeed * terrainCoeff).toFixed(1)) }));
                   }} style={{
                     flex: 1, padding: "8px 6px", borderRadius: 10, cursor: "pointer", textAlign: "center",
