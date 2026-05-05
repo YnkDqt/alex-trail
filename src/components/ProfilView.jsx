@@ -735,17 +735,16 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                                 GAP course estimée : <strong style={{ color: C.primary }}>{fmtPace(raceLevel.raceGapKmh)}/km</strong>
                               </span>
                               <span
-                                onMouseEnter={() => setShowLevelTooltip(true)}
-                                onMouseLeave={() => setShowLevelTooltip(false)}
                                 onClick={() => setShowLevelTooltip(v => !v)}
                                 style={{
                                   display: "inline-flex", alignItems: "center", justifyContent: "center",
                                   width: 18, height: 18, borderRadius: "50%",
-                                  background: "var(--surface-2)", border: "1px solid var(--border-c)",
-                                  fontSize: 11, fontWeight: 700, color: "var(--muted-c)",
-                                  cursor: "help", flexShrink: 0, userSelect: "none",
+                                  background: showLevelTooltip ? C.primary : "var(--surface-2)",
+                                  border: `1px solid ${showLevelTooltip ? C.primary : "var(--border-c)"}`,
+                                  fontSize: 11, fontWeight: 700, color: showLevelTooltip ? "#fff" : "var(--muted-c)",
+                                  cursor: "pointer", flexShrink: 0, userSelect: "none",
                                 }}
-                                title="Voir le détail du calcul"
+                                title={showLevelTooltip ? "Masquer le détail" : "Voir le détail du calcul"}
                               >i</span>
                             </div>
 
@@ -788,8 +787,6 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                             {/* Tooltip riche : détail du calcul + sources scientifiques */}
                             {showLevelTooltip && (
                               <div
-                                onMouseEnter={() => setShowLevelTooltip(true)}
-                                onMouseLeave={() => setShowLevelTooltip(false)}
                                 style={{
                                   marginTop: 4, padding: "12px 14px", borderRadius: 8,
                                   background: "var(--surface-c)", border: "1px solid var(--border-c)",
@@ -852,7 +849,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                                 </div>
 
                                 <div style={{ marginTop: 12, paddingTop: 8, borderTop: "1px solid var(--border-c)", fontSize: 10, color: "var(--muted-c)", fontStyle: "italic" }}>
-                                  Toutes ces corrections sont des estimations statistiques. La performance jour J dépend aussi du sommeil, de la nutrition, du mental, de la météo et de l'expérience spécifique du parcours — facteurs non capturés par cet algorithme.
+                                  Ce coefficient reflète uniquement <strong>ton niveau de coureur</strong> à partir de tes données d'entraînement. Les conditions du jour J — météo (pluie, neige, chaleur, vent), équipement (bâtons, sac), fatigue cumulée pendant la course — sont appliquées <strong>séparément</strong> sur les vitesses de chaque segment. Les facteurs non capturés du tout (sommeil, nutrition, mental, expérience spécifique du parcours) restent à ton appréciation.
                                 </div>
                               </div>
                             )}
