@@ -11,5 +11,6 @@ export {
 export {
   calcNutrition, isRecette, calcKcalRecette,
   kcalDuStock, formatQuantiteStock,
+  poidsDuStock, buildPoidsZones, poidsNutritionAtKm,
 } from './utils/nutrition.js';
 export { exportRecap } from './utils/export.js';
