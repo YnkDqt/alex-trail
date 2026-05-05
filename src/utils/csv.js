@@ -288,6 +288,9 @@ export function computeStatsFromActivities(activites, opts = {}) {
 // Riegel (extrapolation durée) : (T_long_avg / T_course)^0.06
 //   Pool sorties longues = ≥ 50% durée course (fallback 30% puis 15%, min 3).
 //   Cap [-12% ; +5%].
+//   T_course = durée THÉORIQUE neutre du coureur sur ce parcours, calculée par
+//   auto-référence en 2 passes (Option C). Strictement indépendante de la météo,
+//   de l'équipement et du découpage actuel.
 //
 // Fitness actuel : recencyFactor × loadFactor, cap cumulé [0.85 ; 1.05]
 //   Récence (% activités < 60j) : ≥70% → ×1.00 | 40-70% → ×0.97 | <40% → ×0.93
@@ -297,9 +300,16 @@ export function computeStatsFromActivities(activites, opts = {}) {
 // selon position de raceGapKmh entre vInter et vConfirme (refVelocities).
 //
 // Renvoie null si pas de stats Garmin exploitables.
-export function computeRaceLevel(gs, totalTimeH = 0, refVelocities = null) {
+//
+// Paramètres :
+//   gs              : stats issues de computeStatsFromActivities
+//   refVelocities   : { vInter, vConfirme } — vitesses moyennes course neutres
+//                     calculées par l'appelant à partir du profil GPS brut
+//   totalDistKm     : distance totale de la course (km)
+export function computeRaceLevel(gs, refVelocities = null, totalDistKm = 0) {
   if (!gs || !gs.avgGapKmh) return null;
-  // Bonus selon TE moyen (granulaire)
+
+  // ─── Bonus TE (granulaire) ───
   let bonusPct, intensityBucket;
   const te = gs.avgTE;
   if (te === null || te === undefined) {
@@ -309,50 +319,10 @@ export function computeRaceLevel(gs, totalTimeH = 0, refVelocities = null) {
   else if (te < 3.5)    { bonusPct = 3;  intensityBucket = `TE moyen ${te} (tempo)`; }
   else                  { bonusPct = 0;  intensityBucket = `TE moyen ${te} (intense)`; }
 
-  let durationBucket;
-  if (totalTimeH <= 0)      durationBucket = "indéterminée";
-  else if (totalTimeH < 2)  durationBucket = "< 2h";
-  else if (totalTimeH < 4)  durationBucket = "2-4h";
-  else if (totalTimeH < 8)  durationBucket = "4-8h";
-  else                      durationBucket = "> 8h (ultra)";
-
   const enduranceGapKmh = gs.avgGapKmh;
   const baseRaceGapKmh = enduranceGapKmh * (1 + bonusPct / 100);
 
-  // ─── Correction Riegel (pool flottant) ───
-  let riegelCorr = 1, riegelInfo = "désactivée (durées non disponibles)", longAvgH = 0, longCount = 0, longThresholdPct = 0;
-  if (totalTimeH > 0 && Array.isArray(gs.durationsH) && gs.durationsH.length > 0) {
-    const seuils = [0.50, 0.30, 0.15];
-    for (const s of seuils) {
-      const pool = gs.durationsH.filter(d => d >= totalTimeH * s);
-      if (pool.length >= 3) {
-        longAvgH = pool.reduce((sum, d) => sum + d, 0) / pool.length;
-        longCount = pool.length;
-        longThresholdPct = Math.round(s * 100);
-        break;
-      }
-    }
-    if (longAvgH > 0) {
-      // Riegel : v_course = v_long × (T_long / T_course)^0.06
-      // Si T_course > T_long → ratio < 1 → correction < 1 (malus)
-      riegelCorr = Math.pow(longAvgH / totalTimeH, 0.06);
-      // Cap entre 0.88 (malus max -12%) et 1.05 (bonus max +5% si on a fait plus long que la course)
-      riegelCorr = Math.max(0.88, Math.min(1.05, riegelCorr));
-      const pct = Math.round((riegelCorr - 1) * 100);
-      riegelInfo = `${pct >= 0 ? "+" : ""}${pct}% (${longCount} sorties ≥ ${longThresholdPct}% durée, moy. ${longAvgH.toFixed(1)}h)`;
-    } else {
-      riegelInfo = "désactivée (pas assez de sorties longues)";
-    }
-  }
-
-  const raceGapKmh_beforeFitness = +(baseRaceGapKmh * riegelCorr).toFixed(2);
-
-  // ─── Fitness actuel : récence + charge récente ───
-  // F1 récence (% activités sur 60 derniers jours) :
-  //   ≥ 70% → ×1.00 (cycle actif) | 40-70% → ×0.97 | < 40% → ×0.93 (données vieilles)
-  // F2 charge (km cumulés sur 28 derniers jours) :
-  //   ≥ 150 → ×1.03 (affûté) | 80-150 → ×1.00 | 40-80 → ×0.96 | < 40 → ×0.92 (coupure)
-  // Cap cumulé entre 0.85 et 1.05 pour éviter les emballements.
+  // ─── Fitness actuel : récence + charge récente (constants entre passes) ───
   let recencyFactor = 1, recencyInfo = "non disponible";
   if (gs.recentRatio !== null && gs.recentRatio !== undefined) {
     if (gs.recentRatio >= 0.70)      { recencyFactor = 1.00; recencyInfo = `${Math.round(gs.recentRatio*100)}% récent — cycle actif`; }
@@ -370,22 +340,94 @@ export function computeRaceLevel(gs, totalTimeH = 0, refVelocities = null) {
   fitnessFactor = Math.max(0.85, Math.min(1.05, fitnessFactor));
   const fitnessPct = Math.round((fitnessFactor - 1) * 100);
 
-  const raceGapKmh = +(raceGapKmh_beforeFitness * fitnessFactor).toFixed(2);
+  // ─── Helper : durée théorique en heures pour un coeff donné ───
+  // Interpolation linéaire entre vInter (coeff 0.88) et vConfirme (coeff 1.00).
+  // Pas de cap : un coeff < 0.88 extrapole au-delà de vInter (plus lent),
+  // un coeff > 1.00 extrapole au-delà de vConfirme (plus rapide).
+  const velocityAtCoeff = (coeff) => {
+    if (!refVelocities || refVelocities.vInter <= 0 || refVelocities.vConfirme <= refVelocities.vInter) return 0;
+    const t = (coeff - 0.88) / (1.00 - 0.88);
+    return refVelocities.vInter + t * (refVelocities.vConfirme - refVelocities.vInter);
+  };
 
-  // autoLevelCoeff : option 3 si refVelocities fournies, sinon fallback simple
-  let autoLevelCoeff;
-  if (refVelocities && refVelocities.vInter > 0 && refVelocities.vConfirme > refVelocities.vInter) {
-    const t = (raceGapKmh - refVelocities.vInter) / (refVelocities.vConfirme - refVelocities.vInter);
-    autoLevelCoeff = +(0.88 + t * (1.00 - 0.88)).toFixed(3);
-  } else {
-    autoLevelCoeff = +(raceGapKmh / DEFAULT_FLAT_SPEED).toFixed(3);
+  // ─── Helper : calcule riegelCorr et autoLevelCoeff pour une durée de course donnée ───
+  const computeIteration = (totalTimeH) => {
+    let riegelCorr = 1, riegelInfo = "désactivée (durées non disponibles)", longAvgH = 0, longCount = 0, longThresholdPct = 0;
+    if (totalTimeH > 0 && Array.isArray(gs.durationsH) && gs.durationsH.length > 0) {
+      const seuils = [0.50, 0.30, 0.15];
+      for (const s of seuils) {
+        const pool = gs.durationsH.filter(d => d >= totalTimeH * s);
+        if (pool.length >= 3) {
+          longAvgH = pool.reduce((sum, d) => sum + d, 0) / pool.length;
+          longCount = pool.length;
+          longThresholdPct = Math.round(s * 100);
+          break;
+        }
+      }
+      if (longAvgH > 0) {
+        riegelCorr = Math.pow(longAvgH / totalTimeH, 0.06);
+        riegelCorr = Math.max(0.88, Math.min(1.05, riegelCorr));
+        const pct = Math.round((riegelCorr - 1) * 100);
+        riegelInfo = `${pct >= 0 ? "+" : ""}${pct}% (${longCount} sorties ≥ ${longThresholdPct}% durée, moy. ${longAvgH.toFixed(1)}h)`;
+      } else {
+        riegelInfo = "désactivée (pas assez de sorties longues)";
+      }
+    }
+    const raceGapKmh = +(baseRaceGapKmh * riegelCorr * fitnessFactor).toFixed(2);
+    let autoLevelCoeff;
+    if (refVelocities && refVelocities.vInter > 0 && refVelocities.vConfirme > refVelocities.vInter) {
+      const t = (raceGapKmh - refVelocities.vInter) / (refVelocities.vConfirme - refVelocities.vInter);
+      autoLevelCoeff = +(0.88 + t * (1.00 - 0.88)).toFixed(3);
+    } else {
+      autoLevelCoeff = +(raceGapKmh / DEFAULT_FLAT_SPEED).toFixed(3);
+    }
+    return { riegelCorr, riegelInfo, longAvgH, longCount, longThresholdPct, raceGapKmh, autoLevelCoeff };
+  };
+
+  // ─── Auto-référence en 2 passes (Option C) ───
+  // Passe 1 : durée initiale = distance / vitesse moyenne (vInter+vConfirme)/2
+  // Passe 2 : durée raffinée = distance / vitesse au coeff calculé en passe 1
+  let totalTimeH = 0;
+  if (totalDistKm > 0 && refVelocities) {
+    const vMid = (refVelocities.vInter + refVelocities.vConfirme) / 2;
+    totalTimeH = vMid > 0 ? totalDistKm / vMid : 0;
   }
-  const raceCoeff = autoLevelCoeff;
+  // Si pas assez d'infos pour calculer une durée → pipeline simple sans Riegel pertinent
+  if (totalTimeH <= 0) {
+    const result = computeIteration(0);
+    return {
+      enduranceGapKmh,
+      raceGapKmh: result.raceGapKmh,
+      raceCoeff: result.autoLevelCoeff, autoLevelCoeff: result.autoLevelCoeff,
+      bonusPct, durationBucket: "indéterminée", intensityBucket,
+      riegelCorr: +result.riegelCorr.toFixed(3), riegelInfo: result.riegelInfo,
+      longAvgH: +result.longAvgH.toFixed(2), longCount: result.longCount, longThresholdPct: result.longThresholdPct,
+      fitnessFactor: +fitnessFactor.toFixed(3), fitnessPct, recencyInfo, loadInfo,
+    };
+  }
+
+  // Passe 1
+  const pass1 = computeIteration(totalTimeH);
+  // Passe 2 : recalcul de la durée avec la vitesse au coeff de la passe 1
+  const v1 = velocityAtCoeff(pass1.autoLevelCoeff);
+  const totalTimeH2 = v1 > 0 ? totalDistKm / v1 : totalTimeH;
+  const pass2 = computeIteration(totalTimeH2);
+
+  let durationBucket;
+  if (totalTimeH2 < 2)      durationBucket = "< 2h";
+  else if (totalTimeH2 < 4) durationBucket = "2-4h";
+  else if (totalTimeH2 < 8) durationBucket = "4-8h";
+  else                      durationBucket = "> 8h (ultra)";
+
   return {
-    enduranceGapKmh, raceGapKmh, raceCoeff, autoLevelCoeff,
+    enduranceGapKmh,
+    raceGapKmh: pass2.raceGapKmh,
+    raceCoeff: pass2.autoLevelCoeff, autoLevelCoeff: pass2.autoLevelCoeff,
     bonusPct, durationBucket, intensityBucket,
-    riegelCorr: +riegelCorr.toFixed(3), riegelInfo, longAvgH: +longAvgH.toFixed(2), longCount, longThresholdPct,
+    riegelCorr: +pass2.riegelCorr.toFixed(3), riegelInfo: pass2.riegelInfo,
+    longAvgH: +pass2.longAvgH.toFixed(2), longCount: pass2.longCount, longThresholdPct: pass2.longThresholdPct,
     fitnessFactor: +fitnessFactor.toFixed(3), fitnessPct, recencyInfo, loadInfo,
+    theoreticalTotalTimeH: +totalTimeH2.toFixed(2),
   };
 }
 

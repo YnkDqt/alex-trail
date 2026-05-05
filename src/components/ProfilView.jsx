@@ -104,7 +104,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
     return { vInter: meanSpeed("intermediaire"), vConfirme: meanSpeed("confirme") };
   }, [profile]);
 
-  const raceLevel = useMemo(() => computeRaceLevel(gs, totalTimeH, refVelocities), [gs, totalTimeH, refVelocities]);
+  const raceLevel = useMemo(() => computeRaceLevel(gs, refVelocities, totalDistKm), [gs, refVelocities, totalDistKm]);
   const isAutoLevel = (settings.levelMode || (raceLevel ? "auto" : "manual")) === "auto" && raceLevel != null;
   // En mode auto on garde le coeff Garmin (effectiveCoeff = garminCoeff) et on passe
   // autoLevelCoeff via settings pour remplacer le levelCoeff manuel côté suggestSpeed.
