@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { C, RUNNER_LEVELS, TERRAIN_TYPES, EMPTY_SETTINGS } from '../constants.js';
-import { fmtTime, fmtPace, calcNutrition, calcPassingTimes, suggestSpeed, autoSegmentGPX, parseGarminCSV, computeStatsFromActivities, computeRaceLevel, buildElevationProfile, calcSlopeFromGPX, parseGPX, enrichElevation, buildPoidsZones } from '../utils.jsx';
+import { fmtTime, fmtPace, calcNutrition, calcPassingTimes, suggestSpeed, autoSegmentGPX, parseGarminCSV, computeStatsFromActivities, computeRaceLevel, buildElevationProfile, calcSlopeFromGPX, parseGPX, enrichElevation, buildPoidsZones, poidsNutritionAtKm } from '../utils.jsx';
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
@@ -246,11 +246,15 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
   const updSeg = (key, val) => {
     setSegForm(f => {
       const nf = { ...f, [key]: val };
+      // Poids nutrition au km moyen du segment édité — cohérence avec autoSegmentGPX
+      const midKm = ((parseFloat(nf.startKm) || 0) + (parseFloat(nf.endKm) || 0)) / 2;
+      const poidsNutritionG = poidsZones?.length ? poidsNutritionAtKm(midKm, poidsZones) : 0;
+      const segSettings = { ...algoSettings, poidsNutritionG };
       if (key === "startKm" || key === "endKm") {
         const slope = race.gpxPoints?.length ? calcSlopeFromGPX(race.gpxPoints, parseFloat(nf.startKm)||0, parseFloat(nf.endKm)||0) : nf.slopePct;
-        nf.slopePct = slope; nf.speedKmh = suggestSpeed(slope, effectiveCoeff, algoSettings);
+        nf.slopePct = slope; nf.speedKmh = suggestSpeed(slope, effectiveCoeff, segSettings);
       }
-      if (key === "slopePct") nf.speedKmh = suggestSpeed(val, effectiveCoeff, algoSettings);
+      if (key === "slopePct") nf.speedKmh = suggestSpeed(val, effectiveCoeff, segSettings);
       return nf;
     });
   };
@@ -292,6 +296,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
     }));
     clearSelection();
   };
+
   const autoSegment = () => {
     if (!race.gpxPoints?.length) return;
     setComputing(true);
@@ -300,9 +305,19 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
       // Préserver ravitos et repos existants, remplacer uniquement les segments normaux
       const preserved = segments.filter(s => s.type === "ravito" || s.type === "repos");
       setSegments([...newSegs, ...preserved].sort((a, b) => (a.startKm ?? 0) - (b.startKm ?? 0)));
+      // Snapshot du poidsZones pour détecter ultérieurement une désynchro nutrition/segments
+      updS("lastPoidsZonesSnapshot", JSON.stringify(poidsZones || []));
       setComputing(false);
     }, 50);
   };
+
+  // Détection désynchronisation nutrition vs segments : poidsZones a changé depuis
+  // le dernier découpage auto → bandeau d'alerte pour proposer un recalcul.
+  const poidsDesynchro = useMemo(() => {
+    if (!segments.some(s => s.type !== "ravito" && s.type !== "repos")) return false;
+    if (!settings.lastPoidsZonesSnapshot) return false;
+    return JSON.stringify(poidsZones || []) !== settings.lastPoidsZonesSnapshot;
+  }, [poidsZones, segments, settings.lastPoidsZonesSnapshot]);
 
   const minEle = profile.length ? Math.min(...profile.map(p => p.ele)) - 20 : 0;
 
@@ -1004,6 +1019,21 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                   <Btn size="sm" onClick={openNewSeg}>+ Segment</Btn>
                 </div>
               </div>
+              {poidsDesynchro && (
+                <div style={{
+                  margin: "0 20px 12px", padding: "10px 14px",
+                  background: C.yellowPale, border: `1px solid ${C.yellow}`, borderRadius: 8,
+                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                  fontSize: 13,
+                }}>
+                  <div style={{ color: C.ink }}>
+                    Ta nutrition a changé — le poids transporté n'est plus aligné avec tes segments actuels.
+                  </div>
+                  <Btn size="sm" variant="sage" onClick={autoSegment} disabled={computing}>
+                    {computing ? "Calcul…" : "Recalculer"}
+                  </Btn>
+                </div>
+              )}
               {selectedSegIds.size > 0 && (
                 <div style={{
                   margin: "0 20px 12px", padding: "10px 14px",
@@ -1265,7 +1295,9 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                 const isActive = (segForm.terrain || "normal") === t.key;
                 return (
                   <div key={t.key} onClick={() => {
-                    const baseSpeed = suggestSpeed(segForm.slopePct, effectiveCoeff, algoSettings);
+                    const midKm = ((parseFloat(segForm.startKm) || 0) + (parseFloat(segForm.endKm) || 0)) / 2;
+                    const poidsNutritionG = poidsZones?.length ? poidsNutritionAtKm(midKm, poidsZones) : 0;
+                    const baseSpeed = suggestSpeed(segForm.slopePct, effectiveCoeff, { ...algoSettings, poidsNutritionG });
                     updSeg("terrain", t.key);
                     setSegForm(f => ({ ...f, terrain: t.key, speedKmh: Math.max(2, +(baseSpeed * terrainCoeff).toFixed(1)) }));
                   }} style={{
