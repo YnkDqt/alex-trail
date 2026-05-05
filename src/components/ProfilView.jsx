@@ -18,6 +18,7 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
   const [segModal, setSegModal]       = useState(false);
   const [editSegId, setEditSegId]     = useState(null);
   const [computing, setComputing]     = useState(false);
+  const [showLevelTooltip, setShowLevelTooltip] = useState(false);
   const emptySegForm = { startKm: "", endKm: "", slopePct: 0, speedKmh: 9.5, terrain: "normal", notes: "" };
   const [segForm, setSegForm]         = useState(emptySegForm);
   const fileRef = useRef();
@@ -727,10 +728,25 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                         return (
                           <div style={{ padding: "12px 14px", borderRadius: 10, background: C.greenPale, border: `1px solid ${C.green}40` }}>
                             {/* Ligne récap GAP */}
-                            <div style={{ fontSize: 11, color: "var(--muted-c)", lineHeight: 1.5, marginBottom: 14 }}>
-                              GAP entraînement : <strong style={{ color: "var(--text-c)" }}>{fmtPace(raceLevel.enduranceGapKmh)}/km</strong>
-                              {" → "}
-                              GAP course estimée : <strong style={{ color: C.primary }}>{fmtPace(raceLevel.raceGapKmh)}/km</strong>
+                            <div style={{ fontSize: 11, color: "var(--muted-c)", lineHeight: 1.5, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                              <span>
+                                GAP entraînement : <strong style={{ color: "var(--text-c)" }}>{fmtPace(raceLevel.enduranceGapKmh)}/km</strong>
+                                {" → "}
+                                GAP course estimée : <strong style={{ color: C.primary }}>{fmtPace(raceLevel.raceGapKmh)}/km</strong>
+                              </span>
+                              <span
+                                onMouseEnter={() => setShowLevelTooltip(true)}
+                                onMouseLeave={() => setShowLevelTooltip(false)}
+                                onClick={() => setShowLevelTooltip(v => !v)}
+                                style={{
+                                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                  width: 18, height: 18, borderRadius: "50%",
+                                  background: "var(--surface-2)", border: "1px solid var(--border-c)",
+                                  fontSize: 11, fontWeight: 700, color: "var(--muted-c)",
+                                  cursor: "help", flexShrink: 0, userSelect: "none",
+                                }}
+                                title="Voir le détail du calcul"
+                              >i</span>
                             </div>
 
                             {/* Jauge */}
@@ -769,12 +785,77 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                               ))}
                             </div>
 
-                            {/* Détails de calcul */}
-                            <div style={{ fontSize: 10, color: "var(--muted-c)", marginTop: 8, fontStyle: "italic", lineHeight: 1.6 }}>
-                              Bonus +{raceLevel.bonusPct}% · {raceLevel.intensityBucket} · {raceLevel.durationBucket} · {gs.count} activités<br/>
-                              Correction Riegel : {raceLevel.riegelInfo}<br/>
-                              Fitness actuel : {raceLevel.fitnessPct >= 0 ? "+" : ""}{raceLevel.fitnessPct}% · {raceLevel.recencyInfo} · {raceLevel.loadInfo}
-                            </div>
+                            {/* Tooltip riche : détail du calcul + sources scientifiques */}
+                            {showLevelTooltip && (
+                              <div
+                                onMouseEnter={() => setShowLevelTooltip(true)}
+                                onMouseLeave={() => setShowLevelTooltip(false)}
+                                style={{
+                                  marginTop: 4, padding: "12px 14px", borderRadius: 8,
+                                  background: "var(--surface-c)", border: "1px solid var(--border-c)",
+                                  fontSize: 11, color: "var(--text-c)", lineHeight: 1.55,
+                                }}
+                              >
+                                <div style={{ fontWeight: 700, marginBottom: 8, color: C.primaryDeep, fontFamily: "var(--serif)" }}>
+                                  Détail du calcul du coefficient ×{raceLevel.autoLevelCoeff}
+                                </div>
+
+                                <div style={{ marginBottom: 10 }}>
+                                  <strong style={{ color: "var(--text-c)" }}>1. GAP d'entraînement Garmin</strong>
+                                  <div style={{ color: "var(--muted-c)", fontSize: 10, marginTop: 2 }}>
+                                    Allure moyenne pondérée sur {gs.count} activités filtrées : type Trail uniquement, intensité TE ≤ 4 (exclut VMA/seuil dur), dénivelé/km comparable à la course (filtre flottant 75/50/25%).<br/>
+                                    Le GAP (Grade-Adjusted Pace) normalise le dénivelé via la <em>formule de Minetti</em> (Minetti et al., 2002 — <em>Energy cost of walking and running at extreme uphill and downhill slopes</em>, J Appl Physiol).<br/>
+                                    <strong style={{ color: "var(--text-c)" }}>→ {fmtPace(raceLevel.enduranceGapKmh)}/km</strong>
+                                  </div>
+                                </div>
+
+                                <div style={{ marginBottom: 10 }}>
+                                  <strong style={{ color: "var(--text-c)" }}>2. Bonus intensité (passage entraînement → course) : +{raceLevel.bonusPct}%</strong>
+                                  <div style={{ color: "var(--muted-c)", fontSize: 10, marginTop: 2 }}>
+                                    {raceLevel.intensityBucket}.<br/>
+                                    Plus tu t'entraînes en zone basse (Z2), plus tu as de marge en compétition. Bonus barème selon le TE aérobie moyen Garmin :<br/>
+                                    • TE &lt; 2.5 : +10% (Z2 pur, grosse marge) · TE 2.5-3 : +6% · TE 3-3.5 : +3% · TE ≥ 3.5 : 0% (déjà au taquet)<br/>
+                                    Calibration cohérente avec les analyses de pacing UTMB et la littérature sur le coût énergétique du trail (Millet et al., 2011 — <em>Physiological and biological factors associated with a 24h treadmill ultra-marathon performance</em>).
+                                  </div>
+                                </div>
+
+                                <div style={{ marginBottom: 10 }}>
+                                  <strong style={{ color: "var(--text-c)" }}>3. Correction Riegel (extrapolation de durée) : {raceLevel.riegelInfo}</strong>
+                                  <div style={{ color: "var(--muted-c)", fontSize: 10, marginTop: 2 }}>
+                                    Plus la course dépasse la durée habituelle de tes sorties longues, plus l'allure soutenable diminue.<br/>
+                                    Formule : <em>v_course = v_long × (T_long / T_course)<sup>0.06</sup></em><br/>
+                                    Pool sorties longues = activités ≥ {raceLevel.longThresholdPct || "?"}% de la durée course (seuil flottant 50/30/15%, min 3 sorties).<br/>
+                                    Basé sur la <em>formule de Riegel</em> (Riegel, 1981 — <em>Athletic Records and Human Endurance</em>, American Scientist) avec un exposant 0.06 ajusté pour le trail (vs 0.07 route, car la pente plafonne déjà l'allure). Cap entre -12% et +5%.
+                                  </div>
+                                </div>
+
+                                <div style={{ marginBottom: 10 }}>
+                                  <strong style={{ color: "var(--text-c)" }}>4. Fitness actuel : {raceLevel.fitnessPct >= 0 ? "+" : ""}{raceLevel.fitnessPct}%</strong>
+                                  <div style={{ color: "var(--muted-c)", fontSize: 10, marginTop: 2 }}>
+                                    • <strong>Récence</strong> : {raceLevel.recencyInfo}.<br/>
+                                    Si tes activités sont anciennes, l'estimation de niveau est moins fiable.<br/>
+                                    Barème : ≥ 70% activités &lt; 60 j → ×1.00 · 40-70% → ×0.97 · &lt; 40% → ×0.93.<br/>
+                                    • <strong>Charge récente</strong> : {raceLevel.loadInfo}.<br/>
+                                    Approximation du <em>Chronic Training Load</em> (CTL) de Coggan & Allen (2010 — <em>Training and Racing with a Power Meter</em>) : volume sur 28 jours qui reflète l'affûtage actuel.<br/>
+                                    Barème : ≥ 150 km → ×1.03 · 80-150 km → ×1.00 · 40-80 km → ×0.96 · &lt; 40 km → ×0.92.<br/>
+                                    Cap cumulé entre ×0.85 et ×1.05.
+                                  </div>
+                                </div>
+
+                                <div style={{ marginBottom: 10 }}>
+                                  <strong style={{ color: "var(--text-c)" }}>5. Calcul final : GAP course → coefficient ×{raceLevel.autoLevelCoeff}</strong>
+                                  <div style={{ color: "var(--muted-c)", fontSize: 10, marginTop: 2 }}>
+                                    GAP course = GAP entraînement × (1 + {raceLevel.bonusPct}%) × {raceLevel.riegelCorr.toFixed(3)} × {raceLevel.fitnessFactor.toFixed(3)} = <strong style={{ color: C.primary }}>{fmtPace(raceLevel.raceGapKmh)}/km</strong><br/>
+                                    Le coefficient {raceLevel.autoLevelCoeff} positionne ce GAP de course par interpolation linéaire entre les vitesses moyennes attendues d'un coureur Intermédiaire (×0.88) et Confirmé (×1.00) sur cette course précise (segments + dénivelé pris en compte).<br/>
+                                    Ce coefficient remplace le levelCoeff manuel dans toutes les estimations de vitesse de l'application.
+                                  </div>
+                                </div>
+
+                                <div style={{ marginTop: 12, paddingTop: 8, borderTop: "1px solid var(--border-c)", fontSize: 10, color: "var(--muted-c)", fontStyle: "italic" }}>
+                                  Toutes ces corrections sont des estimations statistiques. La performance jour J dépend aussi du sommeil, de la nutrition, du mental, de la météo et de l'expérience spécifique du parcours — facteurs non capturés par cet algorithme.
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })()}
