@@ -299,7 +299,7 @@ export function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, t
   const ratio = poidsCoureur > 0 ? poidsTransporteKg / poidsCoureur : 0;
   const seuilRatio = 0.10;
   const penLin  = 0.30 * ratio;
-  const penQuad = 6.0  * Math.max(0, ratio - seuilRatio) ** 2;
+  const penQuad = 15.0 * Math.max(0, ratio - seuilRatio) ** 2;
   const weightPenalty = Math.max(0.40, 1 - penLin - penQuad);
 
   // Bâtons emportés → +3% sur les montées (slope ≥ 5%)
