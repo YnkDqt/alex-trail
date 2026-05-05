@@ -79,25 +79,30 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
   const totalTimeH = totalTime / 3600;
 
   // Vitesses moyennes course attendues pour Inter et Confirmé (référentiel pour mapping option 3).
-  // On simule suggestSpeed sur les segments actuels avec les coeffs RUNNER_LEVELS (0.88 et 1.00),
-  // sans coeff Garmin (=1) ni équipement/météo (settings nu) pour avoir une référence "pure niveau".
+  // CALCUL STABLE : on s'appuie sur le profil GPS brut (profile) et non sur les segments
+  // découpés, pour que refVelocities ne dépende QUE du parcours — pas de la météo,
+  // de l'équipement, ni du découpage actuel. Le niveau coureur est intrinsèque.
   const refVelocities = useMemo(() => {
-    if (!segsNormaux.length) return null;
-    const totalDist = segsNormaux.reduce((s, g) => s + (g.endKm - g.startKm), 0);
+    if (!profile.length || profile.length < 2) return null;
+    const totalDist = profile[profile.length - 1].dist - profile[0].dist;
     if (totalDist <= 0) return null;
-    const baseSettings = { runnerLevel: "intermediaire", paceStrategy: 0, weight: 70, equipment: [], tempC: 15 };
+    // Settings minimaux : pas de météo, pas d'équipement, poids neutre.
+    const baseSettings = { paceStrategy: 0, weight: 70, equipment: [], tempC: 15 };
     const meanSpeed = (level) => {
       const setts = { ...baseSettings, runnerLevel: level };
       let totalTime = 0;
-      segsNormaux.forEach((seg, i) => {
-        const v = suggestSpeed(seg.slopePct || 0, 1, setts, i, segsNormaux.length, totalDist, seg.startKm);
-        const dist = seg.endKm - seg.startKm;
-        if (v > 0) totalTime += dist / v;
-      });
+      for (let i = 1; i < profile.length; i++) {
+        const dKm = profile[i].dist - profile[i - 1].dist;
+        if (dKm <= 0) continue;
+        const dEle = profile[i].ele - profile[i - 1].ele;
+        const slopePct = (dEle / (dKm * 1000)) * 100;
+        const v = suggestSpeed(slopePct, 1, setts, i, profile.length, totalDist, profile[i - 1].dist);
+        if (v > 0) totalTime += dKm / v;
+      }
       return totalTime > 0 ? totalDist / totalTime : 0;
     };
     return { vInter: meanSpeed("intermediaire"), vConfirme: meanSpeed("confirme") };
-  }, [segsNormaux]);
+  }, [profile]);
 
   const raceLevel = useMemo(() => computeRaceLevel(gs, totalTimeH, refVelocities), [gs, totalTimeH, refVelocities]);
   const isAutoLevel = (settings.levelMode || (raceLevel ? "auto" : "manual")) === "auto" && raceLevel != null;
