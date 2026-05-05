@@ -164,6 +164,8 @@ export function computeStatsFromActivities(activites, opts = {}) {
     const fcMax = parseInt(a.fcMax || "");
     const te = parseFloat((a.teAero || "").toString().replace(",", "."));
     const durationH = parseDurationToHours(a.duree);
+    const dateStr = a.date || (a.dateHeure ? a.dateHeure.toString().slice(0, 10) : "");
+    const dateMs = dateStr ? Date.parse(dateStr) : NaN;
     // Filtre intensité : TE renseigné ET supérieur au seuil → exclu (séances quali)
     if (!isNaN(te) && te > maxTE) continue;
     allRows.push({
@@ -175,6 +177,7 @@ export function computeStatsFromActivities(activites, opts = {}) {
       fcMax: isNaN(fcMax) ? null : fcMax,
       te: isNaN(te) ? null : te,
       durationH,
+      dateMs: isNaN(dateMs) ? null : dateMs,
     });
   }
   if (!allRows.length) return null;
@@ -241,6 +244,26 @@ export function computeStatsFromActivities(activites, opts = {}) {
   const durationsH = rows.filter(r => r.durationH != null && r.durationH > 0)
     .map(r => r.durationH).sort((a, b) => b - a);
 
+  // ─── Fitness actuel : récence + charge (sur TOUTES activités trail, sans filtre TE) ───
+  // On compte les séances quali aussi pour la charge — un coureur qui fait beaucoup
+  // de fractionné est aussi "en forme".
+  const now = Date.now();
+  const MS_DAY = 86400000;
+  const trailAllForFitness = activites.filter(a => /trail/i.test(a.type || ""));
+  let recentRatio = null, kmLast4w = null;
+  const datedActs = trailAllForFitness.map(a => {
+    const dateStr = a.date || (a.dateHeure ? a.dateHeure.toString().slice(0, 10) : "");
+    const dateMs = dateStr ? Date.parse(dateStr) : NaN;
+    const dist = parseDistanceFR(a.distance);
+    return { dateMs: isNaN(dateMs) ? null : dateMs, dist: isNaN(dist) ? 0 : dist };
+  }).filter(x => x.dateMs !== null);
+  if (datedActs.length >= 3) {
+    const recent60 = datedActs.filter(a => (now - a.dateMs) <= 60 * MS_DAY);
+    recentRatio = +(recent60.length / datedActs.length).toFixed(2);
+    kmLast4w = Math.round(datedActs.filter(a => (now - a.dateMs) <= 28 * MS_DAY)
+      .reduce((s, a) => s + a.dist, 0));
+  }
+
   return {
     count: rows.length, avgGapKmh: +avgGapKmh.toFixed(2),
     coeff: +(avgGapKmh / DEFAULT_FLAT_SPEED).toFixed(3),
@@ -250,27 +273,28 @@ export function computeStatsFromActivities(activites, opts = {}) {
     appliedRatioPct, totalCount: allRows.length,
     avgTE,
     durationsH,
+    recentRatio, kmLast4w,
   };
 }
 
 // ─── COMPUTE RACE LEVEL ──────────────────────────────────────────────────────
 // Convertit le GAP d'endurance habituel (Garmin) en niveau de course personnalisé.
 //
-// Bonus selon TE moyen entraînement (intensité réelle observée) :
-//   TE < 2.5         → +10% (Z2 pur, grosse marge en course)
-//   TE 2.5 - 3.0     → +6%  (mix endurance/tempo, marge moyenne)
-//   TE 3.0 - 3.5     → +3%  (entraînement déjà soutenu)
-//   TE > 3.5 ou null → 0%   (proche du seuil, pas de marge)
+// Pipeline : enduranceGap → +bonus TE → ×riegel → ×fitness → autoLevelCoeff
 //
-// Correction Riegel (extrapolation de durée) : pénalise quand la course dépasse
-// largement les sorties d'entraînement les plus longues.
-//   correction = (durée_long_avg / durée_course)^0.06
-//   Pool sorties longues = activités ≥ 50% durée course (fallback 30% puis 15%, min 3 activités).
-//   Exposant 0.06 = Riegel adapté trail (vs 0.07 route, plafonnement par la pente).
+// Bonus TE (intensité d'entraînement) :
+//   < 2.5 → +10% | 2.5-3 → +6% | 3-3.5 → +3% | ≥3.5 ou null → 0%
 //
-// autoLevelCoeff (option 3) : interpole entre Intermédiaire (0.88) et Confirmé (1.00)
-// selon la position de raceGapKmh × correctionRiegel entre les vitesses moyennes attendues
-// d'un Inter et d'un Confirmé sur la même course (refVelocities). Sinon fallback simple.
+// Riegel (extrapolation durée) : (T_long_avg / T_course)^0.06
+//   Pool sorties longues = ≥ 50% durée course (fallback 30% puis 15%, min 3).
+//   Cap [-12% ; +5%].
+//
+// Fitness actuel : recencyFactor × loadFactor, cap cumulé [0.85 ; 1.05]
+//   Récence (% activités < 60j) : ≥70% → ×1.00 | 40-70% → ×0.97 | <40% → ×0.93
+//   Charge (km / 28j) : ≥150 → ×1.03 | 80-150 → ×1.00 | 40-80 → ×0.96 | <40 → ×0.92
+//
+// autoLevelCoeff : interpolation linéaire entre Inter (0.88) et Confirmé (1.00)
+// selon position de raceGapKmh entre vInter et vConfirme (refVelocities).
 //
 // Renvoie null si pas de stats Garmin exploitables.
 export function computeRaceLevel(gs, totalTimeH = 0, refVelocities = null) {
@@ -321,7 +345,32 @@ export function computeRaceLevel(gs, totalTimeH = 0, refVelocities = null) {
     }
   }
 
-  const raceGapKmh = +(baseRaceGapKmh * riegelCorr).toFixed(2);
+  const raceGapKmh_beforeFitness = +(baseRaceGapKmh * riegelCorr).toFixed(2);
+
+  // ─── Fitness actuel : récence + charge récente ───
+  // F1 récence (% activités sur 60 derniers jours) :
+  //   ≥ 70% → ×1.00 (cycle actif) | 40-70% → ×0.97 | < 40% → ×0.93 (données vieilles)
+  // F2 charge (km cumulés sur 28 derniers jours) :
+  //   ≥ 150 → ×1.03 (affûté) | 80-150 → ×1.00 | 40-80 → ×0.96 | < 40 → ×0.92 (coupure)
+  // Cap cumulé entre 0.85 et 1.05 pour éviter les emballements.
+  let recencyFactor = 1, recencyInfo = "non disponible";
+  if (gs.recentRatio !== null && gs.recentRatio !== undefined) {
+    if (gs.recentRatio >= 0.70)      { recencyFactor = 1.00; recencyInfo = `${Math.round(gs.recentRatio*100)}% récent — cycle actif`; }
+    else if (gs.recentRatio >= 0.40) { recencyFactor = 0.97; recencyInfo = `${Math.round(gs.recentRatio*100)}% récent — partiellement actif`; }
+    else                             { recencyFactor = 0.93; recencyInfo = `${Math.round(gs.recentRatio*100)}% récent — données anciennes`; }
+  }
+  let loadFactor = 1, loadInfo = "non disponible";
+  if (gs.kmLast4w !== null && gs.kmLast4w !== undefined) {
+    if (gs.kmLast4w >= 150)     { loadFactor = 1.03; loadInfo = `${gs.kmLast4w} km / 4 sem — affûté`; }
+    else if (gs.kmLast4w >= 80) { loadFactor = 1.00; loadInfo = `${gs.kmLast4w} km / 4 sem — standard`; }
+    else if (gs.kmLast4w >= 40) { loadFactor = 0.96; loadInfo = `${gs.kmLast4w} km / 4 sem — désentraîné`; }
+    else                        { loadFactor = 0.92; loadInfo = `${gs.kmLast4w} km / 4 sem — coupure`; }
+  }
+  let fitnessFactor = recencyFactor * loadFactor;
+  fitnessFactor = Math.max(0.85, Math.min(1.05, fitnessFactor));
+  const fitnessPct = Math.round((fitnessFactor - 1) * 100);
+
+  const raceGapKmh = +(raceGapKmh_beforeFitness * fitnessFactor).toFixed(2);
 
   // autoLevelCoeff : option 3 si refVelocities fournies, sinon fallback simple
   let autoLevelCoeff;
@@ -336,6 +385,7 @@ export function computeRaceLevel(gs, totalTimeH = 0, refVelocities = null) {
     enduranceGapKmh, raceGapKmh, raceCoeff, autoLevelCoeff,
     bonusPct, durationBucket, intensityBucket,
     riegelCorr: +riegelCorr.toFixed(3), riegelInfo, longAvgH: +longAvgH.toFixed(2), longCount, longThresholdPct,
+    fitnessFactor: +fitnessFactor.toFixed(3), fitnessPct, recencyInfo, loadInfo,
   };
 }
 

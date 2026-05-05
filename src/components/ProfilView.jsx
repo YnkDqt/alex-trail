@@ -730,6 +730,9 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                         <div style={{ fontSize: 10, color: "var(--muted-c)", marginTop: 2, fontStyle: "italic" }}>
                           Correction extrapolation durée (Riegel) : {raceLevel.riegelInfo}
                         </div>
+                        <div style={{ fontSize: 10, color: "var(--muted-c)", marginTop: 2, fontStyle: "italic" }}>
+                          Fitness actuel : {raceLevel.fitnessPct >= 0 ? "+" : ""}{raceLevel.fitnessPct}% · {raceLevel.recencyInfo} · {raceLevel.loadInfo}
+                        </div>
                       </div>
                     )}
                     {!isAutoLevel && (
