@@ -693,68 +693,114 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                 <Card style={!profilDetail ? { gridColumn: "1 / -1" } : {}}>
                   <SLabel>Performance & objectif</SLabel>
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                    {/* ── Niveau auto-détecté (Garmin) ── */}
-                    {raceLevel && (
-                      <div style={{
-                        padding: "10px 12px", borderRadius: 10,
-                        background: isAutoLevel ? C.greenPale : "var(--surface-2)",
-                        border: `1px solid ${isAutoLevel ? C.green + "40" : "var(--border-c)"}`,
-                      }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, gap: 8 }}>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-c)" }}>
-                            🎯 Niveau détecté depuis tes activités
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => updS("levelMode", isAutoLevel ? "manual" : "auto")}
-                            style={{
-                              fontSize: 10, fontWeight: 600, padding: "3px 9px", borderRadius: 10,
-                              border: `1px solid ${isAutoLevel ? C.green : "var(--border-c)"}`,
-                              background: isAutoLevel ? C.green : "transparent",
-                              color: isAutoLevel ? "#fff" : "var(--muted-c)",
-                              cursor: "pointer", whiteSpace: "nowrap",
-                            }}
-                          >
-                            {isAutoLevel ? "✓ Auto" : "Manuel"}
-                          </button>
-                        </div>
-                        <div style={{ fontSize: 11, color: "var(--muted-c)", lineHeight: 1.5 }}>
-                          GAP entraînement : <strong style={{ color: "var(--text-c)" }}>{fmtPace(raceLevel.enduranceGapKmh)}/km</strong>
-                          {" → "}
-                          GAP course estimée : <strong style={{ color: C.primary }}>{fmtPace(raceLevel.raceGapKmh)}/km</strong>
-                          {" "}<span style={{ color: C.green }}>(+{raceLevel.bonusPct}%)</span>
-                        </div>
-                        <div style={{ fontSize: 10, color: "var(--muted-c)", marginTop: 3, fontStyle: "italic" }}>
-                          Bonus +{raceLevel.bonusPct}% · {raceLevel.intensityBucket} · {raceLevel.durationBucket} · coeff niveau ×{raceLevel.autoLevelCoeff} · {gs.count} activités
-                        </div>
-                        <div style={{ fontSize: 10, color: "var(--muted-c)", marginTop: 2, fontStyle: "italic" }}>
-                          Correction extrapolation durée (Riegel) : {raceLevel.riegelInfo}
-                        </div>
-                        <div style={{ fontSize: 10, color: "var(--muted-c)", marginTop: 2, fontStyle: "italic" }}>
-                          Fitness actuel : {raceLevel.fitnessPct >= 0 ? "+" : ""}{raceLevel.fitnessPct}% · {raceLevel.recencyInfo} · {raceLevel.loadInfo}
-                        </div>
-                      </div>
-                    )}
-                    {!isAutoLevel && (
+                    {/* ── Niveau coureur : Auto / Manuel ── */}
                     <div>
-                      <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 6 }}>Niveau coureur</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 }}>
-                        {RUNNER_LEVELS.map(lvl => {
-                          const isActive = (settings.runnerLevel || "intermediaire") === lvl.key;
-                          return (
-                            <div key={lvl.key} onClick={() => updS("runnerLevel", lvl.key)} style={{
-                              padding: "8px 6px", borderRadius: 9, cursor: "pointer", textAlign: "center",
-                              border: `2px solid ${isActive ? C.primary : "var(--border-c)"}`,
-                              background: isActive ? C.primaryPale : "var(--surface-2)", transition: "all 0.15s",
-                            }}>
-                              <div style={{ fontWeight: 600, fontSize: 12, color: isActive ? C.primaryDeep : "var(--text-c)" }}>{lvl.label}</div>
-                            </div>
-                          );
-                        })}
+                      {/* Header : label + toggle Auto/Manuel */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8 }}>
+                        <span style={{ fontSize: 11, color: "var(--muted-c)" }}>Niveau coureur</span>
+                        {raceLevel ? (
+                          <div style={{ display: "flex", gap: 4, padding: 2, background: "var(--surface-2)", borderRadius: 8, border: "1px solid var(--border-c)" }}>
+                            <button type="button" onClick={() => updS("levelMode", "auto")} style={{
+                              fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 6,
+                              border: "none", cursor: "pointer", whiteSpace: "nowrap",
+                              background: isAutoLevel ? C.primary : "transparent",
+                              color: isAutoLevel ? "#fff" : "var(--muted-c)",
+                            }}>🎯 Auto</button>
+                            <button type="button" onClick={() => updS("levelMode", "manual")} style={{
+                              fontSize: 10, fontWeight: 600, padding: "3px 10px", borderRadius: 6,
+                              border: "none", cursor: "pointer", whiteSpace: "nowrap",
+                              background: !isAutoLevel ? C.primary : "transparent",
+                              color: !isAutoLevel ? "#fff" : "var(--muted-c)",
+                            }}>Manuel</button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 10, color: "var(--muted-c)", fontStyle: "italic" }}>Auto indisponible (importe des activités)</span>
+                        )}
                       </div>
-                      {(() => { const lvl = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel || "intermediaire")); return <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>{lvl?.desc} — coeff ×{lvl?.coeff}</div>; })()}
+
+                      {/* Mode AUTO : jauge graphique */}
+                      {isAutoLevel && raceLevel && (() => {
+                        // Échelle de la jauge : 0.65 → 1.20 (un peu de marge des deux côtés des RUNNER_LEVELS)
+                        const minScale = 0.65, maxScale = 1.20;
+                        const toPct = (c) => ((c - minScale) / (maxScale - minScale)) * 100;
+                        const autoPct = Math.max(0, Math.min(100, toPct(raceLevel.autoLevelCoeff)));
+                        return (
+                          <div style={{ padding: "12px 14px", borderRadius: 10, background: C.greenPale, border: `1px solid ${C.green}40` }}>
+                            {/* Ligne récap GAP */}
+                            <div style={{ fontSize: 11, color: "var(--muted-c)", lineHeight: 1.5, marginBottom: 14 }}>
+                              GAP entraînement : <strong style={{ color: "var(--text-c)" }}>{fmtPace(raceLevel.enduranceGapKmh)}/km</strong>
+                              {" → "}
+                              GAP course estimée : <strong style={{ color: C.primary }}>{fmtPace(raceLevel.raceGapKmh)}/km</strong>
+                            </div>
+
+                            {/* Jauge */}
+                            <div style={{ position: "relative", paddingTop: 22, paddingBottom: 38 }}>
+                              {/* Curseur Auto au-dessus de la barre */}
+                              <div style={{
+                                position: "absolute", top: 0, left: `${autoPct}%`, transform: "translateX(-50%)",
+                                display: "flex", flexDirection: "column", alignItems: "center", whiteSpace: "nowrap",
+                              }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: C.primaryDeep, fontFamily: "var(--serif)" }}>
+                                  ×{raceLevel.autoLevelCoeff}
+                                </span>
+                                <div style={{ width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: `6px solid ${C.primaryDeep}`, marginTop: 1 }} />
+                              </div>
+
+                              {/* Barre */}
+                              <div style={{ position: "relative", height: 6, background: "var(--surface-2)", borderRadius: 3, border: "1px solid var(--border-c)" }}>
+                                {/* Repères des niveaux */}
+                                {RUNNER_LEVELS.map(lvl => (
+                                  <div key={lvl.key} style={{
+                                    position: "absolute", top: -2, left: `${toPct(lvl.coeff)}%`, transform: "translateX(-50%)",
+                                    width: 2, height: 10, background: "var(--muted-c)", opacity: 0.5,
+                                  }} />
+                                ))}
+                              </div>
+
+                              {/* Labels des niveaux sous la barre */}
+                              {RUNNER_LEVELS.map(lvl => (
+                                <div key={lvl.key} style={{
+                                  position: "absolute", top: "calc(100% - 32px)", left: `${toPct(lvl.coeff)}%`, transform: "translateX(-50%)",
+                                  display: "flex", flexDirection: "column", alignItems: "center", whiteSpace: "nowrap",
+                                }}>
+                                  <span style={{ fontSize: 9, color: "var(--muted-c)" }}>×{lvl.coeff}</span>
+                                  <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-c)", marginTop: 1 }}>{lvl.label}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Détails de calcul */}
+                            <div style={{ fontSize: 10, color: "var(--muted-c)", marginTop: 8, fontStyle: "italic", lineHeight: 1.6 }}>
+                              Bonus +{raceLevel.bonusPct}% · {raceLevel.intensityBucket} · {raceLevel.durationBucket} · {gs.count} activités<br/>
+                              Correction Riegel : {raceLevel.riegelInfo}<br/>
+                              Fitness actuel : {raceLevel.fitnessPct >= 0 ? "+" : ""}{raceLevel.fitnessPct}% · {raceLevel.recencyInfo} · {raceLevel.loadInfo}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Mode MANUEL : 4 cartes cliquables */}
+                      {!isAutoLevel && (
+                        <>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 }}>
+                            {RUNNER_LEVELS.map(lvl => {
+                              const isActive = (settings.runnerLevel || "intermediaire") === lvl.key;
+                              return (
+                                <div key={lvl.key} onClick={() => updS("runnerLevel", lvl.key)} style={{
+                                  padding: "8px 6px", borderRadius: 9, cursor: "pointer", textAlign: "center",
+                                  border: `2px solid ${isActive ? C.primary : "var(--border-c)"}`,
+                                  background: isActive ? C.primaryPale : "var(--surface-2)", transition: "all 0.15s",
+                                }}>
+                                  <div style={{ fontWeight: 600, fontSize: 12, color: isActive ? C.primaryDeep : "var(--text-c)" }}>{lvl.label}</div>
+                                  <div style={{ fontSize: 10, color: "var(--muted-c)", marginTop: 1 }}>×{lvl.coeff}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {(() => { const lvl = RUNNER_LEVELS.find(l => l.key === (settings.runnerLevel || "intermediaire")); return <div style={{ fontSize: 11, color: "var(--muted-c)", marginTop: 4 }}>{lvl?.desc}</div>; })()}
+                        </>
+                      )}
                     </div>
-                    )}
                     <div>
                       <div style={{ fontSize: 11, color: "var(--muted-c)", marginBottom: 6 }}>Objectif</div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
