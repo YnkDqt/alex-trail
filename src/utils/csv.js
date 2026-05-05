@@ -120,6 +120,15 @@ const parsePaceStr = (str) => {
   const totalMin = parseInt(m[1]) + parseInt(m[2]) / 60;
   return totalMin > 0 ? 60 / totalMin : null;
 };
+// Parse durée Garmin "3:24:15" (h:m:s) ou "45:23" (m:s) → heures décimales
+const parseDurationToHours = (str) => {
+  if (!str || str === "--") return null;
+  const parts = str.toString().trim().split(":").map(p => parseInt(p));
+  if (parts.some(isNaN)) return null;
+  if (parts.length === 3) return parts[0] + parts[1] / 60 + parts[2] / 3600;
+  if (parts.length === 2) return parts[0] / 60 + parts[1] / 3600;
+  return null;
+};
 // Distance stockée par parseCSVActivities = cleanNum (virgules/espaces supprimés).
 // Donc "12,34" → "1234" et "12.34" → "12.34". Heuristique : si pas de "." et > 200, on divise par 100.
 const parseDistanceFR = (raw) => {
@@ -154,6 +163,7 @@ export function computeStatsFromActivities(activites, opts = {}) {
     const fcMoy = parseInt(a.fcMoy || "");
     const fcMax = parseInt(a.fcMax || "");
     const te = parseFloat((a.teAero || "").toString().replace(",", "."));
+    const durationH = parseDurationToHours(a.duree);
     // Filtre intensité : TE renseigné ET supérieur au seuil → exclu (séances quali)
     if (!isNaN(te) && te > maxTE) continue;
     allRows.push({
@@ -164,6 +174,7 @@ export function computeStatsFromActivities(activites, opts = {}) {
       fcMoy: isNaN(fcMoy) ? null : fcMoy,
       fcMax: isNaN(fcMax) ? null : fcMax,
       te: isNaN(te) ? null : te,
+      durationH,
     });
   }
   if (!allRows.length) return null;
@@ -226,6 +237,10 @@ export function computeStatsFromActivities(activites, opts = {}) {
     avgTE = +(teRows.reduce((s, r) => s + r.te * r.dist, 0) / totalDistTE).toFixed(2);
   }
 
+  // Durées des activités utilisées (triées desc) pour calcul Riegel par computeRaceLevel
+  const durationsH = rows.filter(r => r.durationH != null && r.durationH > 0)
+    .map(r => r.durationH).sort((a, b) => b - a);
+
   return {
     count: rows.length, avgGapKmh: +avgGapKmh.toFixed(2),
     coeff: +(avgGapKmh / DEFAULT_FLAT_SPEED).toFixed(3),
@@ -234,6 +249,7 @@ export function computeStatsFromActivities(activites, opts = {}) {
     fcMaxObs, gapZone2Kmh, z2Count: z2Rows.length,
     appliedRatioPct, totalCount: allRows.length,
     avgTE,
+    durationsH,
   };
 }
 
@@ -246,10 +262,15 @@ export function computeStatsFromActivities(activites, opts = {}) {
 //   TE 3.0 - 3.5     → +3%  (entraînement déjà soutenu)
 //   TE > 3.5 ou null → 0%   (proche du seuil, pas de marge)
 //
+// Correction Riegel (extrapolation de durée) : pénalise quand la course dépasse
+// largement les sorties d'entraînement les plus longues.
+//   correction = (durée_long_avg / durée_course)^0.06
+//   Pool sorties longues = activités ≥ 50% durée course (fallback 30% puis 15%, min 3 activités).
+//   Exposant 0.06 = Riegel adapté trail (vs 0.07 route, plafonnement par la pente).
+//
 // autoLevelCoeff (option 3) : interpole entre Intermédiaire (0.88) et Confirmé (1.00)
-// selon la position de raceGapKmh entre les vitesses moyennes attendues d'un Inter
-// et d'un Confirmé sur la même course (refVelocities). Si refVelocities absent,
-// fallback sur la formule simple raceGapKmh / 9.5.
+// selon la position de raceGapKmh × correctionRiegel entre les vitesses moyennes attendues
+// d'un Inter et d'un Confirmé sur la même course (refVelocities). Sinon fallback simple.
 //
 // Renvoie null si pas de stats Garmin exploitables.
 export function computeRaceLevel(gs, totalTimeH = 0, refVelocities = null) {
@@ -272,23 +293,49 @@ export function computeRaceLevel(gs, totalTimeH = 0, refVelocities = null) {
   else                      durationBucket = "> 8h (ultra)";
 
   const enduranceGapKmh = gs.avgGapKmh;
-  const raceGapKmh = +(enduranceGapKmh * (1 + bonusPct / 100)).toFixed(2);
+  const baseRaceGapKmh = enduranceGapKmh * (1 + bonusPct / 100);
+
+  // ─── Correction Riegel (pool flottant) ───
+  let riegelCorr = 1, riegelInfo = "désactivée (durées non disponibles)", longAvgH = 0, longCount = 0, longThresholdPct = 0;
+  if (totalTimeH > 0 && Array.isArray(gs.durationsH) && gs.durationsH.length > 0) {
+    const seuils = [0.50, 0.30, 0.15];
+    for (const s of seuils) {
+      const pool = gs.durationsH.filter(d => d >= totalTimeH * s);
+      if (pool.length >= 3) {
+        longAvgH = pool.reduce((sum, d) => sum + d, 0) / pool.length;
+        longCount = pool.length;
+        longThresholdPct = Math.round(s * 100);
+        break;
+      }
+    }
+    if (longAvgH > 0) {
+      // Riegel : v_course = v_long × (T_long / T_course)^0.06
+      // Si T_course > T_long → ratio < 1 → correction < 1 (malus)
+      riegelCorr = Math.pow(longAvgH / totalTimeH, 0.06);
+      // Cap entre 0.88 (malus max -12%) et 1.05 (bonus max +5% si on a fait plus long que la course)
+      riegelCorr = Math.max(0.88, Math.min(1.05, riegelCorr));
+      const pct = Math.round((riegelCorr - 1) * 100);
+      riegelInfo = `${pct >= 0 ? "+" : ""}${pct}% (${longCount} sorties ≥ ${longThresholdPct}% durée, moy. ${longAvgH.toFixed(1)}h)`;
+    } else {
+      riegelInfo = "désactivée (pas assez de sorties longues)";
+    }
+  }
+
+  const raceGapKmh = +(baseRaceGapKmh * riegelCorr).toFixed(2);
 
   // autoLevelCoeff : option 3 si refVelocities fournies, sinon fallback simple
   let autoLevelCoeff;
   if (refVelocities && refVelocities.vInter > 0 && refVelocities.vConfirme > refVelocities.vInter) {
-    // Position relative de raceGapKmh entre vInter (coeff 0.88) et vConfirme (coeff 1.00)
     const t = (raceGapKmh - refVelocities.vInter) / (refVelocities.vConfirme - refVelocities.vInter);
-    // Interpole : t=0 → 0.88, t=1 → 1.00. Pas de cap pour permettre Expert (>1.00) ou faible (<0.88).
     autoLevelCoeff = +(0.88 + t * (1.00 - 0.88)).toFixed(3);
   } else {
     autoLevelCoeff = +(raceGapKmh / DEFAULT_FLAT_SPEED).toFixed(3);
   }
-  // raceCoeff conservé pour rétro-compat (ancien naming) — même valeur qu'autoLevelCoeff
   const raceCoeff = autoLevelCoeff;
   return {
     enduranceGapKmh, raceGapKmh, raceCoeff, autoLevelCoeff,
     bonusPct, durationBucket, intensityBucket,
+    riegelCorr: +riegelCorr.toFixed(3), riegelInfo, longAvgH: +longAvgH.toFixed(2), longCount, longThresholdPct,
   };
 }
 

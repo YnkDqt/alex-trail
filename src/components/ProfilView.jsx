@@ -727,6 +727,9 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
                         <div style={{ fontSize: 10, color: "var(--muted-c)", marginTop: 3, fontStyle: "italic" }}>
                           Bonus +{raceLevel.bonusPct}% · {raceLevel.intensityBucket} · {raceLevel.durationBucket} · coeff niveau ×{raceLevel.autoLevelCoeff} · {gs.count} activités
                         </div>
+                        <div style={{ fontSize: 10, color: "var(--muted-c)", marginTop: 2, fontStyle: "italic" }}>
+                          Correction extrapolation durée (Riegel) : {raceLevel.riegelInfo}
+                        </div>
                       </div>
                     )}
                     {!isAutoLevel && (
