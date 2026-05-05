@@ -295,13 +295,17 @@ export function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, t
     if (it.usage) return it.usage === "course";
     return (it.cat || "").toLowerCase() === "équipement";
   };
+  // Un item compte dans l'algo s'il est actif ET emporté. `actif` reflète
+  // "j'utilise ce matériel" (toggle de la biblio), `emporte` un futur 2e niveau
+  // pour adapter par course.
+  const isAlgoActive = (it) => it.actif !== false && it.emporte !== false;
 
   // Poids total des items emportés (équipement de course + nutrition transportée).
-  // - Équipement : items usage="course" avec emporte !== false
+  // - Équipement : items usage="course" actifs et emportés
   // - Nutrition : settings.poidsNutritionG (calculé en amont par segment via
   //   poidsNutritionAtKm — décroît linéairement entre rechargements)
   const poidsEquipementKg = equipment
-    .filter(e => isCourseUsage(e) && e.emporte !== false)
+    .filter(e => isCourseUsage(e) && isAlgoActive(e))
     .reduce((s, e) => s + (e.poidsG || 0), 0) / 1000;
   const poidsNutritionKg = (settings.poidsNutritionG || 0) / 1000;
   const poidsTransporteKg = poidsEquipementKg + poidsNutritionKg;
@@ -319,11 +323,11 @@ export function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, t
   const weightPenalty = Math.max(0.40, 1 - penLin - penQuad);
 
   // Bâtons emportés → +3% sur les montées (slope ≥ 5%)
-  const hasPoles = equipment.some(e => inferType(e) === "batons" && e.emporte !== false);
+  const hasPoles = equipment.some(e => inferType(e) === "batons" && isAlgoActive(e));
   const polesBonus = (hasPoles && slopePct >= 5) ? 1.03 : 1;
 
   // Veste imper emportée + pluie active → -10%
-  const hasRainJacket = equipment.some(e => inferType(e) === "imper" && e.emporte !== false);
+  const hasRainJacket = equipment.some(e => inferType(e) === "imper" && isAlgoActive(e));
   const rainMalus = (hasRainJacket && settings.rain) ? 0.90 : 1;
 
   return +(base * coeff * levelCoeff * fatigueCoeff
