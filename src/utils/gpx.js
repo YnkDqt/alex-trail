@@ -280,14 +280,19 @@ export function suggestSpeed(slopePct, coeff = 1, settings = {}, segIndex = 0, t
   const poidsCoureur = settings.weight || 70;
   const equipment = settings.equipment || [];
 
-  // Poids total des items emportés (même logique que EquipementView : emporte !== false)
+  // Poids total des items emportés (équipement + nutrition transportée).
+  // - Équipement : items avec emporte !== false (logique EquipementView)
+  // - Nutrition : settings.poidsNutritionG (calculé en amont par segment via
+  //   poidsNutritionAtKm — décroît linéairement entre rechargements)
   const poidsEquipementKg = equipment
     .filter(e => e.emporte !== false)
     .reduce((s, e) => s + (e.poidsG || 0), 0) / 1000;
+  const poidsNutritionKg = (settings.poidsNutritionG || 0) / 1000;
+  const poidsTransporteKg = poidsEquipementKg + poidsNutritionKg;
 
   // Seuil dynamique = 10% poids corporel — au-delà : -3% par kg
   const seuilKg = poidsCoureur * 0.10;
-  const surplusKg = Math.max(0, poidsEquipementKg - seuilKg);
+  const surplusKg = Math.max(0, poidsTransporteKg - seuilKg);
   const weightPenalty = 1 - surplusKg * 0.03;
 
   // Bâtons emportés → +3% sur les montées (slope ≥ 5%)
@@ -318,6 +323,22 @@ export function calcSlopeFromGPX(points, startKm, endKm) {
 }
 
 // ─── autoSegmentGPX ─────────────────────────────────────────────────────
+// Helper local : poids nutrition à un km donné (décroissance linéaire entre rechargements).
+// Cloné de nutrition.js pour éviter la dépendance circulaire gpx → nutrition.
+function computePoidsAtKm(km, zones) {
+  if (!Array.isArray(zones) || !zones.length) return 0;
+  for (const z of zones) {
+    if (km >= z.startKm && km <= z.endKm) {
+      const span = z.endKm - z.startKm;
+      if (span <= 0) return 0;
+      const ratio = (z.endKm - km) / span;
+      return Math.max(0, Math.min(z.poidsInitialG, z.poidsInitialG * ratio));
+    }
+  }
+  if (km < zones[0].startKm) return zones[0].poidsInitialG;
+  return 0;
+}
+
 export function autoSegmentGPX(points, coeff = 1, settings = {}) {
   if (points.length < 10) return [];
   const total = points[points.length - 1].dist;
@@ -443,10 +464,16 @@ export function autoSegmentGPX(points, coeff = 1, settings = {}) {
   const totalDistKm = +validated[validated.length - 1]?.end?.toFixed(1) || 0;
 
   // ── Calcul des vitesses ───────────────────────────────────────────────────
+  // Pour le poids nutrition dynamique : si settings.poidsZones fourni, on calcule
+  // le poids nutrition au km moyen de chaque segment (décroissance linéaire).
+  const poidsZones = Array.isArray(settings.poidsZones) ? settings.poidsZones : null;
   const rawSegs = validated.map((seg, i) => {
     const realSlope = calcSlopeFromGPX(points, seg.start, seg.end);
     const coveredDistKm = seg.start;
-    const speed = suggestSpeed(realSlope, coeff, settings, i, totalSegs, totalDistKm, coveredDistKm);
+    const segMidKm = (seg.start + seg.end) / 2;
+    const poidsNutritionG = poidsZones ? computePoidsAtKm(segMidKm, poidsZones) : 0;
+    const segSettings = poidsZones ? { ...settings, poidsNutritionG } : settings;
+    const speed = suggestSpeed(realSlope, coeff, segSettings, i, totalSegs, totalDistKm, coveredDistKm);
     const finalSpeed = +(speed * effortMult).toFixed(1);
     return {
       id: Date.now()+i,

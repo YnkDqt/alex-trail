@@ -1,11 +1,11 @@
 import { useState, useMemo, useRef } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { C, RUNNER_LEVELS, TERRAIN_TYPES, EMPTY_SETTINGS } from '../constants.js';
-import { fmtTime, fmtPace, calcNutrition, calcPassingTimes, suggestSpeed, autoSegmentGPX, parseGarminCSV, computeStatsFromActivities, computeRaceLevel, buildElevationProfile, calcSlopeFromGPX, parseGPX, enrichElevation } from '../utils.jsx';
+import { fmtTime, fmtPace, calcNutrition, calcPassingTimes, suggestSpeed, autoSegmentGPX, parseGarminCSV, computeStatsFromActivities, computeRaceLevel, buildElevationProfile, calcSlopeFromGPX, parseGPX, enrichElevation, buildPoidsZones } from '../utils.jsx';
 import { Btn, Card, KPI, PageTitle, Field, Modal, ConfirmDialog, CustomTooltip } from '../atoms.jsx';
 
 // ─── VUE PROFIL DE COURSE ────────────────────────────────────────────────────
-export default function ProfilView({ race, setRace, segments, setSegments, settings, setSettings, onOpenRepos, isMobile, profilDetail = true, profil, poids, activites = [] }) {
+export default function ProfilView({ race, setRace, segments, setSegments, settings, setSettings, onOpenRepos, isMobile, profilDetail = true, profil, poids, activites = [], produits = [], recettes = [] }) {
   const [gpxError, setGpxError]       = useState(null);
   const [gpxStatus, setGpxStatus]     = useState(null);
   const [dragging, setDragging]       = useState(false);
@@ -109,11 +109,19 @@ export default function ProfilView({ race, setRace, segments, setSegments, setti
   // En mode auto on garde le coeff Garmin (effectiveCoeff = garminCoeff) et on passe
   // autoLevelCoeff via settings pour remplacer le levelCoeff manuel côté suggestSpeed.
   const effectiveCoeff = settings.garminCoeff || 1;
+
+  // Poids nutrition transporté : zones entre points de rechargement (départ + ravitos
+  // assistance). Décroît linéairement dans chaque zone. Injecté dans algoSettings pour
+  // que autoSegmentGPX/suggestSpeed l'incluent dans le poidsTransporteKg du weightPenalty.
+  const allItems = useMemo(() => [...(produits || []), ...(recettes || [])], [produits, recettes]);
+  const poidsZones = useMemo(() => buildPoidsZones(race, allItems), [race, allItems]);
+
   const algoSettings = useMemo(() => ({
     ...settings,
     levelMode: isAutoLevel ? "auto" : "manual",
     autoLevelCoeff: isAutoLevel ? raceLevel.autoLevelCoeff : 0,
-  }), [settings, isAutoLevel, raceLevel]);
+    poidsZones,
+  }), [settings, isAutoLevel, raceLevel, poidsZones]);
 
   const highlightData = useMemo(() => {
     if (!profile.length) return profile;

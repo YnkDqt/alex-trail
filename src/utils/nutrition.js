@@ -63,6 +63,63 @@ export function isRecette(item) {
   return Array.isArray(item?.ingredients);
 }
 
+// Calcule le poids en grammes d'une quantité stockée.
+// - Produit liquide (boisson) : quantite en ml ≈ grammes (1 ml d'eau = 1 g)
+// - Produit solide : quantite en grammes directement
+// - Recette : quantite × (volumeMlParPortion ou grammesParPortion)
+export function poidsDuStock(item, quantite) {
+  if (!item || !quantite) return 0;
+  if (isRecette(item)) {
+    const portionMl = parseFloat(item.volumeMlParPortion) || 0;
+    const portionG = parseFloat(item.grammesParPortion) || 0;
+    if (portionMl > 0) return Math.round(quantite * portionMl);
+    if (portionG > 0) return Math.round(quantite * portionG);
+    return 0;
+  }
+  return Math.round(quantite);
+}
+
+// Construit les zones de poids nutrition entre points de rechargement.
+// Rechargement = départ (km 0) ou ravito avec assistancePresente !== false.
+// Les ravitos autonomes sont ignorés (leurs produits sont déjà inclus dans le
+// rechargement précédent via la stratégie "porter").
+// Retour : [{ startKm, endKm, poidsInitialG }, ...]
+export function buildPoidsZones(race, allItems = []) {
+  const totalDist = race?.totalDistance || 0;
+  if (totalDist <= 0) return [];
+  const ravitosAssist = (race?.ravitos || []).filter(r => r.assistancePresente !== false)
+    .slice().sort((a, b) => (a.km || 0) - (b.km || 0));
+  const sumPoids = (produits = []) =>
+    produits.reduce((s, { id, quantite }) => {
+      const item = allItems.find(it => it.id === id);
+      return s + poidsDuStock(item, parseFloat(quantite) || 0);
+    }, 0);
+  const zones = [];
+  let prev = { km: 0, produits: race?.depart?.produits || [] };
+  for (const r of ravitosAssist) {
+    if ((r.km || 0) <= prev.km) continue;
+    zones.push({ startKm: prev.km, endKm: r.km, poidsInitialG: sumPoids(prev.produits) });
+    prev = { km: r.km, produits: r.produits || [] };
+  }
+  zones.push({ startKm: prev.km, endKm: totalDist, poidsInitialG: sumPoids(prev.produits) });
+  return zones;
+}
+
+// Poids nutrition transporté à un km donné — décroissance linéaire dans la zone.
+export function poidsNutritionAtKm(km, zones) {
+  if (!Array.isArray(zones) || !zones.length) return 0;
+  for (const z of zones) {
+    if (km >= z.startKm && km <= z.endKm) {
+      const span = z.endKm - z.startKm;
+      if (span <= 0) return 0;
+      const ratio = (z.endKm - km) / span;
+      return Math.max(0, Math.min(z.poidsInitialG, z.poidsInitialG * ratio));
+    }
+  }
+  if (km < zones[0].startKm) return zones[0].poidsInitialG;
+  return 0;
+}
+
 // Calcule les kcal totaux d'une recette (somme des ingrédients × quantité/100).
 // `allItems` doit contenir les produits référencés dans `recette.ingredients`.
 export function calcKcalRecette(recette, allItems) {
