@@ -1,8 +1,8 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { C, COURSE_C, localDate, daysUntil, isRunning, actColor } from "../constants.js";
 import { PageTitle } from "../atoms.jsx";
 
-function Dashboard({ setView, seances, vfcData, sommeil, poids, objectifs, race, settings, profilType, setProfilType }) {
+function Dashboard({ setView, seances, activites=[], journalMoments=[], setJournalMoments, vfcData, sommeil, poids, objectifs, race, settings, profilType, setProfilType }) {
   const today = localDate(new Date());
   const lastVFC     = useMemo(()=>[...vfcData].sort((a,b)=>new Date(b.date)-new Date(a.date))[0]||null,[vfcData]);
   const lastSommeil = useMemo(()=>[...sommeil].sort((a,b)=>new Date(b.date)-new Date(a.date))[0]||null,[sommeil]);
@@ -69,13 +69,51 @@ function Dashboard({ setView, seances, vfcData, sommeil, poids, objectifs, race,
   const card={background:C.white,border:`1px solid ${C.border}`,borderRadius:14};
   const lbl={fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",color:C.muted,marginBottom:8,display:"block"};
 
+  // ===== Carte Mémoire =====
+  const todayActivites = useMemo(()=>activites.filter(a=>a.date===today && a.type!=="Repos"),[activites,today]);
+  const hasRessenti = a => (a.forme!=null && a.forme!=="") || (a.plaisir!=null && a.plaisir!=="") || (a.rpe!=null && a.rpe!=="") || !!a.noteRessenti;
+  const activitesSansRessenti = useMemo(()=>todayActivites.filter(a=>!hasRessenti(a)),[todayActivites]);
+  const todayMoment = useMemo(()=>journalMoments.some(m=>m.date===today),[journalMoments,today]);
+  const todayJourOff = useMemo(()=>activites.some(a=>a.date===today && a.type==="Repos"),[activites,today]);
+
+  // États possibles : 'pending_ressenti' | 'pending_empty' | 'all_done'
+  const memoState = activitesSansRessenti.length>0 ? 'pending_ressenti'
+    : (todayActivites.length===0 && !todayMoment && !todayJourOff) ? 'pending_empty'
+    : 'all_done';
+
+  const [toast, setToast] = useState(null);
+  useEffect(()=>{
+    if(!toast) return;
+    const t = setTimeout(()=>setToast(null), 5000);
+    return ()=>clearTimeout(t);
+  },[toast]);
+
+  const handleQuickMoment = () => {
+    const titre = window.prompt("Titre du Moment (laisse vide pour annuler)");
+    if(!titre || !titre.trim()) return;
+    const newMoment = {
+      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+      date: today, titre: titre.trim(), texte: "",
+      etats: [], intensite: "", contexte: "", objectifs: []
+    };
+    setJournalMoments(prev=>[...(prev||[]), newMoment]);
+    setToast("✓ Moment créé — édite-le dans le Journal");
+  };
+  const handleJourOff = () => {
+    setView("activites");
+    setToast(null);
+  };
+  const handleNoterRessenti = () => {
+    setView("activites");
+  };
+
   return (
     <div style={{maxWidth:1180,margin:"0 auto",padding:"28px 24px 60px"}}>
       <PageTitle sub={nextObj && j !== null ? (
         <><span style={{fontWeight:600,color:phaseColor}}>{phase}</span>{" · "}{nextObj.nom} dans <span style={{fontWeight:600,color:C.inkLight}}>{j} jour{j>1?"s":""}</span></>
       ) : null}>Tableau de bord</PageTitle>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,marginBottom:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(240px, 1fr))",gap:14,marginBottom:14}}>
         {/* Forme */}
         <div style={{...card,padding:"16px 18px",borderTop:`3px solid ${formeColor}`}}>
           <span style={lbl}>Forme du jour</span>
@@ -166,6 +204,75 @@ function Dashboard({ setView, seances, vfcData, sommeil, poids, objectifs, race,
               background:"transparent",color:"#1D9E75",cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
             Voir le programme →
           </button>
+        </div>
+
+        {/* Mémoire - carte du jour */}
+        <div style={{...card,padding:"16px 18px",borderTop:`3px solid ${C.summit}`,position:"relative"}}>
+          <span style={lbl}>Mémoire du jour</span>
+          {toast ? (
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:140,
+              fontSize:13,color:C.green,fontWeight:500,textAlign:"center",padding:"0 8px",lineHeight:1.5}}>
+              {toast}
+            </div>
+          ) : memoState==='pending_ressenti' ? (
+            <>
+              <div style={{fontFamily:"'Fraunces',serif",fontSize:18,fontWeight:500,color:C.inkLight,marginBottom:6,lineHeight:1.3}}>
+                Comment c'était ?
+              </div>
+              <div style={{fontSize:12,color:C.muted,marginBottom:14,lineHeight:1.5}}>
+                {activitesSansRessenti.length===1
+                  ? `Une activité ${activitesSansRessenti[0].type?.toLowerCase()||""} aujourd'hui — note ton ressenti.`
+                  : `${activitesSansRessenti.length} activités aujourd'hui — note ton ressenti.`}
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                <button onClick={handleNoterRessenti}
+                  style={{fontSize:12,padding:"7px 12px",borderRadius:8,border:`1px solid ${C.summit}`,
+                    background:C.summit,color:C.white,cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
+                  Noter le ressenti →
+                </button>
+                <button onClick={handleQuickMoment}
+                  style={{fontSize:12,padding:"7px 12px",borderRadius:8,border:`1px solid ${C.border}`,
+                    background:"transparent",color:C.muted,cursor:"pointer",fontFamily:"inherit"}}>
+                  Écrire un Moment
+                </button>
+              </div>
+            </>
+          ) : memoState==='pending_empty' ? (
+            <>
+              <div style={{fontFamily:"'Fraunces',serif",fontSize:18,fontWeight:500,color:C.inkLight,marginBottom:6,lineHeight:1.3}}>
+                Rien aujourd'hui
+              </div>
+              <div style={{fontSize:12,color:C.muted,marginBottom:14,lineHeight:1.5}}>
+                C'est noté ? Un jour off ou un Moment qui mérite d'être retenu.
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                <button onClick={handleJourOff}
+                  style={{fontSize:12,padding:"7px 12px",borderRadius:8,border:`1px solid ${C.border}`,
+                    background:"transparent",color:C.inkLight,cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
+                  Jour off →
+                </button>
+                <button onClick={handleQuickMoment}
+                  style={{fontSize:12,padding:"7px 12px",borderRadius:8,border:`1px solid ${C.border}`,
+                    background:"transparent",color:C.muted,cursor:"pointer",fontFamily:"inherit"}}>
+                  Écrire un Moment
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{fontFamily:"'Fraunces',serif",fontSize:18,fontWeight:500,color:C.inkLight,marginBottom:6,lineHeight:1.3}}>
+                Bien noté
+              </div>
+              <div style={{fontSize:12,color:C.muted,marginBottom:14,lineHeight:1.5}}>
+                {todayMoment ? "Un Moment écrit aujourd'hui." : todayJourOff ? "Jour off enregistré." : "Ressenti à jour."}
+              </div>
+              <button onClick={handleQuickMoment}
+                style={{fontSize:12,padding:"7px 12px",borderRadius:8,border:`1px solid ${C.border}`,
+                  background:"transparent",color:C.muted,cursor:"pointer",fontFamily:"inherit"}}>
+                Écrire un Moment
+              </button>
+            </>
+          )}
         </div>
       </div>
 
