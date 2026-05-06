@@ -1,8 +1,8 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo } from "react";
 import { C, COURSE_C, localDate, daysUntil, isRunning, actColor } from "../constants.js";
 import { PageTitle } from "../atoms.jsx";
 
-function Dashboard({ setView, seances, activites=[], journalMoments=[], setJournalMoments, vfcData, sommeil, poids, objectifs, race, settings, profilType, setProfilType }) {
+function Dashboard({ setView, seances, activites=[], journalMoments=[], setJournalMoments, requestJournalNew, vfcData, sommeil, poids, objectifs, race, settings, profilType, setProfilType }) {
   const today = localDate(new Date());
   const lastVFC     = useMemo(()=>[...vfcData].sort((a,b)=>new Date(b.date)-new Date(a.date))[0]||null,[vfcData]);
   const lastSommeil = useMemo(()=>[...sommeil].sort((a,b)=>new Date(b.date)-new Date(a.date))[0]||null,[sommeil]);
@@ -81,31 +81,12 @@ function Dashboard({ setView, seances, activites=[], journalMoments=[], setJourn
     : (todayActivites.length===0 && !todayMoment && !todayJourOff) ? 'pending_empty'
     : 'all_done';
 
-  const [toast, setToast] = useState(null);
-  useEffect(()=>{
-    if(!toast) return;
-    const t = setTimeout(()=>setToast(null), 5000);
-    return ()=>clearTimeout(t);
-  },[toast]);
-
-  const handleQuickMoment = () => {
-    const titre = window.prompt("Titre du Moment (laisse vide pour annuler)");
-    if(!titre || !titre.trim()) return;
-    const newMoment = {
-      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-      date: today, titre: titre.trim(), texte: "",
-      etats: [], intensite: "", contexte: "", objectifs: []
-    };
-    setJournalMoments(prev=>[...(prev||[]), newMoment]);
-    setToast("✓ Moment créé — édite-le dans le Journal");
+  const handleNewMoment = () => {
+    requestJournalNew && requestJournalNew();
+    setView("journal");
   };
-  const handleJourOff = () => {
-    setView("activites");
-    setToast(null);
-  };
-  const handleNoterRessenti = () => {
-    setView("activites");
-  };
+  const handleJourOff = () => setView("activites");
+  const handleNoterRessenti = () => setView("activites");
 
   return (
     <div style={{maxWidth:1180,margin:"0 auto",padding:"28px 24px 60px"}}>
@@ -209,12 +190,7 @@ function Dashboard({ setView, seances, activites=[], journalMoments=[], setJourn
         {/* Mémoire - carte du jour */}
         <div style={{...card,padding:"16px 18px",borderTop:`3px solid ${C.summit}`,position:"relative"}}>
           <span style={lbl}>Mémoire du jour</span>
-          {toast ? (
-            <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:140,
-              fontSize:13,color:C.green,fontWeight:500,textAlign:"center",padding:"0 8px",lineHeight:1.5}}>
-              {toast}
-            </div>
-          ) : memoState==='pending_ressenti' ? (
+          {memoState==='pending_ressenti' ? (
             <>
               <div style={{fontFamily:"'Fraunces',serif",fontSize:18,fontWeight:500,color:C.inkLight,marginBottom:6,lineHeight:1.3}}>
                 Comment c'était ?
@@ -230,7 +206,7 @@ function Dashboard({ setView, seances, activites=[], journalMoments=[], setJourn
                     background:C.summit,color:C.white,cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
                   Noter le ressenti →
                 </button>
-                <button onClick={handleQuickMoment}
+                <button onClick={handleNewMoment}
                   style={{fontSize:12,padding:"7px 12px",borderRadius:8,border:`1px solid ${C.border}`,
                     background:"transparent",color:C.muted,cursor:"pointer",fontFamily:"inherit"}}>
                   Écrire un Moment
@@ -251,7 +227,7 @@ function Dashboard({ setView, seances, activites=[], journalMoments=[], setJourn
                     background:"transparent",color:C.inkLight,cursor:"pointer",fontFamily:"inherit",fontWeight:500}}>
                   Jour off →
                 </button>
-                <button onClick={handleQuickMoment}
+                <button onClick={handleNewMoment}
                   style={{fontSize:12,padding:"7px 12px",borderRadius:8,border:`1px solid ${C.border}`,
                     background:"transparent",color:C.muted,cursor:"pointer",fontFamily:"inherit"}}>
                   Écrire un Moment
@@ -266,7 +242,7 @@ function Dashboard({ setView, seances, activites=[], journalMoments=[], setJourn
               <div style={{fontSize:12,color:C.muted,marginBottom:14,lineHeight:1.5}}>
                 {todayMoment ? "Un Moment écrit aujourd'hui." : todayJourOff ? "Jour off enregistré." : "Ressenti à jour."}
               </div>
-              <button onClick={handleQuickMoment}
+              <button onClick={handleNewMoment}
                 style={{fontSize:12,padding:"7px 12px",borderRadius:8,border:`1px solid ${C.border}`,
                   background:"transparent",color:C.muted,cursor:"pointer",fontFamily:"inherit"}}>
                 Écrire un Moment

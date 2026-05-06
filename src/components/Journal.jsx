@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { C, fmtDate, localDate } from "../constants.js";
 import { Btn, PageTitle, Modal, ConfirmDialog, Empty, Field } from "../atoms.jsx";
 
@@ -50,7 +50,7 @@ const emptyMoment = () => ({
 });
 
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────────────────
-export default function Journal({ journalMoments, setJournalMoments, objectifs, race, isMobile }) {
+export default function Journal({ journalMoments, setJournalMoments, objectifs, race, isMobile, openNewSignal, clearOpenNewSignal }) {
   const [search, setSearch]       = useState("");
   const [fEtat, setFEtat]         = useState("");
   const [fIntensite, setFInt]     = useState("");
@@ -64,6 +64,15 @@ export default function Journal({ journalMoments, setJournalMoments, objectifs, 
 
   const openNew  = () => { setForm(emptyMoment()); setModal(true); };
   const openEdit = (m) => { setForm({...m}); setModal(true); };
+
+  // Si Dashboard a demandé l'ouverture directe en création
+  useEffect(()=>{
+    if (openNewSignal) {
+      openNew();
+      clearOpenNewSignal && clearOpenNewSignal();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[openNewSignal]);
 
   const save = () => {
     if (!form.titre.trim()) return alert("Le titre est requis");
