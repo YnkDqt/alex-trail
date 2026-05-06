@@ -357,7 +357,7 @@ export default function DonneesParamsView({
         <div>
           <Section title="Général">
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {ENTRAINEMENT_FEATURE_LABELS.filter(f=>f.key==="objectifs"||f.key==="journal").map(({key,label,icon,desc})=>(
+              {ENTRAINEMENT_FEATURE_LABELS.filter(f=>f.key==="objectifs"||f.key==="journal"||f.key==="coach").map(({key,label,icon,desc})=>(
                 <ToggleRow key={key} icon={icon} label={label} desc={desc}
                   active={entrainementFeatures[key]!==false}
                   onToggle={()=>toggleEntrainementFeature(key)}
@@ -376,7 +376,7 @@ export default function DonneesParamsView({
             />
             {entrainementFeatures._section!==false&&(
               <div style={{display:"flex",flexDirection:"column",gap:8,marginTop:8,paddingLeft:16,borderLeft:`2px solid ${TEAL}30`}}>
-                {ENTRAINEMENT_FEATURE_LABELS.filter(f=>f.key!=="objectifs"&&f.key!=="journal").map(({key,label,icon,desc})=>(
+                {ENTRAINEMENT_FEATURE_LABELS.filter(f=>f.key!=="objectifs"&&f.key!=="journal"&&f.key!=="coach").map(({key,label,icon,desc})=>(
                   <ToggleRow key={key} icon={icon} label={label} desc={desc}
                     active={entrainementFeatures[key]!==false}
                     onToggle={()=>toggleEntrainementFeature(key)}
