@@ -221,7 +221,7 @@ function Activites({ activites, setActivites, seances, setSeances }) {
                   ].filter(({hide}) => !isMobile || !hide).map(({field}) => (
                     <ScrollableCell key={field} align="center" style={{padding:"4px",borderRight:`1px solid ${C.border}`}}>
                       <RessentiCell value={a[field]} field={field}
-                        onClick={(rect) => setRessentiPop({ actId: a.id, field, anchorRect: rect })}/>
+                        onClick={() => setRessentiPop({ actId: a.id, field })}/>
                     </ScrollableCell>
                   ))}
                   {/* Suppression */}
@@ -249,14 +249,10 @@ const RESSENTI_SCALES = {
 
 function RessentiCell({ value, field, onClick }) {
   const isNote = field === "noteRessenti";
-  const handle = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    onClick(rect);
-  };
   if (isNote) {
     const hasNote = value && value.trim().length > 0;
     return (
-      <button onClick={handle} title={hasNote ? value : "Ajouter une note"}
+      <button onClick={onClick} title={hasNote ? value : "Ajouter une note"}
         style={{background:"none",border:"none",cursor:"pointer",fontSize:14,padding:"4px 6px",
           color:hasNote?C.forest:C.muted,opacity:hasNote?1:0.4}}>
         {hasNote ? "✎" : "+"}
@@ -266,14 +262,14 @@ function RessentiCell({ value, field, onClick }) {
   const scale = RESSENTI_SCALES[field];
   if (value != null && value >= 1 && value <= 5) {
     return (
-      <button onClick={handle} title={scale.legend[value-1]}
+      <button onClick={onClick} title={scale.legend[value-1]}
         style={{background:"none",border:"none",cursor:"pointer",fontSize:16,padding:"2px 4px",lineHeight:1}}>
         {scale.emojis[value-1]}
       </button>
     );
   }
   return (
-    <button onClick={handle} title={`Saisir ${scale.label.toLowerCase()}`}
+    <button onClick={onClick} title={`Saisir ${scale.label.toLowerCase()}`}
       style={{background:"none",border:"none",cursor:"pointer",fontSize:14,padding:"4px 6px",color:C.muted,opacity:0.4}}>
       +
     </button>
@@ -284,55 +280,56 @@ function RessentiPopover({ pop, activites, updAct, onClose }) {
   if (!pop) return null;
   const act = activites.find(a => a.id === pop.actId);
   if (!act) return null;
-  const { field, anchorRect } = pop;
+  const { field } = pop;
   const isNote = field === "noteRessenti";
   const scale = RESSENTI_SCALES[field];
-
-  // Position : ancré à gauche de la cellule (s'ouvre vers le centre du tableau).
-  // Si pas la place à gauche (cellule trop près du bord gauche de la fenêtre),
-  // on bascule à droite. On centre verticalement sur la cellule.
-  const popW = isNote ? 280 : 280;
-  const popH = isNote ? 140 : 70;
-  const margin = 8;
-  let left = anchorRect.left - popW - margin;
-  if (left < 10) left = anchorRect.right + margin; // fallback à droite
-  let top = anchorRect.top + anchorRect.height/2 - popH/2;
-  if (top < 10) top = 10;
-  if (top + popH > window.innerHeight - 10) top = window.innerHeight - popH - 10;
 
   const setVal = (v) => { updAct(act.id, field, v); onClose(); };
   const clear = () => { updAct(act.id, field, isNote ? "" : null); onClose(); };
 
+  // Sous-titre : contexte de l'activité pour rappeler ce qu'on note
+  const dateStr = act.date ? act.date.split("-").reverse().join("/") : "";
+  const ctx = `${dateStr} · ${act.type || "—"}${act.titre ? ` · ${act.titre}` : ""}`;
+
   return (
-    <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:9998,background:"transparent"}}>
-      <div onClick={e=>e.stopPropagation()} style={{
-        position:"fixed", left, top, width:popW,
-        background:C.white, borderRadius:12, border:`1px solid ${C.border}`,
-        boxShadow:"0 8px 24px rgba(0,0,0,0.12)", padding:"12px 14px"
-      }}>
-        <div style={{fontSize:11,fontWeight:600,color:C.inkLight,marginBottom:8,textTransform:"uppercase",letterSpacing:0.5}}>
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(28,25,22,0.5)",
+      backdropFilter:"blur(3px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,borderRadius:16,
+        padding:"22px 24px",width:"min(420px,94vw)"}}>
+        <div style={{fontFamily:"'Fraunces',serif",fontSize:18,fontWeight:500,
+          color:C.inkLight,marginBottom:2}}>
           {isNote ? "Note ressenti" : scale.label}
         </div>
+        <div style={{fontSize:11,color:C.muted,marginBottom:18}}>{ctx}</div>
+
         {isNote ? (
           <NoteEditor initial={act.noteRessenti||""} onSave={setVal} onClear={clear}/>
         ) : (
-          <div style={{display:"flex",gap:6,justifyContent:"space-between"}}>
-            {scale.emojis.map((emoji, i) => {
-              const v = i+1;
-              const selected = act[field] === v;
-              return (
-                <button key={v} onClick={()=>setVal(v)} title={scale.legend[i]}
-                  style={{flex:1,fontSize:22,padding:"6px 4px",border:`1px solid ${selected?C.forest:C.border}`,
-                    borderRadius:8,background:selected?C.forestPale:C.bg,cursor:"pointer",lineHeight:1}}>
-                  {emoji}
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {!isNote && act[field] != null && (
-          <button onClick={clear} style={{marginTop:8,fontSize:11,color:C.muted,background:"none",
-            border:"none",cursor:"pointer",padding:0,textDecoration:"underline"}}>Effacer</button>
+          <>
+            <div style={{display:"flex",gap:8,justifyContent:"space-between"}}>
+              {scale.emojis.map((emoji, i) => {
+                const v = i+1;
+                const selected = act[field] === v;
+                return (
+                  <button key={v} onClick={()=>setVal(v)} title={scale.legend[i]}
+                    style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,
+                      fontSize:26,padding:"10px 4px",border:`1px solid ${selected?C.forest:C.border}`,
+                      borderRadius:10,background:selected?C.forestPale:C.bg,cursor:"pointer",lineHeight:1,
+                      fontFamily:"inherit"}}>
+                    <span>{emoji}</span>
+                    <span style={{fontSize:10,color:C.muted,fontWeight:500}}>{scale.legend[i]}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16}}>
+              {act[field] != null
+                ? <button onClick={clear} style={{fontSize:12,color:C.muted,background:"none",
+                    border:"none",cursor:"pointer",padding:0,textDecoration:"underline"}}>Effacer</button>
+                : <span/>}
+              <Btn variant="ghost" size="sm" onClick={onClose}>Fermer</Btn>
+            </div>
+          </>
         )}
       </div>
     </div>
