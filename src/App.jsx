@@ -73,7 +73,7 @@ export default function App() {
   const [profilType,    setProfilType]   = useState(null); // null = premier lancement
   
   // ── Feature toggles (chargés depuis Supabase) ──────────────────────────────
-  const ENTRAINEMENT_FEATURES_DEFAULT = {programme:true,activites:true,forme:true,gut_training:true,objectifs:true,coach:true};
+  const ENTRAINEMENT_FEATURES_DEFAULT = {programme:true,activites:true,forme:true,gut_training:true,objectifs:true,journal:true,coach:true};
   const COURSE_FEATURES_DEFAULT = {nutrition:true,equipement:true,analyse:true,team:true,courses:true,profilDetail:true};
   const [entrainementFeatures, setEntrainementFeatures] = useState(ENTRAINEMENT_FEATURES_DEFAULT);
   const [courseFeatures, setCourseFeatures] = useState(COURSE_FEATURES_DEFAULT);
@@ -570,6 +570,7 @@ export default function App() {
     {key:"forme",label:"Forme",icon:"♡",desc:"VFC, sommeil, poids, journal nutritionnel"},
     {key:"gut_training",label:"Gut Training",icon:"🍽️",desc:"Nutrition entraînement : produits, recettes, historique"},
     {key:"objectifs",label:"Objectifs",icon:"🏔",desc:"Courses cibles, planification compétitions"},
+    {key:"journal",label:"Journal",icon:"✎",desc:"Mémoire émotionnelle : moments marquants, déclics, doutes"},
     {key:"coach",label:"Coach IA",icon:"✦",desc:"Conseils personnalisés basés sur tes données"},
   ];
   

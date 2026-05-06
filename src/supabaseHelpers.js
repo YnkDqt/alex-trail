@@ -630,7 +630,7 @@ export async function loadEntrainementSettings(userId) {
   
   if (error && error.code !== 'PGRST116') throw error
   
-  const ENTRAINEMENT_FEATURES_DEFAULT = {programme:true,activites:true,forme:true,objectifs:true,coach:true}
+  const ENTRAINEMENT_FEATURES_DEFAULT = {programme:true,activites:true,forme:true,gut_training:true,objectifs:true,journal:true,coach:true}
   const COURSE_FEATURES_DEFAULT = {nutrition:true,equipement:true,analyse:true,team:true,courses:true,profilDetail:true}
   
   return {

@@ -72,17 +72,19 @@ export default function AppLayout({
   // Navigation unifiée avec filtrage selon profilType
   const NAV_GROUPS = [
     { label: null, color: null, items: [
-      { id:"accueil", label:"Tableau de bord", icon:"◉" },
+      { id:"accueil",   label:"Tableau de bord", icon:"◉" },
+      ...(entrainementFeatures.objectifs!==false ? [{ id:"objectifs", label:"Objectifs", icon:"🏔" }] : []),
     ]},
+    ...(entrainementFeatures.journal!==false ? [{ label: null, color: null, items: [
+      { id:"journal", label:"Journal", icon:"✎" },
+    ]}] : []),
     // Section Entraînement
     // Visible si : full, training_only (masquée si course_prep ou team)
     ...( (entrainementFeatures._section!==false && profilType !== 'course_prep' && profilType !== 'team') ? [{ label: "Entraînement", color: TEAL, items: [
       { id:"entrainement", label:"Programme",  icon:"↑", feat:"programme" },
       { id:"activites",    label:"Activités",  icon:"▣", feat:"activites" },
       { id:"forme",        label:"Forme",      icon:"♡", feat:"forme" },
-      { id:"journal",      label:"Journal",    icon:"✎" },
       { id:"gut_training", label:"Gut Training", icon:"🍽️", feat:"gut_training" },
-      { id:"objectifs",    label:"Objectifs",  icon:"🏔", feat:"objectifs" },
     ].filter(n=>entrainementFeatures[n.feat]!==false)}] : []),
     // Section Course
     // Visible si : full, course_prep (masquée si training_only)
