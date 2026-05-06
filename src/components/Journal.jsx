@@ -23,6 +23,9 @@ const CONTEXTES = [
   { key: "vie_perso",    label: "Vie perso",    icon: "🌱" },
 ];
 
+// ID réservé pour la phase "Hors saison" (stocké dans la colonne objectifs[]).
+const HORS_SAISON_ID = "hors_saison";
+
 const intensiteBadge = (key) => {
   if (key === "pivot")    return { bg: C.green,    color: C.white };
   if (key === "marquant") return { bg: C.stoneDeep, color: C.white };
@@ -92,22 +95,27 @@ export default function Journal({ journalMoments, setJournalMoments, objectifs, 
     if (fIntensite) list = list.filter(m => m.intensite === fIntensite);
     if (fContexte)  list = list.filter(m => m.contexte === fContexte);
     if (fObjectif) {
-      const obj = (objectifs||[]).find(o => String(o.id) === String(fObjectif));
-      if (obj) {
-        // Manuel prioritaire : tout Moment lié explicitement à l'objectif est inclus.
-        // Fallback fenêtre : Moment non lié dont la date tombe dans [date - 90j, date + 7j].
-        let min = null, max = null;
-        if (obj.date) {
-          min = new Date(obj.date); min.setDate(min.getDate() - 90);
-          max = new Date(obj.date); max.setDate(max.getDate() + 7);
+      // Cas spécial Hors saison : filtrage manuel uniquement, pas de fallback dates.
+      if (fObjectif === HORS_SAISON_ID) {
+        list = list.filter(m => (m.objectifs||[]).map(String).includes(HORS_SAISON_ID));
+      } else {
+        const obj = (objectifs||[]).find(o => String(o.id) === String(fObjectif));
+        if (obj) {
+          // Manuel prioritaire : tout Moment lié explicitement à l'objectif est inclus.
+          // Fallback fenêtre : Moment non lié dont la date tombe dans [date - 90j, date + 7j].
+          let min = null, max = null;
+          if (obj.date) {
+            min = new Date(obj.date); min.setDate(min.getDate() - 90);
+            max = new Date(obj.date); max.setDate(max.getDate() + 7);
+          }
+          list = list.filter(m => {
+            const lieManuel = (m.objectifs||[]).map(String).includes(String(obj.id));
+            if (lieManuel) return true;
+            if (!min || !max) return false;
+            const d = new Date(m.date);
+            return d >= min && d <= max;
+          });
         }
-        list = list.filter(m => {
-          const lieManuel = (m.objectifs||[]).map(String).includes(String(obj.id));
-          if (lieManuel) return true;
-          if (!min || !max) return false;
-          const d = new Date(m.date);
-          return d >= min && d <= max;
-        });
       }
     }
     list.sort((a,b) => (a.date < b.date ? 1 : -1));
@@ -140,6 +148,7 @@ export default function Journal({ journalMoments, setJournalMoments, objectifs, 
         <select value={fObjectif} onChange={e=>setFObjectif(e.target.value)}
           style={selStyle}>
           <option value="">Tous les objectifs</option>
+          <option value={HORS_SAISON_ID}>🍂 Hors saison</option>
           {[...(objectifs||[])].sort((a,b)=>(a.date||"").localeCompare(b.date||"")).map(o => (
             <option key={o.id} value={o.id}>{o.nom}{o.date?` · ${fmtDate(o.date)}`:""}</option>
           ))}
@@ -223,7 +232,10 @@ function MomentCard({ moment, objectifs, onEdit, onDelete }) {
   const intensite = INTENSITES.find(i => i.key === moment.intensite);
   const contexte = CONTEXTES.find(c => c.key === moment.contexte);
   const badge = moment.intensite ? intensiteBadge(moment.intensite) : null;
-  const linkedObjs = (moment.objectifs||[])
+  const linkedIds = (moment.objectifs||[]).map(String);
+  const hasHorsSaison = linkedIds.includes(HORS_SAISON_ID);
+  const linkedObjs = linkedIds
+    .filter(id => id !== HORS_SAISON_ID)
     .map(oid => (objectifs||[]).find(o => String(o.id) === String(oid)))
     .filter(Boolean);
 
@@ -236,6 +248,11 @@ function MomentCard({ moment, objectifs, onEdit, onDelete }) {
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
             <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.muted}}>{fmtDate(moment.date)}</span>
             {contexte && <span style={{fontSize:10,color:C.muted}}>· {contexte.icon} {contexte.label}</span>}
+            {hasHorsSaison && (
+              <span style={{background:C.yellowPale,color:C.yellow,fontSize:10,padding:"2px 7px",borderRadius:4,fontWeight:500}}>
+                🍂 Hors saison
+              </span>
+            )}
             {linkedObjs.map(o => (
               <span key={o.id} style={{background:C.summitPale,color:C.summit,fontSize:10,padding:"2px 7px",borderRadius:4,fontWeight:500}}>
                 🏔 {o.nom}
@@ -357,23 +374,30 @@ function MomentModal({ open, form, setForm, objectifs, onClose, onSave, onDelete
         </Field>
       </div>
 
-      {sortedObjs.length > 0 && (
-        <div style={{marginBottom:14}}>
-          <Field label="Lié à un objectif (optionnel, multi-sélection)">
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {sortedObjs.map(o => {
-                const sel = (form.objectifs||[]).map(String).includes(String(o.id));
-                return (
-                  <button key={o.id} onClick={()=>toggleObjectif(o.id)}
-                    style={{...chipStyle, background:sel?C.summitPale:C.white, borderColor:sel?C.summit:C.border, color:sel?C.summit:C.muted, fontWeight:sel?500:400}}>
-                    🏔 {o.nom}{o.date?` · ${fmtDate(o.date)}`:""}
-                  </button>
-                );
-              })}
-            </div>
-          </Field>
-        </div>
-      )}
+      <div style={{marginBottom:14}}>
+        <Field label="Lié à un objectif (optionnel, multi-sélection)">
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {(() => {
+              const sel = (form.objectifs||[]).map(String).includes(HORS_SAISON_ID);
+              return (
+                <button key={HORS_SAISON_ID} onClick={()=>toggleObjectif(HORS_SAISON_ID)}
+                  style={{...chipStyle, background:sel?C.yellowPale:C.white, borderColor:sel?C.yellow:C.border, color:sel?C.yellow:C.muted, fontWeight:sel?500:400}}>
+                  🍂 Hors saison
+                </button>
+              );
+            })()}
+            {sortedObjs.map(o => {
+              const sel = (form.objectifs||[]).map(String).includes(String(o.id));
+              return (
+                <button key={o.id} onClick={()=>toggleObjectif(o.id)}
+                  style={{...chipStyle, background:sel?C.summitPale:C.white, borderColor:sel?C.summit:C.border, color:sel?C.summit:C.muted, fontWeight:sel?500:400}}>
+                  🏔 {o.nom}{o.date?` · ${fmtDate(o.date)}`:""}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+      </div>
 
       <div style={{marginBottom:14}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6}}>
