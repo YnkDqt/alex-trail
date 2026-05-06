@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useAuth } from './AuthContext';
-import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse, loadNutrition, saveNutrition, loadEntrainementSettings, saveEntrainementSettings, getDataVersion, bumpDataVersion, clearUserData, hasSnapshotForCurrentPeriod, createSnapshot, listSnapshots, loadSnapshot, exportAllUserDataAsJSON } from './supabaseHelpers';
+import { loadAthleteProfile, saveAthleteProfile, loadActivities, saveActivities, loadSeances, saveSeances, loadSommeil, saveSommeil, loadVFC, saveVFC, loadPoids, savePoids, loadObjectifs, saveObjectifs, loadCurrentRace, saveCurrentRace, loadCourses, saveCourse, deleteCourse, loadNutrition, saveNutrition, loadJournalMoments, saveJournalMoments, loadEntrainementSettings, saveEntrainementSettings, getDataVersion, bumpDataVersion, clearUserData, hasSnapshotForCurrentPeriod, createSnapshot, listSnapshots, loadSnapshot, exportAllUserDataAsJSON } from './supabaseHelpers';
 import Login from './Login';
 import { C, COURSE_C, COURSE_NAVS, EMPTY_SETTINGS, DEFAULT_EQUIPMENT,
   ACTIVITY_TYPES, STATUT_OPTIONS, ACT_ICON,
@@ -66,6 +66,7 @@ export default function App() {
   const [planningType,  setPlanningType] = useState(DEFAULT_PLANNING);
   const [activityTypes, setActivityTypes]= useState(ACTIVITY_TYPES.filter(t=>t));
   const [journalNutri,  setJournalNutri] = useState([]);
+  const [journalMoments, setJournalMoments] = useState([]);
   const [produits,      setProduits]     = useState([]);
   const [recettes,      setRecettes]     = useState([]);
   const [profil,        setProfil]       = useState({sexe:"Homme",taille:180});
@@ -196,6 +197,7 @@ export default function App() {
               loadPoids(user.id),
               loadObjectifs(user.id),
               loadNutrition(user.id),
+              loadJournalMoments(user.id),
               loadEntrainementSettings(user.id),
               getDataVersion(user.id),
             ]),
@@ -216,7 +218,7 @@ export default function App() {
 
     loadWithRetry().then((results) => {
       if (cancelled) return;
-      const [profile, acts, seances, som, vfc, pds, objs, nutr, settings, dataVersion] = results;
+      const [profile, acts, seances, som, vfc, pds, objs, nutr, jrnMoments, settings, dataVersion] = results;
       serverVersionRef.current = dataVersion;
       if (profile) setProfil(profile);
       if (acts?.length) setActivites(migrateActivites(acts));
@@ -225,6 +227,7 @@ export default function App() {
       if (vfc?.length) setVfcData(vfc);
       if (pds?.length) setPoids(pds);
       if (objs?.length) setObjectifs(objs);
+      if (jrnMoments?.length) setJournalMoments(jrnMoments);
       if (nutr) {
         if (nutr.journalNutri?.length) setJournalNutri(nutr.journalNutri);
         // Dédoublonnage par nom (garde le plus récent = id le plus grand) au load
@@ -469,6 +472,17 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [journalNutri, produits, recettes, user?.id, dataLoaded, conflictDetected, safeSave]);
 
+  // Auto-save journal moments
+  useEffect(()=>{
+    if (!user?.id || !dataLoaded || conflictDetected) return;
+    pendingSavesRef.current.journalMoments = () => safeSave(() => saveJournalMoments(user.id, journalMoments));
+    const timer = setTimeout(() => {
+      safeSave(() => saveJournalMoments(user.id, journalMoments));
+      delete pendingSavesRef.current.journalMoments;
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [journalMoments, user?.id, dataLoaded, conflictDetected, safeSave]);
+
   // Auto-save entrainement settings + features
   useEffect(()=>{
     if (!user?.id || !dataLoaded || conflictDetected) return;
@@ -503,7 +517,7 @@ export default function App() {
     }
   },[]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const allData = {seances,activites,sommeil,vfcData,poids,objectifs,planningType,activityTypes,journalNutri,produits,recettes,profil};
+  const allData = {seances,activites,sommeil,vfcData,poids,objectifs,planningType,activityTypes,journalNutri,journalMoments,produits,recettes,profil};
   const loadEntrainementData = data => {
     if(data.seances)       setSeances(data.seances);
     if(data.activites)     setActivites(data.activites);
@@ -514,6 +528,7 @@ export default function App() {
     if(data.planningType)  setPlanningType(data.planningType);
     if(data.activityTypes) setActivityTypes(data.activityTypes);
     if(data.journalNutri)  setJournalNutri(data.journalNutri);
+    if(data.journalMoments)setJournalMoments(data.journalMoments);
     if(data.produits)      setProduits(data.produits);
     if(data.recettes)      setRecettes(data.recettes);
     if(data.profil)        setProfil(data.profil);
@@ -1047,6 +1062,7 @@ export default function App() {
       planningType={planningType} setPlanningType={setPlanningType}
       activityTypes={activityTypes} setActivityTypes={setActivityTypes}
       journalNutri={journalNutri} setJournalNutri={setJournalNutri}
+      journalMoments={journalMoments} setJournalMoments={setJournalMoments}
       produits={produits} setProduits={setProduits} recettes={recettes} setRecettes={setRecettes}
       allData={allData} loadEntrainementData={loadEntrainementData} resetAll={resetAll}
       profil={profil} setProfil={setProfil} confirmReset={confirmReset} setConfirmReset={setConfirmReset}

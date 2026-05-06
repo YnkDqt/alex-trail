@@ -6,6 +6,7 @@ import Dashboard from './Dashboard.jsx';
 import EntrainementProgramme from './EntrainementProgramme.jsx';
 import { FormeVFC, FormeSommeil, FormePoids } from './Forme.jsx';
 import { Activites } from './Activites.jsx';
+import Journal from './Journal.jsx';
 import Objectifs from './Objectifs.jsx';
 import { JournalNutri, Nutrition } from './Nutrition.jsx';
 import SemaineType from './SemaineType.jsx';
@@ -27,7 +28,7 @@ export default function AppLayout({
   seances, setSeances, activites, setActivites, sommeil, setSommeil,
   vfcData, setVfcData, poids, setPoids, objectifs, setObjectifs,
   planningType, setPlanningType, activityTypes, setActivityTypes,
-  journalNutri, setJournalNutri, produits, setProduits, recettes, setRecettes,
+  journalNutri, setJournalNutri, journalMoments, setJournalMoments, produits, setProduits, recettes, setRecettes,
   allData, loadEntrainementData, resetAll, profil, setProfil,
   confirmReset, setConfirmReset, isMobile,
   // Course state (depuis CourseLayout inline)
@@ -79,6 +80,7 @@ export default function AppLayout({
       { id:"entrainement", label:"Programme",  icon:"↑", feat:"programme" },
       { id:"activites",    label:"Activités",  icon:"▣", feat:"activites" },
       { id:"forme",        label:"Forme",      icon:"♡", feat:"forme" },
+      { id:"journal",      label:"Journal",    icon:"✎" },
       { id:"gut_training", label:"Gut Training", icon:"🍽️", feat:"gut_training" },
       { id:"objectifs",    label:"Objectifs",  icon:"🏔", feat:"objectifs" },
     ].filter(n=>entrainementFeatures[n.feat]!==false)}] : []),
@@ -304,6 +306,7 @@ export default function AppLayout({
           {view==="objectifs" && <Objectifs objectifs={objectifs} setObjectifs={setObjectifs} seances={seances} activites={activites} vfcData={vfcData} poids={poids} profil={profil} produits={produits} recettes={recettes} allData={allData} setView={setView}/>}
           {view==="coach" && <MonCoachIA seances={seances} setSeances={setSeances} activites={activites} sommeil={sommeil} vfcData={vfcData} poids={poids} objectifs={objectifs} planningType={planningType} produits={produits} recettes={recettes} journalNutri={journalNutri} activityTypes={activityTypes}/>}
           {view==="activites" && <Activites activites={activites} setActivites={setActivites} seances={seances} setSeances={setSeances}/>}
+          {view==="journal" && <Journal journalMoments={journalMoments} setJournalMoments={setJournalMoments} race={race} courses={courses} isMobile={isMobile}/>}
           {view==="gut_training" && <Nutrition produits={produits} setProduits={setProduits} recettes={recettes} setRecettes={setRecettes} seances={seances} setSeances={setSeances} activites={activites}/>}
           {view==="entrainement" && (
             <div>
@@ -329,7 +332,7 @@ export default function AppLayout({
           )}
           {/* Vues Course */}
           {view==="profil_course"&&<div style={{padding:"24px 32px"}}><ProfilView race={race} setRace={setRace} segments={segments} setSegments={setSegments} settings={effSettings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profilDetail={features.profilDetail} profil={profil} poids={poids} activites={activites} produits={produits} recettes={recettes}/></div>}
-          {view==="strategie"&&<div style={{padding:"24px 32px"}}><StrategieView race={race} segments={segments} setSegments={setSegments} settings={effSettings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profil={profil} produits={produits} recettes={recettes}/></div>}
+          {view==="strategie"&&<div style={{padding:"24px 32px"}}><StrategieView race={race} segments={segments} setSegments={setSegments} settings={effSettings} setSettings={setSettings} onOpenRepos={()=>setReposModal(true)} isMobile={isMobile} profil={profil}/></div>}
           {view==="nutrition_course"&&<div style={{padding:"24px 32px"}}><NutritionView segments={segments} settings={settings} setSettings={setSettings} race={race} setRace={setRace} isMobile={isMobile} onNavigate={setView} profil={profil} poids={poids} recettes={recettes} setRecettes={setRecettes} produits={produits} setProduits={setProduits}/></div>}
           {view==="equipement"&&<div style={{padding:"24px 32px"}}><EquipementView settings={settings} setSettings={setSettings} race={race} setRace={setRace} segments={segments} isMobile={isMobile}/></div>}
           {view==="analyse"&&<div style={{padding:"24px 32px"}}><AnalyseView race={race} segments={segments} settings={effSettings} produits={produits} recettes={recettes} activites={activites} isMobile={isMobile} onNavigate={setView}/></div>}

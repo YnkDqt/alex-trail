@@ -582,6 +582,42 @@ export async function saveNutrition(userId, journalNutri, produits, recettes) {
   if (error) throw error
 }
 
+// ─── JOURNAL MOMENTS ──────────────────────────────────────────────────────────
+export async function loadJournalMoments(userId) {
+  const { data, error } = await supabase
+    .from('journal_moments')
+    .select('*')
+    .eq('user_id', userId)
+    .order('date', { ascending: false })
+
+  if (error) throw error
+
+  return (data || []).map(m => ({
+    id: m.id,
+    date: m.date,
+    titre: m.titre,
+    texte: m.texte || "",
+    etats: Array.isArray(m.etats) ? m.etats : [],
+    intensite: m.intensite,
+    contexte: m.contexte
+  }))
+}
+
+export async function saveJournalMoments(userId, moments) {
+  if (!Array.isArray(moments)) return
+  const rows = moments.map(m => ({
+    user_id: userId,
+    date: m.date,
+    titre: m.titre,
+    texte: m.texte || null,
+    etats: Array.isArray(m.etats) ? m.etats : [],
+    intensite: m.intensite || null,
+    contexte: m.contexte || null,
+    updated_at: new Date().toISOString()
+  }))
+  await safeReplace('journal_moments', userId, rows)
+}
+
 // ─── ENTRAINEMENT SETTINGS ────────────────────────────────────────────────────
 export async function loadEntrainementSettings(userId) {
   const { data, error } = await supabase
