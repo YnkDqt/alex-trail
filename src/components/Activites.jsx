@@ -12,6 +12,7 @@ function Activites({ activites, setActivites, seances, setSeances }) {
   const [sortDir,   setSortDir]   = useState(-1);
   const [copied,    setCopied]    = useState(null);
   const [linkAct,   setLinkAct]   = useState(null);
+  const [ressentiPop, setRessentiPop] = useState(null); // {actId, field, anchorRect}
   const [isMobile,  setIsMobile]  = useState(typeof window !== "undefined" && window.innerWidth <= 768);
   const activitesRef = useRef();
 
@@ -41,6 +42,24 @@ function Activites({ activites, setActivites, seances, setSeances }) {
   const updAct = (id,k,v) => setActivites(as=>as.map(a=>a.id===id?{...a,[k]:v}:a));
   const delAct = (id)    => setActivites(as=>as.filter(a=>a.id!==id));
 
+  const addJourOff = () => {
+    const now = new Date();
+    const date = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+    const dateHeure = `${date} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}:${String(now.getSeconds()).padStart(2,"0")}`;
+    const newAct = {
+      id: Date.now() + Math.random(),
+      date,
+      dateHeure,
+      type: "Repos",
+      titre: "Jour off",
+      statut: "",
+      distance: "", duree: "", fcMoy: "", fcMax: "", dp: "", calories: "",
+      z1: 0, z2: 0, z3: 0, z4: 0, z5: 0,
+      forme: null, plaisir: null, rpe: null, noteRessenti: ""
+    };
+    setActivites(as => [newAct, ...as]);
+  };
+
   const filtered = useMemo(()=>{
     let list=[...activites];
     if(search) list=list.filter(a=>
@@ -69,6 +88,7 @@ function Activites({ activites, setActivites, seances, setSeances }) {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:8}}>
         <PageTitle sub={`${activites.length} activité(s) · Cliquer sur l'ID pour le copier, puis le coller dans Programme`}>Activités</PageTitle>
         <div style={{display:"flex",gap:8}}>
+          <Btn variant="ghost" size="sm" onClick={addJourOff}>+ Jour off</Btn>
           <input ref={activitesRef} type="file" accept=".csv" style={{display:"none"}} onChange={handleImport}/>
           <Btn variant="sage" size="sm" onClick={()=>activitesRef.current?.click()}>⬆ Import Garmin CSV</Btn>
         </div>
@@ -99,10 +119,14 @@ function Activites({ activites, setActivites, seances, setSeances }) {
           { key: "z3",         label: "Z3%",               w: "48px",  hideMobile: true  },
           { key: "z4",         label: "Z4%",               w: "48px",  hideMobile: true  },
           { key: "z5",         label: "Z5%",               w: "48px",  hideMobile: true  },
+          { key: "forme",      label: "Forme",             w: "60px",  hideMobile: false },
+          { key: "plaisir",    label: "Plaisir",           w: "60px",  hideMobile: false },
+          { key: "rpe",        label: "RPE",               w: "60px",  hideMobile: true  },
+          { key: "noteRessenti", label: "Note",            w: "60px",  hideMobile: true  },
           { key: "",           label: "",                  w: "40px",  hideMobile: false }, // colonne supprimer
         ];
         const visibleCols = isMobile ? ALL_COLS.filter(c => !c.hideMobile) : ALL_COLS;
-        const minWidth = isMobile ? 650 : 1200;
+        const minWidth = isMobile ? 770 : 1440;
 
         return (
           <ScrollableTable
@@ -188,6 +212,18 @@ function Activites({ activites, setActivites, seances, setSeances }) {
                         style={{fontSize:11,padding:"2px 4px",border:`1px solid ${C.border}`,borderRadius:4,width:"100%",textAlign:"center",background:C.bg,fontFamily:"'DM Mono',monospace"}}/>
                     </ScrollableCell>
                   ))}
+                  {/* Cellules ressenti */}
+                  {[
+                    {field:"forme",   hide:false},
+                    {field:"plaisir", hide:false},
+                    {field:"rpe",     hide:true},
+                    {field:"noteRessenti", hide:true},
+                  ].filter(({hide}) => !isMobile || !hide).map(({field}) => (
+                    <ScrollableCell key={field} align="center" style={{padding:"4px",borderRight:`1px solid ${C.border}`}}>
+                      <RessentiCell value={a[field]} field={field}
+                        onClick={(rect) => setRessentiPop({ actId: a.id, field, anchorRect: rect })}/>
+                    </ScrollableCell>
+                  ))}
                   {/* Suppression */}
                   <ScrollableCell align="center" style={{padding:"8px 4px"}}>
                     <button onClick={()=>delAct(a.id)} style={{background:"none",border:"none",cursor:"pointer",color:C.stoneDark,fontSize:11,padding:0}}>✕</button>
@@ -199,6 +235,121 @@ function Activites({ activites, setActivites, seances, setSeances }) {
         );
       })()}
       <LinkModal linkAct={linkAct} seances={seances} setSeances={setSeances} onClose={()=>setLinkAct(null)}/>
+      <RessentiPopover pop={ressentiPop} activites={activites} updAct={updAct} onClose={()=>setRessentiPop(null)}/>
+    </div>
+  );
+}
+
+// ─── RESSENTI : SCALES & POPOVER ──────────────────────────────────────────────
+const RESSENTI_SCALES = {
+  forme:   { label:"Forme",    emojis:["😩","😕","😐","🙂","😄"], legend:["Cassé","Faible","Normal","Bien","Frais"] },
+  plaisir: { label:"Plaisir",  emojis:["😖","😒","😐","😊","🤩"], legend:["Subi","Mitigé","OK","Bon","Kiffé"] },
+  rpe:     { label:"Difficulté perçue", emojis:["🟢","🟡","🟠","🔴","🟣"], legend:["Très facile","Facile","Modéré","Dur","Max"] },
+};
+
+function RessentiCell({ value, field, onClick }) {
+  const isNote = field === "noteRessenti";
+  const handle = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    onClick(rect);
+  };
+  if (isNote) {
+    const hasNote = value && value.trim().length > 0;
+    return (
+      <button onClick={handle} title={hasNote ? value : "Ajouter une note"}
+        style={{background:"none",border:"none",cursor:"pointer",fontSize:14,padding:"4px 6px",
+          color:hasNote?C.forest:C.muted,opacity:hasNote?1:0.4}}>
+        {hasNote ? "✎" : "+"}
+      </button>
+    );
+  }
+  const scale = RESSENTI_SCALES[field];
+  if (value != null && value >= 1 && value <= 5) {
+    return (
+      <button onClick={handle} title={scale.legend[value-1]}
+        style={{background:"none",border:"none",cursor:"pointer",fontSize:16,padding:"2px 4px",lineHeight:1}}>
+        {scale.emojis[value-1]}
+      </button>
+    );
+  }
+  return (
+    <button onClick={handle} title={`Saisir ${scale.label.toLowerCase()}`}
+      style={{background:"none",border:"none",cursor:"pointer",fontSize:14,padding:"4px 6px",color:C.muted,opacity:0.4}}>
+      +
+    </button>
+  );
+}
+
+function RessentiPopover({ pop, activites, updAct, onClose }) {
+  if (!pop) return null;
+  const act = activites.find(a => a.id === pop.actId);
+  if (!act) return null;
+  const { field, anchorRect } = pop;
+  const isNote = field === "noteRessenti";
+  const scale = RESSENTI_SCALES[field];
+
+  // Position : sous la cellule, centrée. Si dépasse en bas, on place au-dessus.
+  const popW = isNote ? 280 : 240;
+  const popH = isNote ? 140 : 80;
+  let left = anchorRect.left + anchorRect.width/2 - popW/2;
+  let top = anchorRect.bottom + 6;
+  if (top + popH > window.innerHeight - 10) top = anchorRect.top - popH - 6;
+  if (left < 10) left = 10;
+  if (left + popW > window.innerWidth - 10) left = window.innerWidth - popW - 10;
+
+  const setVal = (v) => { updAct(act.id, field, v); onClose(); };
+  const clear = () => { updAct(act.id, field, isNote ? "" : null); onClose(); };
+
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:9998,background:"transparent"}}>
+      <div onClick={e=>e.stopPropagation()} style={{
+        position:"fixed", left, top, width:popW,
+        background:C.white, borderRadius:12, border:`1px solid ${C.border}`,
+        boxShadow:"0 8px 24px rgba(0,0,0,0.12)", padding:"12px 14px"
+      }}>
+        <div style={{fontSize:11,fontWeight:600,color:C.inkLight,marginBottom:8,textTransform:"uppercase",letterSpacing:0.5}}>
+          {isNote ? "Note ressenti" : scale.label}
+        </div>
+        {isNote ? (
+          <NoteEditor initial={act.noteRessenti||""} onSave={setVal} onClear={clear}/>
+        ) : (
+          <div style={{display:"flex",gap:6,justifyContent:"space-between"}}>
+            {scale.emojis.map((emoji, i) => {
+              const v = i+1;
+              const selected = act[field] === v;
+              return (
+                <button key={v} onClick={()=>setVal(v)} title={scale.legend[i]}
+                  style={{flex:1,fontSize:22,padding:"6px 4px",border:`1px solid ${selected?C.forest:C.border}`,
+                    borderRadius:8,background:selected?C.forestPale:C.bg,cursor:"pointer",lineHeight:1}}>
+                  {emoji}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {!isNote && act[field] != null && (
+          <button onClick={clear} style={{marginTop:8,fontSize:11,color:C.muted,background:"none",
+            border:"none",cursor:"pointer",padding:0,textDecoration:"underline"}}>Effacer</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NoteEditor({ initial, onSave, onClear }) {
+  const [text, setText] = useState(initial);
+  return (
+    <div>
+      <textarea value={text} onChange={e=>setText(e.target.value)} autoFocus
+        placeholder="1-2 phrases sur ce que tu as ressenti…" maxLength={500}
+        style={{width:"100%",minHeight:70,padding:"8px",fontSize:12,border:`1px solid ${C.border}`,
+          borderRadius:6,fontFamily:"inherit",resize:"vertical",background:C.bg}}/>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,gap:8}}>
+        <button onClick={onClear} style={{fontSize:11,color:C.muted,background:"none",border:"none",
+          cursor:"pointer",padding:0,textDecoration:"underline"}}>Effacer</button>
+        <button onClick={()=>onSave(text)} style={{fontSize:11,padding:"5px 12px",background:C.forest,
+          color:C.white,border:"none",borderRadius:6,cursor:"pointer",fontWeight:500}}>Valider</button>
+      </div>
     </div>
   );
 }

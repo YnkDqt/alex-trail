@@ -308,6 +308,10 @@ export async function loadActivities(userId) {
     z5: a.z5 != null ? a.z5 : 0,
     notes: a.notes,
     gpxData: a.gpx_data,
+    forme: a.forme,
+    plaisir: a.plaisir,
+    rpe: a.rpe,
+    noteRessenti: a.note_ressenti,
     // Alias pour compatibilité
     kmGarmin: a.distance,
     dpGarmin: a.elevation,
@@ -346,6 +350,10 @@ export async function saveActivities(userId, activities) {
     z5: cleanZone(a.z5),
     notes: a.notes || a.commentaire,
     gpx_data: a.gpxData || null,
+    forme: a.forme != null ? a.forme : null,
+    plaisir: a.plaisir != null ? a.plaisir : null,
+    rpe: a.rpe != null ? a.rpe : null,
+    note_ressenti: a.noteRessenti || null,
     updated_at: new Date().toISOString()
   }))
   await safeReplace('activities', userId, rows)
