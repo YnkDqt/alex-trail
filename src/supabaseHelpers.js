@@ -599,7 +599,8 @@ export async function loadJournalMoments(userId) {
     texte: m.texte || "",
     etats: Array.isArray(m.etats) ? m.etats : [],
     intensite: m.intensite,
-    contexte: m.contexte
+    contexte: m.contexte,
+    objectifs: Array.isArray(m.objectifs) ? m.objectifs : []
   }))
 }
 
@@ -613,6 +614,7 @@ export async function saveJournalMoments(userId, moments) {
     etats: Array.isArray(m.etats) ? m.etats : [],
     intensite: m.intensite || null,
     contexte: m.contexte || null,
+    objectifs: Array.isArray(m.objectifs) ? m.objectifs.map(String) : [],
     updated_at: new Date().toISOString()
   }))
   await safeReplace('journal_moments', userId, rows)

@@ -306,7 +306,7 @@ export default function AppLayout({
           {view==="objectifs" && <Objectifs objectifs={objectifs} setObjectifs={setObjectifs} seances={seances} activites={activites} vfcData={vfcData} poids={poids} profil={profil} produits={produits} recettes={recettes} allData={allData} setView={setView}/>}
           {view==="coach" && <MonCoachIA seances={seances} setSeances={setSeances} activites={activites} sommeil={sommeil} vfcData={vfcData} poids={poids} objectifs={objectifs} planningType={planningType} produits={produits} recettes={recettes} journalNutri={journalNutri} activityTypes={activityTypes}/>}
           {view==="activites" && <Activites activites={activites} setActivites={setActivites} seances={seances} setSeances={setSeances}/>}
-          {view==="journal" && <Journal journalMoments={journalMoments} setJournalMoments={setJournalMoments} race={race} courses={courses} isMobile={isMobile}/>}
+          {view==="journal" && <Journal journalMoments={journalMoments} setJournalMoments={setJournalMoments} objectifs={objectifs} race={race} isMobile={isMobile}/>}
           {view==="gut_training" && <Nutrition produits={produits} setProduits={setProduits} recettes={recettes} setRecettes={setRecettes} seances={seances} setSeances={setSeances} activites={activites}/>}
           {view==="entrainement" && (
             <div>

@@ -42,16 +42,17 @@ const emptyMoment = () => ({
   texte: "",
   etats: [],
   intensite: "",
-  contexte: ""
+  contexte: "",
+  objectifs: []
 });
 
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────────────────
-export default function Journal({ journalMoments, setJournalMoments, race, courses, isMobile }) {
+export default function Journal({ journalMoments, setJournalMoments, objectifs, race, isMobile }) {
   const [search, setSearch]       = useState("");
   const [fEtat, setFEtat]         = useState("");
   const [fIntensite, setFInt]     = useState("");
   const [fContexte, setFCtx]      = useState("");
-  const [fCourse, setFCourse]     = useState("");
+  const [fObjectif, setFObjectif] = useState("");
   const [view, setView]           = useState("phases"); // "phases" | "chrono"
 
   const [modal, setModal]   = useState(false);
@@ -90,14 +91,20 @@ export default function Journal({ journalMoments, setJournalMoments, race, cours
     if (fEtat)      list = list.filter(m => (m.etats||[]).includes(fEtat));
     if (fIntensite) list = list.filter(m => m.intensite === fIntensite);
     if (fContexte)  list = list.filter(m => m.contexte === fContexte);
-    if (fCourse) {
-      // Filtre par course = fenêtre J-90 à J+7 autour de la raceDate
-      const c = courses?.find(c => String(c.id) === String(fCourse));
-      const raceDate = c?.race?.date;
-      if (raceDate) {
-        const min = new Date(raceDate); min.setDate(min.getDate() - 90);
-        const max = new Date(raceDate); max.setDate(max.getDate() + 7);
+    if (fObjectif) {
+      const obj = (objectifs||[]).find(o => String(o.id) === String(fObjectif));
+      if (obj) {
+        // Manuel prioritaire : tout Moment lié explicitement à l'objectif est inclus.
+        // Fallback fenêtre : Moment non lié dont la date tombe dans [date - 90j, date + 7j].
+        let min = null, max = null;
+        if (obj.date) {
+          min = new Date(obj.date); min.setDate(min.getDate() - 90);
+          max = new Date(obj.date); max.setDate(max.getDate() + 7);
+        }
         list = list.filter(m => {
+          const lieManuel = (m.objectifs||[]).map(String).includes(String(obj.id));
+          if (lieManuel) return true;
+          if (!min || !max) return false;
           const d = new Date(m.date);
           return d >= min && d <= max;
         });
@@ -105,7 +112,7 @@ export default function Journal({ journalMoments, setJournalMoments, race, cours
     }
     list.sort((a,b) => (a.date < b.date ? 1 : -1));
     return list;
-  }, [journalMoments, search, fEtat, fIntensite, fContexte, fCourse, courses]);
+  }, [journalMoments, search, fEtat, fIntensite, fContexte, fObjectif, objectifs]);
 
   // Groupement par mois (vue Phases)
   const grouped = useMemo(() => {
@@ -130,10 +137,12 @@ export default function Journal({ journalMoments, setJournalMoments, race, cours
         <input value={search} onChange={e=>setSearch(e.target.value)}
           placeholder="Rechercher dans titres et textes..."
           style={{flex:"1 1 240px",minWidth:200,padding:"7px 12px",borderRadius:8,border:`1px solid ${C.border}`,fontSize:12,background:C.bg}}/>
-        <select value={fCourse} onChange={e=>setFCourse(e.target.value)}
+        <select value={fObjectif} onChange={e=>setFObjectif(e.target.value)}
           style={selStyle}>
-          <option value="">Toutes les courses</option>
-          {(courses||[]).map(c => <option key={c.id} value={c.id}>{c.name || c.race?.nom || `Course ${c.id}`}</option>)}
+          <option value="">Tous les objectifs</option>
+          {[...(objectifs||[])].sort((a,b)=>(a.date||"").localeCompare(b.date||"")).map(o => (
+            <option key={o.id} value={o.id}>{o.nom}{o.date?` · ${fmtDate(o.date)}`:""}</option>
+          ))}
         </select>
         <select value={fEtat} onChange={e=>setFEtat(e.target.value)} style={selStyle}>
           <option value="">Tous les états</option>
@@ -184,7 +193,7 @@ export default function Journal({ journalMoments, setJournalMoments, race, cours
                   <div style={{fontSize:11,color:C.muted}}>{moments.length} moment{moments.length>1?"s":""}{summary.length?` · ${summary.join(", ")}`:""}</div>
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                  {moments.map(m => <MomentCard key={m.id} moment={m} onEdit={()=>openEdit(m)} onDelete={()=>setConfirmDel(m.id)}/>)}
+                  {moments.map(m => <MomentCard key={m.id} moment={m} objectifs={objectifs} onEdit={()=>openEdit(m)} onDelete={()=>setConfirmDel(m.id)}/>)}
                 </div>
               </div>
             );
@@ -192,12 +201,12 @@ export default function Journal({ journalMoments, setJournalMoments, race, cours
         </div>
       ) : (
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {filtered.map(m => <MomentCard key={m.id} moment={m} onEdit={()=>openEdit(m)} onDelete={()=>setConfirmDel(m.id)}/>)}
+          {filtered.map(m => <MomentCard key={m.id} moment={m} objectifs={objectifs} onEdit={()=>openEdit(m)} onDelete={()=>setConfirmDel(m.id)}/>)}
         </div>
       )}
 
       {/* Modal de saisie */}
-      <MomentModal open={modal} form={form} setForm={setForm}
+      <MomentModal open={modal} form={form} setForm={setForm} objectifs={objectifs}
         onClose={()=>setModal(false)} onSave={save}
         onDelete={form.id ? () => { setModal(false); setConfirmDel(form.id); } : null}/>
 
@@ -210,10 +219,13 @@ export default function Journal({ journalMoments, setJournalMoments, race, cours
 const selStyle = {padding:"7px 10px",borderRadius:8,border:`1px solid ${C.border}`,fontSize:12,background:C.white,cursor:"pointer",fontFamily:"inherit"};
 
 // ─── CARTE MOMENT ─────────────────────────────────────────────────────────────
-function MomentCard({ moment, onEdit, onDelete }) {
+function MomentCard({ moment, objectifs, onEdit, onDelete }) {
   const intensite = INTENSITES.find(i => i.key === moment.intensite);
   const contexte = CONTEXTES.find(c => c.key === moment.contexte);
   const badge = moment.intensite ? intensiteBadge(moment.intensite) : null;
+  const linkedObjs = (moment.objectifs||[])
+    .map(oid => (objectifs||[]).find(o => String(o.id) === String(oid)))
+    .filter(Boolean);
 
   return (
     <div onClick={onEdit} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px",cursor:"pointer",transition:"background .15s"}}
@@ -224,6 +236,11 @@ function MomentCard({ moment, onEdit, onDelete }) {
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
             <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:C.muted}}>{fmtDate(moment.date)}</span>
             {contexte && <span style={{fontSize:10,color:C.muted}}>· {contexte.icon} {contexte.label}</span>}
+            {linkedObjs.map(o => (
+              <span key={o.id} style={{background:C.summitPale,color:C.summit,fontSize:10,padding:"2px 7px",borderRadius:4,fontWeight:500}}>
+                🏔 {o.nom}
+              </span>
+            ))}
             {intensite && badge && (
               <span style={{background:badge.bg,color:badge.color,fontSize:9,fontWeight:600,padding:"2px 7px",borderRadius:10,textTransform:"uppercase",letterSpacing:0.4}}>
                 {intensite.label}
@@ -263,7 +280,7 @@ function MomentCard({ moment, onEdit, onDelete }) {
 }
 
 // ─── MODAL CRÉATION / ÉDITION ─────────────────────────────────────────────────
-function MomentModal({ open, form, setForm, onClose, onSave, onDelete }) {
+function MomentModal({ open, form, setForm, objectifs, onClose, onSave, onDelete }) {
   const upd = (k, v) => setForm(f => ({...f, [k]: v}));
   const toggleEtat = (etat) => {
     setForm(f => {
@@ -273,6 +290,14 @@ function MomentModal({ open, form, setForm, onClose, onSave, onDelete }) {
       return {...f, etats: [...f.etats, etat]};
     });
   };
+  const toggleObjectif = (oid) => {
+    setForm(f => {
+      const ids = (f.objectifs||[]).map(String);
+      const sid = String(oid);
+      return {...f, objectifs: ids.includes(sid) ? ids.filter(x => x !== sid) : [...ids, sid]};
+    });
+  };
+  const sortedObjs = [...(objectifs||[])].sort((a,b)=>(a.date||"").localeCompare(b.date||""));
 
   const footer = (
     <>
@@ -331,6 +356,24 @@ function MomentModal({ open, form, setForm, onClose, onSave, onDelete }) {
           </div>
         </Field>
       </div>
+
+      {sortedObjs.length > 0 && (
+        <div style={{marginBottom:14}}>
+          <Field label="Lié à un objectif (optionnel, multi-sélection)">
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {sortedObjs.map(o => {
+                const sel = (form.objectifs||[]).map(String).includes(String(o.id));
+                return (
+                  <button key={o.id} onClick={()=>toggleObjectif(o.id)}
+                    style={{...chipStyle, background:sel?C.summitPale:C.white, borderColor:sel?C.summit:C.border, color:sel?C.summit:C.muted, fontWeight:sel?500:400}}>
+                    🏔 {o.nom}{o.date?` · ${fmtDate(o.date)}`:""}
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
+        </div>
+      )}
 
       <div style={{marginBottom:14}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:6}}>
