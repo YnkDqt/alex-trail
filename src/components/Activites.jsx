@@ -288,14 +288,17 @@ function RessentiPopover({ pop, activites, updAct, onClose }) {
   const isNote = field === "noteRessenti";
   const scale = RESSENTI_SCALES[field];
 
-  // Position : sous la cellule, centrée. Si dépasse en bas, on place au-dessus.
-  const popW = isNote ? 280 : 240;
-  const popH = isNote ? 140 : 80;
-  let left = anchorRect.left + anchorRect.width/2 - popW/2;
-  let top = anchorRect.bottom + 6;
-  if (top + popH > window.innerHeight - 10) top = anchorRect.top - popH - 6;
-  if (left < 10) left = 10;
-  if (left + popW > window.innerWidth - 10) left = window.innerWidth - popW - 10;
+  // Position : ancré à gauche de la cellule (s'ouvre vers le centre du tableau).
+  // Si pas la place à gauche (cellule trop près du bord gauche de la fenêtre),
+  // on bascule à droite. On centre verticalement sur la cellule.
+  const popW = isNote ? 280 : 280;
+  const popH = isNote ? 140 : 70;
+  const margin = 8;
+  let left = anchorRect.left - popW - margin;
+  if (left < 10) left = anchorRect.right + margin; // fallback à droite
+  let top = anchorRect.top + anchorRect.height/2 - popH/2;
+  if (top < 10) top = 10;
+  if (top + popH > window.innerHeight - 10) top = window.innerHeight - popH - 10;
 
   const setVal = (v) => { updAct(act.id, field, v); onClose(); };
   const clear = () => { updAct(act.id, field, isNote ? "" : null); onClose(); };
